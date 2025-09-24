@@ -181,3 +181,85 @@ func TestParseIPWhitelist(t *testing.T) {
 		}
 	}
 }
+
+func TestBypassValidator_CookieSupport(t *testing.T) {
+	config := BypassConfig{
+		SecretKey:     "test-secret-key",
+		TokenExpiry:   time.Minute * 5,
+		BypassHeader:  "X-RateLimit-Bypass",
+		BypassCookie:  "bypass-token",
+		IPWhitelist:   []string{},
+	}
+
+	validator := NewBypassValidator(config)
+
+	// Generate a valid token
+	token, err := validator.GenerateToken()
+	if err != nil {
+		t.Fatalf("Failed to generate token: %v", err)
+	}
+
+	// Test bypass with cookie
+	req, _ := http.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "10.0.0.1:12345"
+	cookie := &http.Cookie{
+		Name:  config.BypassCookie,
+		Value: token,
+	}
+	req.AddCookie(cookie)
+
+	if !validator.ValidateToken(req) {
+		t.Fatal("Valid token in cookie was not accepted")
+	}
+
+	if !validator.ShouldBypass(req) {
+		t.Fatal("Request with valid cookie token should bypass")
+	}
+
+	// Test bypass with both header and cookie (header should take precedence)
+	req.Header.Set(config.BypassHeader, "invalid-token")
+	if validator.ValidateToken(req) {
+		t.Fatal("Invalid token in header should not be accepted even with valid cookie")
+	}
+
+	// Test bypass with only cookie when header is empty
+	req.Header.Del(config.BypassHeader)
+	if !validator.ValidateToken(req) {
+		t.Fatal("Valid token in cookie should be accepted when header is empty")
+	}
+
+	// Test with invalid cookie token
+	invalidCookie := &http.Cookie{
+		Name:  config.BypassCookie,
+		Value: "invalid-token",
+	}
+	req2, _ := http.NewRequest("GET", "/test", nil)
+	req2.RemoteAddr = "10.0.0.1:12345"
+	req2.AddCookie(invalidCookie)
+
+	if validator.ValidateToken(req2) {
+		t.Fatal("Invalid token in cookie should not be accepted")
+	}
+
+	if validator.ShouldBypass(req2) {
+		t.Fatal("Request with invalid cookie token should not bypass")
+	}
+
+	// Test without bypass cookie configuration
+	configNoCookie := BypassConfig{
+		SecretKey:     "test-secret-key",
+		TokenExpiry:   time.Minute * 5,
+		BypassHeader:  "X-RateLimit-Bypass",
+		BypassCookie:  "", // No cookie configured
+		IPWhitelist:   []string{},
+	}
+	validatorNoCookie := NewBypassValidator(configNoCookie)
+
+	req3, _ := http.NewRequest("GET", "/test", nil)
+	req3.RemoteAddr = "10.0.0.1:12345"
+	req3.AddCookie(cookie) // Same valid token in cookie
+
+	if validatorNoCookie.ValidateToken(req3) {
+		t.Fatal("Token in cookie should be ignored when no bypass cookie is configured")
+	}
+}

@@ -229,3 +229,182 @@ attacker likely can workaround all of your configurations. On the
 other hand there is always a pattern in attacks, and you are more
 likely being able to find the pattern and mitigate the attack, if you
 have a powerful tool like the provided `clusterClientRatelimit`.
+
+## Rate Limit Bypass
+
+All rate limit filters support optional bypass functionality that allows certain requests to skip rate limiting entirely. This is useful for:
+
+- Admin requests that need guaranteed access
+- Health checks and monitoring that shouldn't be rate limited
+- Trusted internal services
+- Emergency access scenarios
+- Load testing where you need to bypass rate limits to test actual backend capacity
+
+The bypass functionality supports three methods:
+
+1. **JWT Token-based bypass**: Requests with valid JWT tokens in a specified header or cookie
+2. **IP Whitelist bypass**: Requests from whitelisted IP addresses or CIDR ranges
+3. **Cookie-based bypass**: Requests with valid JWT tokens in a specified cookie (alternative to headers)
+
+### Bypass Parameters
+
+All rate limit filters (`ratelimit`, `clientRatelimit`, `clusterRatelimit`, `clusterClientRatelimit`) accept optional bypass parameters:
+
+1. **bypassHeader** (string): HTTP header name containing the bypass token (e.g., "X-RateLimit-Bypass")
+2. **secretKey** (string): Secret key for JWT token validation (should be kept secure)
+3. **tokenExpiry** (duration): How long bypass tokens remain valid (e.g., "5m", "1h")
+4. **ipWhitelist** (string, optional): Comma-separated list of IP addresses or CIDR ranges
+
+### Service Rate Limit with Bypass
+
+```
+ratelimit(10, "1m", 429, "X-Bypass-Token", "secret-key", "5m")
+```
+
+This allows 10 requests per minute, but requests with a valid JWT token in the `X-Bypass-Token` header will bypass the limit.
+
+With IP whitelist:
+```
+ratelimit(10, "1m", 429, "X-Bypass-Token", "secret-key", "5m", "127.0.0.1,192.168.1.0/24")
+```
+
+### Client Rate Limit with Bypass
+
+```
+clientRatelimit(10, "1m", "X-Bypass-Token", "secret-key", "5m")
+```
+
+With custom lookuper and bypass:
+```
+clientRatelimit(10, "1m", "Authorization", "X-Bypass-Token", "secret-key", "5m")
+```
+
+### Cluster Rate Limit with Bypass
+
+```
+clusterRatelimit("groupA", 100, "1m", 429, "X-Bypass-Token", "secret-key", "10m")
+```
+
+```
+clusterClientRatelimit("groupB", 20, "1h", "Authorization", "X-Bypass-Token", "secret-key", "5m")
+```
+
+### JWT Token Generation
+
+Bypass tokens are JWT tokens signed with HMAC-SHA256. You can generate tokens using the `ratelimitBypassGenerateToken()` filter or create them programmatically using the `ratelimitbypass` package.
+
+Example route for token generation:
+```
+admin_token: Path("/admin/bypass-token")
+  -> ratelimitBypassGenerateToken()
+  -> <shunt>;
+```
+
+### Token Validation
+
+You can validate tokens using the `ratelimitBypassValidateToken()` filter:
+
+```
+validate: Path("/admin/validate-token")
+  -> ratelimitBypassValidateToken()
+  -> <shunt>;
+```
+
+### Load Testing Usage
+
+The bypass functionality is particularly valuable for load testing scenarios where you need to test the actual capacity of your backend services without being limited by rate limiting policies.
+
+Example load testing setup:
+```
+# Production route with rate limiting
+api: Path("/api")
+  -> clientRatelimit(100, "1m", "X-Load-Test-Token", "load-test-secret", "1h")
+  -> "https://api.backend.net";
+
+# Token generation endpoint for load testing
+load_test_token: Path("/internal/load-test-token")
+  -> ratelimitBypassGenerateToken()
+  -> <shunt>;
+```
+
+Load testing tools can:
+1. Obtain a bypass token from `/internal/load-test-token`
+2. Include the token in the `X-Load-Test-Token` header
+3. Execute load tests without rate limit interference
+4. Measure true backend capacity and performance
+
+### Global Bypass Configuration
+
+Instead of configuring bypass parameters individually for each rate limit filter, you can set global bypass configuration via command line arguments when starting Skipper. This approach is especially useful for consistent bypass behavior across all rate limits in your deployment.
+
+#### Global Configuration Flags
+
+- `--ratelimit-bypass-secret-key` - Global secret key for JWT token validation
+- `--ratelimit-bypass-token-expiry` - Global token expiry duration (e.g., "5m", "1h", "24h")
+- `--ratelimit-bypass-header` - Global HTTP header name for bypass tokens (default: "X-RateLimit-Bypass")
+- `--ratelimit-bypass-cookie` - Global HTTP cookie name for bypass tokens
+- `--ratelimit-bypass-ip-whitelist` - Global comma-separated list of IP addresses or CIDR ranges
+
+#### Example Global Configuration
+
+```bash
+skipper \
+  --ratelimit-bypass-secret-key="your-global-secret-key" \
+  --ratelimit-bypass-token-expiry="1h" \
+  --ratelimit-bypass-header="X-Bypass-Token" \
+  --ratelimit-bypass-cookie="bypass-token" \
+  --ratelimit-bypass-ip-whitelist="127.0.0.1,192.168.0.0/16,10.0.0.0/8" \
+  --enable-ratelimits \
+  --routes-file=routes.eskip
+```
+
+#### Usage with Global Configuration
+
+When global bypass configuration is set, all rate limit filters automatically inherit these settings:
+
+```
+# These filters will use global bypass configuration
+api_v1: Path("/api/v1")
+  -> clientRatelimit(100, "1m")
+  -> "https://api.backend.net";
+
+api_v2: Path("/api/v2")
+  -> clusterRatelimit("api-group", 500, "1h")
+  -> "https://api.backend.net";
+```
+
+You can still override global settings by providing local bypass parameters:
+
+```
+# This filter overrides global configuration
+special_api: Path("/special")
+  -> clientRatelimit(10, "1m", "X-Special-Bypass", "special-secret", "30m")
+  -> "https://special.backend.net";
+```
+
+#### Precedence
+
+Local bypass configuration always takes precedence over global configuration:
+1. **Local bypass parameters** - Highest priority (specified in individual filter arguments)
+2. **Global bypass configuration** - Used when no local bypass parameters are provided
+3. **No bypass** - Default behavior when neither local nor global bypass is configured
+
+#### Token Location Precedence
+
+When both bypass header and bypass cookie are configured, the token is searched in this order:
+1. **HTTP Header** - Checked first (if configured)
+2. **HTTP Cookie** - Checked if no token found in header (if configured)
+
+This allows for flexible deployment scenarios where different clients can use different authentication methods.
+
+### Security Considerations
+
+- **Keep secret keys secure**: Store bypass secret keys in environment variables or secure configuration
+- **Use appropriate token expiry**: Balance security with usability - shorter expiry is more secure
+- **Limit IP whitelist scope**: Only whitelist trusted networks and specific IP addresses
+- **Monitor bypass usage**: Log and monitor when bypass functionality is used
+- **Rotate secret keys regularly**: Implement key rotation for long-running deployments
+- **Secure load test endpoints**: Ensure token generation endpoints are only accessible from trusted networks
+- **Use different secrets for different environments**: Don't reuse production bypass secrets in test environments
+
+The bypass functionality adds minimal overhead when not used, and bypass validation is fast and efficient.

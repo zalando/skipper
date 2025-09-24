@@ -11,6 +11,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/ratelimit"
+	"github.com/zalando/skipper/ratelimitbypass"
 )
 
 func TestArgs(t *testing.T) {
@@ -489,6 +490,301 @@ func TestGetKeyShards(t *testing.T) {
 			if got := getKeyShards(tc.maxHits, tc.maxKeyShards); got != tc.want {
 				t.Errorf("expected %v, got %v", tc.want, got)
 			}
+		})
+	}
+}
+
+// Mock rate limiter that always denies requests (for bypass testing)
+type denyAllLimit struct{}
+
+func (d *denyAllLimit) Allow(context.Context, string) bool { return false }
+func (d *denyAllLimit) RetryAfter(string) int              { return 60 }
+
+// Mock provider that returns denyAllLimit
+type denyAllProvider struct{}
+
+func (d *denyAllProvider) get(s ratelimit.Settings) limit {
+	if s.Type == ratelimit.DisableRatelimit || s.Type == ratelimit.NoRatelimit {
+		return nil
+	}
+	return &denyAllLimit{}
+}
+
+func TestRateLimitBypass(t *testing.T) {
+	provider := &denyAllProvider{}
+
+	testCases := []struct {
+		name         string
+		filterSpec   func(RatelimitProvider) filters.Spec
+		args         []interface{}
+		setupRequest func(*http.Request)
+		shouldBypass bool
+		description  string
+	}{
+		{
+			name:       "service ratelimit with valid bypass token",
+			filterSpec: NewRatelimit,
+			args:       []interface{}{10, "1s", 429, "X-Bypass-Token", "test-secret", "5m"},
+			setupRequest: func(req *http.Request) {
+				// Create a bypass validator to generate a valid token
+				config := ratelimitbypass.BypassConfig{
+					SecretKey:    "test-secret",
+					TokenExpiry:  5 * time.Minute,
+					BypassHeader: "X-Bypass-Token",
+				}
+				validator := ratelimitbypass.NewBypassValidator(config)
+				token, _ := validator.GenerateToken()
+				req.Header.Set("X-Bypass-Token", token)
+			},
+			shouldBypass: true,
+			description:  "Valid bypass token should allow request through",
+		},
+		{
+			name:       "service ratelimit with invalid bypass token",
+			filterSpec: NewRatelimit,
+			args:       []interface{}{10, "1s", 429, "X-Bypass-Token", "test-secret", "5m"},
+			setupRequest: func(req *http.Request) {
+				req.Header.Set("X-Bypass-Token", "invalid-token")
+			},
+			shouldBypass: false,
+			description:  "Invalid bypass token should not allow request through",
+		},
+		{
+			name:       "service ratelimit with whitelisted IP",
+			filterSpec: NewRatelimit,
+			args:       []interface{}{10, "1s", 429, "X-Bypass-Token", "test-secret", "5m", "127.0.0.1"},
+			setupRequest: func(req *http.Request) {
+				req.RemoteAddr = "127.0.0.1:12345"
+			},
+			shouldBypass: true,
+			description:  "Whitelisted IP should allow request through",
+		},
+		{
+			name:       "client ratelimit with valid bypass token",
+			filterSpec: NewClientRatelimit,
+			args:       []interface{}{10, "1s", "X-Bypass-Token", "test-secret", "5m"},
+			setupRequest: func(req *http.Request) {
+				config := ratelimitbypass.BypassConfig{
+					SecretKey:    "test-secret",
+					TokenExpiry:  5 * time.Minute,
+					BypassHeader: "X-Bypass-Token",
+				}
+				validator := ratelimitbypass.NewBypassValidator(config)
+				token, _ := validator.GenerateToken()
+				req.Header.Set("X-Bypass-Token", token)
+			},
+			shouldBypass: true,
+			description:  "Valid bypass token should work with client rate limiter",
+		},
+		{
+			name:       "client ratelimit with lookuper and bypass",
+			filterSpec: NewClientRatelimit,
+			args:       []interface{}{10, "1s", "Authorization", "X-Bypass-Token", "test-secret", "5m"},
+			setupRequest: func(req *http.Request) {
+				config := ratelimitbypass.BypassConfig{
+					SecretKey:    "test-secret",
+					TokenExpiry:  5 * time.Minute,
+					BypassHeader: "X-Bypass-Token",
+				}
+				validator := ratelimitbypass.NewBypassValidator(config)
+				token, _ := validator.GenerateToken()
+				req.Header.Set("X-Bypass-Token", token)
+				req.Header.Set("Authorization", "Bearer test")
+			},
+			shouldBypass: true,
+			description:  "Bypass should work with custom lookuper",
+		},
+		{
+			name:       "cluster ratelimit with bypass",
+			filterSpec: NewClusterRateLimit,
+			args:       []interface{}{"test-group", 10, "1s", 429, "X-Bypass-Token", "test-secret", "5m"},
+			setupRequest: func(req *http.Request) {
+				config := ratelimitbypass.BypassConfig{
+					SecretKey:    "test-secret",
+					TokenExpiry:  5 * time.Minute,
+					BypassHeader: "X-Bypass-Token",
+				}
+				validator := ratelimitbypass.NewBypassValidator(config)
+				token, _ := validator.GenerateToken()
+				req.Header.Set("X-Bypass-Token", token)
+			},
+			shouldBypass: true,
+			description:  "Bypass should work with cluster rate limiter",
+		},
+		{
+			name:       "cluster client ratelimit with bypass and lookuper",
+			filterSpec: NewClusterClientRateLimit,
+			args:       []interface{}{"test-group", 10, "1s", "Authorization", "X-Bypass-Token", "test-secret", "5m"},
+			setupRequest: func(req *http.Request) {
+				config := ratelimitbypass.BypassConfig{
+					SecretKey:    "test-secret",
+					TokenExpiry:  5 * time.Minute,
+					BypassHeader: "X-Bypass-Token",
+				}
+				validator := ratelimitbypass.NewBypassValidator(config)
+				token, _ := validator.GenerateToken()
+				req.Header.Set("X-Bypass-Token", token)
+				req.Header.Set("Authorization", "Bearer test")
+			},
+			shouldBypass: true,
+			description:  "Bypass should work with cluster client rate limiter",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := tc.filterSpec(provider)
+			filter, err := spec.CreateFilter(tc.args)
+			if err != nil {
+				t.Fatalf("Failed to create filter: %v", err)
+			}
+
+			req := &http.Request{
+				Header:     make(http.Header),
+				RemoteAddr: "10.0.0.1:12345", // Default non-whitelisted IP
+			}
+			tc.setupRequest(req)
+
+			ctx := &filtertest.Context{
+				FRequest: req,
+			}
+
+			filter.Request(ctx)
+
+			if tc.shouldBypass {
+				if ctx.FResponse != nil {
+					t.Errorf("%s: Expected request to bypass rate limiting, but got response: %v", tc.description, ctx.FResponse)
+				}
+			} else {
+				if ctx.FResponse == nil {
+					t.Errorf("%s: Expected request to be rate limited, but no response was set", tc.description)
+				} else if ctx.FResponse.StatusCode != http.StatusTooManyRequests {
+					t.Errorf("%s: Expected 429 status code, got %d", tc.description, ctx.FResponse.StatusCode)
+				}
+			}
+		})
+	}
+}
+
+func TestBackwardCompatibility(t *testing.T) {
+	provider := &testLimit{
+		t: t,
+		expected: ratelimit.Settings{
+			Type:       ratelimit.ServiceRatelimit,
+			MaxHits:    10,
+			TimeWindow: 1 * time.Second,
+			Lookuper:   ratelimit.NewSameBucketLookuper(),
+		},
+	}
+
+	// Test that existing filters still work without bypass parameters
+	testCases := []struct {
+		name       string
+		filterSpec func(RatelimitProvider) filters.Spec
+		args       []interface{}
+	}{
+		{
+			name:       "service ratelimit basic args",
+			filterSpec: NewRatelimit,
+			args:       []interface{}{10, "1s"},
+		},
+		{
+			name:       "service ratelimit with status code",
+			filterSpec: NewRatelimit,
+			args:       []interface{}{10, "1s", 503},
+		},
+		{
+			name:       "client ratelimit basic args",
+			filterSpec: NewClientRatelimit,
+			args:       []interface{}{10, "1s"},
+		},
+		{
+			name:       "client ratelimit with lookuper",
+			filterSpec: NewClientRatelimit,
+			args:       []interface{}{10, "1s", "Authorization"},
+		},
+		{
+			name:       "cluster ratelimit basic args",
+			filterSpec: NewClusterRateLimit,
+			args:       []interface{}{"test-group", 10, "1s"},
+		},
+		{
+			name:       "cluster client ratelimit basic args",
+			filterSpec: NewClusterClientRateLimit,
+			args:       []interface{}{"test-group", 10, "1s"},
+		},
+		{
+			name:       "disable ratelimit no args",
+			filterSpec: NewDisableRatelimit,
+			args:       []interface{}{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var testProvider RatelimitProvider
+			if tc.name == "disable ratelimit no args" {
+				testProvider = &testLimit{
+					t: t,
+					expected: ratelimit.Settings{
+						Type: ratelimit.DisableRatelimit,
+					},
+				}
+			} else if tc.name == "cluster ratelimit basic args" || tc.name == "cluster client ratelimit basic args" {
+				expected := ratelimit.Settings{
+					MaxHits:    10,
+					TimeWindow: 1 * time.Second,
+				}
+				if tc.name == "cluster ratelimit basic args" {
+					expected.Type = ratelimit.ClusterServiceRatelimit
+					expected.Group = "test-group"
+					expected.Lookuper = ratelimit.NewSameBucketLookuper()
+				} else {
+					expected.Type = ratelimit.ClusterClientRatelimit
+					expected.Group = "test-group"
+					expected.CleanInterval = 10 * time.Second
+					expected.Lookuper = ratelimit.NewXForwardedForLookuper()
+				}
+				testProvider = &testLimit{t: t, expected: expected}
+			} else if tc.name == "client ratelimit basic args" || tc.name == "client ratelimit with lookuper" {
+				expected := ratelimit.Settings{
+					Type:          ratelimit.ClientRatelimit,
+					MaxHits:       10,
+					TimeWindow:    1 * time.Second,
+					CleanInterval: 10 * time.Second,
+				}
+				if tc.name == "client ratelimit with lookuper" {
+					expected.Lookuper = ratelimit.NewHeaderLookuper("Authorization")
+				} else {
+					expected.Lookuper = ratelimit.NewXForwardedForLookuper()
+				}
+				testProvider = &testLimit{t: t, expected: expected}
+			} else {
+				testProvider = provider
+			}
+
+			spec := tc.filterSpec(testProvider)
+			filter, err := spec.CreateFilter(tc.args)
+			if err != nil {
+				t.Fatalf("Failed to create filter with args %v: %v", tc.args, err)
+			}
+
+			if filter == nil {
+				t.Fatal("Filter is nil")
+			}
+
+			// Verify the filter works as expected (basic functionality test)
+			req := &http.Request{
+				Header: make(http.Header),
+			}
+			req.Header.Set("X-Forwarded-For", "127.0.0.1")
+
+			ctx := &filtertest.Context{
+				FRequest: req,
+			}
+
+			// This should not panic and should work as before
+			filter.Request(ctx)
 		})
 	}
 }

@@ -59,6 +59,11 @@ type Config struct {
 	Breakers                        breakerFlags   `yaml:"breaker"`
 	EnableRatelimiters              bool           `yaml:"enable-ratelimits"`
 	Ratelimits                      ratelimitFlags `yaml:"ratelimits"`
+	RatelimitBypassSecretKey        string         `yaml:"ratelimit-bypass-secret-key"`
+	RatelimitBypassTokenExpiry      time.Duration  `yaml:"ratelimit-bypass-token-expiry"`
+	RatelimitBypassHeader           string         `yaml:"ratelimit-bypass-header"`
+	RatelimitBypassCookie           string         `yaml:"ratelimit-bypass-cookie"`
+	RatelimitBypassIPWhitelist      string         `yaml:"ratelimit-bypass-ip-whitelist"`
 	EnableRouteFIFOMetrics          bool           `yaml:"enable-route-fifo-metrics"`
 	EnableRouteLIFOMetrics          bool           `yaml:"enable-route-lifo-metrics"`
 	MetricsFlavour                  *listFlag      `yaml:"metrics-flavour"`
@@ -378,6 +383,11 @@ func NewConfig() *Config {
 	flag.Var(&cfg.Breakers, "breaker", breakerUsage)
 	flag.BoolVar(&cfg.EnableRatelimiters, "enable-ratelimits", false, enableRatelimitsUsage)
 	flag.Var(&cfg.Ratelimits, "ratelimits", ratelimitsUsage)
+	flag.StringVar(&cfg.RatelimitBypassSecretKey, "ratelimit-bypass-secret-key", "", "global secret key for rate limit bypass JWT tokens")
+	flag.DurationVar(&cfg.RatelimitBypassTokenExpiry, "ratelimit-bypass-token-expiry", time.Hour, "global token expiry duration for rate limit bypass tokens (e.g., '5m', '1h')")
+	flag.StringVar(&cfg.RatelimitBypassHeader, "ratelimit-bypass-header", "X-RateLimit-Bypass", "global HTTP header name for rate limit bypass tokens")
+	flag.StringVar(&cfg.RatelimitBypassCookie, "ratelimit-bypass-cookie", "", "global HTTP cookie name for rate limit bypass tokens")
+	flag.StringVar(&cfg.RatelimitBypassIPWhitelist, "ratelimit-bypass-ip-whitelist", "", "global comma-separated list of IP addresses or CIDR ranges for rate limit bypass")
 	flag.BoolVar(&cfg.EnableRouteFIFOMetrics, "enable-route-fifo-metrics", false, "enable metrics for the individual route FIFO queues")
 	flag.BoolVar(&cfg.EnableRouteLIFOMetrics, "enable-route-lifo-metrics", false, "enable metrics for the individual route LIFO queues")
 	flag.Var(cfg.MetricsFlavour, "metrics-flavour", "Metrics flavour is used to change the exposed metrics format. Supported metric formats: 'codahale' and 'prometheus', you can select both of them by using one option with ',' separated values")
@@ -796,6 +806,11 @@ func (c *Config) ToOptions() skipper.Options {
 		BreakerSettings:           c.Breakers,
 		EnableRatelimiters:        c.EnableRatelimiters,
 		RatelimitSettings:         c.Ratelimits,
+		RatelimitBypassSecretKey:  c.RatelimitBypassSecretKey,
+		RatelimitBypassTokenExpiry: c.RatelimitBypassTokenExpiry,
+		RatelimitBypassHeader:     c.RatelimitBypassHeader,
+		RatelimitBypassCookie:     c.RatelimitBypassCookie,
+		RatelimitBypassIPWhitelist: c.RatelimitBypassIPWhitelist,
 		EnableRouteFIFOMetrics:    c.EnableRouteFIFOMetrics,
 		EnableRouteLIFOMetrics:    c.EnableRouteLIFOMetrics,
 		MetricsFlavours:           c.MetricsFlavour.values,

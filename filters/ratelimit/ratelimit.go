@@ -15,22 +15,25 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/ratelimit"
+	"github.com/zalando/skipper/ratelimitbypass"
 )
 
 const defaultStatusCode = http.StatusTooManyRequests
 
 type spec struct {
-	typ        ratelimit.RatelimitType
-	provider   RatelimitProvider
-	filterName string
-	maxShards  int
+	typ               ratelimit.RatelimitType
+	provider          RatelimitProvider
+	filterName        string
+	maxShards         int
+	globalBypasser    *ratelimitbypass.BypassValidator
 }
 
 type filter struct {
-	settings   ratelimit.Settings
-	provider   RatelimitProvider
-	statusCode int
-	maxHits    int // overrides settings.MaxHits
+	settings        ratelimit.Settings
+	provider        RatelimitProvider
+	statusCode      int
+	maxHits         int // overrides settings.MaxHits
+	bypassValidator *ratelimitbypass.BypassValidator
 }
 
 // RatelimitProvider returns a limit instance for provided Settings
@@ -64,6 +67,7 @@ func NewRatelimitProvider(registry *ratelimit.Registry) RatelimitProvider {
 	return &registryAdapter{registry}
 }
 
+
 // NewLocalRatelimit is *DEPRECATED*, use NewClientRatelimit, instead
 func NewLocalRatelimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.LocalRatelimit, provider: provider, filterName: ratelimit.LocalRatelimitName}
@@ -91,6 +95,11 @@ func NewClientRatelimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.ClientRatelimit, provider: provider, filterName: filters.ClientRatelimitName}
 }
 
+// NewClientRatelimitWithGlobalBypass creates a client rate limit filter with global bypass configuration
+func NewClientRatelimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *ratelimitbypass.BypassValidator) filters.Spec {
+	return &spec{typ: ratelimit.ClientRatelimit, provider: provider, filterName: filters.ClientRatelimitName, globalBypasser: globalBypasser}
+}
+
 // NewRatelimit creates a service rate limiting, that is
 // only aware of itself. If you have 5 instances with 20 req/s, then
 // it would at max allow 100 req/s to the backend.
@@ -110,6 +119,11 @@ func NewClientRatelimit(provider RatelimitProvider) filters.Spec {
 //	-> "https://foo.backend.net";
 func NewRatelimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.ServiceRatelimit, provider: provider, filterName: filters.RatelimitName}
+}
+
+// NewRatelimitWithGlobalBypass creates a service rate limit filter with global bypass configuration
+func NewRatelimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *ratelimitbypass.BypassValidator) filters.Spec {
+	return &spec{typ: ratelimit.ServiceRatelimit, provider: provider, filterName: filters.RatelimitName, globalBypasser: globalBypasser}
 }
 
 // NewClusterRateLimit creates a rate limiting that is aware of the
@@ -134,6 +148,11 @@ func NewClusterRateLimit(provider RatelimitProvider) filters.Spec {
 	return NewShardedClusterRateLimit(provider, 1)
 }
 
+// NewClusterRateLimitWithGlobalBypass creates a cluster rate limit filter with global bypass configuration
+func NewClusterRateLimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *ratelimitbypass.BypassValidator) filters.Spec {
+	return NewShardedClusterRateLimitWithGlobalBypass(provider, 1, globalBypasser)
+}
+
 // NewShardedClusterRateLimit creates a cluster rate limiter that uses multiple group shards to count hits.
 // Based on the configured group and maxHits each filter instance selects N distinct group shards from [1, maxGroupShards].
 // For every subsequent request it uniformly picks one of N group shards and limits number of allowed requests per group shard to maxHits/N.
@@ -142,6 +161,11 @@ func NewClusterRateLimit(provider RatelimitProvider) filters.Spec {
 // will allow up to 20 hits per each group and thus up to configured 200 hits in total.
 func NewShardedClusterRateLimit(provider RatelimitProvider, maxGroupShards int) filters.Spec {
 	return &spec{typ: ratelimit.ClusterServiceRatelimit, provider: provider, filterName: filters.ClusterRatelimitName, maxShards: maxGroupShards}
+}
+
+// NewShardedClusterRateLimitWithGlobalBypass creates a sharded cluster rate limit filter with global bypass configuration
+func NewShardedClusterRateLimitWithGlobalBypass(provider RatelimitProvider, maxGroupShards int, globalBypasser *ratelimitbypass.BypassValidator) filters.Spec {
+	return &spec{typ: ratelimit.ClusterServiceRatelimit, provider: provider, filterName: filters.ClusterRatelimitName, maxShards: maxGroupShards, globalBypasser: globalBypasser}
 }
 
 // NewClusterClientRateLimit creates a rate limiting that is aware of
@@ -172,6 +196,11 @@ func NewClusterClientRateLimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.ClusterClientRatelimit, provider: provider, filterName: filters.ClusterClientRatelimitName}
 }
 
+// NewClusterClientRateLimitWithGlobalBypass creates a cluster client rate limit filter with global bypass configuration
+func NewClusterClientRateLimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *ratelimitbypass.BypassValidator) filters.Spec {
+	return &spec{typ: ratelimit.ClusterClientRatelimit, provider: provider, filterName: filters.ClusterClientRatelimitName, globalBypasser: globalBypasser}
+}
+
 // NewDisableRatelimit disables rate limiting
 //
 // Example:
@@ -183,12 +212,17 @@ func NewDisableRatelimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.DisableRatelimit, provider: provider, filterName: filters.DisableRatelimitName}
 }
 
+// NewDisableRatelimitWithGlobalBypass creates a disable rate limit filter with global bypass configuration
+func NewDisableRatelimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *ratelimitbypass.BypassValidator) filters.Spec {
+	return &spec{typ: ratelimit.DisableRatelimit, provider: provider, filterName: filters.DisableRatelimitName, globalBypasser: globalBypasser}
+}
+
 func (s *spec) Name() string {
 	return s.filterName
 }
 
 func serviceRatelimitFilter(args []interface{}) (*filter, error) {
-	if !(len(args) == 2 || len(args) == 3) {
+	if !(len(args) >= 2 && len(args) <= 7) { // Support original 2-3 args + 4 bypass args
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -207,6 +241,14 @@ func serviceRatelimitFilter(args []interface{}) (*filter, error) {
 		return nil, err
 	}
 
+	// Check for bypass configuration starting after status code
+	bypassStartIndex := 3
+	if len(args) == 2 {
+		bypassStartIndex = 2
+	}
+
+	bypassValidator := parseBypassConfig(args, bypassStartIndex)
+
 	return &filter{
 		settings: ratelimit.Settings{
 			Type:       ratelimit.ServiceRatelimit,
@@ -214,12 +256,13 @@ func serviceRatelimitFilter(args []interface{}) (*filter, error) {
 			TimeWindow: timeWindow,
 			Lookuper:   ratelimit.NewSameBucketLookuper(),
 		},
-		statusCode: statusCode,
+		statusCode:      statusCode,
+		bypassValidator: bypassValidator,
 	}, nil
 }
 
 func clusterRatelimitFilter(maxShards int, args []interface{}) (*filter, error) {
-	if !(len(args) == 3 || len(args) == 4) {
+	if !(len(args) >= 3 && len(args) <= 8) { // Support original 3-4 args + bypass args
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -243,7 +286,15 @@ func clusterRatelimitFilter(maxShards int, args []interface{}) (*filter, error) 
 		return nil, err
 	}
 
-	f := &filter{statusCode: statusCode, maxHits: maxHits}
+	// Check for bypass configuration starting after status code
+	bypassStartIndex := 4
+	if len(args) == 3 {
+		bypassStartIndex = 3
+	}
+
+	bypassValidator := parseBypassConfig(args, bypassStartIndex)
+
+	f := &filter{statusCode: statusCode, maxHits: maxHits, bypassValidator: bypassValidator}
 
 	keyShards := getKeyShards(maxHits, maxShards)
 	if keyShards > 1 {
@@ -280,7 +331,7 @@ func getKeyShards(maxHits, maxShards int) int {
 }
 
 func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
-	if !(len(args) == 3 || len(args) == 4) {
+	if !(len(args) >= 3 && len(args) <= 8) { // Support original 3-4 args + 4 bypass args
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -307,6 +358,7 @@ func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
 		CleanInterval: 10 * timeWindow,
 	}
 
+	var bypassStartIndex int
 	if len(args) > 3 {
 		lookuperString, err := getStringArg(args[3])
 		if err != nil {
@@ -321,11 +373,19 @@ func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
 		} else {
 			s.Lookuper = getLookuper(lookuperString)
 		}
+		bypassStartIndex = 4
 	} else {
 		s.Lookuper = ratelimit.NewXForwardedForLookuper()
+		bypassStartIndex = 3
 	}
 
-	return &filter{settings: s, statusCode: defaultStatusCode}, nil
+	// Check for bypass configuration
+	var bypassValidator *ratelimitbypass.BypassValidator
+	if len(args) > bypassStartIndex {
+		bypassValidator = parseBypassConfig(args, bypassStartIndex)
+	}
+
+	return &filter{settings: s, statusCode: defaultStatusCode, bypassValidator: bypassValidator}, nil
 }
 
 func getLookuper(s string) ratelimit.Lookuper {
@@ -338,7 +398,7 @@ func getLookuper(s string) ratelimit.Lookuper {
 }
 
 func clientRatelimitFilter(args []interface{}) (*filter, error) {
-	if !(len(args) == 2 || len(args) == 3) {
+	if !(len(args) >= 2 && len(args) <= 7) { // Support original 2-3 args + 4 bypass args
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -353,22 +413,67 @@ func clientRatelimitFilter(args []interface{}) (*filter, error) {
 	}
 
 	var lookuper ratelimit.Lookuper
-	if len(args) > 2 {
-		lookuperString, err := getStringArg(args[2])
-		if err != nil {
-			return nil, err
-		}
-		if strings.Contains(lookuperString, ",") {
-			var lookupers []ratelimit.Lookuper
-			for _, ls := range strings.Split(lookuperString, ",") {
-				lookupers = append(lookupers, getLookuper(ls))
+	var bypassStartIndex int
+
+	// Check if we have bypass parameters by looking for the expected pattern:
+	// If we have 5+ args, assume: maxHits, timeWindow, [lookuper], bypassHeader, secretKey, tokenExpiry, [ipWhitelist]
+	// If we have 3-4 args, could be: maxHits, timeWindow, lookuper OR maxHits, timeWindow, bypassHeader, secretKey
+	// If we have 2 args, it's just: maxHits, timeWindow
+
+	hasLookuper := false
+	if len(args) >= 5 {
+		// Definitely has bypass params, check if position 2 is lookuper
+		if lookuperString, err := getStringArg(args[2]); err == nil {
+			// Check if this looks like a bypass header name or a lookuper
+			// Bypass headers typically contain "Bypass" or "Token" and are single headers
+			// Lookupers can be comma-separated header names
+			isLikelyBypassHeader := strings.Contains(strings.ToLower(lookuperString), "bypass") ||
+				strings.Contains(strings.ToLower(lookuperString), "token") ||
+				(strings.HasPrefix(lookuperString, "X-") && !strings.Contains(lookuperString, ","))
+
+			if !isLikelyBypassHeader {
+				hasLookuper = true
+				if strings.Contains(lookuperString, ",") {
+					var lookupers []ratelimit.Lookuper
+					for _, ls := range strings.Split(lookuperString, ",") {
+						lookupers = append(lookupers, getLookuper(ls))
+					}
+					lookuper = ratelimit.NewTupleLookuper(lookupers...)
+				} else {
+					lookuper = ratelimit.NewHeaderLookuper(lookuperString)
+				}
+				bypassStartIndex = 3
+			} else {
+				lookuper = ratelimit.NewXForwardedForLookuper()
+				bypassStartIndex = 2
 			}
-			lookuper = ratelimit.NewTupleLookuper(lookupers...)
-		} else {
-			lookuper = ratelimit.NewHeaderLookuper(lookuperString)
 		}
-	} else {
+	} else if len(args) == 3 {
+		// Could be lookuper only, no bypass
+		if lookuperString, err := getStringArg(args[2]); err == nil {
+			if strings.Contains(lookuperString, ",") {
+				var lookupers []ratelimit.Lookuper
+				for _, ls := range strings.Split(lookuperString, ",") {
+					lookupers = append(lookupers, getLookuper(ls))
+				}
+				lookuper = ratelimit.NewTupleLookuper(lookupers...)
+			} else {
+				lookuper = ratelimit.NewHeaderLookuper(lookuperString)
+			}
+			hasLookuper = true
+		}
+	}
+
+	if !hasLookuper {
 		lookuper = ratelimit.NewXForwardedForLookuper()
+		if bypassStartIndex == 0 {
+			bypassStartIndex = 2
+		}
+	}
+
+	var bypassValidator *ratelimitbypass.BypassValidator
+	if len(args) > bypassStartIndex {
+		bypassValidator = parseBypassConfig(args, bypassStartIndex)
 	}
 
 	return &filter{
@@ -379,16 +484,24 @@ func clientRatelimitFilter(args []interface{}) (*filter, error) {
 			CleanInterval: 10 * timeWindow,
 			Lookuper:      lookuper,
 		},
-		statusCode: defaultStatusCode,
+		statusCode:      defaultStatusCode,
+		bypassValidator: bypassValidator,
 	}, nil
 }
 
-func disableFilter([]interface{}) (*filter, error) {
+func disableFilter(args []interface{}) (*filter, error) {
+	// Even for disable filter, we might want bypass config for consistency
+	var bypassValidator *ratelimitbypass.BypassValidator
+	if len(args) >= 4 {
+		bypassValidator = parseBypassConfig(args, 0)
+	}
+
 	return &filter{
 		settings: ratelimit.Settings{
 			Type: ratelimit.DisableRatelimit,
 		},
-		statusCode: defaultStatusCode,
+		statusCode:      defaultStatusCode,
+		bypassValidator: bypassValidator,
 	}, nil
 }
 
@@ -396,6 +509,10 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	f, err := s.createFilter(args)
 	if f != nil {
 		f.provider = s.provider
+		// Apply global bypass config if no local bypass config is set
+		if f.bypassValidator == nil && s.globalBypasser != nil {
+			f.bypassValidator = s.globalBypasser
+		}
 	}
 	return f, err
 }
@@ -456,8 +573,60 @@ func getStatusCodeArg(args []interface{}, index int) (int, error) {
 	return getIntArg(args[index])
 }
 
+// parseBypassConfig extracts bypass configuration from filter arguments
+// Returns nil if no bypass config is found
+func parseBypassConfig(args []interface{}, startIndex int) *ratelimitbypass.BypassValidator {
+	// Check if we have enough arguments for bypass config
+	// Expected: bypassHeader, secretKey, tokenExpiry, ipWhitelist
+	if len(args) < startIndex+3 {
+		return nil
+	}
+
+	bypassHeader, err := getStringArg(args[startIndex])
+	if err != nil {
+		return nil
+	}
+
+	secretKey, err := getStringArg(args[startIndex+1])
+	if err != nil {
+		return nil
+	}
+
+	var tokenExpiry time.Duration
+	if durStr, ok := args[startIndex+2].(string); ok {
+		tokenExpiry, err = time.ParseDuration(durStr)
+		if err != nil {
+			return nil
+		}
+	} else {
+		return nil
+	}
+
+	var ipWhitelist []string
+	if len(args) > startIndex+3 {
+		if ipWhitelistStr, err := getStringArg(args[startIndex+3]); err == nil {
+			ipWhitelist = ratelimitbypass.ParseIPWhitelist(ipWhitelistStr)
+		}
+	}
+
+	config := ratelimitbypass.BypassConfig{
+		SecretKey:    secretKey,
+		TokenExpiry:  tokenExpiry,
+		BypassHeader: bypassHeader,
+		IPWhitelist:  ipWhitelist,
+	}
+
+	return ratelimitbypass.NewBypassValidator(config)
+}
+
 // Request checks ratelimit using filter settings and serves `429 Too Many Requests` response if limit is reached
 func (f *filter) Request(ctx filters.FilterContext) {
+	// Check if request should bypass rate limiting
+	if f.bypassValidator != nil && f.bypassValidator.ShouldBypass(ctx.Request()) {
+		log.Debugf("Request bypassed rate limiting")
+		return
+	}
+
 	rateLimiter := f.provider.get(f.settings)
 	if rateLimiter == nil {
 		ctx.Logger().Errorf("RateLimiter is nil for settings: %s", f.settings)

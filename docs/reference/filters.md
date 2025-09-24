@@ -2324,14 +2324,20 @@ Parameters:
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
 * optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string)
+* bypass header name - optional, for JWT token-based bypass (string)
+* secret key - optional, for JWT validation (string)
+* token expiry - optional, bypass token validity duration (time.Duration)
+* IP whitelist - optional, comma-separated IPs/CIDRs for bypass (string)
 
 ```
 clientRatelimit(3, "1m")
 clientRatelimit(3, "1m", "Authorization")
 clientRatelimit(3, "1m", "X-Foo,Authorization,X-Bar")
+clientRatelimit(10, "1m", "X-Bypass-Token", "secret-key", "5m")
+clientRatelimit(10, "1m", "Authorization", "X-Bypass-Token", "secret-key", "5m")
 ```
 
-See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit) and [ratelimit bypass tutorial](../tutorials/ratelimit.md#rate-limit-bypass).
 
 ### ratelimit
 
@@ -2344,14 +2350,20 @@ Parameters:
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
 * response status code to use for a rate limited request - optional, default: 429
+* bypass header name - optional, for JWT token-based bypass (string)
+* secret key - optional, for JWT validation (string)
+* token expiry - optional, bypass token validity duration (time.Duration)
+* IP whitelist - optional, comma-separated IPs/CIDRs for bypass (string)
 
 ```
 ratelimit(20, "1m")
 ratelimit(300, "1h")
 ratelimit(4000, "1m", 503)
+ratelimit(20, "1m", 429, "X-Bypass-Token", "secret-key", "5m")
+ratelimit(20, "1m", 429, "X-Bypass-Token", "secret-key", "5m", "127.0.0.1,192.168.1.0/24")
 ```
 
-See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit) and [ratelimit bypass tutorial](../tutorials/ratelimit.md#rate-limit-bypass).
 
 ### clusterClientRatelimit
 
@@ -2374,14 +2386,19 @@ Parameters:
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
 * optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string)
+* bypass header name - optional, for JWT token-based bypass (string)
+* secret key - optional, for JWT validation (string)
+* token expiry - optional, bypass token validity duration (time.Duration)
+* IP whitelist - optional, comma-separated IPs/CIDRs for bypass (string)
 
 ```
 clusterClientRatelimit("groupA", 10, "1h")
 clusterClientRatelimit("groupA", 10, "1h", "Authorization")
 clusterClientRatelimit("groupA", 10, "1h", "X-Forwarded-For,Authorization,User-Agent")
+clusterClientRatelimit("groupB", 20, "1h", "Authorization", "X-Bypass-Token", "secret-key", "5m")
 ```
 
-See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit) and [ratelimit bypass tutorial](../tutorials/ratelimit.md#rate-limit-bypass).
 
 ### clusterRatelimit
 
@@ -2400,16 +2417,21 @@ Parameters:
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
 * response status code to use for a rate limited request - optional, default: 429
+* bypass header name - optional, for JWT token-based bypass (string)
+* secret key - optional, for JWT validation (string)
+* token expiry - optional, bypass token validity duration (time.Duration)
+* IP whitelist - optional, comma-separated IPs/CIDRs for bypass (string)
 
 ```
 clusterRatelimit("groupA", 20, "1m")
 clusterRatelimit("groupB", 300, "1h")
 clusterRatelimit("groupC", 4000, "1m", 503)
+clusterRatelimit("groupA", 100, "1m", 429, "X-Bypass-Token", "secret-key", "10m")
 ```
 
 Multiple filter definitions using the same group must use the same number of allowed requests and timeframe values.
 
-See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit) and [ratelimit bypass tutorial](../tutorials/ratelimit.md#rate-limit-bypass).
 
 ### backendRatelimit
 
@@ -2586,6 +2608,81 @@ In case `clusterRatelimit` could not reach the swarm (e.g. redis):
 
 * Route `fail_open` will allow the request
 * Route `fail_closed` will deny the request
+
+### ratelimitBypassGenerateToken
+
+Generates JWT bypass tokens for rate limit bypass functionality. This filter creates a JSON response containing a valid JWT token that can be used with the bypass functionality of rate limit filters.
+
+Takes no parameters. The token generation uses the secret key and expiry configured when creating the filter specification.
+
+```
+admin_token: Path("/admin/bypass-token")
+  -> ratelimitBypassGenerateToken()
+  -> <shunt>;
+```
+
+### ratelimitBypassValidateToken
+
+Validates JWT bypass tokens. This filter checks if the bypass token in the request is valid and returns a JSON response with the validation result.
+
+Takes no parameters. Uses the bypass header and secret key configured when creating the filter specification.
+
+```
+validate: Path("/admin/validate-token")
+  -> ratelimitBypassValidateToken()
+  -> <shunt>;
+```
+
+The response will be:
+- `200 OK` with `{"valid": true}` for valid tokens
+- `401 Unauthorized` with `{"valid": false}` for invalid/expired tokens
+
+See also the [ratelimit bypass tutorial](../tutorials/ratelimit.md#rate-limit-bypass).
+
+### Global Rate Limit Bypass Configuration
+
+All rate limit filters support global bypass configuration via command line arguments. When global bypass configuration is provided, all rate limit filters automatically inherit these settings unless local bypass parameters are specified.
+
+#### Global Bypass Flags
+
+- `--ratelimit-bypass-secret-key` - Global secret key for JWT token validation
+- `--ratelimit-bypass-token-expiry` - Global token expiry duration (default: 1h)
+- `--ratelimit-bypass-header` - Global HTTP header name for bypass tokens (default: "X-RateLimit-Bypass")
+- `--ratelimit-bypass-cookie` - Global HTTP cookie name for bypass tokens
+- `--ratelimit-bypass-ip-whitelist` - Global comma-separated list of IP addresses or CIDR ranges for bypass
+
+#### Example Usage
+
+```bash
+skipper \
+  --ratelimit-bypass-secret-key="global-secret-key" \
+  --ratelimit-bypass-token-expiry="30m" \
+  --ratelimit-bypass-header="X-Global-Bypass" \
+  --ratelimit-bypass-cookie="global-bypass-token" \
+  --ratelimit-bypass-ip-whitelist="127.0.0.1,192.168.0.0/16" \
+  --enable-ratelimits \
+  --routes-file=routes.eskip
+```
+
+With global configuration, all rate limit filters automatically support bypass:
+
+```
+# These filters automatically inherit global bypass configuration
+api: Path("/api") -> clientRatelimit(100, "1m") -> "https://api.backend.net";
+upload: Path("/upload") -> ratelimit(10, "1m") -> "https://upload.backend.net";
+cluster: Path("/cluster") -> clusterRatelimit("group1", 500, "1h") -> "https://cluster.backend.net";
+```
+
+Local bypass parameters always override global configuration:
+
+```
+# This filter uses local bypass configuration instead of global
+special: Path("/special")
+  -> clientRatelimit(10, "1m", "X-Special-Bypass", "special-secret", "5m")
+  -> "https://special.backend.net";
+```
+
+See also the [ratelimit bypass tutorial](../tutorials/ratelimit.md#global-bypass-configuration) for more details.
 
 ## Load Shedding
 

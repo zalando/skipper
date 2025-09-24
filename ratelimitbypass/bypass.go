@@ -16,10 +16,11 @@ import (
 
 // BypassConfig holds configuration for rate limit bypass functionality
 type BypassConfig struct {
-	SecretKey    string
-	TokenExpiry  time.Duration
-	BypassHeader string
-	IPWhitelist  []string
+	SecretKey     string
+	TokenExpiry   time.Duration
+	BypassHeader  string
+	BypassCookie  string
+	IPWhitelist   []string
 }
 
 // Claims represents JWT claims for bypass tokens
@@ -100,6 +101,14 @@ func (v *BypassValidator) ValidateToken(req *http.Request) bool {
 	}
 
 	token := req.Header.Get(header)
+
+	// If no token in header, try to get from cookie
+	if token == "" && v.config.BypassCookie != "" {
+		if cookie, err := req.Cookie(v.config.BypassCookie); err == nil {
+			token = cookie.Value
+		}
+	}
+
 	if token == "" {
 		return false
 	}

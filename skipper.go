@@ -62,6 +62,7 @@ import (
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/queuelistener"
 	"github.com/zalando/skipper/ratelimit"
+	"github.com/zalando/skipper/ratelimitbypass"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/script"
@@ -696,6 +697,21 @@ type Options struct {
 
 	// RatelimitSettings contain global and host specific settings for the ratelimiters.
 	RatelimitSettings []ratelimit.Settings
+
+	// RatelimitBypassSecretKey is the global secret key for rate limit bypass JWT tokens.
+	RatelimitBypassSecretKey string
+
+	// RatelimitBypassTokenExpiry is the global token expiry duration for rate limit bypass tokens.
+	RatelimitBypassTokenExpiry time.Duration
+
+	// RatelimitBypassHeader is the global HTTP header name for rate limit bypass tokens.
+	RatelimitBypassHeader string
+
+	// RatelimitBypassCookie is the global HTTP cookie name for rate limit bypass tokens.
+	RatelimitBypassCookie string
+
+	// RatelimitBypassIPWhitelist is the global comma-separated list of IP addresses or CIDR ranges for rate limit bypass.
+	RatelimitBypassIPWhitelist string
 
 	// EnableRouteFIFOMetrics enables metrics for the individual route FIFO queues, if any.
 	EnableRouteFIFOMetrics bool
@@ -1879,16 +1895,48 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		failClosedRatelimitPostProcessor = ratelimitfilters.NewFailClosedPostProcessor()
 
 		provider := ratelimitfilters.NewRatelimitProvider(ratelimitRegistry)
-		o.CustomFilters = append(o.CustomFilters,
-			ratelimitfilters.NewFailClosed(),
-			ratelimitfilters.NewClientRatelimit(provider),
-			ratelimitfilters.NewLocalRatelimit(provider),
-			ratelimitfilters.NewRatelimit(provider),
-			ratelimitfilters.NewShardedClusterRateLimit(provider, o.ClusterRatelimitMaxGroupShards),
-			ratelimitfilters.NewClusterClientRateLimit(provider),
-			ratelimitfilters.NewDisableRatelimit(provider),
-			ratelimitfilters.NewBackendRatelimit(),
-		)
+
+		// Create global bypass validator if global bypass configuration is provided
+		var globalBypasser *ratelimitbypass.BypassValidator
+		if o.RatelimitBypassSecretKey != "" {
+			config := ratelimitbypass.BypassConfig{
+				SecretKey:     o.RatelimitBypassSecretKey,
+				TokenExpiry:   o.RatelimitBypassTokenExpiry,
+				BypassHeader:  o.RatelimitBypassHeader,
+				BypassCookie:  o.RatelimitBypassCookie,
+			}
+			if o.RatelimitBypassIPWhitelist != "" {
+				config.IPWhitelist = ratelimitbypass.ParseIPWhitelist(o.RatelimitBypassIPWhitelist)
+			}
+			globalBypasser = ratelimitbypass.NewBypassValidator(config)
+		}
+
+		// Use global bypass constructors if global bypass is configured
+		if globalBypasser != nil {
+			o.CustomFilters = append(o.CustomFilters,
+				ratelimitfilters.NewFailClosed(),
+				ratelimitfilters.NewClientRatelimitWithGlobalBypass(provider, globalBypasser),
+				ratelimitfilters.NewLocalRatelimit(provider), // LocalRatelimit is deprecated, no bypass needed
+				ratelimitfilters.NewRatelimitWithGlobalBypass(provider, globalBypasser),
+				ratelimitfilters.NewShardedClusterRateLimitWithGlobalBypass(provider, o.ClusterRatelimitMaxGroupShards, globalBypasser),
+				ratelimitfilters.NewClusterClientRateLimitWithGlobalBypass(provider, globalBypasser),
+				ratelimitfilters.NewDisableRatelimitWithGlobalBypass(provider, globalBypasser),
+				ratelimitfilters.NewBackendRatelimit(),
+				ratelimitfilters.NewRatelimitBypassGenerateToken(o.RatelimitBypassSecretKey, o.RatelimitBypassTokenExpiry),
+				ratelimitfilters.NewRatelimitBypassValidateToken(o.RatelimitBypassSecretKey, o.RatelimitBypassTokenExpiry, o.RatelimitBypassHeader),
+			)
+		} else {
+			o.CustomFilters = append(o.CustomFilters,
+				ratelimitfilters.NewFailClosed(),
+				ratelimitfilters.NewClientRatelimit(provider),
+				ratelimitfilters.NewLocalRatelimit(provider),
+				ratelimitfilters.NewRatelimit(provider),
+				ratelimitfilters.NewShardedClusterRateLimit(provider, o.ClusterRatelimitMaxGroupShards),
+				ratelimitfilters.NewClusterClientRateLimit(provider),
+				ratelimitfilters.NewDisableRatelimit(provider),
+				ratelimitfilters.NewBackendRatelimit(),
+			)
+		}
 
 		if redisOptions != nil {
 			o.CustomFilters = append(o.CustomFilters, ratelimitfilters.NewClusterLeakyBucketRatelimit(ratelimitRegistry))
