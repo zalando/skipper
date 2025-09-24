@@ -16,11 +16,11 @@ import (
 
 // BypassConfig holds configuration for rate limit bypass functionality
 type BypassConfig struct {
-	SecretKey     string
-	TokenExpiry   time.Duration
-	BypassHeader  string
-	BypassCookie  string
-	IPWhitelist   []string
+	SecretKey    string
+	TokenExpiry  time.Duration
+	BypassHeader string
+	BypassCookie string
+	IPWhitelist  []string
 }
 
 // Claims represents JWT claims for bypass tokens

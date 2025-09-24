@@ -184,11 +184,11 @@ func TestParseIPWhitelist(t *testing.T) {
 
 func TestBypassValidator_CookieSupport(t *testing.T) {
 	config := BypassConfig{
-		SecretKey:     "test-secret-key",
-		TokenExpiry:   time.Minute * 5,
-		BypassHeader:  "X-RateLimit-Bypass",
-		BypassCookie:  "bypass-token",
-		IPWhitelist:   []string{},
+		SecretKey:    "test-secret-key",
+		TokenExpiry:  time.Minute * 5,
+		BypassHeader: "X-RateLimit-Bypass",
+		BypassCookie: "bypass-token",
+		IPWhitelist:  []string{},
 	}
 
 	validator := NewBypassValidator(config)
@@ -247,11 +247,11 @@ func TestBypassValidator_CookieSupport(t *testing.T) {
 
 	// Test without bypass cookie configuration
 	configNoCookie := BypassConfig{
-		SecretKey:     "test-secret-key",
-		TokenExpiry:   time.Minute * 5,
-		BypassHeader:  "X-RateLimit-Bypass",
-		BypassCookie:  "", // No cookie configured
-		IPWhitelist:   []string{},
+		SecretKey:    "test-secret-key",
+		TokenExpiry:  time.Minute * 5,
+		BypassHeader: "X-RateLimit-Bypass",
+		BypassCookie: "", // No cookie configured
+		IPWhitelist:  []string{},
 	}
 	validatorNoCookie := NewBypassValidator(configNoCookie)
 

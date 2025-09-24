@@ -21,11 +21,11 @@ import (
 const defaultStatusCode = http.StatusTooManyRequests
 
 type spec struct {
-	typ               ratelimit.RatelimitType
-	provider          RatelimitProvider
-	filterName        string
-	maxShards         int
-	globalBypasser    *ratelimitbypass.BypassValidator
+	typ            ratelimit.RatelimitType
+	provider       RatelimitProvider
+	filterName     string
+	maxShards      int
+	globalBypasser *ratelimitbypass.BypassValidator
 }
 
 type filter struct {
@@ -66,7 +66,6 @@ func (a *registryAdapter) get(s ratelimit.Settings) limit {
 func NewRatelimitProvider(registry *ratelimit.Registry) RatelimitProvider {
 	return &registryAdapter{registry}
 }
-
 
 // NewLocalRatelimit is *DEPRECATED*, use NewClientRatelimit, instead
 func NewLocalRatelimit(provider RatelimitProvider) filters.Spec {

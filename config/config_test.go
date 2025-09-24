@@ -171,6 +171,8 @@ func defaultConfig(with func(*Config)) *Config {
 		OpenPolicyAgentMaxRequestBodySize:       openpolicyagent.DefaultMaxRequestBodySize,
 		OpenPolicyAgentMaxMemoryBodyParsing:     openpolicyagent.DefaultMaxMemoryBodyParsing,
 		OpenPolicyAgentRequestBodyBufferSize:    openpolicyagent.DefaultRequestBodyBufferSize,
+		RatelimitBypassTokenExpiry:              time.Hour,
+		RatelimitBypassHeader:                   "X-RateLimit-Bypass",
 	}
 	with(cfg)
 	return cfg

@@ -1900,10 +1900,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		var globalBypasser *ratelimitbypass.BypassValidator
 		if o.RatelimitBypassSecretKey != "" {
 			config := ratelimitbypass.BypassConfig{
-				SecretKey:     o.RatelimitBypassSecretKey,
-				TokenExpiry:   o.RatelimitBypassTokenExpiry,
-				BypassHeader:  o.RatelimitBypassHeader,
-				BypassCookie:  o.RatelimitBypassCookie,
+				SecretKey:    o.RatelimitBypassSecretKey,
+				TokenExpiry:  o.RatelimitBypassTokenExpiry,
+				BypassHeader: o.RatelimitBypassHeader,
+				BypassCookie: o.RatelimitBypassCookie,
 			}
 			if o.RatelimitBypassIPWhitelist != "" {
 				config.IPWhitelist = ratelimitbypass.ParseIPWhitelist(o.RatelimitBypassIPWhitelist)
