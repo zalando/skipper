@@ -3,7 +3,16 @@ package ratelimit
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
+
+func TestNewRegistryBasic(t *testing.T) {
+	// Test basic registry creation - just verify the existing test function
+	registry := NewSwarmRegistry(nil, nil, Settings{})
+	assert.NotNil(t, registry, "Registry should not be nil")
+	registry.Close()
+}
 
 // no checks, used for race detector
 func TestRegistry(t *testing.T) {

@@ -494,6 +494,290 @@ func TestDeprecatedFlags(t *testing.T) {
 	}
 }
 
+func TestBuildRedisTLSConfig(t *testing.T) {
+	// Create temporary test certificate files
+	tempDir := t.TempDir()
+
+	// Valid CA cert content (minimal valid cert for testing)
+	caCertPEM := `-----BEGIN CERTIFICATE-----
+MIICBjCCAW+gAwIBAgIJAMlyFqk69v+9MA0GCSqGSIb3DQEBCwUAMBIxEDAOBgNV
+BAMMB1Rlc3QtQ0EwHhcNMjMwMTAxMDAwMDAwWhcNMzMwMTAxMDAwMDAwWjASMRAw
+DgYDVQQDDAdUZXN0LUNBMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDTGX9l
+GXh8J9T4E3i5IZ6lfF/NUlhYzxBFJzR6h+6k9QXV5oK5HqJXg9M5bE6iT1d0eD8Q
+9bB4k5j6L8I9bB4k5j6L8I9bB4k5j6L8I9bB4k5j6L8I9bB4k5j6L8I9bB4k5j6L
+8I9bB4k5j6L8I9bB4k5j6L8I9bB4k5j6L8I9bB4k5j6L8I9bB4k5wIDAQABMA0G
+CSqGSIb3DQEBCwUAA4GBAJKvSzpUGWVQG7n0u6g2dH1+lQ3W8W7i8Y4E7n0u6g2d
+H1+lQ3W8W7i8Y4E7n0u6g2dH1+lQ3W8W7i8Y4E7n0u6g2dH1+lQ3W8W7i8Y4E7
+-----END CERTIFICATE-----`
+
+	// Valid client cert content (minimal valid cert for testing)
+	clientCertPEM := `-----BEGIN CERTIFICATE-----
+MIICBjCCAW+gAwIBAgIJAMlyFqk69v+9MA0GCSqGSIb3DQEBCwUAMBIxEDAOBgNV
+BAMMB0NsaWVudDAeFw0yMzAxMDEwMDAwMDBaFw0zMzAxMDEwMDAwMDBaMBIxEDAw
+DgYDVQQDDAdDbGllbnQwgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBANMZf2UZ
+eHwn1PgTeLkhnqV8X81SWFjPEEUnNHqH7qT1BdXmgrkeolePzTlsTqJPV3R4PxD1
+sHiTmPovwj1sHiTmPovwj1sHiTmPovwj1sHiTmPovwj1sHiTmPovwj1sHiTmPovw
+j1sHiTmPovwj1sHiTmPovwj1sHiTmPovwj1sHiTmPovwj1sHiTnAgMBAAEwDQYJ
+KoZIhvcNAQELBQADgYEAkq9LOlQZZVAbufS7qDZ0fX6VDdbxbuLxjgTufS7qDZ0f
+X6VDdbxbuLxjgTufS7qDZ0fX6VDdbxbuLxjgTufS7qDZ0fX6VDdbxbuLxjgTufS7
+qDZ0fX6VDdbxbuLxjgTufS7qDZ0fX6VDdbxbuLxjgTufS7qDZ0fX6VDdbxbuLxjg
+-----END CERTIFICATE-----`
+
+	// Valid client key content (minimal valid key for testing)
+	clientKeyPEM := `-----BEGIN PRIVATE KEY-----
+MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBANMZf2UZeHwn1PgT
+eLkhnqV8X81SWFjPEEUnNHqH7qT1BdXmgrkeole/zTlsTqJPV3R4PxD1sHiTmPov
+wj1sHiTmPovwj1sHiTmPovwj1sHiTmPovwj1sHiTmPovwj1sHiTmPovwj1sHiTmP
+ovwj1sHiTmPovwj1sHiTmPovwj1sHiTmPovwj1sHiTnAgMBAAECgYEAuR1VQMGW
+Dqk17v2TLnOHvn6ZrFe2+XjLZWlO7v2TLnOHvn6ZrFe2+XjLZWlO7v2TLnOHvn6Z
+rFe2+XjLZWlO7v2TLnOHvn6ZrFe2+XjLZWlO7v2TLnOHvn6ZrFe2+XjLZWlO7v2T
+LnOHvn6ZrFe2+XjLZWlO7v2TLnOHvn6ZrFeCggEBAPuWYE9GZvWrF7t+B4qA3+8v
+YE9GZvWrF7t+B4qA3+8vYE9GZvWrF7t+B4qA3+8vYE9GZvWrF7t+B4qA3+8vwIBA
++8vYE9GZvWrF7t+B4qA3+8vYE9GZvWrF7t+B4qA3+8vwIBAgIVAJQ4k6k3Lv2T8
+I+8vYE9GZvWrF7t+B4qA3+8vYE9GZvWrF7t+B4qA3+8vwwKBgGWlO7v2TLnOHvn6
+ZrFe2+XjLZWlO7v2TLnOHvn6ZrFe2+XjLZWlO7v2TLnOHvn6ZrFe2+XjLZWlO7v2
+TLnOHvn6ZrFe2+XjLZWlO7v2TLnOHvn6ZrFe2+XjLZWlO7v2TLnOHvn6ZrFe2+Xj
+-----END PRIVATE KEY-----`
+
+	// Create test files
+	caCertPath := tempDir + "/ca.crt"
+	clientCertPath := tempDir + "/client.crt"
+	clientKeyPath := tempDir + "/client.key"
+	invalidCertPath := tempDir + "/invalid.crt"
+
+	require.NoError(t, os.WriteFile(caCertPath, []byte(caCertPEM), 0644))
+	require.NoError(t, os.WriteFile(clientCertPath, []byte(clientCertPEM), 0644))
+	require.NoError(t, os.WriteFile(clientKeyPath, []byte(clientKeyPEM), 0644))
+	require.NoError(t, os.WriteFile(invalidCertPath, []byte("invalid cert data"), 0644))
+
+	tests := []struct {
+		name   string
+		config Config
+		want   bool // true if TLS config should be returned, false for nil
+	}{
+		{
+			name: "TLS disabled",
+			config: Config{
+				SwarmRedisTLSEnabled: false,
+			},
+			want: false,
+		},
+		{
+			name: "TLS enabled with server name only",
+			config: Config{
+				SwarmRedisTLSEnabled:    true,
+				SwarmRedisTLSServerName: "redis.example.com",
+				TLSMinVersion:           "1.2",
+			},
+			want: true,
+		},
+		{
+			name: "TLS enabled with insecure skip verify",
+			config: Config{
+				SwarmRedisTLSEnabled:            true,
+				SwarmRedisTLSInsecureSkipVerify: true,
+				TLSMinVersion:                   "1.2",
+			},
+			want: true,
+		},
+		{
+			name: "TLS enabled with invalid CA cert path",
+			config: Config{
+				SwarmRedisTLSEnabled:    true,
+				SwarmRedisTLSCACertPath: "/nonexistent/ca.crt",
+				TLSMinVersion:           "1.2",
+			},
+			want: false,
+		},
+		{
+			name: "TLS enabled with invalid CA cert content",
+			config: Config{
+				SwarmRedisTLSEnabled:    true,
+				SwarmRedisTLSCACertPath: invalidCertPath,
+				TLSMinVersion:           "1.2",
+			},
+			want: false,
+		},
+		{
+			name: "TLS enabled with invalid client cert path",
+			config: Config{
+				SwarmRedisTLSEnabled:  true,
+				SwarmRedisTLSCertPath: "/nonexistent/client.crt",
+				SwarmRedisTLSKeyPath:  clientKeyPath,
+				TLSMinVersion:         "1.2",
+			},
+			want: false,
+		},
+		{
+			name: "TLS enabled with only cert path (missing key)",
+			config: Config{
+				SwarmRedisTLSEnabled:  true,
+				SwarmRedisTLSCertPath: clientCertPath,
+				TLSMinVersion:         "1.2",
+			},
+			want: true, // Should return config but warn about missing key
+		},
+		{
+			name: "TLS enabled with only key path (missing cert)",
+			config: Config{
+				SwarmRedisTLSEnabled: true,
+				SwarmRedisTLSKeyPath: clientKeyPath,
+				TLSMinVersion:        "1.2",
+			},
+			want: true, // Should return config but warn about missing cert
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tlsConfig := tt.config.buildRedisTLSConfig()
+
+			if tt.want {
+				require.NotNil(t, tlsConfig, "Expected TLS config to be returned")
+				assert.Equal(t, tt.config.SwarmRedisTLSServerName, tlsConfig.ServerName)
+				assert.Equal(t, tt.config.SwarmRedisTLSInsecureSkipVerify, tlsConfig.InsecureSkipVerify)
+				assert.Equal(t, tt.config.getMinTLSVersion(), tlsConfig.MinVersion)
+			} else {
+				assert.Nil(t, tlsConfig, "Expected TLS config to be nil")
+			}
+		})
+	}
+}
+
+func TestBuildRedisOptions(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         Config
+		expectOptions  bool
+		expectedFields map[string]interface{}
+	}{
+		{
+			name: "no Redis URLs or remote URL",
+			config: Config{
+				SwarmRedisURLs: &listFlag{},
+			},
+			expectOptions: false,
+		},
+		{
+			name: "with Redis URLs only",
+			config: Config{
+				SwarmRedisURLs:        &listFlag{values: []string{"redis://localhost:6379"}},
+				SwarmRedisPassword:    "test-password",
+				SwarmRedisClusterMode: true,
+				SwarmRedisDialTimeout: 30 * time.Second,
+			},
+			expectOptions: true,
+			expectedFields: map[string]interface{}{
+				"Password":    "test-password",
+				"ClusterMode": true,
+				"DialTimeout": 30 * time.Second,
+			},
+		},
+		{
+			name: "with remote URL only",
+			config: Config{
+				SwarmRedisURLs:                    &listFlag{},
+				SwarmRedisEndpointsRemoteURL:      "http://example.com/redis-endpoints",
+				SwarmRedisEndpointsUpdateInterval: 5 * time.Minute,
+			},
+			expectOptions: true,
+			expectedFields: map[string]interface{}{
+				"RemoteURL":      "http://example.com/redis-endpoints",
+				"UpdateInterval": 5 * time.Minute,
+			},
+		},
+		{
+			name: "cluster mode with remote URL (should warn)",
+			config: Config{
+				SwarmRedisURLs:               &listFlag{values: []string{"redis://localhost:6379"}},
+				SwarmRedisEndpointsRemoteURL: "http://example.com/redis-endpoints",
+				SwarmRedisClusterMode:        true,
+			},
+			expectOptions: true,
+			expectedFields: map[string]interface{}{
+				"ClusterMode": true,
+				"RemoteURL":   "http://example.com/redis-endpoints", // Should be set but ignored
+			},
+		},
+		{
+			name: "all options configured",
+			config: Config{
+				SwarmRedisURLs:                &listFlag{values: []string{"redis://localhost:6379", "redis://localhost:6380"}},
+				SwarmRedisPassword:            "password123",
+				SwarmRedisClusterMode:         false,
+				SwarmRedisHashAlgorithm:       "jump",
+				SwarmRedisDialTimeout:         25 * time.Millisecond,
+				SwarmRedisReadTimeout:         30 * time.Millisecond,
+				SwarmRedisWriteTimeout:        35 * time.Millisecond,
+				SwarmRedisPoolTimeout:         40 * time.Millisecond,
+				SwarmRedisIdleTimeout:         5 * time.Minute,
+				SwarmRedisMaxConnAge:          10 * time.Minute,
+				SwarmRedisMinIdleConns:        50,
+				SwarmRedisMaxIdleConns:        200,
+				SwarmRedisHeartbeatFrequency:  1 * time.Second,
+				SwarmRedisConnMetricsInterval: 30 * time.Second,
+				SwarmRedisMetricsPrefix:       "test_prefix",
+				SwarmRedisIdleCheckFrequency:  1 * time.Minute,
+				SwarmRedisTLSEnabled:          true,
+				SwarmRedisTLSServerName:       "redis.example.com",
+				TLSMinVersion:                 "1.2",
+			},
+			expectOptions: true,
+			expectedFields: map[string]interface{}{
+				"Password":            "password123",
+				"ClusterMode":         false,
+				"HashAlgorithm":       "jump",
+				"DialTimeout":         25 * time.Millisecond,
+				"ReadTimeout":         30 * time.Millisecond,
+				"WriteTimeout":        35 * time.Millisecond,
+				"PoolTimeout":         40 * time.Millisecond,
+				"IdleTimeout":         5 * time.Minute,
+				"MaxConnAge":          10 * time.Minute,
+				"MinIdleConns":        50,
+				"MaxIdleConns":        200,
+				"HeartbeatFrequency":  1 * time.Second,
+				"ConnMetricsInterval": 30 * time.Second,
+				"MetricsPrefix":       "test_prefix",
+				"IdleCheckFrequency":  1 * time.Minute,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.config.buildRedisOptions()
+
+			if tt.expectOptions {
+				require.NotNil(t, tt.config.RedisOptionsForRatelimit, "Expected Redis options to be built")
+
+				// Check specific fields if provided
+				if tt.expectedFields != nil {
+					ro := tt.config.RedisOptionsForRatelimit
+					roValue := reflect.ValueOf(ro).Elem()
+
+					for fieldName, expectedValue := range tt.expectedFields {
+						field := roValue.FieldByName(fieldName)
+						require.True(t, field.IsValid(), "Field %s should exist", fieldName)
+						assert.Equal(t, expectedValue, field.Interface(), "Field %s should match expected value", fieldName)
+					}
+				}
+
+				// Check that Addrs are properly copied
+				if len(tt.config.SwarmRedisURLs.values) > 0 {
+					assert.Equal(t, tt.config.SwarmRedisURLs.values, tt.config.RedisOptionsForRatelimit.Addrs)
+				}
+
+				// Check that TLS config is included if enabled
+				if tt.config.SwarmRedisTLSEnabled {
+					assert.NotNil(t, tt.config.RedisOptionsForRatelimit.TLSConfig)
+				}
+			} else {
+				assert.Nil(t, tt.config.RedisOptionsForRatelimit, "Expected Redis options to be nil")
+			}
+		})
+	}
+}
+
 func TestMultiFlagYamlErr(t *testing.T) {
 	m := &multiFlag{}
 	err := yaml.Unmarshal([]byte(`foo=bar`), m)

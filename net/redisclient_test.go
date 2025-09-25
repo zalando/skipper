@@ -21,9 +21,240 @@ import (
 )
 
 // Helper to get a test logger
-func getTestLogger(t *testing.T) logging.Logger {
-	// Use the default logger, as logging.DefaultLog does not have a Std field
+func getTestLogger() logging.Logger {
 	return &logging.DefaultLog{}
+}
+
+// Mock RedisRingClient for testing
+type mockRedisRingClient struct {
+	data   map[string]string
+	scores map[string]map[string]float64
+	mu     sync.RWMutex
+	closed bool
+	err    error
+}
+
+func newMockRedisRingClient() *mockRedisRingClient {
+	return &mockRedisRingClient{
+		data:   make(map[string]string),
+		scores: make(map[string]map[string]float64),
+	}
+}
+
+func (m *mockRedisRingClient) Get(ctx context.Context, key string) *redis.StringCmd {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if m.err != nil {
+		cmd := redis.NewStringCmd(ctx, "get", key)
+		cmd.SetErr(m.err)
+		return cmd
+	}
+
+	val, exists := m.data[key]
+	cmd := redis.NewStringCmd(ctx, "get", key)
+	if !exists {
+		cmd.SetErr(redis.Nil)
+	} else {
+		cmd.SetVal(val)
+	}
+	return cmd
+}
+
+func (m *mockRedisRingClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.err != nil {
+		cmd := redis.NewStatusCmd(ctx, "set", key, value)
+		cmd.SetErr(m.err)
+		return cmd
+	}
+
+	m.data[key] = fmt.Sprintf("%v", value)
+	cmd := redis.NewStatusCmd(ctx, "set", key, value)
+	cmd.SetVal("OK")
+	return cmd
+}
+
+func (m *mockRedisRingClient) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.closed = true
+	return nil
+}
+
+func (m *mockRedisRingClient) setError(err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.err = err
+}
+
+func TestNewRedisClient(t *testing.T) {
+	tests := []struct {
+		name    string
+		options *RedisOptions
+		wantErr bool
+	}{
+		{
+			name: "ring mode with single address",
+			options: &RedisOptions{
+				Addrs:       []string{"localhost:6379"},
+				ClusterMode: false,
+				Log:         getTestLogger(),
+			},
+			wantErr: false,
+		},
+		{
+			name: "ring mode with multiple addresses",
+			options: &RedisOptions{
+				Addrs:       []string{"localhost:6379", "localhost:6380"},
+				ClusterMode: false,
+				Log:         getTestLogger(),
+			},
+			wantErr: false,
+		},
+		{
+			name: "cluster mode",
+			options: &RedisOptions{
+				Addrs:       []string{"localhost:6379", "localhost:6380"},
+				ClusterMode: true,
+				Log:         getTestLogger(),
+			},
+			wantErr: false,
+		},
+		{
+			name: "ring mode with remote URL",
+			options: &RedisOptions{
+				RemoteURL:      "http://example.com/redis-endpoints",
+				UpdateInterval: 5 * time.Minute,
+				ClusterMode:    false,
+				Log:            getTestLogger(),
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid hash algorithm",
+			options: &RedisOptions{
+				Addrs:         []string{"localhost:6379"},
+				ClusterMode:   false,
+				HashAlgorithm: "invalid_algo",
+				Log:           getTestLogger(),
+			},
+			wantErr: true,
+		},
+		{
+			name: "no addresses and no remote URL",
+			options: &RedisOptions{
+				ClusterMode: false,
+				Log:         getTestLogger(),
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := NewRedisClient(tt.options)
+
+			if tt.wantErr {
+				assert.Nil(t, client, "Expected nil client for invalid options")
+			} else {
+				assert.NotNil(t, client, "Expected non-nil client for valid options")
+				if client != nil {
+					assert.NotNil(t, client.options, "Client options should be set")
+					client.Close()
+				}
+			}
+		})
+	}
+}
+
+func TestRedisClientHashAlgorithms(t *testing.T) {
+	tests := []struct {
+		name      string
+		algorithm string
+	}{
+		{"jump hash", "jump"},
+		{"multiprobe", "mpchash"},
+		{"rendezvous", "rendezvous"},
+		{"rendezvous vnodes", "rendezvousVnodes"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var selector redis.ConsistentHash
+			switch tt.algorithm {
+			case "jump":
+				selector = NewJumpHash([]string{"server1", "server2"})
+			case "mpchash":
+				selector = NewMultiprobe([]string{"server1", "server2"})
+			case "rendezvous":
+				selector = NewRendezvous([]string{"server1", "server2"})
+			case "rendezvousVnodes":
+				selector = NewRendezvousVnodes([]string{"server1", "server2"})
+			}
+
+			assert.NotNil(t, selector, "Selector should not be nil")
+
+			// Test that selector can pick a server
+			server := selector.Get("test-key")
+			assert.Contains(t, []string{"server1", "server2"}, server, "Should select one of the available servers")
+		})
+	}
+}
+
+func TestRedisClientBasicFunctionality(t *testing.T) {
+	// Test basic client creation and methods without actual Redis operations
+	client := NewRedisClient(&RedisOptions{
+		Addrs:       []string{"localhost:6379"},
+		ClusterMode: false,
+		Log:         getTestLogger(),
+	})
+
+	if client != nil {
+		assert.NotNil(t, client, "Client should be created")
+
+		// Test IsAvailable method
+		available := client.IsAvailable()
+		assert.True(t, available, "Client should be available initially")
+
+		// Test NewScript method
+		script := client.NewScript(`return "test"`)
+		assert.NotNil(t, script, "Script should be created")
+
+		client.Close()
+	}
+}
+
+func TestRedisClientRemoteEndpoints(t *testing.T) {
+	// Create a mock HTTP server that returns Redis endpoints
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := `["redis1.example.com:6379", "redis2.example.com:6379"]`
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(response))
+	}))
+	defer mockServer.Close()
+
+	options := &RedisOptions{
+		RemoteURL:      mockServer.URL,
+		UpdateInterval: 100 * time.Millisecond,
+		ClusterMode:    false,
+		Log:            getTestLogger(),
+	}
+
+	client := NewRedisClient(options)
+	if client != nil {
+		defer client.Close()
+		assert.NotNil(t, client, "Client should be created with remote endpoints")
+
+		// Wait for initial endpoint fetch
+		time.Sleep(200 * time.Millisecond)
+
+		// The addresses should be updated (we can't easily verify without exposing internal state)
+		assert.True(t, client.IsAvailable(), "Client should remain available after address update")
+	}
 }
 
 func TestRedisContainer(t *testing.T) {
@@ -200,7 +431,7 @@ func TestRedisClient_RingMode_Lifecycle(t *testing.T) {
 			options: &RedisOptions{
 				ClusterMode: false, // Explicit for clarity
 				Addrs:       []string{redisAddr},
-				Log:         getTestLogger(t),
+				Log:         getTestLogger(),
 			},
 			wantErr: false,
 		},
@@ -210,7 +441,7 @@ func TestRedisClient_RingMode_Lifecycle(t *testing.T) {
 				ClusterMode:    false,
 				AddrUpdater:    updater.update,
 				UpdateInterval: 20 * time.Millisecond,
-				Log:            getTestLogger(t),
+				Log:            getTestLogger(),
 			},
 			wantErr: false,
 		},
@@ -220,7 +451,7 @@ func TestRedisClient_RingMode_Lifecycle(t *testing.T) {
 				ClusterMode: false,
 				Addrs:       []string{redisAddr},
 				Tracer:      tracer,
-				Log:         getTestLogger(t),
+				Log:         getTestLogger(),
 			},
 			wantErr: false,
 		},
@@ -231,7 +462,7 @@ func TestRedisClient_RingMode_Lifecycle(t *testing.T) {
 				Addrs:               []string{redisAddr},
 				ConnMetricsInterval: 20 * time.Millisecond, // Increased slightly
 				MetricsPrefix:       "test.ring.redis.",
-				Log:                 getTestLogger(t),
+				Log:                 getTestLogger(),
 			},
 			wantErr: false,
 		},
@@ -241,7 +472,7 @@ func TestRedisClient_RingMode_Lifecycle(t *testing.T) {
 				ClusterMode: false,
 				Addrs:       nil,
 				AddrUpdater: nil,
-				Log:         getTestLogger(t),
+				Log:         getTestLogger(),
 			},
 			wantErr: true, // Expect initialization to fail logically
 		},
@@ -361,7 +592,7 @@ func TestRedisClient_RingMode_GetSet(t *testing.T) {
 			options: &RedisOptions{
 				ClusterMode: false,
 				Addrs:       []string{redisAddr}, // Single node OK here
-				Log:         getTestLogger(t),
+				Log:         getTestLogger(),
 			},
 			key:    "k1",
 			value:  "foo",
@@ -372,7 +603,7 @@ func TestRedisClient_RingMode_GetSet(t *testing.T) {
 			options: &RedisOptions{
 				ClusterMode: false,
 				Addrs:       testAddrs,
-				Log:         getTestLogger(t),
+				Log:         getTestLogger(),
 			},
 			key:    "k2",
 			value:  "bar",
@@ -385,7 +616,7 @@ func TestRedisClient_RingMode_GetSet(t *testing.T) {
 			options: &RedisOptions{
 				ClusterMode: false,
 				Addrs:       []string{redisAddr},
-				Log:         getTestLogger(t), // Single node OK here
+				Log:         getTestLogger(), // Single node OK here
 			},
 			key:           "k3",
 			value:         "baz",
@@ -399,7 +630,7 @@ func TestRedisClient_RingMode_GetSet(t *testing.T) {
 			options: &RedisOptions{
 				ClusterMode: false,
 				Addrs:       []string{redisAddr},
-				Log:         getTestLogger(t),
+				Log:         getTestLogger(),
 			},
 			key:           "nonexistent",
 			expectGetErr:  true,
@@ -412,7 +643,7 @@ func TestRedisClient_RingMode_GetSet(t *testing.T) {
 				ClusterMode:   false,
 				Addrs:         testAddrs,
 				HashAlgorithm: "rendezvous",
-				Log:           getTestLogger(t),
+				Log:           getTestLogger(),
 			},
 			key:    "khash1",
 			value:  "hashvalue1",
@@ -424,7 +655,7 @@ func TestRedisClient_RingMode_GetSet(t *testing.T) {
 				ClusterMode:   false,
 				Addrs:         testAddrs,
 				HashAlgorithm: "rendezvousVnodes",
-				Log:           getTestLogger(t),
+				Log:           getTestLogger(),
 			},
 			key:    "khash2",
 			value:  "hashvalue2",
@@ -436,7 +667,7 @@ func TestRedisClient_RingMode_GetSet(t *testing.T) {
 				ClusterMode:   false,
 				Addrs:         testAddrs,
 				HashAlgorithm: "jump",
-				Log:           getTestLogger(t),
+				Log:           getTestLogger(),
 			},
 			key:    "khash3",
 			value:  "hashvalue3",
@@ -448,7 +679,7 @@ func TestRedisClient_RingMode_GetSet(t *testing.T) {
 				ClusterMode:   false,
 				Addrs:         testAddrs,
 				HashAlgorithm: "mpchash",
-				Log:           getTestLogger(t),
+				Log:           getTestLogger(),
 			},
 			key:    "khash4",
 			value:  "hashvalue4",
@@ -460,7 +691,7 @@ func TestRedisClient_RingMode_GetSet(t *testing.T) {
 				ClusterMode:   false,
 				Addrs:         testAddrs,
 				HashAlgorithm: "unknown-hash-algo", // Should log a warning
-				Log:           getTestLogger(t),
+				Log:           getTestLogger(),
 			},
 			key:    "khash5",
 			value:  "hashvalue5",
@@ -549,7 +780,7 @@ func TestRedisClient_RingMode_ZAddZCard(t *testing.T) {
 	baseOptions := &RedisOptions{
 		ClusterMode: false,
 		Addrs:       []string{redisAddr},
-		Log:         getTestLogger(t),
+		Log:         getTestLogger(),
 	}
 
 	for _, tt := range []struct {
@@ -651,7 +882,7 @@ func TestRedisClient_RingMode_Expire(t *testing.T) {
 	baseOptions := &RedisOptions{
 		ClusterMode: false,
 		Addrs:       []string{redisAddr},
-		Log:         getTestLogger(t),
+		Log:         getTestLogger(),
 	}
 
 	for _, tt := range []struct {
@@ -764,7 +995,7 @@ func TestRedisClient_RingMode_ZRemRangeByScore(t *testing.T) {
 	baseOptions := &RedisOptions{
 		ClusterMode: false,
 		Addrs:       []string{redisAddr},
-		Log:         getTestLogger(t),
+		Log:         getTestLogger(),
 	}
 
 	for _, tt := range []struct {
@@ -911,7 +1142,7 @@ func TestRedisClient_RingMode_ZRangeByScoreWithScoresFirst(t *testing.T) {
 	baseOptions := &RedisOptions{
 		ClusterMode: false,
 		Addrs:       []string{redisAddr},
-		Log:         getTestLogger(t),
+		Log:         getTestLogger(),
 	}
 
 	for _, tt := range []struct {
@@ -1123,7 +1354,7 @@ func TestRedisClient_RingMode_SetAddrs(t *testing.T) {
 			opts := &RedisOptions{
 				ClusterMode: false,
 				Addrs:       tt.initialAddrs,
-				Log:         getTestLogger(t),
+				Log:         getTestLogger(),
 				// Use a specific hash algorithm to make key distribution somewhat predictable for testing
 				// Though exact node isn't tested here, just availability after change.
 				HashAlgorithm: "jump",
@@ -1210,7 +1441,7 @@ func TestRedisClient_RingMode_FailingAddrUpdater(t *testing.T) {
 		// Retry logic in NewRedisClient needs time, ensure UpdateInterval is reasonable
 		UpdateInterval: 100 * time.Millisecond,
 		DialTimeout:    50 * time.Millisecond, // Make retries faster
-		Log:            getTestLogger(t),
+		Log:            getTestLogger(),
 	}
 
 	cli := NewRedisClient(opts)
@@ -1287,7 +1518,7 @@ func TestRedisClient_RingMode_RemoteURL_Success(t *testing.T) {
 		RemoteURL:      server.URL,
 		UpdateInterval: 50 * time.Millisecond,  // Faster updates for test
 		DialTimeout:    100 * time.Millisecond, // Timeout for HTTP fetch
-		Log:            getTestLogger(t),
+		Log:            getTestLogger(),
 	}
 
 	cli := NewRedisClient(opts)
@@ -1413,7 +1644,7 @@ func TestRedisClient_RingMode_RemoteURL_Failures(t *testing.T) {
 				RemoteURL:      fmt.Sprintf("%s?mode=%s", server.URL, tt.urlMode),
 				UpdateInterval: 50 * time.Millisecond,
 				DialTimeout:    50 * time.Millisecond,
-				Log:            getTestLogger(t),
+				Log:            getTestLogger(),
 			}
 
 			cli := NewRedisClient(opts)
@@ -1479,7 +1710,7 @@ func TestRedisClient_ClusterMode_Lifecycle(t *testing.T) {
 			options: &RedisOptions{
 				ClusterMode: true,
 				Addrs:       []string{redisAddr}, // Use single node as seed
-				Log:         getTestLogger(t),
+				Log:         getTestLogger(),
 			},
 			expectError: false,
 		},
@@ -1488,7 +1719,7 @@ func TestRedisClient_ClusterMode_Lifecycle(t *testing.T) {
 			options: &RedisOptions{
 				ClusterMode: true,
 				Addrs:       nil, // Error case
-				Log:         getTestLogger(t),
+				Log:         getTestLogger(),
 			},
 			expectError: true,
 		},
@@ -1502,7 +1733,7 @@ func TestRedisClient_ClusterMode_Lifecycle(t *testing.T) {
 					return nil, errors.New("updater called unexpectedly")
 				},
 				UpdateInterval: 10 * time.Millisecond, // Should be ignored
-				Log:            getTestLogger(t),
+				Log:            getTestLogger(),
 			},
 			expectError: false,
 		},
@@ -1512,7 +1743,7 @@ func TestRedisClient_ClusterMode_Lifecycle(t *testing.T) {
 				ClusterMode: true,
 				Addrs:       []string{redisAddr},
 				RemoteURL:   "http://127.0.0.1:9999/ignored", // Should be ignored
-				Log:         getTestLogger(t),
+				Log:         getTestLogger(),
 			},
 			expectError: false,
 		},

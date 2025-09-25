@@ -15,6 +15,153 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNewClusterRateLimiterRedis(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings Settings
+		client   *net.RedisClient
+		group    string
+		wantNil  bool
+	}{
+		{
+			name: "valid settings and client",
+			settings: Settings{
+				Type:       ClusterClientRatelimit,
+				MaxHits:    10,
+				TimeWindow: time.Second,
+			},
+			client:  &net.RedisClient{}, // Mock client
+			group:   "test-group",
+			wantNil: false,
+		},
+		{
+			name: "nil redis client",
+			settings: Settings{
+				Type:       ClusterClientRatelimit,
+				MaxHits:    10,
+				TimeWindow: time.Second,
+			},
+			client:  nil,
+			group:   "test-group",
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := newClusterRateLimiterRedis(tt.settings, tt.client, tt.group)
+			if tt.wantNil {
+				assert.Nil(t, result, "Expected nil result")
+			} else {
+				assert.NotNil(t, result, "Expected non-nil result")
+			}
+		})
+	}
+}
+
+func TestClusterLimitRedis_ErrorHandling(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
+
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
+
+	client := net.NewRedisClient(&net.RedisOptions{
+		Addrs:       []string{redisAddr},
+		ClusterMode: false,
+	})
+	defer client.Close()
+
+	rl := &clusterLimitRedis{
+		group:       "test-group",
+		maxHits:     5,
+		window:      time.Second,
+		redisClient: client,
+	}
+
+	ctx := context.Background()
+
+	t.Run("allow with context", func(t *testing.T) {
+		allowed := rl.Allow(ctx, "test-key")
+		assert.True(t, allowed, "First request should be allowed")
+	})
+
+	t.Run("delta method", func(t *testing.T) {
+		// Test Delta method (should return 0 for Redis implementation)
+		delta := rl.Delta("test-key")
+		assert.Equal(t, time.Duration(0), delta, "Delta should return 0 for Redis implementation")
+	})
+
+	t.Run("oldest method", func(t *testing.T) {
+		// Test Oldest method (should return 0 for Redis implementation)
+		oldest := rl.Oldest("test-key")
+		assert.Equal(t, time.Time{}, oldest, "Oldest should return zero time for Redis implementation")
+	})
+
+	t.Run("retry after method", func(t *testing.T) {
+		// Test RetryAfter method (should return 0 for Redis implementation)
+		retryAfter := rl.RetryAfter("test-key")
+		assert.Equal(t, time.Duration(0), retryAfter, "RetryAfter should return 0 for Redis implementation")
+	})
+
+	t.Run("resize method", func(t *testing.T) {
+		// Test Resize method (should be no-op for Redis implementation)
+		rl.Resize("test-key", 10) // Should not panic
+	})
+
+	t.Run("close method", func(t *testing.T) {
+		// Test Close method (should be no-op for Redis implementation)
+		rl.Close() // Should not panic
+	})
+}
+
+func TestClusterLimitRedis_PrefixKey(t *testing.T) {
+	rl := &clusterLimitRedis{
+		group: "test-group",
+	}
+
+	tests := []struct {
+		key      string
+		expected string
+	}{
+		{"simple-key", "ratelimit:test-group:simple-key"},
+		{"key-with-dashes", "ratelimit:test-group:key-with-dashes"},
+		{"", "ratelimit:test-group:"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			result := rl.prefixKey(tt.key)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestClusterLimitRedis_CommonTags(t *testing.T) {
+	rl := &clusterLimitRedis{
+		group: "test-group",
+	}
+
+	tags := rl.commonTags()
+	expected := map[string]string{
+		"group": "test-group",
+		"type":  "redis",
+	}
+
+	assert.Equal(t, expected, tags)
+}
+
+func TestClusterLimitRedis_LogError(t *testing.T) {
+	rl := &clusterLimitRedis{
+		group: "test-group",
+	}
+
+	// Test logError doesn't panic
+	testErr := fmt.Errorf("test error")
+	rl.logError("test-operation: %v", testErr) // Should not panic
+}
+
 func Test_clusterLimitRedis_WithPass(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping Redis container test in short mode")
