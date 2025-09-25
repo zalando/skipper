@@ -40,6 +40,7 @@ import (
 	"github.com/zalando/skipper/filters/openpolicyagent/opaauthorizerequest"
 	"github.com/zalando/skipper/filters/openpolicyagent/opaserveresponse"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
+	"github.com/zalando/skipper/filters/ratelimit/bypass"
 	"github.com/zalando/skipper/filters/shedder"
 	teefilters "github.com/zalando/skipper/filters/tee"
 	"github.com/zalando/skipper/loadbalancer"
@@ -62,7 +63,6 @@ import (
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/queuelistener"
 	"github.com/zalando/skipper/ratelimit"
-	"github.com/zalando/skipper/ratelimitbypass"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/script"
@@ -1897,18 +1897,18 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		provider := ratelimitfilters.NewRatelimitProvider(ratelimitRegistry)
 
 		// Create global bypass validator if global bypass configuration is provided
-		var globalBypasser *ratelimitbypass.BypassValidator
+		var globalBypasser *bypass.BypassValidator
 		if o.RatelimitBypassSecretKey != "" {
-			config := ratelimitbypass.BypassConfig{
+			config := bypass.BypassConfig{
 				SecretKey:    o.RatelimitBypassSecretKey,
 				TokenExpiry:  o.RatelimitBypassTokenExpiry,
 				BypassHeader: o.RatelimitBypassHeader,
 				BypassCookie: o.RatelimitBypassCookie,
 			}
 			if o.RatelimitBypassIPWhitelist != "" {
-				config.IPWhitelist = ratelimitbypass.ParseIPWhitelist(o.RatelimitBypassIPWhitelist)
+				config.IPWhitelist = bypass.ParseIPWhitelist(o.RatelimitBypassIPWhitelist)
 			}
-			globalBypasser = ratelimitbypass.NewBypassValidator(config)
+			globalBypasser = bypass.NewBypassValidator(config)
 		}
 
 		// Use global bypass constructors if global bypass is configured

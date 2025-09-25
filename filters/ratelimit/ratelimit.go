@@ -14,8 +14,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/ratelimit/bypass"
 	"github.com/zalando/skipper/ratelimit"
-	"github.com/zalando/skipper/ratelimitbypass"
 )
 
 const defaultStatusCode = http.StatusTooManyRequests
@@ -25,7 +25,7 @@ type spec struct {
 	provider       RatelimitProvider
 	filterName     string
 	maxShards      int
-	globalBypasser *ratelimitbypass.BypassValidator
+	globalBypasser *bypass.BypassValidator
 }
 
 type filter struct {
@@ -33,7 +33,7 @@ type filter struct {
 	provider        RatelimitProvider
 	statusCode      int
 	maxHits         int // overrides settings.MaxHits
-	bypassValidator *ratelimitbypass.BypassValidator
+	bypassValidator *bypass.BypassValidator
 }
 
 // RatelimitProvider returns a limit instance for provided Settings
@@ -95,7 +95,7 @@ func NewClientRatelimit(provider RatelimitProvider) filters.Spec {
 }
 
 // NewClientRatelimitWithGlobalBypass creates a client rate limit filter with global bypass configuration
-func NewClientRatelimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *ratelimitbypass.BypassValidator) filters.Spec {
+func NewClientRatelimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *bypass.BypassValidator) filters.Spec {
 	return &spec{typ: ratelimit.ClientRatelimit, provider: provider, filterName: filters.ClientRatelimitName, globalBypasser: globalBypasser}
 }
 
@@ -121,7 +121,7 @@ func NewRatelimit(provider RatelimitProvider) filters.Spec {
 }
 
 // NewRatelimitWithGlobalBypass creates a service rate limit filter with global bypass configuration
-func NewRatelimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *ratelimitbypass.BypassValidator) filters.Spec {
+func NewRatelimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *bypass.BypassValidator) filters.Spec {
 	return &spec{typ: ratelimit.ServiceRatelimit, provider: provider, filterName: filters.RatelimitName, globalBypasser: globalBypasser}
 }
 
@@ -148,7 +148,7 @@ func NewClusterRateLimit(provider RatelimitProvider) filters.Spec {
 }
 
 // NewClusterRateLimitWithGlobalBypass creates a cluster rate limit filter with global bypass configuration
-func NewClusterRateLimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *ratelimitbypass.BypassValidator) filters.Spec {
+func NewClusterRateLimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *bypass.BypassValidator) filters.Spec {
 	return NewShardedClusterRateLimitWithGlobalBypass(provider, 1, globalBypasser)
 }
 
@@ -163,7 +163,7 @@ func NewShardedClusterRateLimit(provider RatelimitProvider, maxGroupShards int) 
 }
 
 // NewShardedClusterRateLimitWithGlobalBypass creates a sharded cluster rate limit filter with global bypass configuration
-func NewShardedClusterRateLimitWithGlobalBypass(provider RatelimitProvider, maxGroupShards int, globalBypasser *ratelimitbypass.BypassValidator) filters.Spec {
+func NewShardedClusterRateLimitWithGlobalBypass(provider RatelimitProvider, maxGroupShards int, globalBypasser *bypass.BypassValidator) filters.Spec {
 	return &spec{typ: ratelimit.ClusterServiceRatelimit, provider: provider, filterName: filters.ClusterRatelimitName, maxShards: maxGroupShards, globalBypasser: globalBypasser}
 }
 
@@ -196,7 +196,7 @@ func NewClusterClientRateLimit(provider RatelimitProvider) filters.Spec {
 }
 
 // NewClusterClientRateLimitWithGlobalBypass creates a cluster client rate limit filter with global bypass configuration
-func NewClusterClientRateLimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *ratelimitbypass.BypassValidator) filters.Spec {
+func NewClusterClientRateLimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *bypass.BypassValidator) filters.Spec {
 	return &spec{typ: ratelimit.ClusterClientRatelimit, provider: provider, filterName: filters.ClusterClientRatelimitName, globalBypasser: globalBypasser}
 }
 
@@ -212,7 +212,7 @@ func NewDisableRatelimit(provider RatelimitProvider) filters.Spec {
 }
 
 // NewDisableRatelimitWithGlobalBypass creates a disable rate limit filter with global bypass configuration
-func NewDisableRatelimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *ratelimitbypass.BypassValidator) filters.Spec {
+func NewDisableRatelimitWithGlobalBypass(provider RatelimitProvider, globalBypasser *bypass.BypassValidator) filters.Spec {
 	return &spec{typ: ratelimit.DisableRatelimit, provider: provider, filterName: filters.DisableRatelimitName, globalBypasser: globalBypasser}
 }
 
@@ -379,7 +379,7 @@ func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
 	}
 
 	// Check for bypass configuration
-	var bypassValidator *ratelimitbypass.BypassValidator
+	var bypassValidator *bypass.BypassValidator
 	if len(args) > bypassStartIndex {
 		bypassValidator = parseBypassConfig(args, bypassStartIndex)
 	}
@@ -470,7 +470,7 @@ func clientRatelimitFilter(args []interface{}) (*filter, error) {
 		}
 	}
 
-	var bypassValidator *ratelimitbypass.BypassValidator
+	var bypassValidator *bypass.BypassValidator
 	if len(args) > bypassStartIndex {
 		bypassValidator = parseBypassConfig(args, bypassStartIndex)
 	}
@@ -490,7 +490,7 @@ func clientRatelimitFilter(args []interface{}) (*filter, error) {
 
 func disableFilter(args []interface{}) (*filter, error) {
 	// Even for disable filter, we might want bypass config for consistency
-	var bypassValidator *ratelimitbypass.BypassValidator
+	var bypassValidator *bypass.BypassValidator
 	if len(args) >= 4 {
 		bypassValidator = parseBypassConfig(args, 0)
 	}
@@ -574,7 +574,7 @@ func getStatusCodeArg(args []interface{}, index int) (int, error) {
 
 // parseBypassConfig extracts bypass configuration from filter arguments
 // Returns nil if no bypass config is found
-func parseBypassConfig(args []interface{}, startIndex int) *ratelimitbypass.BypassValidator {
+func parseBypassConfig(args []interface{}, startIndex int) *bypass.BypassValidator {
 	// Check if we have enough arguments for bypass config
 	// Expected: bypassHeader, secretKey, tokenExpiry, ipWhitelist
 	if len(args) < startIndex+3 {
@@ -604,18 +604,18 @@ func parseBypassConfig(args []interface{}, startIndex int) *ratelimitbypass.Bypa
 	var ipWhitelist []string
 	if len(args) > startIndex+3 {
 		if ipWhitelistStr, err := getStringArg(args[startIndex+3]); err == nil {
-			ipWhitelist = ratelimitbypass.ParseIPWhitelist(ipWhitelistStr)
+			ipWhitelist = bypass.ParseIPWhitelist(ipWhitelistStr)
 		}
 	}
 
-	config := ratelimitbypass.BypassConfig{
+	config := bypass.BypassConfig{
 		SecretKey:    secretKey,
 		TokenExpiry:  tokenExpiry,
 		BypassHeader: bypassHeader,
 		IPWhitelist:  ipWhitelist,
 	}
 
-	return ratelimitbypass.NewBypassValidator(config)
+	return bypass.NewBypassValidator(config)
 }
 
 // Request checks ratelimit using filter settings and serves `429 Too Many Requests` response if limit is reached

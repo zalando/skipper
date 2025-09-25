@@ -1,5 +1,5 @@
-// Package ratelimitbypass provides JWT-based bypass functionality for rate limiting
-package ratelimitbypass
+// Package bypass provides JWT-based bypass functionality for rate limiting
+package bypass
 
 import (
 	"crypto/hmac"

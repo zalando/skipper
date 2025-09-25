@@ -291,7 +291,7 @@ clusterClientRatelimit("groupB", 20, "1h", "Authorization", "X-Bypass-Token", "s
 
 ### JWT Token Generation
 
-Bypass tokens are JWT tokens signed with HMAC-SHA256. You can generate tokens using the `ratelimitBypassGenerateToken()` filter or create them programmatically using the `ratelimitbypass` package.
+Bypass tokens are JWT tokens signed with HMAC-SHA256. You can generate tokens using the `ratelimitBypassGenerateToken()` filter or create them programmatically using the `filters/ratelimit/bypass` package.
 
 Example route for token generation:
 ```

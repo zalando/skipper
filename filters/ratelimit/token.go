@@ -8,32 +8,32 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/ratelimitbypass"
+	"github.com/zalando/skipper/filters/ratelimit/bypass"
 )
 
 type tokenGenSpec struct {
-	validator *ratelimitbypass.BypassValidator
+	validator *bypass.BypassValidator
 }
 
 type tokenValidateSpec struct {
-	validator *ratelimitbypass.BypassValidator
+	validator *bypass.BypassValidator
 }
 
 type tokenGenFilter struct {
-	validator *ratelimitbypass.BypassValidator
+	validator *bypass.BypassValidator
 }
 
 type tokenValidateFilter struct {
-	validator *ratelimitbypass.BypassValidator
+	validator *bypass.BypassValidator
 }
 
 // NewRatelimitBypassGenerateToken creates a filter that generates bypass tokens
 func NewRatelimitBypassGenerateToken(secretKey string, tokenExpiry time.Duration) filters.Spec {
-	config := ratelimitbypass.BypassConfig{
+	config := bypass.BypassConfig{
 		SecretKey:   secretKey,
 		TokenExpiry: tokenExpiry,
 	}
-	validator := ratelimitbypass.NewBypassValidator(config)
+	validator := bypass.NewBypassValidator(config)
 
 	return &tokenGenSpec{
 		validator: validator,
@@ -42,12 +42,12 @@ func NewRatelimitBypassGenerateToken(secretKey string, tokenExpiry time.Duration
 
 // NewRatelimitBypassValidateToken creates a filter that validates bypass tokens
 func NewRatelimitBypassValidateToken(secretKey string, tokenExpiry time.Duration, bypassHeader string) filters.Spec {
-	config := ratelimitbypass.BypassConfig{
+	config := bypass.BypassConfig{
 		SecretKey:    secretKey,
 		TokenExpiry:  tokenExpiry,
 		BypassHeader: bypassHeader,
 	}
-	validator := ratelimitbypass.NewBypassValidator(config)
+	validator := bypass.NewBypassValidator(config)
 
 	return &tokenValidateSpec{
 		validator: validator,

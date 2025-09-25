@@ -1,4 +1,4 @@
-package ratelimitbypass
+package bypass
 
 import (
 	"net/http"

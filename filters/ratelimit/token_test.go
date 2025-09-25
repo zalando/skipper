@@ -10,7 +10,7 @@ import (
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
-	"github.com/zalando/skipper/ratelimitbypass"
+	"github.com/zalando/skipper/filters/ratelimit/bypass"
 )
 
 func TestTokenGenSpec_Name(t *testing.T) {
@@ -123,13 +123,13 @@ func TestBypassValidator_DirectTest(t *testing.T) {
 	secretKey := "test-secret-key"
 	bypassHeader := "X-RateLimit-Bypass"
 
-	config := ratelimitbypass.BypassConfig{
+	config := bypass.BypassConfig{
 		SecretKey:    secretKey,
 		TokenExpiry:  time.Minute * 5,
 		BypassHeader: bypassHeader,
 	}
 
-	validator := ratelimitbypass.NewBypassValidator(config)
+	validator := bypass.NewBypassValidator(config)
 
 	// Generate token directly
 	token, err := validator.GenerateToken()
@@ -149,7 +149,6 @@ func TestBypassValidator_DirectTest(t *testing.T) {
 		t.Error("Valid token was rejected by bypass validator")
 	}
 }
-
 
 func TestTokenValidateFilter_Request_ValidToken(t *testing.T) {
 	secretKey := "test-secret-key"

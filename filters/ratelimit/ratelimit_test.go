@@ -10,8 +10,8 @@ import (
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/filters/ratelimit/bypass"
 	"github.com/zalando/skipper/ratelimit"
-	"github.com/zalando/skipper/ratelimitbypass"
 )
 
 func TestArgs(t *testing.T) {
@@ -527,12 +527,12 @@ func TestRateLimitBypass(t *testing.T) {
 			args:       []interface{}{10, "1s", 429, "X-Bypass-Token", "test-secret", "5m"},
 			setupRequest: func(req *http.Request) {
 				// Create a bypass validator to generate a valid token
-				config := ratelimitbypass.BypassConfig{
+				config := bypass.BypassConfig{
 					SecretKey:    "test-secret",
 					TokenExpiry:  5 * time.Minute,
 					BypassHeader: "X-Bypass-Token",
 				}
-				validator := ratelimitbypass.NewBypassValidator(config)
+				validator := bypass.NewBypassValidator(config)
 				token, _ := validator.GenerateToken()
 				req.Header.Set("X-Bypass-Token", token)
 			},
@@ -564,12 +564,12 @@ func TestRateLimitBypass(t *testing.T) {
 			filterSpec: NewClientRatelimit,
 			args:       []interface{}{10, "1s", "X-Bypass-Token", "test-secret", "5m"},
 			setupRequest: func(req *http.Request) {
-				config := ratelimitbypass.BypassConfig{
+				config := bypass.BypassConfig{
 					SecretKey:    "test-secret",
 					TokenExpiry:  5 * time.Minute,
 					BypassHeader: "X-Bypass-Token",
 				}
-				validator := ratelimitbypass.NewBypassValidator(config)
+				validator := bypass.NewBypassValidator(config)
 				token, _ := validator.GenerateToken()
 				req.Header.Set("X-Bypass-Token", token)
 			},
@@ -581,12 +581,12 @@ func TestRateLimitBypass(t *testing.T) {
 			filterSpec: NewClientRatelimit,
 			args:       []interface{}{10, "1s", "Authorization", "X-Bypass-Token", "test-secret", "5m"},
 			setupRequest: func(req *http.Request) {
-				config := ratelimitbypass.BypassConfig{
+				config := bypass.BypassConfig{
 					SecretKey:    "test-secret",
 					TokenExpiry:  5 * time.Minute,
 					BypassHeader: "X-Bypass-Token",
 				}
-				validator := ratelimitbypass.NewBypassValidator(config)
+				validator := bypass.NewBypassValidator(config)
 				token, _ := validator.GenerateToken()
 				req.Header.Set("X-Bypass-Token", token)
 				req.Header.Set("Authorization", "Bearer test")
@@ -599,12 +599,12 @@ func TestRateLimitBypass(t *testing.T) {
 			filterSpec: NewClusterRateLimit,
 			args:       []interface{}{"test-group", 10, "1s", 429, "X-Bypass-Token", "test-secret", "5m"},
 			setupRequest: func(req *http.Request) {
-				config := ratelimitbypass.BypassConfig{
+				config := bypass.BypassConfig{
 					SecretKey:    "test-secret",
 					TokenExpiry:  5 * time.Minute,
 					BypassHeader: "X-Bypass-Token",
 				}
-				validator := ratelimitbypass.NewBypassValidator(config)
+				validator := bypass.NewBypassValidator(config)
 				token, _ := validator.GenerateToken()
 				req.Header.Set("X-Bypass-Token", token)
 			},
@@ -616,12 +616,12 @@ func TestRateLimitBypass(t *testing.T) {
 			filterSpec: NewClusterClientRateLimit,
 			args:       []interface{}{"test-group", 10, "1s", "Authorization", "X-Bypass-Token", "test-secret", "5m"},
 			setupRequest: func(req *http.Request) {
-				config := ratelimitbypass.BypassConfig{
+				config := bypass.BypassConfig{
 					SecretKey:    "test-secret",
 					TokenExpiry:  5 * time.Minute,
 					BypassHeader: "X-Bypass-Token",
 				}
-				validator := ratelimitbypass.NewBypassValidator(config)
+				validator := bypass.NewBypassValidator(config)
 				token, _ := validator.GenerateToken()
 				req.Header.Set("X-Bypass-Token", token)
 				req.Header.Set("Authorization", "Bearer test")
