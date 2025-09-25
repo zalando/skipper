@@ -125,9 +125,9 @@ func TestClusterLimitRedis_PrefixKey(t *testing.T) {
 		key      string
 		expected string
 	}{
-		{"simple-key", "ratelimit:test-group:simple-key"},
-		{"key-with-dashes", "ratelimit:test-group:key-with-dashes"},
-		{"", "ratelimit:test-group:"},
+		{"simple-key", "ratelimit.test-group.simple-key"},
+		{"key-with-dashes", "ratelimit.test-group.key-with-dashes"},
+		{"", "ratelimit.test-group."},
 	}
 
 	for _, tt := range tests {
@@ -140,16 +140,22 @@ func TestClusterLimitRedis_PrefixKey(t *testing.T) {
 
 func TestClusterLimitRedis_CommonTags(t *testing.T) {
 	rl := &clusterLimitRedis{
-		group: "test-group",
+		group:   "test-group",
+		typ:     "test-type",
+		maxHits: 10,
+		window:  time.Second,
 	}
 
 	tags := rl.commonTags()
-	expected := map[string]string{
-		"group": "test-group",
-		"type":  "redis",
-	}
 
-	assert.Equal(t, expected, tags)
+	// Check that commonTags returns opentracing.Tags with expected fields
+	assert.NotNil(t, tags, "Tags should not be nil")
+	assert.Equal(t, "test-group", tags["ratelimit_group"])
+	assert.Equal(t, "test-type", tags["ratelimit_type"])
+	assert.Equal(t, int64(10), tags["ratelimit_max_hits"])
+	assert.Equal(t, "1s", tags["ratelimit_window"])
+	assert.Equal(t, "skipper", tags["component"])
+	assert.Equal(t, "redis", tags["db.type"])
 }
 
 func TestClusterLimitRedis_LogError(t *testing.T) {
