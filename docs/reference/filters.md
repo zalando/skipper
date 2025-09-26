@@ -293,19 +293,19 @@ Example:
 ```
 main_route:
 PathSubtree("/")
--> corsOrigin()
--> setResponseHeader("Access-Control-Allow-Credentials", "true")
--> setResponseHeader("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT,PATCH,DELETE")
--> "http://backend.example.org";
+ -> corsOrigin()
+ -> setResponseHeader("Access-Control-Allow-Credentials", "true")
+ -> setResponseHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, POST, PUT, PATCH, DELETE")
+ -> "http://backend.example.org";
 
 preflight_route:
 PathSubtree("/") && Method("OPTIONS")
--> corsOrigin()
--> setResponseHeader("Access-Control-Allow-Credentials", "true")
--> setResponseHeader("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT,PATCH,DELETE")
--> setResponseHeader("Access-Control-Allow-Headers", "authorization, origin, content-type, accept")
--> status(200)
--> <shunt>;
+ -> corsOrigin()
+ -> setResponseHeader("Access-Control-Allow-Credentials", "true")
+ -> setResponseHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, POST, PUT, PATCH, DELETE")
+ -> setResponseHeader("Access-Control-Allow-Headers", "authorization, origin, content-type, accept")
+ -> status(200)
+ -> <shunt>;
 ```
 
 ### headerToQuery
