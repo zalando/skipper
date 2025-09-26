@@ -71,7 +71,7 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 		return nil, err
 	}
 
-	err = envoyauth.Eval(ctx, opa, inputValue, result)
+	err = envoyauth.Eval(ctx, &evalContext{opa}, inputValue, result)
 	if err != nil {
 		return nil, err
 	}

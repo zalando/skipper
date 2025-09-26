@@ -19,6 +19,24 @@ func (opa *OpenPolicyAgentInstance) HandleInvalidDecisionError(fc filters.Filter
 	opa.HandleEvaluationError(fc, span, result, err, serve, http.StatusInternalServerError)
 }
 
+func (opa *OpenPolicyAgentInstance) HandleInstanceNotReadyError(fc filters.FilterContext, span opentracing.Span, serve bool) {
+	span.SetTag("error", true)
+
+	span.LogKV(
+		"event", "error",
+		"message", "Open Policy Agent instance is not ready yet",
+	)
+
+	opa.Logger().Info("Open Policy Agent instance is not ready yet, returning unavailable")
+
+	if serve {
+		resp := http.Response{}
+		resp.StatusCode = http.StatusServiceUnavailable
+
+		fc.Serve(&resp)
+	}
+}
+
 func (opa *OpenPolicyAgentInstance) HandleEvaluationError(fc filters.FilterContext, span opentracing.Span, result *envoyauth.EvalResult, err error, serve bool, status int) {
 	fc.Metrics().IncCounter(opa.MetricsKey("decision.err"))
 	span.SetTag("error", true)
