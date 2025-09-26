@@ -3,6 +3,7 @@ package tee
 import (
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -241,9 +242,7 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, io.ReadCloser, erro
 	}
 
 	h := make(http.Header)
-	for k, v := range req.Header {
-		h[k] = v
-	}
+	maps.Copy(req.Header, h)
 
 	for _, k := range hopHeaders {
 		h.Del(k)
