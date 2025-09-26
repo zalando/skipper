@@ -5,6 +5,7 @@ package eskip
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand"
 	"net/url"
 	"regexp"
@@ -209,7 +210,31 @@ const (
 	LoopBackend
 	DynamicBackend
 	LBBackend
+	ForwardBackend
 )
+
+type fwdBackend struct {
+	target string
+}
+
+func ForwardPreProcessor(s string) *fwdBackend {
+	return &fwdBackend{
+		target: s,
+	}
+}
+
+func (fb *fwdBackend) Do(routes []*Route) []*Route {
+	for i := range routes {
+		switch routes[i].BackendType {
+		case ForwardBackend:
+			routes[i].Backend = fb.target
+			routes[i].BackendType = NetworkBackend
+			routes[i].Filters = nil // important to not run duplicate set of filters
+		}
+	}
+
+	return routes
+}
 
 var errMixedProtocols = errors.New("loadbalancer endpoints cannot have mixed protocols")
 
@@ -223,6 +248,7 @@ type parsedRoute struct {
 	loopback    bool
 	dynamic     bool
 	lbBackend   bool
+	forward     bool
 	backend     string
 	lbAlgorithm string
 	lbEndpoints []string
@@ -372,9 +398,7 @@ func (r *Route) Copy() *Route {
 
 	if len(r.Headers) > 0 {
 		c.Headers = make(map[string]string)
-		for k, v := range r.Headers {
-			c.Headers[k] = v
-		}
+		maps.Copy(c.Headers, r.Headers)
 	}
 
 	if len(r.HeaderRegexps) > 0 {
@@ -420,6 +444,8 @@ func BackendTypeFromString(s string) (BackendType, error) {
 		return DynamicBackend, nil
 	case "lb":
 		return LBBackend, nil
+	case "forward":
+		return ForwardBackend, nil
 	default:
 		return -1, fmt.Errorf("unsupported backend type: %s", s)
 	}
@@ -438,6 +464,8 @@ func (t BackendType) String() string {
 		return "dynamic"
 	case LBBackend:
 		return "lb"
+	case ForwardBackend:
+		return "forward"
 	default:
 		return "unknown"
 	}
@@ -578,6 +606,8 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 		rd.BackendType = DynamicBackend
 	case r.lbBackend:
 		rd.BackendType = LBBackend
+	case r.forward:
+		rd.BackendType = ForwardBackend
 	default:
 		rd.BackendType = NetworkBackend
 	}
@@ -630,7 +660,7 @@ func parse(start int, code string) ([]*parsedRoute, []*Predicate, []*Filter, err
 	return lexer.routes, lexer.predicates, lexer.filters, lexer.err
 }
 
-// Parses a route expression or a routing document to a set of route definitions.
+// Parse a route expression or a routing document to a set of route definitions.
 func Parse(code string) ([]*Route, error) {
 	parsedRoutes, err := parseDocument(code)
 	if err != nil {
@@ -680,7 +710,7 @@ func MustParseFilters(s string) []*Filter {
 	return p
 }
 
-// Parses a filter chain into a list of parsed filter definitions.
+// ParseFilters parses a filter chain into a list of parsed filter definitions.
 func ParseFilters(f string) ([]*Filter, error) {
 	f = strings.TrimSpace(f)
 	if f == "" {
@@ -726,7 +756,7 @@ const (
 	alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 )
 
-// generate weak random id for a route if
+// GenerateIfNeeded generates a weak random id for a route if
 // it doesn't have one.
 //
 // Deprecated: do not use, generate valid route id that matches [a-zA-Z_] yourself.

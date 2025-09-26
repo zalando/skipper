@@ -40,6 +40,7 @@ func convertNumber(s string) float64 {
 	loopback bool
 	dynamic bool
 	lbBackend bool
+	forward bool
 	numval float64
 	stringvals []string
 	lbAlgorithm string
@@ -59,6 +60,7 @@ func convertNumber(s string) float64 {
 %token shunt
 %token loopback
 %token dynamic
+%token forward
 %token stringliteral
 %token symbol
 %token openarrow
@@ -141,6 +143,7 @@ route:
 			lbBackend: $3.lbBackend,
 			lbAlgorithm: $3.lbAlgorithm,
 			lbEndpoints: $3.lbEndpoints,
+			forward: $3.forward,
 		}
 		$1.predicates = nil
 		$3.lbEndpoints = nil
@@ -157,6 +160,7 @@ route:
 			lbBackend: $5.lbBackend,
 			lbAlgorithm: $5.lbAlgorithm,
 			lbEndpoints: $5.lbEndpoints,
+			forward: $5.forward,
 		}
 		$1.predicates = nil
 		$3.filters = nil
@@ -258,6 +262,7 @@ backend:
 		$$.loopback = false
 		$$.dynamic = false
 		$$.lbBackend = false
+		$$.forward = false
 	}
 	|
 	shunt {
@@ -265,6 +270,7 @@ backend:
 		$$.loopback = false
 		$$.dynamic = false
 		$$.lbBackend = false
+		$$.forward = false
 	}
 	|
 	loopback {
@@ -272,6 +278,7 @@ backend:
 		$$.loopback = true
 		$$.dynamic = false
 		$$.lbBackend = false
+		$$.forward = false
 	}
 	|
 	dynamic {
@@ -279,6 +286,7 @@ backend:
 		$$.loopback = false
 		$$.dynamic = true
 		$$.lbBackend = false
+		$$.forward = false
 	}
 	|
 	lbbackend {
@@ -288,6 +296,15 @@ backend:
 		$$.lbBackend = true
 		$$.lbAlgorithm = $1.lbAlgorithm
 		$$.lbEndpoints = $1.lbEndpoints
+		$$.forward = false
+	}
+	|
+	forward {
+		$$.shunt = false
+		$$.loopback = false
+		$$.dynamic = false
+		$$.lbBackend = false
+		$$.forward = true
 	}
 
 numval:

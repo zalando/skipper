@@ -1,0 +1,503 @@
+
+state 0
+	$accept: .start $end 
+
+	start_document  shift 2
+	start_predicates  shift 3
+	start_filters  shift 4
+	.  error
+
+	start  goto 1
+
+state 1
+	$accept:  start.$end 
+
+	$end  accept
+	.  error
+
+
+state 2
+	start:  start_document.document 
+	routes: .    (8)
+
+	any  shift 13
+	symbol  shift 12
+	.  reduce 8 (src line 107)
+
+	document  goto 5
+	predicates  goto 9
+	routes  goto 6
+	route  goto 7
+	routedef  goto 8
+	routeid  goto 10
+	predicate  goto 11
+
+state 3
+	start:  start_predicates.    (2)
+	start:  start_predicates.predicates 
+
+	any  shift 13
+	symbol  shift 15
+	.  reduce 2 (src line 79)
+
+	predicates  goto 14
+	predicate  goto 11
+
+state 4
+	start:  start_filters.    (4)
+	start:  start_filters.filters 
+
+	symbol  shift 18
+	.  reduce 4 (src line 88)
+
+	filters  goto 16
+	filter  goto 17
+
+state 5
+	start:  start_document document.    (1)
+
+	.  reduce 1 (src line 75)
+
+
+state 6
+	document:  routes.    (6)
+	routes:  routes.semicolon routedef 
+	routes:  routes.semicolon 
+
+	semicolon  shift 19
+	.  reduce 6 (src line 98)
+
+
+state 7
+	document:  route.    (7)
+
+	.  reduce 7 (src line 102)
+
+
+state 8
+	routes:  routedef.    (9)
+
+	.  reduce 9 (src line 108)
+
+
+state 9
+	route:  predicates.arrow backend 
+	route:  predicates.arrow filters arrow backend 
+	predicates:  predicates.and predicate 
+
+	and  shift 21
+	arrow  shift 20
+	.  error
+
+
+state 10
+	routedef:  routeid.route 
+
+	any  shift 13
+	symbol  shift 15
+	.  error
+
+	predicates  goto 9
+	route  goto 22
+	predicate  goto 11
+
+state 11
+	predicates:  predicate.    (16)
+
+	.  reduce 16 (src line 170)
+
+
+state 12
+	routeid:  symbol.colon 
+	predicate:  symbol.openparen args closeparen 
+
+	colon  shift 23
+	openparen  shift 24
+	.  error
+
+
+state 13
+	predicate:  any.    (18)
+
+	.  reduce 18 (src line 180)
+
+
+state 14
+	start:  start_predicates predicates.    (3)
+	predicates:  predicates.and predicate 
+
+	and  shift 21
+	.  reduce 3 (src line 84)
+
+
+state 15
+	predicate:  symbol.openparen args closeparen 
+
+	openparen  shift 24
+	.  error
+
+
+state 16
+	start:  start_filters filters.    (5)
+	filters:  filters.arrow filter 
+
+	arrow  shift 25
+	.  reduce 5 (src line 93)
+
+
+state 17
+	filters:  filter.    (20)
+
+	.  reduce 20 (src line 190)
+
+
+state 18
+	filter:  symbol.openparen args closeparen 
+
+	openparen  shift 26
+	.  error
+
+
+state 19
+	routes:  routes semicolon.routedef 
+	routes:  routes semicolon.    (11)
+
+	symbol  shift 28
+	.  reduce 11 (src line 117)
+
+	routedef  goto 27
+	routeid  goto 10
+
+state 20
+	route:  predicates arrow.backend 
+	route:  predicates arrow.filters arrow backend 
+
+	shunt  shift 32
+	loopback  shift 33
+	dynamic  shift 34
+	forward  shift 36
+	stringliteral  shift 31
+	symbol  shift 18
+	openarrow  shift 37
+	.  error
+
+	filters  goto 30
+	backend  goto 29
+	filter  goto 17
+	lbbackend  goto 35
+
+state 21
+	predicates:  predicates and.predicate 
+
+	any  shift 13
+	symbol  shift 15
+	.  error
+
+	predicate  goto 38
+
+state 22
+	routedef:  routeid route.    (12)
+
+	.  reduce 12 (src line 122)
+
+
+state 23
+	routeid:  symbol colon.    (13)
+
+	.  reduce 13 (src line 128)
+
+
+state 24
+	predicate:  symbol openparen.args closeparen 
+	args: .    (23)
+
+	number  shift 44
+	regexpliteral  shift 43
+	stringliteral  shift 42
+	.  reduce 23 (src line 208)
+
+	args  goto 39
+	arg  goto 40
+	numval  goto 41
+
+state 25
+	filters:  filters arrow.filter 
+
+	symbol  shift 18
+	.  error
+
+	filter  goto 45
+
+state 26
+	filter:  symbol openparen.args closeparen 
+	args: .    (23)
+
+	number  shift 44
+	regexpliteral  shift 43
+	stringliteral  shift 42
+	.  reduce 23 (src line 208)
+
+	args  goto 46
+	arg  goto 40
+	numval  goto 41
+
+state 27
+	routes:  routes semicolon routedef.    (10)
+
+	.  reduce 10 (src line 112)
+
+
+state 28
+	routeid:  symbol.colon 
+
+	colon  shift 23
+	.  error
+
+
+state 29
+	route:  predicates arrow backend.    (14)
+
+	.  reduce 14 (src line 135)
+
+
+state 30
+	route:  predicates arrow filters.arrow backend 
+	filters:  filters.arrow filter 
+
+	arrow  shift 47
+	.  error
+
+
+state 31
+	backend:  stringliteral.    (34)
+
+	.  reduce 34 (src line 258)
+
+
+state 32
+	backend:  shunt.    (35)
+
+	.  reduce 35 (src line 267)
+
+
+state 33
+	backend:  loopback.    (36)
+
+	.  reduce 36 (src line 275)
+
+
+state 34
+	backend:  dynamic.    (37)
+
+	.  reduce 37 (src line 283)
+
+
+state 35
+	backend:  lbbackend.    (38)
+
+	.  reduce 38 (src line 291)
+
+
+state 36
+	backend:  forward.    (39)
+
+	.  reduce 39 (src line 301)
+
+
+state 37
+	lbbackend:  openarrow.lbbackendbody closearrow 
+
+	stringliteral  shift 51
+	symbol  shift 50
+	.  error
+
+	stringvals  goto 49
+	lbbackendbody  goto 48
+
+state 38
+	predicates:  predicates and predicate.    (17)
+
+	.  reduce 17 (src line 174)
+
+
+state 39
+	predicate:  symbol openparen args.closeparen 
+	args:  args.comma arg 
+
+	closeparen  shift 52
+	comma  shift 53
+	.  error
+
+
+state 40
+	args:  arg.    (24)
+
+	.  reduce 24 (src line 209)
+
+
+state 41
+	arg:  numval.    (26)
+
+	.  reduce 26 (src line 219)
+
+
+state 42
+	arg:  stringliteral.    (27)
+
+	.  reduce 27 (src line 223)
+
+
+state 43
+	arg:  regexpliteral.    (28)
+
+	.  reduce 28 (src line 227)
+
+
+state 44
+	numval:  number.    (40)
+
+	.  reduce 40 (src line 310)
+
+
+state 45
+	filters:  filters arrow filter.    (21)
+
+	.  reduce 21 (src line 194)
+
+
+state 46
+	filter:  symbol openparen args.closeparen 
+	args:  args.comma arg 
+
+	closeparen  shift 54
+	comma  shift 53
+	.  error
+
+
+state 47
+	route:  predicates arrow filters arrow.backend 
+	filters:  filters arrow.filter 
+
+	shunt  shift 32
+	loopback  shift 33
+	dynamic  shift 34
+	forward  shift 36
+	stringliteral  shift 31
+	symbol  shift 18
+	openarrow  shift 37
+	.  error
+
+	backend  goto 55
+	filter  goto 45
+	lbbackend  goto 35
+
+state 48
+	lbbackend:  openarrow lbbackendbody.closearrow 
+
+	closearrow  shift 56
+	.  error
+
+
+state 49
+	stringvals:  stringvals.comma stringliteral 
+	lbbackendbody:  stringvals.    (31)
+
+	comma  shift 57
+	.  reduce 31 (src line 242)
+
+
+state 50
+	lbbackendbody:  symbol.comma stringvals 
+
+	comma  shift 58
+	.  error
+
+
+state 51
+	stringvals:  stringliteral.    (29)
+
+	.  reduce 29 (src line 232)
+
+
+state 52
+	predicate:  symbol openparen args closeparen.    (19)
+
+	.  reduce 19 (src line 184)
+
+
+state 53
+	args:  args comma.arg 
+
+	number  shift 44
+	regexpliteral  shift 43
+	stringliteral  shift 42
+	.  error
+
+	arg  goto 59
+	numval  goto 41
+
+state 54
+	filter:  symbol openparen args closeparen.    (22)
+
+	.  reduce 22 (src line 200)
+
+
+state 55
+	route:  predicates arrow filters arrow backend.    (15)
+
+	.  reduce 15 (src line 151)
+
+
+state 56
+	lbbackend:  openarrow lbbackendbody closearrow.    (33)
+
+	.  reduce 33 (src line 252)
+
+
+state 57
+	stringvals:  stringvals comma.stringliteral 
+
+	stringliteral  shift 60
+	.  error
+
+
+state 58
+	lbbackendbody:  symbol comma.stringvals 
+
+	stringliteral  shift 51
+	.  error
+
+	stringvals  goto 61
+
+state 59
+	args:  args comma arg.    (25)
+
+	.  reduce 25 (src line 213)
+
+
+state 60
+	stringvals:  stringvals comma stringliteral.    (30)
+
+	.  reduce 30 (src line 236)
+
+
+state 61
+	stringvals:  stringvals.comma stringliteral 
+	lbbackendbody:  symbol comma stringvals.    (32)
+
+	comma  shift 57
+	.  reduce 32 (src line 246)
+
+
+24 terminals, 18 nonterminals
+41 grammar rules, 62/16000 states
+0 shift/reduce, 0 reduce/reduce conflicts reported
+67 working sets used
+memory: parser 39/240000
+15 extra closures
+60 shift entries, 1 exceptions
+28 goto entries
+9 entries saved by goto default
+Optimizer space used: output 69/240000
+69 table entries, 0 zero
+maximum spread: 24, maximum offset: 58

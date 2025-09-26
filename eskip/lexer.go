@@ -59,6 +59,7 @@ var openarrowPrefixedTokens = []*fixedScanner{
 	{shunt, "<shunt>"},
 	{loopback, "<loopback>"},
 	{dynamic, "<dynamic>"},
+	{forward, "<forward>"},
 }
 
 func (fs *fixedScanner) scan(code string) (t token, rest string, err error) {
