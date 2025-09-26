@@ -208,7 +208,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 	}
 
 	r.BackendType = eskip.LBBackend
-	r.LBEndpoints = eps
+	r.LBEndpoints = eskip.NewLBEndpoints(eps)
 	r.LBAlgorithm = ctx.defaultLoadBalancerAlgorithm
 	if backend.Algorithm != loadbalancer.None {
 		r.LBAlgorithm = backend.Algorithm.String()
@@ -261,7 +261,7 @@ func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r
 			}
 		}
 
-		r.LBEndpoints = backend.Endpoints
+		r.LBEndpoints = eskip.NewLBEndpoints(backend.Endpoints)
 		r.LBAlgorithm = ctx.defaultLoadBalancerAlgorithm
 		if backend.Algorithm != loadbalancer.None {
 			r.LBAlgorithm = backend.Algorithm.String()
