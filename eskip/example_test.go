@@ -17,8 +17,15 @@ package eskip_test
 import (
 	"fmt"
 	"log"
+	"net/http"
+	"net/http/httptest"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/proxy/proxytest"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 )
 
 func Example() {
@@ -219,4 +226,44 @@ func ExampleParseFilters() {
 	// second filter: filter1
 	// second filter, first arg: 3.14
 	// second filter, second arg: Hello, world!
+}
+
+func ExampleForwardBackend() {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	doc := `r: * -> <forward>;`
+	routes := eskip.MustParse(doc)
+
+	spec := builtin.NewStatus()
+	fr := make(filters.Registry)
+	fr.Register(spec)
+
+	dc := testdataclient.New(routes)
+	defer dc.Close()
+
+	proxy := proxytest.WithRoutingOptions(fr, routing.Options{
+		DataClients:   []routing.DataClient{dc},
+		PreProcessors: []routing.PreProcessor{eskip.ForwardPreProcessor(backend.URL)},
+	})
+	defer proxy.Close()
+
+	client := proxy.Client()
+
+	rsp, err := client.Get("http://hello.world")
+	if err != nil {
+		fmt.Printf("Failed to GET hello.world: %v\n", err)
+		return
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		fmt.Printf("Failed to GET OK from http://hello.world, got: %v\n", rsp.StatusCode)
+		return
+	}
+	fmt.Println("hello skipper")
+
+	// output:
+	// hello skipper
 }
