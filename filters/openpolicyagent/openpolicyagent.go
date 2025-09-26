@@ -111,8 +111,8 @@ type OpenPolicyAgentRegistry struct {
 	maxRequestBodyBytes     int64
 	bodyReadBufferSize      int64
 
-	tracer  opentracing.Tracer
-	metrics metrics.Metrics
+	tracer               opentracing.Tracer
+	prometheusRegisterer prometheus.Registerer
 
 	enableCustomControlLoop bool
 	controlLoopInterval     time.Duration
@@ -224,9 +224,9 @@ func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegi
 	}
 }
 
-func WithMetrics(metrics metrics.Metrics) func(*OpenPolicyAgentRegistry) error {
+func WithPrometheusMetrics(metrics metrics.PrometheusMetrics) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
-		cfg.metrics = metrics
+		cfg.prometheusRegisterer = metrics.ScopedPrometheusRegisterer("openpolicyagent")
 		return nil
 	}
 }
@@ -695,13 +695,13 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	}
 
 	var registerer prometheus.Registerer
-	if opametrics, ok := registry.metrics.(metrics.OpaMetrics); ok {
+	if registry.prometheusRegisterer != nil {
 		registerer = prometheus.WrapRegistererWith(
 			prometheus.Labels{
 				"opa_instance_name": bundleName,
 				"opa_instance_id":   id,
 			},
-			opametrics.OpaScopedPrometheusRegisterer(),
+			registry.prometheusRegisterer,
 		)
 
 		configHooks = append(configHooks, &internal.PrometheusOverride{})

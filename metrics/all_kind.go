@@ -143,9 +143,9 @@ func (a *All) Close() {
 	a.prometheus.Close()
 }
 
-// Implements the OpaMetrics interface
-func (a *All) OpaScopedPrometheusRegisterer() prometheus.Registerer {
-	return a.prometheus.OpaScopedPrometheusRegisterer()
+// Implements the PrometheusMetrics interface
+func (a *All) ScopedPrometheusRegisterer(subsystem string) prometheus.Registerer {
+	return a.prometheus.ScopedPrometheusRegisterer(subsystem)
 }
 
 func (a *All) RegisterHandler(path string, handler *http.ServeMux) {
