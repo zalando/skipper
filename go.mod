@@ -40,7 +40,7 @@ require (
 	github.com/sony/gobreaker v1.0.0
 	github.com/stretchr/testify v1.11.1
 	github.com/szuecs/rate-limit-buffer v0.9.0
-	github.com/testcontainers/testcontainers-go v0.38.0
+	github.com/testcontainers/testcontainers-go v0.39.0
 	github.com/tidwall/gjson v1.18.0
 	github.com/tsenart/vegeta v12.7.0+incompatible
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
@@ -63,7 +63,7 @@ require (
 
 require (
 	cloud.google.com/go/compute/metadata v0.7.0 // indirect
-	dario.cat/mergo v1.0.1 // indirect
+	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -146,7 +146,7 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.5 // indirect
+	github.com/shirou/gopsutil/v4 v4.25.6 // indirect
 	github.com/streadway/quantile v0.0.0-20220407130108-4246515d968d // indirect
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
