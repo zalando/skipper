@@ -286,6 +286,28 @@ corsOrigin("https://www.example.org")
 corsOrigin("https://www.example.org", "http://localhost:9001")
 ```
 
+!!! note
+    To enable CORS functionality, you must create a dedicated route that handles `OPTIONS` requests.
+
+Example:
+```
+main_route:
+PathSubtree("/")
+-> corsOrigin()
+-> setResponseHeader("Access-Control-Allow-Credentials", "true")
+-> setResponseHeader("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT,PATCH,DELETE")
+-> "http://backend.example.org";
+
+preflight_route:
+PathSubtree("/") && Method("OPTIONS")
+-> corsOrigin()
+-> setResponseHeader("Access-Control-Allow-Credentials", "true")
+-> setResponseHeader("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT,PATCH,DELETE")
+-> setResponseHeader("Access-Control-Allow-Headers", "authorization, origin, content-type, accept")
+-> status(200)
+-> <shunt>;
+```
+
 ### headerToQuery
 
 Filter which assigns the value of a given header from the incoming Request to a given query param
