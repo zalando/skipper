@@ -15,16 +15,15 @@ import (
 )
 
 const (
-	promNamespace                = "skipper"
-	promRouteSubsystem           = "route"
-	promFilterSubsystem          = "filter"
-	promBackendSubsystem         = "backend"
-	promStreamingSubsystem       = "streaming"
-	promProxySubsystem           = "proxy"
-	promResponseSubsystem        = "response"
-	promServeSubsystem           = "serve"
-	promCustomSubsystem          = "custom"
-	promOpenPolicyAgentSubsystem = "openpolicyagent"
+	promNamespace          = "skipper"
+	promRouteSubsystem     = "route"
+	promFilterSubsystem    = "filter"
+	promBackendSubsystem   = "backend"
+	promStreamingSubsystem = "streaming"
+	promProxySubsystem     = "proxy"
+	promResponseSubsystem  = "response"
+	promServeSubsystem     = "serve"
+	promCustomSubsystem    = "custom"
 )
 
 const (
@@ -558,9 +557,9 @@ func (p *Prometheus) DeleteInvalidRoute(routeId string) {
 
 func (p *Prometheus) Close() {}
 
-// Implements the OpaMetrics interface
-func (p *Prometheus) OpaScopedPrometheusRegisterer() prometheus.Registerer {
-	return prometheus.WrapRegistererWithPrefix(p.namespace+"_"+promOpenPolicyAgentSubsystem+"_", p.registry)
+// Implements the PrometheusMetrics interface
+func (p *Prometheus) ScopedPrometheusRegisterer(subsystem string) prometheus.Registerer {
+	return prometheus.WrapRegistererWithPrefix(p.namespace+"_"+subsystem+"_", p.registry)
 }
 
 // withStartLabelGatherer adds a "start" label to all counters with
