@@ -246,6 +246,44 @@ target host defaults to either the `Host` header or the host name given in the
 URL, and the target scheme defaults to either `https` when TLS is
 configured or `http` when TLS is not configured.
 
+## Forward backend
+
+The forward backend, `<forward>`, will set the backend to operators
+choice set by `-forward-url`.  This can be useful for data plane
+migrations. In one case we want to switch from one Kubernetes cluster
+to another Kubernetes cluster, but both cluster data planes can reach
+each other. The route with the `<forward>` will get cleaned all
+filters so there is no duplicate filter execution. This is useful
+because old and new clusters will have the same routing objects, that
+apply a set of routes with filters. Filters, for example `modPath`, can
+create an unexpected change to requests and responses passing through a
+chain of proxies with duplicated routes.
+
+Example:
+```
+old> skipper -inline-routes='r: * -> modPath("^/", "/foo/") -> <forward>' -address :9090 -forward-url=http://127.0.0.1:9003
+new> skipper -inline-routes='r: * -> modPath("^/","/foo/") -> "http://127.0.0.1:12345"' -address :9003
+
+% nc -l 12345
+GET /foo/bar?q=a HTTP/1.1
+Host: 127.0.0.1:12345
+User-Agent: curl/7.49.0
+Accept: */*
+Accept-Encoding: gzip
+
+curl http://localhost:9090/bar\?q\=a -v
+*   Trying ::1...
+* Connected to localhost (::1) port 9090 (#0)
+> GET /bar?q=a HTTP/1.1
+> Host: localhost:9090
+> User-Agent: curl/7.49.0
+> Accept: */*
+```
+
+You can see our netcat (nc) backend observes `/foo/bar` as path and
+not `/foo/bar/bar`, if filters would be applied in the route with
+`<forward>`.
+
 ## Load Balancer backend
 
 The loadbalancer backend, `<$algorithm, "backend1", "backend2">`, will

@@ -229,6 +229,7 @@ func (fb *fwdBackend) Do(routes []*Route) []*Route {
 		case ForwardBackend:
 			routes[i].Backend = fb.target
 			routes[i].BackendType = NetworkBackend
+			routes[i].Filters = nil // important to not run duplicate set of filters
 		}
 	}
 
