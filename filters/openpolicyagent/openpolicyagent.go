@@ -705,7 +705,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		interQueryBuiltinValueCache: registry.valueCache,
 
 		idGenerator: uniqueIDGenerator,
-		logger:      logging.Get().WithFields(map[string]any{"opa-bundle-name": bundleName}),
+		logger:      logging.Get().WithFields(map[string]any{"bundle-name": bundleName}),
 	}
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
