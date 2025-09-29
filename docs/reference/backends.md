@@ -249,7 +249,7 @@ configured or `http` when TLS is not configured.
 ## Forward backend
 
 The forward backend, `<forward>`, will set the backend to operators
-choice set by `-forward-url`.  This can be useful for data plane
+choice set by `-forward-backend-url`.  This can be useful for data plane
 migrations. In one case we want to switch from one Kubernetes cluster
 to another Kubernetes cluster, but both cluster data planes can reach
 each other. The route with the `<forward>` will get cleaned all
@@ -261,7 +261,7 @@ chain of proxies with duplicated routes.
 
 Example:
 ```
-old> skipper -inline-routes='r: * -> modPath("^/", "/foo/") -> <forward>' -address :9090 -forward-url=http://127.0.0.1:9003
+old> skipper -inline-routes='r: * -> modPath("^/", "/foo/") -> <forward>' -address :9090 -forward-backend-url=http://127.0.0.1:9003
 new> skipper -inline-routes='r: * -> modPath("^/","/foo/") -> "http://127.0.0.1:12345"' -address :9003
 
 % nc -l 12345
