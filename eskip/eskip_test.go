@@ -167,6 +167,16 @@ func TestParse(t *testing.T) {
 		}},
 		"",
 	}, {
+		"forward",
+		`* -> setRequestHeader("X-Foo", "bar") -> <forward>`,
+		[]*Route{{
+			Filters: []*Filter{
+				{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
+			},
+			BackendType: ForwardBackend,
+		}},
+		"",
+	}, {
 		"multiple routes",
 		`r1: Path("/foo") -> <shunt>; r2: Path("/bar") -> "https://www.example.org"`,
 		[]*Route{

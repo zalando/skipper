@@ -325,6 +325,12 @@ type Options struct {
 	// InlineRoutes can define routes as eskip text.
 	InlineRoutes string
 
+	// ForwardBackendURL sets the target of the <forward> backend. This
+	// can be used if the user does not need to know the target,
+	// but the operator. One example use case is a cross cluster
+	// migration
+	ForwardBackendURL string
+
 	// Polling timeout of the routing data sources.
 	SourcePollTimeout time.Duration
 
@@ -2110,6 +2116,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	ro.PreProcessors = append(ro.PreProcessors, admissionControlSpec.PreProcessor())
+
+	ro.PreProcessors = append(ro.PreProcessors, eskip.ForwardPreProcessor(o.ForwardBackendURL))
 
 	ro.Metrics = mtr
 
