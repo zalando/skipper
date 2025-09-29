@@ -160,7 +160,7 @@ func assertOpaInstanceHealth(t *testing.T, registry *openpolicyagent.OpenPolicyA
 func TestOpaRoutesWithSlowBundleServerNotBlockingOtherRouteUpdates(t *testing.T) {
 	bundleName := "slowbundle"
 
-	bundleServer := opatestutils.StartControllableBundleServer(opatestutils.BundleServerConfig{BundleName: bundleName, RespCode: http.StatusGatewayTimeout})
+	bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusGatewayTimeout, 0)
 	bundleServer.SetDelay(5 * time.Second)
 	defer bundleServer.Stop()
 
@@ -219,7 +219,7 @@ func TestOpaRoutesWithBundleServerRecoveryBootstrap(t *testing.T) {
 		t.Run(tc.msg, func(t *testing.T) {
 			bundleName := "recoverybundle"
 
-			bundleServer := opatestutils.StartControllableBundleServer(opatestutils.BundleServerConfig{BundleName: bundleName, RespCode: http.StatusTooManyRequests})
+			bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusTooManyRequests, 0)
 			defer bundleServer.Stop()
 
 			opaRegistry, fr := setupOpaTestEnvironment(t, bundleServer.URL(), tc.enableControlLoop)
@@ -282,7 +282,7 @@ func TestOpaRoutesWithBundleServerRecoveryRouteUpdates(t *testing.T) {
 		t.Run(tc.msg, func(t *testing.T) {
 			bundleName := "recoverybundle"
 
-			bundleServer := opatestutils.StartControllableBundleServer(opatestutils.BundleServerConfig{BundleName: bundleName, RespCode: http.StatusGatewayTimeout})
+			bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusGatewayTimeout, 0)
 			defer bundleServer.Stop()
 
 			// Bootstrap phase: start with a simple route
@@ -341,7 +341,7 @@ func TestOpaRoutesWithBundleServerFailover(t *testing.T) {
 		t.Run(tc.msg, func(t *testing.T) {
 			bundleName := "failoverbundle"
 
-			bundleServer := opatestutils.StartControllableBundleServer(opatestutils.BundleServerConfig{BundleName: bundleName, RespCode: http.StatusOK})
+			bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusOK, 0)
 			defer bundleServer.Stop()
 
 			opaRegistry, fr := setupOpaTestEnvironment(t, bundleServer.URL(), tc.enableControlLoop)
@@ -387,7 +387,7 @@ func TestOpaRoutesWithBundleServerFailover(t *testing.T) {
 func TestOpaRouteRemovalAndCleanup(t *testing.T) {
 	bundleName := "bundle"
 
-	bundleServer := opatestutils.StartControllableBundleServer(opatestutils.BundleServerConfig{BundleName: bundleName, RespCode: http.StatusOK})
+	bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusOK, 0)
 	defer bundleServer.Stop()
 
 	config := OpaRegistryConfig{
@@ -454,21 +454,22 @@ func TestOpaRouteRemovalAndCleanup(t *testing.T) {
 // TestExceedingBackgroundTaskBuffer tests multiple bundles being handled in the background task exceeding the buffer size.
 func TestExceedingBackgroundTaskBuffer(t *testing.T) {
 	// Use multiple bundles to trigger multiple background tasks
-	bundleConfigs := []opatestutils.BundleServerConfig{{
-		BundleName: "bundle1", RespCode: http.StatusOK,
-	}, {
-		BundleName: "bundle2", RespCode: http.StatusOK,
-	}, {
-		BundleName: "bundle3", RespCode: http.StatusOK,
-	}, {
-		BundleName: "bundle4", RespCode: http.StatusOK,
-	}}
-
-	bundleProxy, bundleServers := opatestutils.StartMultiBundleProxyServer(bundleConfigs)
-	defer bundleProxy.Close()
-	for _, srv := range bundleServers {
-		defer srv.Stop()
+	bundleServers := []*opatestutils.ControllableBundleServer{
+		opatestutils.StartControllableBundleServer("bundle1", http.StatusOK, 0),
+		opatestutils.StartControllableBundleServer("bundle2", http.StatusOK, 0),
+		opatestutils.StartControllableBundleServer("bundle3", http.StatusOK, 0),
+		opatestutils.StartControllableBundleServer("bundle4", http.StatusOK, 0),
 	}
+
+	defer func() {
+		for _, srv := range bundleServers {
+			srv.Stop()
+		}
+	}()
+
+	// Start the multi-bundle proxy server
+	proxyServer := opatestutils.StartMultiBundleProxyServer(bundleServers)
+	defer proxyServer.Close()
 
 	// Bootstrap phase
 	initialRoutes := []*eskip.Route{}
@@ -476,7 +477,7 @@ func TestExceedingBackgroundTaskBuffer(t *testing.T) {
 	defer dc.Close()
 
 	config := OpaRegistryConfig{
-		BundleServerURL:          bundleProxy.URL,
+		BundleServerURL:          proxyServer.URL,
 		EnableControlLoop:        false,
 		StartupTimeout:           startUpTimeOut,
 		CleanInterval:            2 * time.Second,
@@ -495,11 +496,11 @@ func TestExceedingBackgroundTaskBuffer(t *testing.T) {
 
 	//Update phase to exceed the buffer size
 	routesDef := `
-			r1: Path("/bundle1") -> opaAuthorizeRequest("bundle1", "") -> status(204) -> <shunt>;
-			r2: Path("/bundle2") -> opaAuthorizeRequest("bundle2", "") -> status(204) -> <shunt>;
-			r3: Path("/bundle3") -> opaAuthorizeRequest("bundle3", "") -> status(204) -> <shunt>;
-			r4: Path("/bundle4") -> opaAuthorizeRequest("bundle4", "") -> status(204) -> <shunt>
-		`
+				r1: Path("/bundle1") -> opaAuthorizeRequest("bundle1", "") -> status(204) -> <shunt>;
+				r2: Path("/bundle2") -> opaAuthorizeRequest("bundle2", "") -> status(204) -> <shunt>;
+				r3: Path("/bundle3") -> opaAuthorizeRequest("bundle3", "") -> status(204) -> <shunt>;
+				r4: Path("/bundle4") -> opaAuthorizeRequest("bundle4", "") -> status(204) -> <shunt>
+			`
 	updatedRoutes := eskip.MustParse(routesDef)
 	dc.Update(updatedRoutes, nil)
 	time.Sleep(routeUpdatePollingTimeout) // Tasks spill over from the buffer need another route update to retry it

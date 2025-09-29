@@ -21,15 +21,14 @@ type ControllableBundleServer struct {
 	bundleName  string
 }
 
-func StartControllableBundleServer(config BundleServerConfig) *ControllableBundleServer {
-	bundleName := config.BundleName
+func StartControllableBundleServer(bundleName string, respCode int, delay time.Duration) *ControllableBundleServer {
 	realSrvs := CreateBundleServers([]string{bundleName})
 	cbs := &ControllableBundleServer{
 		realServer: realSrvs[bundleName],
 		bundleName: bundleName,
 	}
-	cbs.respCode.Store(config.RespCode)
-	cbs.delay.Store(time.Duration(0))
+	cbs.respCode.Store(respCode)
+	cbs.delay.Store(delay)
 
 	cbs.proxyServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if delay, ok := cbs.delay.Load().(time.Duration); ok && delay > 0 {
@@ -81,12 +80,6 @@ func (c *ControllableBundleServer) Stop() {
 	c.realServer.Stop()
 }
 
-type BundleServerConfig struct {
-	BundleName string
-	RespCode   int
-	Delay      time.Duration
-}
-
 // CreateBundleServers creates multiple OPA bundle servers for testing.
 // Creates a policy that allows access if input.parsed_path matches the bundle name.
 func CreateBundleServers(bundleNames []string) map[string]*opasdktest.Server {
@@ -115,35 +108,29 @@ func CreateBundleServers(bundleNames []string) map[string]*opasdktest.Server {
 }
 
 // StartMultiBundleProxyServer starts a proxy server that routes requests to multiple controllable bundle servers.
-func StartMultiBundleProxyServer(bundleConfigs []BundleServerConfig) (*httptest.Server, map[string]*opasdktest.Server) {
-	bundleNames := make([]string, 0, len(bundleConfigs))
-	statusMap := make(map[string]int)
-	delayMap := make(map[string]time.Duration)
-	for _, config := range bundleConfigs {
-		bundleNames = append(bundleNames, config.BundleName)
-		statusMap[config.BundleName] = config.RespCode
-		delayMap[config.BundleName] = config.Delay
+// Accepts a slice of ControllableBundleServer and proxies requests accordingly.
+func StartMultiBundleProxyServer(servers []*ControllableBundleServer) *httptest.Server {
+	serverMap := make(map[string]*ControllableBundleServer)
+	for _, srv := range servers {
+		serverMap[srv.bundleName] = srv
 	}
-	servers := CreateBundleServers(bundleNames)
 
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bundleName := strings.TrimPrefix(r.URL.Path, "/bundles/")
-		realSrv, ok := servers[bundleName]
-		status, okStatus := statusMap[bundleName]
-		delay, okDelay := delayMap[bundleName]
-		if !ok || !okStatus || !okDelay {
+		cbs, ok := serverMap[bundleName]
+		if !ok {
 			http.NotFound(w, r)
 			return
 		}
-		if delay > 0 {
+		if delay, ok := cbs.delay.Load().(time.Duration); ok && delay > 0 {
 			time.Sleep(delay)
 		}
-		if status != http.StatusOK {
-			w.WriteHeader(status)
+		if cbs.respCode.Load().(int) != http.StatusOK {
+			w.WriteHeader(cbs.respCode.Load().(int))
 			w.Write([]byte("Bundle server error"))
 			return
 		}
-		resp, err := http.Get(realSrv.URL() + r.URL.Path)
+		resp, err := http.Get(cbs.realServer.URL() + r.URL.Path)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Failed to fetch bundle"))
@@ -159,5 +146,5 @@ func StartMultiBundleProxyServer(bundleConfigs []BundleServerConfig) (*httptest.
 		io.Copy(w, resp.Body)
 	}))
 
-	return proxy, servers
+	return proxy
 }

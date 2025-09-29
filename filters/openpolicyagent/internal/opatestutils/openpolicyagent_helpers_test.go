@@ -1,12 +1,13 @@
 package opatestutils
 
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ============================================================================
@@ -14,7 +15,7 @@ import (
 // ============================================================================
 func TestControllableBundleServer(t *testing.T) {
 	t.Run("Server availability can be toggled", func(t *testing.T) {
-		cbs := StartControllableBundleServer(BundleServerConfig{BundleName: "testbundle", RespCode: http.StatusServiceUnavailable})
+		cbs := StartControllableBundleServer("testbundle", http.StatusServiceUnavailable, 0)
 		defer cbs.Stop()
 
 		assert.Equal(t, http.StatusServiceUnavailable, makeRequest(t, cbs.URL()+"/bundles/testbundle").StatusCode)
@@ -29,7 +30,7 @@ func TestControllableBundleServer(t *testing.T) {
 	})
 
 	t.Run("Server delay functionality", func(t *testing.T) {
-		cbs := StartControllableBundleServer(BundleServerConfig{BundleName: "testbundle", RespCode: http.StatusOK})
+		cbs := StartControllableBundleServer("testbundle", http.StatusOK, 0)
 		defer cbs.Stop()
 
 		cbs.SetDelay(100 * time.Millisecond)
@@ -40,7 +41,7 @@ func TestControllableBundleServer(t *testing.T) {
 	})
 
 	t.Run("Handles invalid bundle requests", func(t *testing.T) {
-		cbs := StartControllableBundleServer(BundleServerConfig{BundleName: "testbundle", RespCode: http.StatusOK})
+		cbs := StartControllableBundleServer("testbundle", http.StatusOK, 0)
 		defer cbs.Stop()
 
 		assert.Equal(t, http.StatusNotFound, makeRequest(t, cbs.URL()+"/bundles/nonexistent").StatusCode)
@@ -69,13 +70,13 @@ func measureRequestTime(t *testing.T, url string) time.Duration {
 }
 
 func TestMultiBundleProxyServer_Control(t *testing.T) {
-	configs := []BundleServerConfig{
-		{BundleName: "bundle1", RespCode: http.StatusOK, Delay: 5 * time.Millisecond},
-		{BundleName: "bundle2", RespCode: http.StatusServiceUnavailable, Delay: 0},
+	servers := []*ControllableBundleServer{
+		StartControllableBundleServer("bundle1", http.StatusOK, 0),
+		StartControllableBundleServer("bundle2", http.StatusServiceUnavailable, 0),
 	}
-	proxy, bundlesServers := StartMultiBundleProxyServer(configs)
+	proxy := StartMultiBundleProxyServer(servers)
 	defer proxy.Close()
-	for _, bs := range bundlesServers {
+	for _, bs := range servers {
 		defer bs.Stop()
 	}
 
