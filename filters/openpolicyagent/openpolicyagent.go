@@ -506,9 +506,8 @@ func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string) (
 	}
 
 	if registry.preloadingEnabled {
-		// This is a hard error in the sense that even an unhealthy instance could not be created.
-		// In preloading mode, if instance doesn't exist, it means it's not ready yet
-		return nil, fmt.Errorf("open policy agent instance for bundle '%s' is not ready yet", bundleName)
+		// In preloading mode, if instance doesn't exist, it means a fatal error occurred while creating the opa instance
+		return nil, fmt.Errorf("open policy agent instance for bundle '%s' could not be created", bundleName)
 	}
 
 	// In non-preloading mode, create and start the instance synchronously
@@ -670,7 +669,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
 
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
-	logger = logger.WithFields(map[string]interface{}{"opa-bundle-name": bundleName})
+	logger = logger.WithFields(map[string]interface{}{"bundle-name": bundleName})
 
 	configHooks := hooks.New()
 	if registry.enableCustomControlLoop {
@@ -1187,28 +1186,20 @@ func (l *QuietLogger) GetLevel() logging.Level {
 	return l.target.GetLevel()
 }
 
-func logWithArgs(logFunc func(string, ...interface{}), msg string, args ...interface{}) {
-	if len(args) == 0 {
-		logFunc(msg)
-	} else {
-		logFunc(msg, args...)
-	}
+func (l *QuietLogger) Debug(fmt string, a ...interface{}) {
+	l.target.Debug(fmt, a...)
 }
 
-func (l *QuietLogger) Debug(msg string, args ...interface{}) {
-	logWithArgs(l.target.Debug, msg, args...)
+func (l *QuietLogger) Info(fmt string, a ...interface{}) {
+	l.target.Debug(fmt, a...)
 }
 
-func (l *QuietLogger) Info(msg string, args ...interface{}) {
-	logWithArgs(l.target.Debug, msg, args...)
+func (l *QuietLogger) Error(fmt string, a ...interface{}) {
+	l.target.Error(fmt, a...)
 }
 
-func (l *QuietLogger) Warn(msg string, args ...interface{}) {
-	logWithArgs(l.target.Warn, msg, args...)
-}
-
-func (l *QuietLogger) Error(msg string, args ...interface{}) {
-	logWithArgs(l.target.Error, msg, args...)
+func (l *QuietLogger) Warn(fmt string, a ...interface{}) {
+	l.target.Warn(fmt, a...)
 }
 
 // ScheduleBackgroundTask schedules a task to be executed in the background with limited parallelism (1)

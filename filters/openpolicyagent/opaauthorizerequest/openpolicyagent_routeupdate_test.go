@@ -33,10 +33,10 @@ const (
 )
 
 type testPhase struct {
-	routes         string
-	testPath       string
-	expectedStatus int
-	healthy        bool
+	routes          string
+	testPath        string
+	expectedStatus  int
+	expectedHealthy bool
 }
 
 func TestOpaRoutesAtRouteUpdate(t *testing.T) {
@@ -50,10 +50,10 @@ func TestOpaRoutesAtRouteUpdate(t *testing.T) {
 			msg:        "Bootstrap with OPA route",
 			bundleName: "somebundle",
 			bootstrapPhase: testPhase{
-				routes:         `r1: Path("/secure") -> opaAuthorizeRequest("somebundle", "") -> status(204) -> <shunt>`,
-				testPath:       "/secure",
-				expectedStatus: http.StatusNoContent,
-				healthy:        true,
+				routes:          `r1: Path("/secure") -> opaAuthorizeRequest("somebundle", "") -> status(204) -> <shunt>`,
+				testPath:        "/secure",
+				expectedStatus:  http.StatusNoContent,
+				expectedHealthy: true,
 			},
 		},
 		{
@@ -65,10 +65,10 @@ func TestOpaRoutesAtRouteUpdate(t *testing.T) {
 				expectedStatus: http.StatusNotFound,
 			},
 			targetPhase: &testPhase{
-				routes:         `r1: Path("/secure") -> opaAuthorizeRequest("somebundle", "") -> status(204) -> <shunt>`,
-				testPath:       "/secure",
-				expectedStatus: http.StatusNoContent,
-				healthy:        true,
+				routes:          `r1: Path("/secure") -> opaAuthorizeRequest("somebundle", "") -> status(204) -> <shunt>`,
+				testPath:        "/secure",
+				expectedStatus:  http.StatusNoContent,
+				expectedHealthy: true,
 			},
 		},
 		{
@@ -78,9 +78,9 @@ func TestOpaRoutesAtRouteUpdate(t *testing.T) {
 				routes: `	r1: Path("/secure") -> opaAuthorizeRequest("somebundle", "") -> status(204) -> <shunt>;
 							r2: Path("/public") -> status(200) -> <shunt>
 						`,
-				testPath:       "/public",
-				expectedStatus: http.StatusOK,
-				healthy:        true,
+				testPath:        "/public",
+				expectedStatus:  http.StatusOK,
+				expectedHealthy: true,
 			},
 		},
 	} {
@@ -113,7 +113,7 @@ func TestOpaRoutesAtRouteUpdate(t *testing.T) {
 
 			// Bootstrap phase: Verify the initial state
 			if ti.bootstrapPhase.routes != "" {
-				assertOpaInstanceHealth(t, opaRegistry, ti.bundleName, ti.bootstrapPhase.healthy)
+				assertOpaInstanceHealth(t, opaRegistry, ti.bundleName, ti.bootstrapPhase.expectedHealthy)
 				rsp, err := makeHTTPRequest(proxy, ti.bootstrapPhase.testPath)
 				require.NoError(t, err)
 				defer rsp.Body.Close()
