@@ -1,6 +1,7 @@
 package opaserveresponse
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"time"

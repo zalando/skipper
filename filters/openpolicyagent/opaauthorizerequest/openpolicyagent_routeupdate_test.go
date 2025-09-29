@@ -303,7 +303,7 @@ func TestOpaRoutesWithBundleServerRecoveryRouteUpdates(t *testing.T) {
 			dc.Update(updatedRoutes, nil)
 
 			_, err := opaRegistry.GetOrStartInstance(bundleName)
-			require.ErrorContains(t, err, "open policy agent instance for bundle 'recoverybundle' is not ready yet")
+			require.ErrorContains(t, err, "open policy agent instance for bundle 'recoverybundle' could not be created")
 
 			bundleServer.SetRespCode(http.StatusOK)
 
