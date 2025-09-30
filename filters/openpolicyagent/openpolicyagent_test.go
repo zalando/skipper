@@ -39,6 +39,8 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 	"google.golang.org/protobuf/encoding/protojson"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type MockOpenPolicyAgentFilter struct {
@@ -155,12 +157,19 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 
 type controlPlaneConfig struct {
 	enableJwtCaching bool
+	enableStatus     bool
 }
 type ControlPlaneOption func(*controlPlaneConfig)
 
 func WithJwtCaching(enabled bool) ControlPlaneOption {
 	return func(cfg *controlPlaneConfig) {
 		cfg.enableJwtCaching = enabled
+	}
+}
+
+func WithStatusPluginEnabled(enabled bool) ControlPlaneOption {
+	return func(cfg *controlPlaneConfig) {
+		cfg.enableStatus = enabled
 	}
 }
 
@@ -215,6 +224,15 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 		`
 	}
 
+	statusConfig := ""
+	if cfg.enableStatus {
+		statusConfig = `
+			"status": {
+				"console": true
+			},
+		`
+	}
+
 	config := []byte(fmt.Sprintf(`{
 		"services": {
 			"test": {
@@ -227,6 +245,7 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 			}
 		},
 		%s
+		%s
 		"plugins": {
 			"envoy_ext_authz_grpc": {
 				"path": "envoy/authz/allow",
@@ -234,7 +253,7 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 				"skip-request-body-parse": false
 			}
 		}
-	}`, opaControlPlane.URL(), jwtCacheConfig))
+	}`, opaControlPlane.URL(), jwtCacheConfig, statusConfig))
 
 	return opaControlPlane, config
 }
@@ -1076,6 +1095,42 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 
 	f1()
 	f2()
+}
+
+func TestPrometheusPluginStatusGaugeRegistered(t *testing.T) {
+	_, config := mockControlPlaneWithResourceBundle(WithStatusPluginEnabled(true))
+
+	reg := prometheus.NewRegistry()
+	registry, err := NewOpenPolicyAgentRegistry(
+		WithReuseDuration(1*time.Second),
+		WithCleanInterval(1*time.Second),
+		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
+		WithPrometheusRegisterer(reg),
+	)
+	assert.NoError(t, err)
+
+	inst, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+	assert.NoError(t, err)
+
+	// Simulate an HTTP request evaluation
+	ctx := context.Background()
+	_, err = inst.Eval(ctx, &authv3.CheckRequest{
+		Attributes: &authv3.AttributeContext{},
+	})
+	assert.NoError(t, err)
+
+	// Gather metrics and check for plugin_status_gauge
+	metricsFamilies, err := reg.Gather()
+	assert.NoError(t, err)
+
+	found := false
+	for _, mf := range metricsFamilies {
+		if mf.GetName() == "plugin_status_gauge" && len(mf.Metric) > 0 {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "plugin_status_gauge should be registered and have data")
 }
 
 type opaInstanceStartupTestCase struct {
