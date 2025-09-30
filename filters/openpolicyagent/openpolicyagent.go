@@ -40,7 +40,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal"
-	"github.com/zalando/skipper/metrics"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -224,9 +223,9 @@ func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegi
 	}
 }
 
-func WithPrometheusMetrics(metrics metrics.PrometheusMetrics) func(*OpenPolicyAgentRegistry) error {
+func WithPrometheusRegisterer(registerer prometheus.Registerer) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
-		cfg.prometheusRegisterer = metrics.ScopedPrometheusRegisterer("openpolicyagent")
+		cfg.prometheusRegisterer = registerer
 		return nil
 	}
 }
