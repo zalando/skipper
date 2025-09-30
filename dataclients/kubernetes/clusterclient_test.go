@@ -266,7 +266,7 @@ func TestLoggingInterval(t *testing.T) {
 	defer log.SetOutput(os.Stderr)
 
 	countMessages := func() int {
-		return strings.Count(out.String(), "Ignoring route: service not found: default/myapp")
+		return strings.Count(out.String(), "Ignoring route: default/myapp: service not found")
 	}
 
 	a, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, manifest)
