@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/metrics"
@@ -1301,4 +1302,40 @@ func TestPrometheusMetricsStartTimestamp(t *testing.T) {
 	checkMetric(`skipper_serve_host_count{code="200",host="foo_test",method="GET",start="(\d+)"} 1`)
 	checkMetric(`skipper_serve_host_count{code="201",host="bar_test",method="POST",start="(\d+)"} 2`)
 	checkMetric(`skipper_route_error_total{start="(\d+)"} 3`)
+}
+
+// Compile-time check that Prometheus implements PrometheusMetrics
+func TestPrometheusImplementsPrometheusMetrics(t *testing.T) {
+	var _ metrics.PrometheusMetrics = (*metrics.Prometheus)(nil)
+}
+
+func TestScopedPrometheusRegistererPrefix(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	pm := metrics.NewPrometheus(metrics.Options{
+		PrometheusRegistry: reg,
+		Prefix:             "customprefix",
+	})
+
+	registerer := pm.ScopedPrometheusRegisterer("mysubsystem")
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "mycounter",
+		Help: "test counter",
+	})
+	registerer.MustRegister(counter)
+
+	metricsFamilies, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("failed to gather metrics: %v", err)
+	}
+
+	found := false
+	for _, mf := range metricsFamilies {
+		if mf.GetName() == "customprefix_mysubsystem_mycounter" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected metric with name 'customprefix_mysubsystem_mycounter' to be registered")
+	}
 }

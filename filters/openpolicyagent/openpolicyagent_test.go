@@ -39,6 +39,8 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 	"google.golang.org/protobuf/encoding/protojson"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type MockOpenPolicyAgentFilter struct {
@@ -1082,6 +1084,42 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 
 	f1()
 	f2()
+}
+
+func TestPrometheusPluginStatusGaugeRegistered(t *testing.T) {
+	_, config := mockControlPlaneWithResourceBundle()
+
+	reg := prometheus.NewRegistry()
+	registry, err := NewOpenPolicyAgentRegistry(
+		WithReuseDuration(1*time.Second),
+		WithCleanInterval(1*time.Second),
+		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
+		WithPrometheusRegisterer(reg),
+	)
+	assert.NoError(t, err)
+
+	inst, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+	assert.NoError(t, err)
+
+	// Simulate an HTTP request evaluation
+	ctx := context.Background()
+	_, err = inst.Eval(ctx, &authv3.CheckRequest{
+		Attributes: &authv3.AttributeContext{},
+	})
+	assert.NoError(t, err)
+
+	// Gather metrics and check for plugin_status_gauge
+	metricsFamilies, err := reg.Gather()
+	assert.NoError(t, err)
+
+	found := false
+	for _, mf := range metricsFamilies {
+		if mf.GetName() == "plugin_status_gauge" && len(mf.Metric) > 0 {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "plugin_status_gauge should be registered and have data")
 }
 
 type opaInstanceStartupTestCase struct {

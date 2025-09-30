@@ -2023,7 +2023,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 
 		if promMetrics, ok := mtr.(metrics.PrometheusMetrics); ok {
-			registryOpts = append(registryOpts, openpolicyagent.WithPrometheusMetrics(promMetrics))
+			registryOpts = append(registryOpts,
+				openpolicyagent.WithPrometheusRegisterer(promMetrics.ScopedPrometheusRegisterer("openpolicyagent")))
 		}
 
 		opaRegistry, err = openpolicyagent.NewOpenPolicyAgentRegistry(registryOpts...)
