@@ -157,12 +157,19 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 
 type controlPlaneConfig struct {
 	enableJwtCaching bool
+	enableStatus     bool
 }
 type ControlPlaneOption func(*controlPlaneConfig)
 
 func WithJwtCaching(enabled bool) ControlPlaneOption {
 	return func(cfg *controlPlaneConfig) {
 		cfg.enableJwtCaching = enabled
+	}
+}
+
+func WithStatusPluginEnabled(enabled bool) ControlPlaneOption {
+	return func(cfg *controlPlaneConfig) {
+		cfg.enableStatus = enabled
 	}
 }
 
@@ -217,6 +224,15 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 		`
 	}
 
+	statusConfig := ""
+	if cfg.enableStatus {
+		statusConfig = `
+			"status": {
+				"console": true
+			},
+		`
+	}
+
 	config := fmt.Appendf(nil, `{
 		"services": {
 			"test": {
@@ -229,6 +245,7 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 			}
 		},
 		%s
+		%s
 		"plugins": {
 			"envoy_ext_authz_grpc": {
 				"path": "envoy/authz/allow",
@@ -236,7 +253,7 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 				"skip-request-body-parse": false
 			}
 		}
-	}`, opaControlPlane.URL(), jwtCacheConfig)
+	}`, opaControlPlane.URL(), jwtCacheConfig, statusConfig)
 
 	return opaControlPlane, config
 }
@@ -1087,7 +1104,7 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 }
 
 func TestPrometheusPluginStatusGaugeRegistered(t *testing.T) {
-	_, config := mockControlPlaneWithResourceBundle()
+	_, config := mockControlPlaneWithResourceBundle(WithStatusPluginEnabled(true))
 
 	reg := prometheus.NewRegistry()
 	registry, err := NewOpenPolicyAgentRegistry(
