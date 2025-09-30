@@ -37,6 +37,7 @@ type Config struct {
 	ProxyParams    proxy.Params
 	Routes         []*eskip.Route
 	Certificates   []tls.Certificate
+	WaitTime       time.Duration // Optional wait time, defaults to 3s if zero
 }
 
 func WithParamsAndRoutingOptions(fr filters.Registry, proxyParams proxy.Params, o routing.Options, routes ...*eskip.Route) *TestProxy {
@@ -57,6 +58,16 @@ func WithRoutingOptions(fr filters.Registry, o routing.Options, routes ...*eskip
 	}.Create()
 }
 
+func WithRoutingOptionsWithWait(fr filters.Registry, o routing.Options, wait time.Duration, routes ...*eskip.Route) *TestProxy {
+	o.FilterRegistry = fr
+	return Config{
+		RoutingOptions: o,
+		ProxyParams:    proxy.Params{CloseIdleConnsPeriod: -time.Second},
+		Routes:         routes,
+		WaitTime:       wait,
+	}.Create()
+}
+
 func WithParams(fr filters.Registry, proxyParams proxy.Params, routes ...*eskip.Route) *TestProxy {
 	return Config{
 		RoutingOptions: routing.Options{FilterRegistry: fr},
@@ -74,6 +85,11 @@ func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {
 }
 
 func (c Config) Create() *TestProxy {
+	waitTime := 3 * time.Second
+	if c.WaitTime > 0 {
+		waitTime = c.WaitTime
+	}
+
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	tl := loggingtest.New()
 	var dc *testdataclient.Client
@@ -102,7 +118,7 @@ func (c Config) Create() *TestProxy {
 		tsp = httptest.NewServer(pr)
 	}
 
-	if err := tl.WaitFor("route settings applied", 3*time.Second); err != nil {
+	if err := tl.WaitFor("route settings applied", waitTime); err != nil {
 		panic(err)
 	}
 
