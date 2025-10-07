@@ -17,7 +17,7 @@ import (
 // contain the pod endpoints, and ignore the global option for skipper?
 // --> As CRD we have to lookup endpoints ourselves, maybe via kube.go
 const (
-	ServiceBackend = eskip.LBBackend + 1 + iota
+	ServiceBackend = -1
 )
 
 var (
