@@ -807,7 +807,7 @@ The following gauge metrics show individual invalid routes with detailed context
   `routesrv_custom_gauges{key="routes.total"}` in RouteSRV)
 
 Each invalid route gets its own metric with the route ID and failure reason as labels. When a route becomes
-valid, its metric is automatically set to 0 (rather than deleted) to maintain time series continuity. This provides 
+valid, its metric is automatically set to 0 (rather than deleted) to maintain time series continuity. This provides
 detailed tracking of exactly which routes are invalid and why, while preserving historical data for trend analysis.
 
 #### Failure reasons
@@ -903,8 +903,51 @@ The best tested tracer is the [lightstep tracer](https://github.com/zalando/skip
 because we use it in our setup. In case you miss something for your chosen tracer, please
 open an issue or pull request in our [repository](https://github.com/zalando/skipper).
 
+
+## OpenTelemetry
+
+Skipper supports [OpenTelemetry](https://opentelemetry.io/) tracing using [standard environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) and the `-opentelemetry` flag.
+
+To enable and configure OpenTelemtry using environment variables set `-opentelemetry` to an empty YAML object:
+
+```console
+$ export OTEL_TRACES_EXPORTER="otlp"
+$ export OTEL_EXPORTER_OTLP_PROTOCOL="grpc"
+$ export OTEL_EXPORTER_OTLP_ENDPOINT="https://telemetry-otlp-endpoint.com:4317"
+$ export OTEL_EXPORTER_OTLP_HEADERS="telemetry-token=telemetry-token-value"
+$ export OTEL_RESOURCE_ATTRIBUTES="service.name=skipper-ingress,cluster=production"
+$ export OTEL_PROPAGATORS="tracecontext,ottrace,b3multi,baggage"
+$ export OTEL_BSP_SCHEDULE_DELAY="5s"
+$ export OTEL_BSP_EXPORT_TIMEOUT="30s"
+$ export OTEL_BSP_MAX_QUEUE_SIZE="2048"
+$ export OTEL_BSP_MAX_EXPORT_BATCH_SIZE="512"
+$ skipper -opentelemetry={}
+```
+
+To enable and  configure OpenTelemetry using the `-opentelemetry` flag, provide a YAML configuration as the value:
+
+```console
+$ skipper -opentelemetry='
+tracesExporter: otlp
+exporterOtlp:
+  protocol: grpc
+  endpoint: "https://telemetry-otlp-endpoint.com:4317"
+  headers:
+    telemetry-token: "telemetry-token-value"
+resourceAttributes:
+  service.name: skipper-ingress
+  cluster: production
+propagators: [tracecontext, ottrace, b3multi, baggage]
+batchSpanProcessor:
+  scheduleDelay: 5s
+  exportTimeout: 30s
+  maxQueueSize: 2048
+  maxExportBatchSize: 512
+'
+```
+
 Skipper creates up to 5 different
-[spans](https://godoc.org/github.com/opentracing/opentracing-go#Span):
+[spans](https://opentelemetry.io/docs/concepts/signals/traces/#spans):
 ![Spans](../img/skipper_opentracing_spans.png)
 
 Some Tag details are added to all spans.

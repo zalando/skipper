@@ -46,6 +46,7 @@ import (
 	"github.com/zalando/skipper/rfc"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
+	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
 )
 
 const (
@@ -1703,10 +1704,16 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	p.tracing.setTag(span, HTTPRemoteIPTag, stripPort(r.RemoteAddr))
 	p.setCommonSpanInfo(r.URL, r, span)
-	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
-	r = r.WithContext(routing.NewContext(r.Context()))
 
-	rCtx := r.Context()
+	ctxWithSpan := ot.ContextWithSpan(r.Context(), span)
+
+	// https://pkg.go.dev/go.opentelemetry.io/otel/bridge/opentracing#readme-interop-from-trace-context-from-opentracing-to-opentelemetry
+	if bridgeTracer, ok := p.tracing.tracer.(*otBridge.BridgeTracer); ok {
+		ctxWithSpan = bridgeTracer.ContextWithSpanHook(ctxWithSpan, span)
+	}
+
+	rCtx := routing.NewContext(ctxWithSpan)
+
 	defer pprof.SetGoroutineLabels(rCtx)
 
 	tCtx := pprof.WithLabels(rCtx, pprof.Labels("trace_id", tracing.GetTraceID(span)))
