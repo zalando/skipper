@@ -53,6 +53,7 @@ type kubeOptionsParser struct {
 	ForceKubernetesService                         bool                              `yaml:"force-kubernetes-service"`
 	BackendTrafficAlgorithm                        string                            `yaml:"backend-traffic-algorithm"`
 	DefaultLoadBalancerAlgorithm                   string                            `yaml:"default-lb-algorithm"`
+	ForwardBackendURL                              string                            `yaml:"forward-backend-url"`
 	KubernetesAnnotationPredicates                 []kubernetes.AnnotationPredicates `yaml:"kubernetesAnnotationPredicates"`
 	KubernetesAnnotationFiltersAppend              []kubernetes.AnnotationFilters    `yaml:"kubernetesAnnotationFiltersAppend"`
 	KubernetesEastWestRangeAnnotationPredicates    []kubernetes.AnnotationPredicates `yaml:"kubernetesEastWestRangeAnnotationPredicates"`
@@ -248,6 +249,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.EndpointsLabelSelectors = kop.EndpointsLabels
 		o.ForceKubernetesService = kop.ForceKubernetesService
 		o.DefaultLoadBalancerAlgorithm = kop.DefaultLoadBalancerAlgorithm
+		o.ForwardBackendURL = kop.ForwardBackendURL
 
 		if kop.BackendTrafficAlgorithm != "" {
 			o.BackendTrafficAlgorithm, err = kubernetes.ParseBackendTrafficAlgorithm(kop.BackendTrafficAlgorithm)

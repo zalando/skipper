@@ -486,6 +486,37 @@ func TestRoutesWithEastWest(t *testing.T) {
 	wantHTTPCode(t, w, http.StatusOK)
 }
 
+func TestRoutesWithForwardBackend(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/forward-backend.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout: pollInterval,
+		Kubernetes:        true,
+		KubernetesURL:     ks.URL,
+		ForwardBackendURL: "http://forward.example",
+	})
+
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Fatalf("routes not initialized: %v", err)
+	}
+	w := getRoutes(rs)
+
+	want := parseEskipFixture(t, "testdata/forward-backend.eskip")
+	got, err := eskip.Parse(w.Body.String())
+	if err != nil {
+		t.Fatalf("served routes are not valid eskip: %s", w.Body)
+	}
+	if !eskip.EqLists(got, want) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
+	}
+	wantHTTPCode(t, w, http.StatusOK)
+}
+
 func TestESkipBytesHandlerWithCorrectEtag(t *testing.T) {
 	defer tl.Reset()
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))

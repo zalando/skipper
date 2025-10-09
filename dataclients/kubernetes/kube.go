@@ -254,6 +254,9 @@ type Options struct {
 	// DefaultLoadBalancerAlgorithm sets the default algorithm to be used for load balancing between backend endpoints,
 	// available options: roundRobin, consistentHash, random, powerOfRandomNChoices
 	DefaultLoadBalancerAlgorithm string
+
+	// ForwardBackendURL allows to use <forward> backend via kubernetes, for example routgroup backend `type: forward`.
+	ForwardBackendURL string
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -269,6 +272,7 @@ type Client struct {
 	current                map[string]*eskip.Route
 	quit                   chan struct{}
 	defaultFiltersDir      string
+	forwardBackendURL      string
 	state                  *clusterState
 	loggingInterval        time.Duration
 	loggingLastEnabled     time.Time
@@ -349,6 +353,7 @@ func New(o Options) (*Client, error) {
 		reverseSourcePredicate: o.ReverseSourcePredicate,
 		quit:                   quit,
 		defaultFiltersDir:      o.DefaultFiltersDir,
+		forwardBackendURL:      o.ForwardBackendURL,
 		loggingInterval:        1 * time.Minute,
 	}, nil
 }
