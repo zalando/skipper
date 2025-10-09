@@ -40,6 +40,7 @@ type routeGroupContext struct {
 	provideHTTPSRedirect         bool
 	calculateTraffic             func([]*definitions.BackendReference) map[string]backendTraffic
 	defaultLoadBalancerAlgorithm string
+	forwardBackendURL            string
 	certificateRegistry          *certregistry.CertRegistry
 }
 
@@ -266,6 +267,9 @@ func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r
 		if backend.Algorithm != loadbalancer.None {
 			r.LBAlgorithm = backend.Algorithm.String()
 		}
+	case eskip.ForwardBackend:
+		r.Backend = ctx.forwardBackendURL
+		r.BackendType = eskip.NetworkBackend
 	}
 
 	if ctx.backendNameTracingTag {
@@ -568,6 +572,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				allowedExternalNames:         r.options.AllowedExternalNames,
 				calculateTraffic:             getBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
 				defaultLoadBalancerAlgorithm: r.options.DefaultLoadBalancerAlgorithm,
+				forwardBackendURL:            r.options.ForwardBackendURL,
 				certificateRegistry:          cr,
 			}
 
@@ -615,6 +620,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				allowedExternalNames:         r.options.AllowedExternalNames,
 				calculateTraffic:             getBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
 				defaultLoadBalancerAlgorithm: r.options.DefaultLoadBalancerAlgorithm,
+				forwardBackendURL:            r.options.ForwardBackendURL,
 				certificateRegistry:          cr,
 			}
 

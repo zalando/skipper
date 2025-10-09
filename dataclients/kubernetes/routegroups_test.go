@@ -67,3 +67,7 @@ func TestRouteGroupAnnotationConfig(t *testing.T) {
 		"testdata/routegroups/annotation-predicates",
 		"testdata/routegroups/annotation-filters")
 }
+
+func TestRouteGroupBackends(t *testing.T) {
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/backends")
+}

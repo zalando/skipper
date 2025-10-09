@@ -1,0 +1,12 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-test
+spec:
+  backends:
+  - name: fwd
+    type: forward
+  routes:
+    - pathSubtree: /
+      backends:
+        - backendName: fwd
