@@ -190,8 +190,15 @@ func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegi
 }
 
 func (registry *OpenPolicyAgentRegistry) initializeCache() error {
+	// This line interpolates the config template with a dummy bundle name to make sure the config is parseable.
+	// It is safe in production because the result is not used for anything except caching configuration.
+	configBytes, err := registry.configTemplate.interpolateConfigTemplate("dummy-bundle-name")
+	if err != nil {
+		return fmt.Errorf("failed to interpolate opa config template: %w", err)
+	}
+
 	id := uuid.New().String()
-	parsedConfig, err := config.ParseConfig(registry.configTemplate.configTemplate, id)
+	parsedConfig, err := config.ParseConfig(configBytes, id)
 	if err != nil {
 		return fmt.Errorf("failed to parse opa config template: %w", err)
 	}
