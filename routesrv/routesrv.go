@@ -10,6 +10,13 @@ import (
 	"syscall"
 	"time"
 
+	ot "github.com/opentracing/opentracing-go"
+	sotel "github.com/zalando/skipper/otel"
+	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel"
+	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
@@ -17,17 +24,19 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/metrics"
-	"github.com/zalando/skipper/tracing"
 )
 
 // RouteServer is used to serve eskip-formatted routes,
 // that originate from the polled data source.
 type RouteServer struct {
-	server        *http.Server
-	supportServer *http.Server
-	poller        *poller
-	wg            *sync.WaitGroup
+	server         *http.Server
+	supportServer  *http.Server
+	poller         *poller
+	wg             *sync.WaitGroup
+	tracerShutdown func(context.Context) error
 }
+
+const otelTracerName = "routesrv"
 
 // New returns an initialized route server according to the passed options.
 // This call does not start data source updates automatically. Kept routes
@@ -54,14 +63,11 @@ func New(opts skipper.Options) (*RouteServer, error) {
 
 	rs := &RouteServer{}
 
-	opentracingOpts := opts.OpenTracing
-	if len(opentracingOpts) == 0 {
-		opentracingOpts = []string{"noop"}
-	}
-	tracer, err := tracing.InitTracer(opentracingOpts)
+	tracer, shutdown, err := tracerInstance(&opts)
 	if err != nil {
 		return nil, err
 	}
+	rs.tracerShutdown = shutdown
 
 	b := &eskipBytes{
 		tracer:  tracer,
@@ -142,6 +148,52 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	return rs, nil
 }
 
+func tracerInstance(o *skipper.Options) (ot.Tracer, func(context.Context) error, error) {
+	var (
+		otelTracer trace.Tracer
+		tracer     ot.Tracer
+		shutdown   func(context.Context) error
+		err        error
+	)
+
+	if o.OpenTelemetry != nil {
+		shutdown, err = sotel.Init(context.Background(), o.OpenTelemetry)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to setup OpenTelemetry: %w", err)
+		}
+
+		// Setup OpenTracing bridge tracer
+		bridgeTracer, wrapperTracerProvider := otBridge.NewTracerPair(otel.Tracer(otelTracerName))
+
+		bridgeTracer.SetWarningHandler(func(msg string) { log.Warnf("OpenTracing bridge warning: %s", msg) })
+		otel.SetTracerProvider(wrapperTracerProvider)
+
+		tracer = bridgeTracer
+		// Obtain tracer from wrappedTracerProvider
+		otelTracer = otel.Tracer(otelTracerName)
+	} else {
+		if o.OpenTracingTracer != nil {
+			tracer = o.OpenTracingTracer
+		} else {
+			opentracingOpts := o.OpenTracing
+			if len(opentracingOpts) == 0 {
+				opentracingOpts = []string{"noop"}
+			}
+			tracer, err = tracing.InitTracer(opentracingOpts)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to setup OpenTracing: %w", err)
+			}
+		}
+		// Could be a noop tracer or a wrapper if library user configured OpenTracing bridge tracer
+		otelTracer = otel.Tracer(otelTracerName)
+		shutdown = func(context.Context) error { return nil }
+	}
+
+	_ = otelTracer // unused for now
+
+	return tracer, shutdown, nil
+}
+
 // StartUpdates starts the data source polling process.
 func (rs *RouteServer) StartUpdates() {
 	rs.wg.Add(1)
@@ -189,6 +241,7 @@ func newShutdownFunc(rs *RouteServer) func(delay time.Duration) {
 			if err := rs.server.Shutdown(context.Background()); err != nil {
 				log.Error("unable to shut down the server: ", err)
 			}
+			rs.tracerShutdown(context.Background())
 			log.Info("server shut down")
 		})
 	}
@@ -232,5 +285,4 @@ func Run(opts skipper.Options) error {
 	}
 	sigs := make(chan os.Signal, 1)
 	return run(rs, opts, sigs)
-
 }
