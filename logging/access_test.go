@@ -5,11 +5,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus"
 
+	al "github.com/zalando/skipper/filters/accesslog"
 	logFilter "github.com/zalando/skipper/filters/log"
 )
 
@@ -30,10 +32,15 @@ func (c accessCustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	return []byte(fmt.Sprintf("%s\n", entry.Message)), nil
 }
 
-func testRequest() *http.Request {
+func testRequest(params url.Values) *http.Request {
 	r, _ := http.NewRequest("GET", "http://frank@example.com", nil)
 	r.RequestURI = "/apache_pb.gif"
 	r.RemoteAddr = "127.0.0.1"
+
+	if params != nil {
+		r.URL.RawQuery = params.Encode()
+	}
+
 	return r
 }
 
@@ -44,7 +51,7 @@ func testDate() time.Time {
 
 func testAccessEntry() *AccessEntry {
 	return &AccessEntry{
-		Request:      testRequest(),
+		Request:      testRequest(nil),
 		ResponseSize: 2326,
 		StatusCode:   http.StatusTeapot,
 		RequestTime:  testDate(),
@@ -52,11 +59,22 @@ func testAccessEntry() *AccessEntry {
 		AuthUser:     ""}
 }
 
+func testAccessEntryWithQueryParameters(params url.Values) *AccessEntry {
+	testAccessEntry := testAccessEntry()
+	testAccessEntry.Request = testRequest(params)
+
+	return testAccessEntry
+}
+
 func testAccessLog(t *testing.T, entry *AccessEntry, expectedOutput string, o Options) {
 	testAccessLogExtended(t, entry, nil, expectedOutput, o)
 }
 
-func testAccessLogExtended(t *testing.T, entry *AccessEntry, additional map[string]interface{}, expectedOutput string, o Options) {
+func testAccessLogExtended(t *testing.T, entry *AccessEntry,
+	additional map[string]interface{},
+	expectedOutput string,
+	o Options,
+) {
 	var buf bytes.Buffer
 	o.AccessLogOutput = &buf
 	Init(o)
@@ -102,6 +120,19 @@ func TestAccessLogFormatJSON(t *testing.T) {
 
 func TestAccessLogFormatJSONWithAdditionalData(t *testing.T) {
 	testAccessLogExtended(t, testAccessEntry(), map[string]interface{}{"extra": "extra"}, logExtendedJSONOutput, Options{AccessLogJSONEnabled: true})
+}
+
+func TestAccessLogFormatJSONWithMaskedQueryParameters(t *testing.T) {
+	additional := map[string]interface{}{al.KeyMaskedQueryParams: map[string]struct{}{"foo": {}}}
+
+	params := url.Values{}
+	params.Add("foo", "bar")
+	testAccessLogExtended(t,
+		testAccessEntryWithQueryParameters(params),
+		additional,
+		`{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif?foo=5234164152756840025","user-agent":""}`,
+		Options{AccessLogJSONEnabled: true},
+	)
 }
 
 func TestAccessLogIgnoresEmptyEntry(t *testing.T) {
