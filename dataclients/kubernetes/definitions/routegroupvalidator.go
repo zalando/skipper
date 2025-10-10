@@ -3,12 +3,22 @@ package definitions
 import (
 	"errors"
 	"fmt"
-	"net/url"
-
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/routing"
+	"net/url"
 )
 
-type RouteGroupValidator struct{}
+type RouteGroupValidator struct {
+	FilterRegistry           filters.Registry
+	PredicateSpecs           []routing.PredicateSpec
+	Metrics                  metrics.Metrics
+	EnableAdvancedValidation bool
+}
+
+// check if RouteGroupValidator implements the interface
+var _ Validator[*RouteGroupItem] = &RouteGroupValidator{}
 
 var (
 	errSingleFilterExpected    = errors.New("single filter expected")
@@ -73,6 +83,19 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 			} else if len(filters) != 1 {
 				errs = append(errs, fmt.Errorf("%w at %q", errSingleFilterExpected, f))
 			}
+			if len(errs) > 0 {
+				continue
+			}
+			if rgv.EnableAdvancedValidation {
+				err = validateFilters(ResourceContext{
+					Namespace:    item.Metadata.Namespace,
+					Name:         item.Metadata.Name,
+					ResourceType: ResourceTypeRouteGroup,
+				}, rgv.FilterRegistry, rgv.Metrics, filters)
+				if err != nil {
+					errs = append(errs, fmt.Errorf("invalid filter %q: %w", f, err))
+				}
+			}
 		}
 	}
 
@@ -82,12 +105,25 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
 	var errs []error
 	for _, r := range item.Spec.Routes {
-		for _, p := range r.Predicates {
+		for routePredicate, p := range r.Predicates {
 			predicates, err := eskip.ParsePredicates(p)
 			if err != nil {
 				errs = append(errs, err)
 			} else if len(predicates) != 1 {
 				errs = append(errs, fmt.Errorf("%w at %q", errSinglePredicateExpected, p))
+			}
+			if len(errs) > 0 {
+				continue
+			}
+			if rgv.EnableAdvancedValidation {
+				err = validatePredicates(ResourceContext{
+					Namespace:    item.Metadata.Namespace,
+					Name:         item.Metadata.Name,
+					ResourceType: ResourceTypeRouteGroup,
+				}, rgv.PredicateSpecs, rgv.Metrics, predicates)
+				if err != nil {
+					errs = append(errs, fmt.Errorf("invalid predicate %d: %w", routePredicate, err))
+				}
 			}
 		}
 	}
@@ -104,6 +140,19 @@ func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 			} else {
 				if address.Path != "" || address.RawQuery != "" || address.Scheme == "" || address.Host == "" {
 					errs = append(errs, fmt.Errorf("backend address %q does not match scheme://host format", backend.Address))
+				}
+			}
+			if len(errs) > 0 {
+				continue
+			}
+			if rgv.EnableAdvancedValidation {
+				err := validateBackend(ResourceContext{
+					Namespace:    item.Metadata.Namespace,
+					Name:         item.Metadata.Name,
+					ResourceType: ResourceTypeRouteGroup,
+				}, backend.Address, backend.Type, rgv.Metrics)
+				if err != nil {
+					errs = append(errs, fmt.Errorf("failed to parse backend address %q: %w", backend.Address, err))
 				}
 			}
 		}
