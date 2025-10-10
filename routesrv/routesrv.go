@@ -2,7 +2,6 @@ package routesrv
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,8 +14,10 @@ import (
 
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
+	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
 )
 
@@ -83,14 +84,20 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		supportHandler.Handle("/debug/pprof/", metricsHandler)
 	}
 
-	if !opts.Kubernetes {
-		return nil, fmt.Errorf(`option "Kubernetes" is required`)
+	var (
+		kdc        *kubernetes.Client
+		dataclient routing.DataClient
+	)
+	if opts.Kubernetes {
+		kdc, err = kubernetes.New(opts.KubernetesDataClientOptions())
+		if err != nil {
+			return nil, err
+		}
+		dataclient = kdc
+	} else {
+		dataclient, _ = routestring.New("")
 	}
 
-	dataclient, err := kubernetes.New(opts.KubernetesDataClientOptions())
-	if err != nil {
-		return nil, err
-	}
 	var oauthConfig *auth.OAuthConfig
 	if opts.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
 		oauthConfig = &auth.OAuthConfig{}
@@ -101,12 +108,22 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
 	if opts.KubernetesRedisServiceNamespace != "" && opts.KubernetesRedisServiceName != "" {
 		log.Infof("Use endpoints %s/%s to fetch updated redis shards", opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
+
 		rh = &RedisHandler{}
-		_, err := dataclient.LoadAll()
-		if err != nil {
-			return nil, err
+		if kdc != nil {
+			if _, err := kdc.LoadAll(); err != nil {
+				return nil, err
+			}
+			rh.AddrUpdater = getRedisAddresses(&opts, kdc, true, m)
+		} else {
+			kdc, err := kubernetes.New(opts.KubernetesDataClientOptions())
+			if err != nil {
+				return nil, err
+			}
+			// defer kdc.Close()
+
+			rh.AddrUpdater = getRedisAddresses(&opts, kdc, false, m)
 		}
-		rh.AddrUpdater = getRedisAddresses(&opts, dataclient, m)
 		mux.Handle("/swarm/redis/shards", rh)
 	}
 
