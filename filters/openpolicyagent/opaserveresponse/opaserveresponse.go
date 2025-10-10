@@ -3,6 +3,7 @@
 package opaserveresponse
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -68,9 +69,10 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		}
 	}
 
-	opa, err := s.registry.NewOpenPolicyAgentInstance(bundleName, s.Name())
+	// Try to get instance with new non-blocking approach
+	opa, err := s.registry.GetOrStartInstance(bundleName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open policy agent instance for bundle name '%s' could not be obtained: %w", bundleName, err)
 	}
 
 	return &opaServeResponseFilter{
@@ -92,6 +94,11 @@ func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
 	defer span.Finish()
 	req := fc.Request()
+
+	if !f.opa.Healthy() {
+		f.opa.HandleInstanceNotReadyError(fc, span, !f.opa.EnvoyPluginConfig().DryRun)
+		return
+	}
 
 	var rawBodyBytes []byte
 	if f.bodyParsing {
