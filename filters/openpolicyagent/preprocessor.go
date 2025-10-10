@@ -11,9 +11,9 @@ import (
 )
 
 type opaPreProcessor struct {
-	registry    *OpenPolicyAgentRegistry
-	initialLoad sync.Once
-	mu          sync.Mutex
+	registry *OpenPolicyAgentRegistry
+	once     sync.Once
+	mu       sync.Mutex
 
 	log logging.Logger
 }
@@ -36,8 +36,7 @@ func (p *opaPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
 	// Extract OPA bundle requirements from routes
 	bundleConfigs := p.extractOpaBundleRequests(routes)
 
-	// Use sync.Once to ensure initial load happens exactly once
-	p.initialLoad.Do(func() {
+	p.once.Do(func() {
 		// On initial load, start all instances in parallel and wait for completion
 		p.preloadInstancesParallel(bundleConfigs)
 	})
