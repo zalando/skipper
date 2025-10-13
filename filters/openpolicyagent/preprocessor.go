@@ -11,9 +11,9 @@ import (
 )
 
 type opaPreProcessor struct {
-	registry *OpenPolicyAgentRegistry
 	once     sync.Once
 	mu       sync.Mutex
+	registry *OpenPolicyAgentRegistry
 
 	log logging.Logger
 }
@@ -82,13 +82,13 @@ func (p *opaPreProcessor) preloadInstancesParallel(bundles []string) {
 
 			inst, err := p.registry.getExistingInstance(bundleName)
 			if err != nil {
-				p.log.Errorf("Failed to get existing OPA instance for bundle '%s': %v", bundleName, err)
+				p.log.Errorf("Failed to get existing OPA instance for bundle %q: %v", bundleName, err)
 			}
 
 			if inst != nil {
 				if !inst.Started() {
 					if err := inst.Start(); err != nil {
-						p.log.Errorf("Failed to parallel start OPA instance for bundle '%s': %v", bundleName, err)
+						p.log.Errorf("Failed to parallel start OPA instance for bundle %q: %v", bundleName, err)
 					}
 				}
 				return
@@ -96,12 +96,12 @@ func (p *opaPreProcessor) preloadInstancesParallel(bundles []string) {
 
 			inst, err = p.registry.createAndCacheInstance(bundleName)
 			if err != nil {
-				p.log.Errorf("Failed to create OPA instance for bundle '%s': %v", bundleName, err)
+				p.log.Errorf("Failed to create OPA instance for bundle %q: %v", bundleName, err)
 				return
 			}
 			err = inst.Start()
 			if err != nil {
-				p.log.Errorf("Failed to parallel start OPA instance for bundle '%s': %v", bundleName, err)
+				p.log.Errorf("Failed to parallel start OPA instance for bundle %q: %v", bundleName, err)
 				return
 			}
 		}(req)
@@ -118,7 +118,7 @@ func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
 		inst, err := p.registry.getExistingInstance(bundle)
 
 		if err != nil {
-			p.log.Errorf("Failed to get existing OPA instance for bundle '%s': %v", bundle, err)
+			p.log.Errorf("Failed to get existing OPA instance for bundle %q: %v", bundle, err)
 			continue
 		}
 
@@ -126,7 +126,7 @@ func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
 			if !inst.Started() {
 				p.log.Info("Scheduling background task to start existing OPA instance for bundle: ", bundle)
 				if _, err := p.registry.ScheduleBackgroundTask(inst.Start); err != nil {
-					p.log.Errorf("Failed to reschedule OPA instance for bundle '%s': %v", bundle, err)
+					p.log.Errorf("Failed to reschedule OPA instance for bundle %q: %v", bundle, err)
 				}
 			}
 			continue
@@ -134,7 +134,7 @@ func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
 
 		inst, err = p.registry.createAndCacheInstance(bundle)
 		if err != nil {
-			p.log.Errorf("Failed to create OPA instance for bundle '%s': %v", bundle, err)
+			p.log.Errorf("Failed to create OPA instance for bundle %q: %v", bundle, err)
 			continue
 		}
 
@@ -143,7 +143,7 @@ func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
 		_, err = p.registry.ScheduleBackgroundTask(inst.Start)
 
 		if err != nil {
-			p.log.Errorf("Failed to schedule OPA instance for bundle '%s': %v", bundle, err)
+			p.log.Errorf("Failed to schedule OPA instance for bundle %q: %v", bundle, err)
 		}
 	}
 }

@@ -497,7 +497,7 @@ func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string) (
 	// First check if instance already exists
 	instance, err := registry.getExistingInstance(bundleName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get existing OPA instance for bundle '%s': %w", bundleName, err)
+		return nil, fmt.Errorf("failed to get existing OPA instance for bundle %q : %w", bundleName, err)
 	}
 
 	if instance != nil {
@@ -507,17 +507,17 @@ func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string) (
 
 	if registry.preloadingEnabled {
 		// In preloading mode, if instance doesn't exist, it means a fatal error occurred while creating the opa instance
-		return nil, fmt.Errorf("open policy agent instance for bundle '%s' could not be created", bundleName)
+		return nil, fmt.Errorf("open policy agent instance for bundle %q could not be created", bundleName)
 	}
 
 	// In non-preloading mode, create and start the instance synchronously
 	inst, err := registry.createAndCacheInstance(bundleName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create OPA instance for bundle '%s': %w", bundleName, err)
+		return nil, fmt.Errorf("failed to create OPA instance for bundle %q: %w", bundleName, err)
 	}
 	err = inst.Start()
 	if err != nil {
-		return nil, fmt.Errorf("failed to start OPA instance for bundle '%s': %w", bundleName, err)
+		return nil, fmt.Errorf("failed to start OPA instance for bundle %q: %w", bundleName, err)
 	}
 
 	return inst, nil
@@ -1121,52 +1121,52 @@ type evalContext struct {
 }
 
 // ParsedQuery is an implementation of the envoyauth.EvalContext interface
-func (evalctx *evalContext) ParsedQuery() ast.Body {
-	return evalctx.opa.EnvoyPluginConfig().ParsedQuery
+func (ec *evalContext) ParsedQuery() ast.Body {
+	return ec.opa.EnvoyPluginConfig().ParsedQuery
 }
 
 // Store is an implementation of the envoyauth.EvalContext interface
-func (evalctx *evalContext) Store() storage.Store { return evalctx.opa.manager.Store }
+func (ec *evalContext) Store() storage.Store { return ec.opa.manager.Store }
 
 // Compiler is an implementation of the envoyauth.EvalContext interface
-func (evalctx *evalContext) Compiler() *ast.Compiler { return evalctx.opa.manager.GetCompiler() }
+func (ec *evalContext) Compiler() *ast.Compiler { return ec.opa.manager.GetCompiler() }
 
 // Runtime is an implementation of the envoyauth.EvalContext interface
-func (evalctx *evalContext) Runtime() *ast.Term { return evalctx.opa.manager.Info }
+func (ec *evalContext) Runtime() *ast.Term { return ec.opa.manager.Info }
 
 // Logger is an implementation of the envoyauth.EvalContext interface
-func (evalctx *evalContext) Logger() logging.Logger { return evalctx.opa.manager.Logger() }
+func (ec *evalContext) Logger() logging.Logger { return ec.opa.manager.Logger() }
 
 // InterQueryBuiltinCache is an implementation of the envoyauth.EvalContext interface
-func (evalctx *evalContext) InterQueryBuiltinCache() iCache.InterQueryCache {
-	return evalctx.opa.interQueryBuiltinCache
+func (ec *evalContext) InterQueryBuiltinCache() iCache.InterQueryCache {
+	return ec.opa.interQueryBuiltinCache
 }
 
 // InterQueryBuiltinValueCache is an implementation of the envoyauth.EvalContext interface
-func (evalctx *evalContext) InterQueryBuiltinValueCache() iCache.InterQueryValueCache {
-	return evalctx.opa.interQueryBuiltinValueCache
+func (ec *evalContext) InterQueryBuiltinValueCache() iCache.InterQueryValueCache {
+	return ec.opa.interQueryBuiltinValueCache
 }
 
 // Config is an implementation of the envoyauth.EvalContext interface
-func (evalctx *evalContext) Config() *config.Config { return evalctx.opa.opaConfig }
+func (ec *evalContext) Config() *config.Config { return ec.opa.opaConfig }
 
 // DistributedTracing is an implementation of the envoyauth.EvalContext interface
-func (evalctx *evalContext) DistributedTracing() opatracing.Options {
-	return buildTracingOptions(evalctx.opa.registry.tracer, evalctx.opa.bundleName, evalctx.opa.manager)
+func (ec *evalContext) DistributedTracing() opatracing.Options {
+	return buildTracingOptions(ec.opa.registry.tracer, ec.opa.bundleName, ec.opa.manager)
 }
 
 // CreatePreparedQueryOnce is an implementation of the envoyauth.EvalContext interface
-func (evalctx *evalContext) CreatePreparedQueryOnce(opts envoyauth.PrepareQueryOpts) (*rego.PreparedEvalQuery, error) {
-	evalctx.opa.preparedQueryDoOnce.Do(func() {
-		regoOpts := append(opts.Opts, rego.DistributedTracingOpts(evalctx.DistributedTracing()))
+func (ec *evalContext) CreatePreparedQueryOnce(opts envoyauth.PrepareQueryOpts) (*rego.PreparedEvalQuery, error) {
+	ec.opa.preparedQueryDoOnce.Do(func() {
+		regoOpts := append(opts.Opts, rego.DistributedTracingOpts(ec.DistributedTracing()))
 
 		pq, err := rego.New(regoOpts...).PrepareForEval(context.Background())
 
-		evalctx.opa.preparedQuery = &pq
-		evalctx.opa.preparedQueryErr = err
+		ec.opa.preparedQuery = &pq
+		ec.opa.preparedQueryErr = err
 	})
 
-	return evalctx.opa.preparedQuery, evalctx.opa.preparedQueryErr
+	return ec.opa.preparedQuery, ec.opa.preparedQueryErr
 }
 
 // logging.Logger that does not pollute info with debug logs
