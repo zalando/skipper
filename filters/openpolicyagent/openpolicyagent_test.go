@@ -1115,7 +1115,7 @@ func TestPrometheusPluginStatusGaugeRegistered(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	inst, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+	inst, err := registry.GetOrStartInstance("test")
 	assert.NoError(t, err)
 
 	// Simulate an HTTP request evaluation
