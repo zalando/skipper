@@ -14,15 +14,16 @@ import (
 )
 
 const (
-	promNamespace          = "skipper"
-	promRouteSubsystem     = "route"
-	promFilterSubsystem    = "filter"
-	promBackendSubsystem   = "backend"
-	promStreamingSubsystem = "streaming"
-	promProxySubsystem     = "proxy"
-	promResponseSubsystem  = "response"
-	promServeSubsystem     = "serve"
-	promCustomSubsystem    = "custom"
+	promNamespace                = "skipper"
+	promRouteSubsystem           = "route"
+	promFilterSubsystem          = "filter"
+	promBackendSubsystem         = "backend"
+	promStreamingSubsystem       = "streaming"
+	promProxySubsystem           = "proxy"
+	promResponseSubsystem        = "response"
+	promServeSubsystem           = "serve"
+	promCustomSubsystem          = "custom"
+	promOpenPolicyAgentSubsystem = "openpolicyagent"
 )
 
 const (
@@ -73,9 +74,10 @@ type Prometheus struct {
 	customGaugeM               *prometheus.GaugeVec
 	invalidRouteM              *prometheus.GaugeVec
 
-	opts     Options
-	registry *prometheus.Registry
-	handler  http.Handler
+	opts      Options
+	registry  *prometheus.Registry
+	handler   http.Handler
+	namespace string
 }
 
 // NewPrometheus returns a new Prometheus metric backend.
@@ -83,8 +85,9 @@ func NewPrometheus(opts Options) *Prometheus {
 	opts = applyCompatibilityDefaults(opts)
 
 	p := &Prometheus{
-		registry: opts.PrometheusRegistry,
-		opts:     opts,
+		registry:  opts.PrometheusRegistry,
+		opts:      opts,
+		namespace: namespace,
 	}
 
 	if p.registry == nil {
@@ -539,6 +542,11 @@ func (p *Prometheus) SetInvalidRoute(routeId, reason string) {
 }
 
 func (p *Prometheus) Close() {}
+
+// OpaScopedPrometheusRegisterer implements the OpaMetrics interface
+func (p *Prometheus) OpaScopedPrometheusRegisterer() prometheus.Registerer {
+	return prometheus.WrapRegistererWithPrefix(p.namespace+"_"+promOpenPolicyAgentSubsystem+"_", p.registry)
+}
 
 // withStartLabelGatherer adds a "start" label to all counters with
 // the value of counter creation timestamp as unix nanoseconds.

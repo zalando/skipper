@@ -84,6 +84,14 @@ type Metrics interface {
 	Close()
 }
 
+// OpaMetrics is an optional interface that a Metrics implementation can implement. It is used
+// to expose a Prometheus registerer that applies namespace prefixing for use in Open Policy Agent instances
+// This can only credibly be implemented with Prometheus as a backend and can also be removed if Prometheus
+// is the only supported backend and Codahale support is dropped
+type OpaMetrics interface {
+	OpaScopedPrometheusRegisterer() prometheus.Registerer
+}
+
 // Options for initializing metrics collection.
 type Options struct {
 	// the metrics exposing format.

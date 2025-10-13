@@ -2014,6 +2014,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval),
 			openpolicyagent.WithInstanceStartupTimeout(o.OpenPolicyAgentStartupTimeout),
 			openpolicyagent.WithTracer(tracer),
+			openpolicyagent.WithMetrics(mtr),
 			openpolicyagent.WithEnableCustomControlLoop(o.EnableOpenPolicyAgentCustomControlLoop),
 			openpolicyagent.WithControlLoopInterval(o.OpenPolicyAgentControlLoopInterval),
 			openpolicyagent.WithControlLoopMaxJitter(o.OpenPolicyAgentControlLoopMaxJitter),
