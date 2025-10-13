@@ -993,6 +993,7 @@ type Options struct {
 	OpenPolicyAgentControlLoopInterval                 time.Duration
 	OpenPolicyAgentControlLoopMaxJitter                time.Duration
 	EnableOpenPolicyAgentDataPreProcessingOptimization bool
+	EnableOpenPolicyAgentPreloading                    bool
 	OpenPolicyAgentConfigTemplate                      string
 	OpenPolicyAgentEnvoyMetadata                       string
 	OpenPolicyAgentCleanerInterval                     time.Duration
@@ -1992,6 +1993,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			openpolicyagent.WithControlLoopInterval(o.OpenPolicyAgentControlLoopInterval),
 			openpolicyagent.WithControlLoopMaxJitter(o.OpenPolicyAgentControlLoopMaxJitter),
 			openpolicyagent.WithEnableDataPreProcessingOptimization(o.EnableOpenPolicyAgentDataPreProcessingOptimization),
+			openpolicyagent.WithPreloadingEnabled(o.EnableOpenPolicyAgentPreloading),
 			openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...),
 		)
 
@@ -2149,6 +2151,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	if o.EnableOpenPolicyAgent {
+		// Add PreProcessor for instance pre-loading (only when flag is enabled)
+		if o.EnableOpenPolicyAgentPreloading {
+			ro.PreProcessors = append(ro.PreProcessors, opaRegistry.NewPreProcessor())
+		}
 		ro.PostProcessors = append(ro.PostProcessors, opaRegistry)
 	}
 
