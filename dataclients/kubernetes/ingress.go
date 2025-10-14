@@ -35,6 +35,8 @@ type ingressContext struct {
 	logger              *logger
 	annotationFilters   []*eskip.Filter
 	annotationPredicate string
+	annotationBackend   string
+	forwardBackendURL   string
 	extraRoutes         []*eskip.Route
 	backendWeights      map[string]float64
 	pathMode            PathMode
@@ -58,6 +60,7 @@ type ingress struct {
 	forceKubernetesService                         bool
 	backendTrafficAlgorithm                        BackendTrafficAlgorithm
 	defaultLoadBalancerAlgorithm                   string
+	forwardBackendURL                              string
 	kubernetesAnnotationPredicates                 []AnnotationPredicates
 	kubernetesAnnotationFiltersAppend              []AnnotationFilters
 	kubernetesEastWestRangeAnnotationPredicates    []AnnotationPredicates
@@ -69,7 +72,24 @@ var nonWord = regexp.MustCompile(`\W`)
 var errNotAllowedExternalName = errors.New("ingress with not allowed external name service")
 
 func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
+	ic.applyBackend(route)
 	ic.hostRoutes[host] = append(ic.hostRoutes[host], route)
+}
+
+func (ic *ingressContext) applyBackend(route *eskip.Route) {
+	if ic.forwardBackendURL == "" || ic.annotationBackend == "" || route == nil {
+		return
+	}
+	if be, err := eskip.BackendTypeFromString(ic.annotationBackend); err != nil {
+		return
+	} else {
+		switch be {
+		case eskip.ForwardBackend:
+			route.BackendType = eskip.NetworkBackend
+			route.Backend = ic.forwardBackendURL
+			route.Filters = []*eskip.Filter{}
+		}
+	}
 }
 
 func newIngress(o Options) *ingress {
@@ -86,6 +106,7 @@ func newIngress(o Options) *ingress {
 		forceKubernetesService:                         o.ForceKubernetesService,
 		backendTrafficAlgorithm:                        o.BackendTrafficAlgorithm,
 		defaultLoadBalancerAlgorithm:                   o.DefaultLoadBalancerAlgorithm,
+		forwardBackendURL:                              o.ForwardBackendURL,
 		kubernetesAnnotationPredicates:                 o.KubernetesAnnotationPredicates,
 		kubernetesAnnotationFiltersAppend:              o.KubernetesAnnotationFiltersAppend,
 		kubernetesEastWestRangeAnnotationPredicates:    o.KubernetesEastWestRangeAnnotationPredicates,
@@ -262,6 +283,21 @@ func annotationFilter(m *definitions.Metadata, logger *logger) []*eskip.Filter {
 	return nil
 }
 
+// parse backend annotation
+func annotationBackend(m *definitions.Metadata) (eskip.BackendType, error) {
+	if s, ok := m.Annotations[definitions.IngressBackendAnnotation]; ok {
+		return eskip.BackendTypeFromString(s)
+	}
+	return 0, fmt.Errorf("annotation not found")
+}
+
+func annotationBackendString(m *definitions.Metadata) string {
+	if be, err := annotationBackend(m); err == nil {
+		return be.String()
+	}
+	return ""
+}
+
 // parse predicate annotation
 func annotationPredicate(m *definitions.Metadata) string {
 	var annotationPredicate string
@@ -350,6 +386,22 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 	return false
 }
 
+func (ing *ingress) applyBackend(i *definitions.IngressV1Item, r *eskip.Route) {
+	if ing.forwardBackendURL == "" || r == nil {
+		return
+	}
+	if be, err := annotationBackend(i.Metadata); err != nil {
+		return
+	} else {
+		switch be {
+		case eskip.ForwardBackend:
+			r.BackendType = eskip.NetworkBackend
+			r.Backend = ing.forwardBackendURL
+			r.Filters = []*eskip.Filter{}
+		}
+	}
+}
+
 // convert logs if an invalid found, but proceeds with the valid ones.
 // Reporting failures in Ingress status is not possible, because
 // Ingress status field only supports IP and Hostname as string.
@@ -372,6 +424,7 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters, r *certregis
 				ewIngInfo[r.Id] = []string{i.Metadata.Namespace, i.Metadata.Name}
 			}
 		}
+		ing.applyBackend(i, r)
 	}
 
 	for host, rs := range hostRoutes {

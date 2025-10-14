@@ -1,0 +1,15 @@
+kube_rg____example_org__catchall__0_0:
+	Host("^(example[.]org[.]?(:[0-9]+)?)$")
+	-> <shunt>;
+
+kube_rg__default__myapp__all__0_0:
+	Host("^(example[.]org[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/")
+	-> "http://forward.example";
+
+kube_rg__default__myapp__all__1_0: Host("^(example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/svc") -> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg__default__myapp__all__2_0: Host("^(example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/net") -> "http://net.example";
+
+kube_rg__default__myapp__all__3_0: Host("^(example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/shunt") -> <shunt>;
+

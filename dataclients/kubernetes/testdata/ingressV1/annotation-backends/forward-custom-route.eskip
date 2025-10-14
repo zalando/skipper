@@ -1,0 +1,6 @@
+kube_default__myapp__example_test____myapp:
+	Host("^(example[.]test[.]?(:[0-9]+)?)$")
+	-> "http://forward.example";
+
+kube_default__myapp__0__example_test____: Host("^(example[.]test[.]?(:[0-9]+)?)$") && Method("OPTIONS") -> <shunt>;
+
