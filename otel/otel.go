@@ -8,10 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/contrib/propagators/autoprop"
+	"go.opentelemetry.io/contrib/propagators/aws/xray"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -53,6 +55,12 @@ type BatchSpanProcessor struct {
 	MaxExportBatchSize int           `yaml:"maxExportBatchSize"`
 }
 
+// initOnce makes sure that the package-level initialization is done only once if [Init] was called.
+var initOnce = sync.OnceFunc(func() {
+	autoexport.RegisterSpanExporter("skipper-debug", skipperDebugSpanExporter)
+	autoprop.RegisterTextMapPropagator("xray", xray.Propagator{})
+})
+
 // Init bootstraps the OpenTelemetry pipeline using environment variables and provided options.
 // Make sure to call shutdown for proper cleanup if err is nil.
 //
@@ -80,6 +88,7 @@ func Init(ctx context.Context, o *Options) (shutdown func(context.Context) error
 		log.Debug("OpenTelemetry pipeline initialized externally")
 		return func(context.Context) error { return nil }, nil
 	}
+	initOnce()
 
 	for _, name := range []string{
 		"OTEL_TRACES_EXPORTER",
@@ -181,7 +190,6 @@ func newSpanExporter(ctx context.Context, o *Options) (trace.SpanExporter, error
 		return skipperDebugSpanExporter(ctx)
 	} else {
 		log.Debugf("Configuring span exporter using environment variables")
-		autoexport.RegisterSpanExporter("skipper-debug", skipperDebugSpanExporter)
 		return autoexport.NewSpanExporter(ctx)
 	}
 }
