@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime/trace"
 	"testing"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
-	xtrace "golang.org/x/exp/trace"
 )
 
 func TestFlightRecorder(t *testing.T) {
@@ -47,7 +47,9 @@ func TestFlightRecorder(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	flightRecorder := xtrace.NewFlightRecorder()
+	flightRecorder := trace.NewFlightRecorder(trace.FlightRecorderConfig{
+		MinAge: time.Second,
+	})
 	flightRecorder.Start()
 
 	spec := diag.NewLatency()

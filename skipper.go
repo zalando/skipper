@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path"
 	"regexp"
+	"runtime/trace"
 	"strconv"
 	"strings"
 	"syscall"
@@ -25,7 +26,6 @@ import (
 	"go.opentelemetry.io/otel"
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/trace"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -81,8 +81,8 @@ const (
 	defaultSourcePollTimeout   = 30 * time.Millisecond
 	defaultRoutingUpdateBuffer = 1 << 5
 
-	defaultFlightRecorderPeriod = 1 * time.Minute
-	defaultFlightRecorderSize   = 1 << 27 // 128 MB
+	defaultFlightRecorderPeriod   = 100 * time.Millisecond
+	defaultFlightRecorderMaxBytes = 1 << 24 // 16 MB
 
 	otelTracerName = "skipper"
 )
@@ -501,10 +501,17 @@ type Options struct {
 	// MemProfileRate calls runtime.SetMemProfileRate(MemProfileRate) if non zero value, deactivate with <0
 	MemProfileRate int
 
-	// FlightRecorderSize set size of the FlightRecorder https://pkg.go.dev/golang.org/x/exp/trace#FlightRecorder.SetSize
-	FlightRecorderSize int
+	// FlightRecorderMaxBytes sets MaxBytes of the FlightRecorderConfig https://pkg.go.dev/runtime/trace#FlightRecorderConfig
+	FlightRecorderMaxBytes int
 
-	// FlightRecorderPeriod set period of the FlightRecorder https://pkg.go.dev/golang.org/x/exp/trace#FlightRecorder.SetPeriod
+	// FlightRecorderPeriod sets the time.Duration that is the
+	// threshold of skipper being slow to write down a recorded a
+	// trace.
+	//
+	// FlightRecorderPeriod is used to compute MinAge of the FlightRecorderConfig https://pkg.go.dev/runtime/trace#FlightRecorderConfig.
+	//
+	// https://go.dev/blog/flight-recorder:
+	//     MinAge configures the duration for which trace data is reliably retained, and we suggest setting it to around 2x the time window of the event.
 	FlightRecorderPeriod time.Duration
 
 	// FlightRecorderTargetURL is the target to write the trace
@@ -512,7 +519,7 @@ type Options struct {
 	// will try to upload the trace data by an http PUT request to
 	// this http URL. This is required to set if you want to have
 	// trace.FlightRecorder
-	// https://pkg.go.dev/golang.org/x/exp/trace#FlightRecorder
+	// https://pkg.go.dev/runtime/trace#FlightRecorder
 	// enabled to support Go tool trace.
 	FlightRecorderTargetURL string
 
@@ -2199,23 +2206,18 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	routing := routing.New(ro)
 	defer routing.Close()
 
-	frPeriod := defaultFlightRecorderPeriod
 	var fr *trace.FlightRecorder
 	if o.FlightRecorderTargetURL != "" {
-		fr = trace.NewFlightRecorder()
-
-		if o.FlightRecorderPeriod != 0 {
-			frPeriod = o.FlightRecorderPeriod
+		if o.FlightRecorderPeriod == 0 {
+			o.FlightRecorderPeriod = defaultFlightRecorderPeriod
 		}
-		fr.SetPeriod(frPeriod)
-
-		frSize := defaultFlightRecorderSize
-		if o.FlightRecorderSize != 0 {
-			fr.SetSize(o.FlightRecorderSize)
-			frSize = o.FlightRecorderSize
-		} else {
-			fr.SetSize(defaultFlightRecorderSize)
+		if o.FlightRecorderMaxBytes <= 0 {
+			o.FlightRecorderMaxBytes = defaultFlightRecorderMaxBytes
 		}
+		fr = trace.NewFlightRecorder(trace.FlightRecorderConfig{
+			MinAge:   2 * o.FlightRecorderPeriod,
+			MaxBytes: uint64(o.FlightRecorderMaxBytes),
+		})
 
 		err := fr.Start()
 		if err != nil {
@@ -2223,7 +2225,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			fr.Stop()
 			fr = nil
 		} else {
-			log.Infof("FlightRecorder started with config (%s, %d) target: %s", frPeriod, frSize, o.FlightRecorderTargetURL)
+			log.Infof("FlightRecorder started with FlightRecorderConfig (%s, %d) and target: %s", o.FlightRecorderPeriod*2, o.FlightRecorderMaxBytes, o.FlightRecorderTargetURL)
 		}
 	}
 
@@ -2257,7 +2259,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		PassiveHealthCheck:         passiveHealthCheck,
 		FlightRecorder:             fr,
 		FlightRecorderTargetURL:    o.FlightRecorderTargetURL,
-		FlightRecorderPeriod:       frPeriod,
+		FlightRecorderPeriod:       o.FlightRecorderPeriod,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
