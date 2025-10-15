@@ -123,6 +123,7 @@ func defaultConfig(with func(*Config)) *Config {
 		OIDCCookieRemoveSubdomains:              1,
 		CredentialPaths:                         commaListFlag(),
 		CredentialsUpdateInterval:               10 * time.Minute,
+		ValidationWebhookAddress:                ":9000",
 		ApiUsageMonitoringClientKeys:            "sub",
 		ApiUsageMonitoringRealmsTrackingPattern: "services",
 		WaitForHealthcheckInterval:              45 * time.Second,

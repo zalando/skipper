@@ -6,9 +6,20 @@ import (
 	"net/url"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/routing"
 )
 
-type RouteGroupValidator struct{}
+type RouteGroupValidator struct {
+	FilterRegistry           filters.Registry
+	PredicateSpecs           []routing.PredicateSpec
+	Metrics                  metrics.Metrics
+	EnableAdvancedValidation bool
+}
+
+// check if RouteGroupValidator implements the interface
+var _ Validator[*RouteGroupItem] = &RouteGroupValidator{}
 
 var (
 	errSingleFilterExpected    = errors.New("single filter expected")
@@ -67,27 +78,52 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 	var errs []error
 	for _, r := range item.Spec.Routes {
 		for _, f := range r.Filters {
-			filters, err := eskip.ParseFilters(f)
+			parsedFilters, err := eskip.ParseFilters(f)
 			if err != nil {
 				errs = append(errs, err)
-			} else if len(filters) != 1 {
+				continue
+			}
+			if len(parsedFilters) != 1 {
 				errs = append(errs, fmt.Errorf("%w at %q", errSingleFilterExpected, f))
+				continue
+			}
+			if rgv.EnableAdvancedValidation {
+				if err := validateFilters(ResourceContext{
+					Namespace:    item.Metadata.Namespace,
+					Name:         item.Metadata.Name,
+					ResourceType: ResourceTypeRouteGroup,
+				}, rgv.FilterRegistry, rgv.Metrics, parsedFilters); err != nil {
+					errs = append(errs, fmt.Errorf("invalid filter %q: %w", f, err))
+				}
 			}
 		}
 	}
-
 	return errors.Join(errs...)
 }
 
 func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
 	var errs []error
 	for _, r := range item.Spec.Routes {
+		routePredicates := make([]*eskip.Predicate, 0, len(r.Predicates))
 		for _, p := range r.Predicates {
-			predicates, err := eskip.ParsePredicates(p)
+			parsedPredicates, err := eskip.ParsePredicates(p)
 			if err != nil {
 				errs = append(errs, err)
-			} else if len(predicates) != 1 {
+				continue
+			}
+			if len(parsedPredicates) != 1 {
 				errs = append(errs, fmt.Errorf("%w at %q", errSinglePredicateExpected, p))
+				continue
+			}
+			routePredicates = append(routePredicates, parsedPredicates[0])
+		}
+		if rgv.EnableAdvancedValidation {
+			if err := validatePredicates(ResourceContext{
+				Namespace:    item.Metadata.Namespace,
+				Name:         item.Metadata.Name,
+				ResourceType: ResourceTypeRouteGroup,
+			}, rgv.PredicateSpecs, rgv.Metrics, routePredicates); err != nil {
+				errs = append(errs, err)
 			}
 		}
 	}
@@ -97,14 +133,25 @@ func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
 func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 	var errs []error
 	for _, backend := range item.Spec.Backends {
-		if backend.Type == eskip.NetworkBackend {
-			address, err := url.Parse(backend.Address)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("failed to parse backend address %q: %w", backend.Address, err))
-			} else {
-				if address.Path != "" || address.RawQuery != "" || address.Scheme == "" || address.Host == "" {
-					errs = append(errs, fmt.Errorf("backend address %q does not match scheme://host format", backend.Address))
-				}
+		if backend.Type != eskip.NetworkBackend {
+			continue
+		}
+		address, err := url.Parse(backend.Address)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to parse backend address %q: %w", backend.Address, err))
+			continue
+		}
+		if address.Path != "" || address.RawQuery != "" || address.Scheme == "" || address.Host == "" {
+			errs = append(errs, fmt.Errorf("backend address %q does not match scheme://host format", backend.Address))
+			continue
+		}
+		if rgv.EnableAdvancedValidation {
+			if err := validateBackend(ResourceContext{
+				Namespace:    item.Metadata.Namespace,
+				Name:         item.Metadata.Name,
+				ResourceType: ResourceTypeRouteGroup,
+			}, backend.Address, backend.Type, rgv.Metrics); err != nil {
+				errs = append(errs, err)
 			}
 		}
 	}

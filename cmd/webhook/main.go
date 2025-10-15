@@ -9,9 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/zalando/skipper/dataclients/kubernetes/admission"
+
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/cmd/webhook/admission"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
@@ -53,8 +54,16 @@ func main() {
 	var cfg = &config{}
 	cfg.parse()
 
-	rgAdmitter := &admission.RouteGroupAdmitter{RouteGroupValidator: &definitions.RouteGroupValidator{}}
-	ingressAdmitter := &admission.IngressAdmitter{IngressValidator: &definitions.IngressV1Validator{}}
+	rgAdmitter := &admission.RouteGroupAdmitter{
+		RouteGroupValidator: &definitions.RouteGroupValidator{
+			EnableAdvancedValidation: false, // can't start advanced validation in the webhook binary
+		},
+	}
+	ingressAdmitter := &admission.IngressAdmitter{
+		IngressValidator: &definitions.IngressV1Validator{
+			EnableAdvancedValidation: false, // can't start advanced validation in the webhook binary
+		},
+	}
 	handler := http.NewServeMux()
 	handler.Handle("/routegroups", admission.Handler(rgAdmitter))
 	handler.Handle("/ingresses", admission.Handler(ingressAdmitter))
@@ -101,6 +110,6 @@ func serve(cfg *config, handler http.Handler) {
 	}
 
 	if err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Listener error: %v.", err)
+		log.Fatalf("Failed to listen: %v", err)
 	}
 }

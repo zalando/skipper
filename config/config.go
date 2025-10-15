@@ -227,6 +227,13 @@ type Config struct {
 	CredentialPaths                   *listFlag     `yaml:"credentials-paths"`
 	CredentialsUpdateInterval         time.Duration `yaml:"credentials-update-interval"`
 
+	// TLS configuration for the validation webhook
+	ValidationWebhookEnabled  bool   `yaml:"validation-webhook-enabled"`
+	ValidationWebhookAddress  string `yaml:"validation-webhook-address"`
+	ValidationWebhookCertFile string `yaml:"validation-webhook-cert-file"`
+	ValidationWebhookKeyFile  string `yaml:"validation-webhook-key-file"`
+	EnableAdvancedValidation  bool   `yaml:"enable-advanced-validation"`
+
 	// TLS client certs
 	ClientKeyFile  string            `yaml:"client-tls-key"`
 	ClientCertFile string            `yaml:"client-tls-cert"`
@@ -535,6 +542,12 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.Oauth2TokenCookieRemoveSubdomains, "oauth2-token-cookie-remove-subdomains", 1, "sets the number of subdomains to remove from the callback request hostname to obtain token cookie domain")
 	flag.BoolVar(&cfg.Oauth2GrantInsecure, "oauth2-grant-insecure", false, "omits Secure attribute of the token cookie and uses http scheme for callback url")
 	flag.DurationVar(&cfg.WebhookTimeout, "webhook-timeout", 2*time.Second, "sets the webhook request timeout duration")
+	flag.BoolVar(&cfg.ValidationWebhookEnabled, "validation-webhook-enabled", false, "enables validation webhook for incoming requests")
+	flag.StringVar(&cfg.ValidationWebhookAddress, "validation-webhook-address", ":9000", "address of the validation webhook service")
+	flag.StringVar(&cfg.ValidationWebhookCertFile, "validation-webhook-cert-file", "", "path to the certificate file for the validation webhook")
+	flag.StringVar(&cfg.ValidationWebhookKeyFile, "validation-webhook-key-file", "", "path to the key file for the validation webhook")
+	flag.BoolVar(&cfg.EnableAdvancedValidation, "enable-advanced-validation", false, "enables advanced validation logic for Kubernetes resources")
+
 	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", "file storing the encryption key of the OID Connect token. Enables OIDC filters")
 	flag.DurationVar(&cfg.OIDCCookieValidity, "oidc-cookie-validity", time.Hour, "sets the cookie expiry time to +1h for OIDC filters, in case no 'exp' claim is found in the JWT token")
 	flag.DurationVar(&cfg.OidcDistributedClaimsTimeout, "oidc-distributed-claims-timeout", 2*time.Second, "sets the default OIDC distributed claims request timeout duration to 2000ms")
@@ -952,6 +965,11 @@ func (c *Config) ToOptions() skipper.Options {
 		OIDCCookieRemoveSubdomains:        c.OIDCCookieRemoveSubdomains,
 		CredentialsPaths:                  c.CredentialPaths.values,
 		CredentialsUpdateInterval:         c.CredentialsUpdateInterval,
+		ValidationWebhookEnabled:          c.ValidationWebhookEnabled,
+		ValidationWebhookAddress:          c.ValidationWebhookAddress,
+		ValidationWebhookCertFile:         c.ValidationWebhookCertFile,
+		ValidationWebhookKeyFile:          c.ValidationWebhookKeyFile,
+		EnableAdvancedValidation:          c.EnableAdvancedValidation,
 
 		// connections, timeouts:
 		WaitForHealthcheckInterval:   c.WaitForHealthcheckInterval,
