@@ -10,6 +10,7 @@ const (
 	IngressFilterAnnotation    = "zalando.org/skipper-filter"
 	IngressPredicateAnnotation = "zalando.org/skipper-predicate"
 	IngressRoutesAnnotation    = "zalando.org/skipper-routes"
+	IngressBackendAnnotation   = "zalando.org/skipper-backend"
 )
 
 var errInvalidPortType = errors.New("invalid port type")

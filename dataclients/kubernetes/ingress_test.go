@@ -27,5 +27,6 @@ func TestIngressV1AnnotationConfig(t *testing.T) {
 	kubernetestest.FixturesToTest(t,
 		"testdata/ingressV1/annotation-predicates",
 		"testdata/ingressV1/annotation-filters",
+		"testdata/ingressV1/annotation-backends",
 	)
 }

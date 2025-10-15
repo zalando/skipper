@@ -433,6 +433,8 @@ func (ing *ingress) ingressV1Route(
 		logger:              logger,
 		annotationFilters:   annotationFilter(i.Metadata, logger),
 		annotationPredicate: annotationPredicate(i.Metadata),
+		annotationBackend:   annotationBackendString(i.Metadata),
+		forwardBackendURL:   ing.forwardBackendURL,
 		extraRoutes:         extraRoutes(i.Metadata),
 		backendWeights:      backendWeights(i.Metadata, logger),
 		pathMode:            pathMode(i.Metadata, ing.pathMode, logger),
@@ -446,9 +448,11 @@ func (ing *ingress) ingressV1Route(
 	var route *eskip.Route
 	if r, ok, err := ing.convertDefaultBackendV1(ic, ing.forceKubernetesService); ok {
 		route = r
+		ic.applyBackend(route)
 	} else if err != nil {
 		ic.logger.Errorf("Failed to convert default backend: %v", err)
 	}
+
 	for _, rule := range i.Spec.Rules {
 		err := ing.addSpecRuleV1(ic, rule)
 		if err != nil {
