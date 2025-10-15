@@ -619,6 +619,24 @@ s: JWTPayloadAnyKVRegexp("https://identity.zalando.com/managed-id", "^ssz") -> s
 
 }
 
+func BenchmarkJWTPayloadAnyKV(b *testing.B) {
+	sp := NewJWTPayloadAnyKV()
+	p, err := sp.Create([]interface{}{"https://identity.zalando.com/managed-id", "foo", "iss", "https://identity.zalando.com"})
+	if err != nil {
+		b.Fatalf("Failed to create predicate: %v", err)
+	}
+	benchPredicate(b, p)
+}
+
+func BenchmarkJWTPayloadAllKV(b *testing.B) {
+	sp := NewJWTPayloadAnyKV()
+	p, err := sp.Create([]interface{}{"https://identity.zalando.com/managed-id", "sszuecs", "iss", "https://identity.zalando.com"})
+	if err != nil {
+		b.Fatalf("Failed to create predicate: %v", err)
+	}
+	benchPredicate(b, p)
+}
+
 func BenchmarkJWTPayloadAnyKVRegexp(b *testing.B) {
 	sp := NewJWTPayloadAnyKVRegexp()
 	p, err := sp.Create([]interface{}{"https://identity.zalando.com/managed-id", "^ssz", "https://identity.zalando.com/token", "^Bear"})
