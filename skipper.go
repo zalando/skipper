@@ -24,7 +24,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
-	"go.opentelemetry.io/otel/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/trace"
 
 	"github.com/zalando/skipper/circuit"
@@ -1689,7 +1689,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	var (
 		tracer     ot.Tracer
-		otelTracer trace.Tracer
+		otelTracer oteltrace.Tracer
 	)
 
 	if o.OpenTelemetry != nil {
