@@ -906,32 +906,32 @@ open an issue or pull request in our [repository](https://github.com/zalando/ski
 
 ## OpenTelemetry
 
-Skipper supports [OpenTelemetry](https://opentelemetry.io/) tracing using [standard environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) and the `-opentelemetry` flag.
+Skipper supports [OpenTelemetry](https://opentelemetry.io/) tracing using [standard environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) and the `-open-telemetry` flag.
 
-To enable and configure OpenTelemtry using environment variables set `-opentelemetry` to an empty YAML object:
+To enable and configure OpenTelemtry using environment variables set `-open-telemetry` to an empty YAML object:
 
-```console
-$ export OTEL_TRACES_EXPORTER="otlp"
-$ export OTEL_EXPORTER_OTLP_PROTOCOL="grpc"
-$ export OTEL_EXPORTER_OTLP_ENDPOINT="https://telemetry-otlp-endpoint.com:4317"
-$ export OTEL_EXPORTER_OTLP_HEADERS="telemetry-token=telemetry-token-value"
-$ export OTEL_RESOURCE_ATTRIBUTES="service.name=skipper-ingress,cluster=production"
-$ export OTEL_PROPAGATORS="tracecontext,ottrace,b3multi,baggage"
-$ export OTEL_BSP_SCHEDULE_DELAY="5s"
-$ export OTEL_BSP_EXPORT_TIMEOUT="30s"
-$ export OTEL_BSP_MAX_QUEUE_SIZE="2048"
-$ export OTEL_BSP_MAX_EXPORT_BATCH_SIZE="512"
-$ skipper -opentelemetry={}
+```sh
+OTEL_TRACES_EXPORTER="otlp" \
+OTEL_EXPORTER_OTLP_PROTOCOL="grpc" \
+OTEL_EXPORTER_OTLP_ENDPOINT="https://telemetry-otlp-endpoint.test:4317" \
+OTEL_EXPORTER_OTLP_HEADERS="telemetry-token=telemetry-token-value" \
+OTEL_RESOURCE_ATTRIBUTES="service.name=skipper-ingress,cluster=production" \
+OTEL_PROPAGATORS="tracecontext,ottrace,b3multi,baggage" \
+OTEL_BSP_SCHEDULE_DELAY="5s" \
+OTEL_BSP_EXPORT_TIMEOUT="30s" \
+OTEL_BSP_MAX_QUEUE_SIZE="2048" \
+OTEL_BSP_MAX_EXPORT_BATCH_SIZE="512" \
+skipper -open-telemetry={}
 ```
 
-To enable and  configure OpenTelemetry using the `-opentelemetry` flag, provide a YAML configuration as the value:
+To enable and  configure OpenTelemetry using the `-open-telemetry` flag, provide a YAML configuration as the value:
 
-```console
-$ skipper -opentelemetry='
+```sh
+skipper -open-telemetry='
 tracesExporter: otlp
 exporterOtlp:
   protocol: grpc
-  endpoint: "https://telemetry-otlp-endpoint.com:4317"
+  endpoint: "https://telemetry-otlp-endpoint.test:4317"
   headers:
     telemetry-token: "telemetry-token-value"
 resourceAttributes:
