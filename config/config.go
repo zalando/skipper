@@ -24,6 +24,7 @@ import (
 	"github.com/zalando/skipper/otel"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/swarm"
+	"github.com/zalando/skipper/validation"
 )
 
 type Config struct {
@@ -543,7 +544,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.Oauth2GrantInsecure, "oauth2-grant-insecure", false, "omits Secure attribute of the token cookie and uses http scheme for callback url")
 	flag.DurationVar(&cfg.WebhookTimeout, "webhook-timeout", 2*time.Second, "sets the webhook request timeout duration")
 	flag.BoolVar(&cfg.ValidationWebhookEnabled, "validation-webhook-enabled", false, "enables validation webhook for incoming requests")
-	flag.StringVar(&cfg.ValidationWebhookAddress, "validation-webhook-address", ":9000", "address of the validation webhook service")
+	flag.StringVar(&cfg.ValidationWebhookAddress, "validation-webhook-address", validation.DefaultHTTPSAddress, "address of the validation webhook service")
 	flag.StringVar(&cfg.ValidationWebhookCertFile, "validation-webhook-cert-file", "", "path to the certificate file for the validation webhook")
 	flag.StringVar(&cfg.ValidationWebhookKeyFile, "validation-webhook-key-file", "", "path to the key file for the validation webhook")
 	flag.BoolVar(&cfg.EnableAdvancedValidation, "enable-advanced-validation", false, "enables advanced validation logic for Kubernetes resources")

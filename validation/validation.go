@@ -19,17 +19,25 @@ import (
 )
 
 const (
-	readTimeout       = time.Minute
-	readHeaderTimeout = time.Minute
+	readTimeout         = time.Minute
+	readHeaderTimeout   = time.Minute
+	DefaultHTTPSAddress = ":9443"
+	DefaultHTTPAddress  = ":9080"
 )
 
 // StartValidation launches the validation webhook server and keeps serving until the
 // returned listener encounters an unrecoverable error, or the process shuts down.
 func StartValidation(address, certFile, keyFile string, enableAdvancedValidation bool, filterRegistry filters.Registry, predicateSpecs []routing.PredicateSpec, mtr metrics.Metrics) error {
-	if certFile == "" || keyFile == "" {
-		err := errors.New("validation webhook requires TLS: cert file or key file not provided")
+
+	if (certFile != "" || keyFile != "") && !(certFile != "" && keyFile != "") {
+		err := errors.New("config parse error: both of TLS cert & key must be provided or neither (for testing)")
 		log.Fatal(err)
 		return err
+	}
+
+	// support non-HTTPS for local testing
+	if (certFile == "" && keyFile == "") && address != DefaultHTTPAddress {
+		address = DefaultHTTPAddress
 	}
 
 	handler := newValidationHandler(enableAdvancedValidation, filterRegistry, predicateSpecs, mtr)
@@ -53,8 +61,13 @@ func StartValidation(address, certFile, keyFile string, enableAdvancedValidation
 			return
 		}
 	}()
-
-	err := server.ListenAndServeTLS(certFile, keyFile)
+	var err error
+	if certFile != "" && keyFile != "" {
+		err = server.ListenAndServeTLS(certFile, keyFile)
+	} else {
+		// support non-HTTPS for local testing
+		err = server.ListenAndServe()
+	}
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("Failed to listen: %v", err)
