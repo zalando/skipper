@@ -629,7 +629,7 @@ func BenchmarkJWTPayloadAnyKV(b *testing.B) {
 }
 
 func BenchmarkJWTPayloadAllKV(b *testing.B) {
-	sp := NewJWTPayloadAnyKV()
+	sp := NewJWTPayloadAllKV()
 	p, err := sp.Create([]interface{}{"https://identity.zalando.com/managed-id", "sszuecs", "iss", "https://identity.zalando.com"})
 	if err != nil {
 		b.Fatalf("Failed to create predicate: %v", err)
