@@ -259,7 +259,7 @@ func wait(d time.Duration) scenarioStep {
 	}
 }
 
-func trace(msg string) scenarioStep {
+func traceBreakerTest(msg string) scenarioStep {
 	return func(*breakerTestContext) {
 		println(msg)
 	}
@@ -519,7 +519,7 @@ func TestBreakerMultipleHosts(t *testing.T) {
 			checkBackendHostCounter("foo", testRateWindow),
 			checkBackendHostCounter("bar", testRateWindow),
 			setBackendFail,
-			trace("setting fail"),
+			traceBreakerTest("setting fail"),
 			setBackendHostFail("foo"),
 			setBackendHostFail("bar"),
 			times(testRateFailures,

@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path"
 	"regexp"
+	"runtime/trace"
 	"strconv"
 	"strings"
 	"syscall"
@@ -24,7 +25,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
-	"go.opentelemetry.io/otel/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -79,7 +80,11 @@ import (
 const (
 	defaultSourcePollTimeout   = 30 * time.Millisecond
 	defaultRoutingUpdateBuffer = 1 << 5
-	otelTracerName             = "skipper"
+
+	defaultFlightRecorderPeriod   = 100 * time.Millisecond
+	defaultFlightRecorderMaxBytes = 1 << 24 // 16 MB
+
+	otelTracerName = "skipper"
 )
 
 const DefaultPluginDir = "./plugins"
@@ -495,6 +500,28 @@ type Options struct {
 
 	// MemProfileRate calls runtime.SetMemProfileRate(MemProfileRate) if non zero value, deactivate with <0
 	MemProfileRate int
+
+	// FlightRecorderMaxBytes sets MaxBytes of the FlightRecorderConfig https://pkg.go.dev/runtime/trace#FlightRecorderConfig
+	FlightRecorderMaxBytes int
+
+	// FlightRecorderPeriod sets the time.Duration that is the
+	// threshold of skipper being slow to write down a recorded a
+	// trace.
+	//
+	// FlightRecorderPeriod is used to compute MinAge of the FlightRecorderConfig https://pkg.go.dev/runtime/trace#FlightRecorderConfig.
+	//
+	// https://go.dev/blog/flight-recorder:
+	//     MinAge configures the duration for which trace data is reliably retained, and we suggest setting it to around 2x the time window of the event.
+	FlightRecorderPeriod time.Duration
+
+	// FlightRecorderTargetURL is the target to write the trace
+	// to. Supported targets are http URL and file URL. Skipper
+	// will try to upload the trace data by an http PUT request to
+	// this http URL. This is required to set if you want to have
+	// trace.FlightRecorder
+	// https://pkg.go.dev/runtime/trace#FlightRecorder
+	// enabled to support Go tool trace.
+	FlightRecorderTargetURL string
 
 	// Flag that enables reporting of the Go garbage collector statistics exported in debug.GCStats
 	EnableDebugGcMetrics bool
@@ -1669,7 +1696,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	var (
 		tracer     ot.Tracer
-		otelTracer trace.Tracer
+		otelTracer oteltrace.Tracer
 	)
 
 	if o.OpenTelemetry != nil {
@@ -2179,6 +2206,29 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	routing := routing.New(ro)
 	defer routing.Close()
 
+	var fr *trace.FlightRecorder
+	if o.FlightRecorderTargetURL != "" {
+		if o.FlightRecorderPeriod == 0 {
+			o.FlightRecorderPeriod = defaultFlightRecorderPeriod
+		}
+		if o.FlightRecorderMaxBytes <= 0 {
+			o.FlightRecorderMaxBytes = defaultFlightRecorderMaxBytes
+		}
+		fr = trace.NewFlightRecorder(trace.FlightRecorderConfig{
+			MinAge:   2 * o.FlightRecorderPeriod,
+			MaxBytes: uint64(o.FlightRecorderMaxBytes),
+		})
+
+		err := fr.Start()
+		if err != nil {
+			log.Errorf("Failed to start FlightRecorder: %v", err)
+			fr.Stop()
+			fr = nil
+		} else {
+			log.Infof("FlightRecorder started with FlightRecorderConfig (%s, %d) and target: %s", o.FlightRecorderPeriod*2, o.FlightRecorderMaxBytes, o.FlightRecorderTargetURL)
+		}
+	}
+
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
 		Routing:                    routing,
@@ -2207,6 +2257,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		EndpointRegistry:           endpointRegistry,
 		EnablePassiveHealthCheck:   passiveHealthCheckEnabled,
 		PassiveHealthCheck:         passiveHealthCheck,
+		FlightRecorder:             fr,
+		FlightRecorderTargetURL:    o.FlightRecorderTargetURL,
+		FlightRecorderPeriod:       o.FlightRecorderPeriod,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {

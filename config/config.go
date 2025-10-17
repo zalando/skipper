@@ -85,6 +85,7 @@ type Config struct {
 	BlockProfileRate                    int       `yaml:"block-profile-rate"`
 	MutexProfileFraction                int       `yaml:"mutex-profile-fraction"`
 	MemProfileRate                      int       `yaml:"memory-profile-rate"`
+	FlightRecorderTargetURL             string    `yaml:"flight-recorder-target-url"`
 	DebugGcMetrics                      bool      `yaml:"debug-gc-metrics"`
 	RuntimeMetrics                      bool      `yaml:"runtime-metrics"`
 	ServeRouteMetrics                   bool      `yaml:"serve-route-metrics"`
@@ -401,6 +402,7 @@ func NewConfig() *Config {
 
 	// logging, metrics, tracing:
 	flag.BoolVar(&cfg.EnablePrometheusMetrics, "enable-prometheus-metrics", false, "*Deprecated*: use metrics-flavour. Switch to Prometheus metrics format to expose metrics")
+	flag.BoolVar(&cfg.EnablePrometheusStartLabel, "enable-prometheus-start-label", false, "adds start label to each prometheus counter with the value of counter creation timestamp as unix nanoseconds")
 	flag.StringVar(&cfg.OpenTracing, "opentracing", "noop", "list of arguments for opentracing (space separated), first argument is the tracer implementation")
 	flag.StringVar(&cfg.OpenTracingInitialSpan, "opentracing-initial-span", "ingress", "set the name of the initial, pre-routing, tracing span")
 	flag.StringVar(&cfg.OpenTracingExcludedProxyTags, "opentracing-excluded-proxy-tags", "", "set tags that should be excluded from spans created for proxy operation. must be a comma-separated list of strings.")
@@ -414,7 +416,7 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.BlockProfileRate, "block-profile-rate", 0, "block profile sample rate, see runtime.SetBlockProfileRate")
 	flag.IntVar(&cfg.MutexProfileFraction, "mutex-profile-fraction", 0, "mutex profile fraction rate, see runtime.SetMutexProfileFraction")
 	flag.IntVar(&cfg.MemProfileRate, "memory-profile-rate", 0, "memory profile rate, see runtime.SetMemProfileRate, keeps default 512 kB")
-	flag.BoolVar(&cfg.EnablePrometheusStartLabel, "enable-prometheus-start-label", false, "adds start label to each prometheus counter with the value of counter creation timestamp as unix nanoseconds")
+	flag.StringVar(&cfg.FlightRecorderTargetURL, "flight-recorder-target-url", "", "sets the flight recorder target URL that is used to write out the trace to.")
 	flag.BoolVar(&cfg.DebugGcMetrics, "debug-gc-metrics", false, "enables reporting of the Go garbage collector statistics exported in debug.GCStats")
 	flag.BoolVar(&cfg.RuntimeMetrics, "runtime-metrics", true, "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats")
 	flag.BoolVar(&cfg.ServeRouteMetrics, "serve-route-metrics", false, "enables reporting total serve time metrics for each route")
@@ -842,6 +844,7 @@ func (c *Config) ToOptions() skipper.Options {
 		EnableProfile:                       c.EnableProfile,
 		BlockProfileRate:                    c.BlockProfileRate,
 		MutexProfileFraction:                c.MutexProfileFraction,
+		FlightRecorderTargetURL:             c.FlightRecorderTargetURL,
 		EnableDebugGcMetrics:                c.DebugGcMetrics,
 		EnableRuntimeMetrics:                c.RuntimeMetrics,
 		EnableServeRouteMetrics:             c.ServeRouteMetrics,
