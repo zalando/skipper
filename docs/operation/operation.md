@@ -1371,6 +1371,13 @@ We recommend to isolate routes from each other by configuring a
 [`fifo()`](../reference/filters.md#fifo) filter by
 `-default-filters-prepend=` to add it to every route.
 
+The following picture shows the isolation in action. You can see that
+routeA is suffering, by high active requests and the green dots that
+show the queuing of requests in routeA. On the other hand you can see
+routeB, routeC, routeD and routeE, that show normal behavior, so these
+do not have an impact.
+![Spans](../img/fifo_route_separation_in_action.png)
+
 ## URI standards interpretation
 
 Considering the following request path: /foo%2Fbar, Skipper can handle
