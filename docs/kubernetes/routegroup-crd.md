@@ -70,7 +70,7 @@ fields are the name and the type, while the rest of the fields may be required b
 ```yaml
 <backend>
   name: <string>
-  type: <string>            one of "service|shunt|loopback|dynamic|lb|network"
+  type: <string>            one of "service|shunt|loopback|dynamic|lb|network|forward"
   address: <string>         optional, required for type=network
   algorithm: <string>       optional, valid for type=lb|service, values=roundRobin|random|consistentHash|powerOfRandomNChoices
   endpoints: <stringarray>  optional, required for type=lb

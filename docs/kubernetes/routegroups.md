@@ -190,7 +190,7 @@ doesn't need to be used for services.
 This backend type results in routes that proxy incoming requests to the defined network address, regardless of
 the Kubernetes semantics, and allows URLs that point somewhere else, potentially outside of the cluster, too.
 
-### type=shunt, type=loopback, type=dynamic
+### type=shunt, type=loopback, type=dynamic, type=forward
 
 These backend types allow advanced routing setups. Please check the [reference
 manual](../reference/backends.md) for more details.
