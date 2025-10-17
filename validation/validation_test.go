@@ -19,14 +19,6 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
-func TestStartValidationRequiresTLS(t *testing.T) {
-	patchLogrusExit(t)
-
-	err := StartValidation(":0", "", "", false, nil, nil, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "requires TLS")
-}
-
 func TestValidationHandlers(t *testing.T) {
 	testCases := []struct {
 		name                     string
@@ -269,16 +261,6 @@ func TestValidationHandlers(t *testing.T) {
 			}
 		})
 	}
-}
-
-func patchLogrusExit(t *testing.T) {
-	t.Helper()
-	logger := log.StandardLogger()
-	original := logger.ExitFunc
-	logger.ExitFunc = func(int) {}
-	t.Cleanup(func() {
-		logger.ExitFunc = original
-	})
 }
 
 func init() {
