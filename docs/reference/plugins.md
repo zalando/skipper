@@ -273,6 +273,86 @@ func (dc DataClient) LoadUpdate() ([]*eskip.Route, []string, error) {
 }
 ```
 
+## Route Processors
+
+![route-processing.png](../route-processing.png)
+
+### Processing Order
+
+When routes are loaded, they go through the following flow:
+
+1. **DataClient** loads raw route data
+2. **PreProcessors** run (can modify or inspect eskip.Route definitions)
+3. Routes are **instantiated** into routing.Route objects
+4. **PostProcessors** run (can modify or inspect instantiated routes)
+5. Routes become **active** in the routing table of the proxy
+
+This allows PreProcessors to work with lightweight route definitions while PostProcessors can
+access fully constructed route objects with filter instances and endpoint configurations.
+
+### PreProcessors
+
+PreProcessors are interfaces that process routes **before** they are instantiated from their `eskip.Route` representation.
+This allows modification or preparing pre-requisites for the route definitions before they become part of the routing table.
+
+#### Interface
+
+Implements this interface:
+
+```go
+type PreProcessor interface {
+    Do([]*eskip.Route) []*eskip.Route
+}
+```
+
+#### Built-in PreProcessors
+
+Skipper includes several built-in preprocessors:
+
+##### DefaultFilters PreProcessor
+
+Prepends and/or appends filters to all routes.
+
+**Use case:** Add common filters like logging, metrics, or authentication to all routes without
+manually adding them to each route definition.
+
+##### OPA PreProcessor
+
+Starts Open Policy Agent instances based on route definitions that include OPA related filters. 
+Since OPA instances may take time to start, it handles initialization here rather than blocking route instantiation.
+
+**Use case:** Ensure OPA instances are created and started before OPA filter creation, to avoid delays during route instantiation.
+
+
+### PostProcessors
+
+PostProcessors are interfaces that process routes **after** they are instantiated from their data representation, and
+**before** they are passed to be effective in the routing table.
+
+#### Interface
+
+Implements this interface:
+
+```go
+type PostProcessor interface {
+    Do([]*routing.Route) []*routing.Route
+}
+```
+
+#### Built-in PostProcessors
+
+Skipper includes several built-in postprocessors:
+
+##### LoadBalancer Algorithm Provider PostProcessor
+
+Initializes the load balancing algorithm for routes with LB backends.
+
+**Implementation:** `loadbalancer.NewAlgorithmProvider()` in `loadbalancer/algorithm.go`
+
+**Use case:** Assigns appropriate load balancing algorithms (roundRobin, random, consistentHash, powerOfRandomNChoices, etc.)
+to routes with LB backends based on their configuration.
+
+
 ## MultiType plugins
 
 Sometimes it is necessary to combine multiple plugin types into one module. This can
