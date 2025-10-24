@@ -35,7 +35,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
-	github.com/redis/go-redis/v9 v9.14.0
+	github.com/redis/go-redis/v9 v9.14.1
 	github.com/sarslanhan/cronmask v0.0.0-20230801193303-54e29300a091
 	github.com/sirupsen/logrus v1.9.3
 	github.com/sony/gobreaker v1.0.0
@@ -60,7 +60,7 @@ require (
 	go4.org/netipx v0.0.0-20220925034521-797b0c90d8ab
 	golang.org/x/crypto v0.43.0
 	golang.org/x/exp v0.0.0-20241217172543-b2144cdd0a67
-	golang.org/x/net v0.45.0
+	golang.org/x/net v0.46.0
 	golang.org/x/oauth2 v0.32.0
 	golang.org/x/sync v0.17.0
 	golang.org/x/term v0.36.0
