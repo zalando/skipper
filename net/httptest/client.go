@@ -1,3 +1,5 @@
+// Package httptest is a test infrastructure package to support
+// continuous stream of requests.
 package httptest
 
 import (

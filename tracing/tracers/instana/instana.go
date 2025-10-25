@@ -1,3 +1,4 @@
+// Package instana integrates OpenTracing with provider [Instana (IBM)](https://www.instana.com/) for skipper.
 package instana
 
 import (

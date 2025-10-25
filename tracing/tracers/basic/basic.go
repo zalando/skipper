@@ -1,3 +1,4 @@
+// Package basic is test infrastructure to enable tests to have a tracer.
 package basic
 
 import (

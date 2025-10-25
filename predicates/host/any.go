@@ -1,3 +1,4 @@
+// Package host provides HTTP host header matching related predicates.
 package host
 
 import (

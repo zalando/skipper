@@ -1,3 +1,5 @@
+// Package pathgen is a test infrastructure package to support tests
+// in the routing module.
 package pathgen
 
 import (
@@ -66,7 +68,7 @@ func applyDefaults(o *PathGeneratorOptions) {
 	}
 }
 
-// Creates a path generator with the provided options,
+// New creates a path generator with the provided options,
 // falling back to the default value for each non-specified
 // option field.
 func New(o PathGeneratorOptions) *PathGenerator {
@@ -77,7 +79,7 @@ func New(o PathGeneratorOptions) *PathGenerator {
 	return &PathGenerator{&o, rand.New(rand.NewSource(o.RandSeed))} // #nosec
 }
 
-// takes a random number positioned between [min, max)
+// Between takes a random number positioned between [min, max)
 func (pg *PathGenerator) Between(min, max int) int {
 	return min + pg.Rnd.Intn(max-min)
 }
@@ -107,13 +109,13 @@ func (pg *PathGenerator) Strs(min, max, minLength, maxLength int) []string {
 	return s
 }
 
-// generates a random name using the available characters and of length within
+// Name generates a random name using the available characters and of length within
 // the defined boundaries
 func (pg *PathGenerator) Name() string {
 	return pg.Str(pg.options.MinFilenameLength, pg.options.MaxFilenameLength)
 }
 
-// generates random names of count between the defined boundaries
+// Names generates random names of count between the defined boundaries
 func (pg *PathGenerator) Names() []string {
 	len := pg.Between(pg.options.MinNamesInPath, pg.options.MaxNamesInPath)
 	names := make([]string, len)
@@ -129,7 +131,7 @@ func (pg *PathGenerator) closingSlash() bool {
 	return pg.Rnd.Intn(pg.options.ClosingSlashInEveryN) == 0
 }
 
-// Generates a random path.
+// Next generates a random path.
 //
 // The path will be always absolute.
 //

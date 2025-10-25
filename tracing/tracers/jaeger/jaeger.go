@@ -1,3 +1,4 @@
+// Package jaeger integrates OpenTracing with [Jaeger](https://www.jaegertracing.io/).
 package jaeger
 
 import (

@@ -1,3 +1,4 @@
+// Package lightstep integrates OpenTracing with [LightStep](https://github.com/lightstep/).
 package lightstep
 
 import (
