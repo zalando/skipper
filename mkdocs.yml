@@ -10,6 +10,7 @@ nav:
         - Scripts: reference/scripts.md
         - Plugins: reference/plugins.md
         - Architecture: reference/architecture.md
+        - Routing: reference/routing.md
         - Development: reference/development.md
         - Data Clients:
             - Eskip File: data-clients/eskip-file.md
