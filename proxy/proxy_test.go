@@ -204,6 +204,30 @@ func (srw *syncResponseWriter) Len() int {
 	return srw.body.Len()
 }
 
+func newTestProxyWithRoutingOption(opts routing.Options, params Params) (*testProxy, error) {
+	tl := loggingtest.New()
+	opts.Log = tl
+	rt := routing.New(opts)
+
+	params.Routing = rt
+	p := WithParams(params)
+	p.log = tl
+
+	var dc *testdataclient.Client
+	for _, d := range opts.DataClients {
+		var ok bool
+		dc, ok = d.(*testdataclient.Client)
+		if ok {
+			break
+		}
+	}
+
+	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+		return nil, err
+	}
+	return &testProxy{tl, dc, rt, p}, nil
+}
+
 func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Params, preprocs []routing.PreProcessor) (*testProxy, error) {
 	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
