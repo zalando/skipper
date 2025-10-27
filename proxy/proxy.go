@@ -937,8 +937,8 @@ func addBranding(headerMap http.Header) {
 }
 
 func (p *Proxy) lookupRoute(ctx *context) (rt *routing.Route, params map[string]string) {
-	for _, prt := range p.priorityRoutes {
-		rt, params = prt.Match(ctx.request)
+	for _, pr := range p.priorityRoutes {
+		rt, params = pr.Match(ctx.request)
 		if rt != nil {
 			return rt, params
 		}
@@ -1067,9 +1067,10 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		// - for `DeadlineExceeded` it is net.Error(timeout=true, temporary=true) wrapping this `context deadline exceeded`
 		if cerr := req.Context().Err(); cerr != nil {
 			ctx.proxySpan.LogKV("event", "error", "message", ensureUTF8(cerr.Error()))
-			if cerr == stdlibcontext.Canceled {
+			switch cerr {
+			case stdlibcontext.Canceled:
 				return nil, &proxyError{err: cerr, code: 499}
-			} else if cerr == stdlibcontext.DeadlineExceeded {
+			case stdlibcontext.DeadlineExceeded:
 				return nil, &proxyError{err: cerr, code: http.StatusGatewayTimeout}
 			}
 		}
