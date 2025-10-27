@@ -1,9 +1,11 @@
+// Package content provides Content-Length related predicates.
 package content
 
 import (
+	"net/http"
+
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
-	"net/http"
 )
 
 type contentLengthBetweenSpec struct{}

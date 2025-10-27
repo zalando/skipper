@@ -1,3 +1,5 @@
+// Package dnstest is a test infrastructure package to be able to
+// control DNS resolution.
 package dnstest
 
 import (
@@ -10,7 +12,7 @@ import (
 	"github.com/miekg/dns"
 )
 
-// Replaces net.DefaultResolver with a resolver that resolves
+// LoopbackNames replaces net.DefaultResolver with a resolver that resolves
 // configured names to 127.0.0.1 and fails to resolve any other name.
 // Uses t.Cleanup to restore resolver after the test.
 func LoopbackNames(t *testing.T, first string, rest ...string) {

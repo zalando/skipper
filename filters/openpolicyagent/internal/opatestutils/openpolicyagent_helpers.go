@@ -1,3 +1,5 @@
+// Package opatestutils is a test infrastructure package to support to
+// test OPA infrastructure in skipper.
 package opatestutils
 
 import (

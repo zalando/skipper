@@ -1,3 +1,5 @@
+// Package loggingtest is a test infrastructure package to support
+// logging module tests.
 package loggingtest
 
 import (
@@ -89,7 +91,7 @@ func (lw *logWatch) clear() {
 	lw.reqs = nil
 }
 
-// Returns a new, initialized instance of Logger.
+// New returns a new, initialized instance of Logger.
 func New() *Logger {
 	lw := &logWatch{}
 	logc := make(chan string)
@@ -151,7 +153,7 @@ func (tl *Logger) log(a ...interface{}) {
 	}
 }
 
-// Returns nil when n logging events matching exp were received or returns
+// WaitForN returns nil when n logging events matching exp were received or returns
 // ErrWaitTimeout when to timeout expired.
 func (tl *Logger) WaitForN(exp string, n int, to time.Duration) error {
 	found := make(chan struct{}, 1)
@@ -165,7 +167,7 @@ func (tl *Logger) WaitForN(exp string, n int, to time.Duration) error {
 	}
 }
 
-// Returns nil when a logging event matching exp was received or returns
+// WaitFor returns nil when a logging event matching exp was received or returns
 // ErrWaitTimeout when to timeout expired.
 func (tl *Logger) WaitFor(exp string, to time.Duration) error {
 	return tl.WaitForN(exp, 1, to)
@@ -183,7 +185,7 @@ func (tl *Logger) Count(expression string) int {
 	return <-rsp
 }
 
-// Clears the stored logging events.
+// Reset clears the stored logging events.
 func (tl *Logger) Reset() {
 	ch := make(chan struct{})
 	tl.clear <- ch
@@ -198,7 +200,7 @@ func (tl *Logger) Unmute() {
 	tl.mute <- false
 }
 
-// Closes the logger.
+// Close the logger.
 func (tl *Logger) Close() {
 	close(tl.quit)
 }
