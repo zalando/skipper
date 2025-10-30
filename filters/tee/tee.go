@@ -230,6 +230,10 @@ func (r *tee) Request(fc filters.FilterContext) {
 		return
 	}
 
+	copyOfRequest.Header.Set(ShadowTrafficHeader, "yes")
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
 	req.Header.Set(ShadowTrafficHeader, "yes")
 	req.Body = tr
 
