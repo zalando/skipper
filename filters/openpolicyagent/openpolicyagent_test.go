@@ -976,7 +976,7 @@ func TestBodyExtraction(t *testing.T) {
 	}
 }
 
-func TestBodyExtractionExhausingTotalBytes(t *testing.T) {
+func TestBodyExtractionExhaustingTotalBytes(t *testing.T) {
 
 	_, config := mockControlPlaneWithResourceBundle()
 
@@ -1076,6 +1076,52 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 
 	f1()
 	f2()
+}
+
+func TestAllPluginsReady(t *testing.T) {
+	_, config := mockControlPlaneWithResourceBundle()
+
+	registry, err := NewOpenPolicyAgentRegistry(WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+	assert.NoError(t, err)
+
+	opa, err := registry.GetOrStartInstance("test")
+	assert.NoError(t, err)
+	assert.NotNil(t, opa)
+
+	status := map[string]*plugins.Status{
+		"bundle": {
+			State:   plugins.StateNotReady,
+			Message: "Failed to download bundle",
+		},
+		"discovery": {
+			State:   plugins.StateNotReady,
+			Message: "",
+		},
+		"envoy_ext_authz_grpc": {
+			State:   plugins.StateOK,
+			Message: "",
+		},
+	}
+	assert.False(t, allPluginsReady(opa, status, bundle.Name, discovery.Name), "Both bundle and discovery not ready => not healthy")
+
+	status["bundle"].State = plugins.StateOK
+	assert.False(t, allPluginsReady(opa, status, bundle.Name, discovery.Name), "Bundle ready but discovery not ready => not healthy")
+
+	status["discovery"].State = plugins.StateOK
+	assert.True(t, allPluginsReady(opa, status, bundle.Name, discovery.Name), "Both bundle and discovery ready => healthy")
+
+	//empty status
+	status = map[string]*plugins.Status{}
+	assert.True(t, allPluginsReady(opa, status, bundle.Name, discovery.Name), "No plugins => healthy")
+
+	status = map[string]*plugins.Status{
+		"bundle": {
+			State:   plugins.StateOK,
+			Message: "Bundle plugin is ready",
+		},
+	}
+	//If only bundle plugin is registered, it's becoming healthy is enough
+	assert.True(t, allPluginsReady(opa, status, bundle.Name, discovery.Name), "Only bundle plugin => healthy")
 }
 
 type opaInstanceStartupTestCase struct {

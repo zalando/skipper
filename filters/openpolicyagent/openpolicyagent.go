@@ -716,14 +716,16 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
 	manager.RegisterPluginStatusListener("instance-health-check", func(status map[string]*plugins.Status) {
-		opa.healthy.Store(allPluginsReady(status, bundle.Name, discovery.Name))
+		opa.healthy.Store(allPluginsReady(opa, status, bundle.Name, discovery.Name))
 		opa.Logger().Info("OPA instance health updated: healthy=%t", opa.healthy.Load())
 	})
 
 	return opa, nil
 }
 
-func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ...string) bool {
+func allPluginsReady(opa *OpenPolicyAgentInstance, allPluginsStatus map[string]*plugins.Status, pluginNames ...string) bool {
+	// During discovery bundle configuration, all plugins are registered with the manager; these become the keys of the status map.
+	opa.Logger().Info("OPA plugins readiness : %+v", allPluginsStatus)
 	for pluginName, status := range allPluginsStatus {
 		if pluginNames != nil && !slices.Contains(pluginNames, pluginName) {
 			continue
@@ -765,7 +767,7 @@ func (opa *OpenPolicyAgentInstance) start(ctx context.Context, timeout time.Dura
 
 	// check readiness of all plugins
 	pluginsReady := func() bool {
-		return allPluginsReady(opa.manager.PluginStatus())
+		return allPluginsReady(opa, opa.manager.PluginStatus())
 	}
 
 	err = waitFunc(ctx, pluginsReady, 100*time.Millisecond)
