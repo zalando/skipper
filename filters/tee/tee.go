@@ -1,11 +1,13 @@
 package tee
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"sync"
 	"time"
 
@@ -26,6 +28,9 @@ const (
 )
 
 const (
+	// ShadowTrafficHeader marks outgoing requests as shadow traffic
+	ShadowTrafficHeader = "X-Skipper-Shadow-Traffic"
+
 	defaultTeeTimeout          = time.Second
 	defaultMaxIdleConns        = 100
 	defaultMaxIdleConnsPerHost = 100
@@ -203,12 +208,33 @@ func (r *tee) Response(filters.FilterContext) {}
 // Request is copied and then modified to adopt changes in new backend
 func (r *tee) Request(fc filters.FilterContext) {
 	req := fc.Request()
+
+	// omit loops
+	if req.Header.Get(ShadowTrafficHeader) != "" {
+		s := "Skipper Shadow Traffic Loop detected"
+		fc.Serve(&http.Response{
+			StatusCode: 465,
+			Status:     s,
+			Header: http.Header{
+				"Content-Type":   []string{http.DetectContentType([]byte(s))},
+				"Content-Length": []string{strconv.Itoa(len(s))},
+			},
+			Body: io.NopCloser(bytes.NewBufferString(s)),
+		})
+		return
+	}
+
 	copyOfRequest, tr, err := cloneRequest(r, req)
 	if err != nil {
 		fc.Logger().Warnf("tee: error while cloning the tee request %v", err)
 		return
 	}
 
+	copyOfRequest.Header.Set(ShadowTrafficHeader, "yes")
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
+	req.Header.Set(ShadowTrafficHeader, "yes")
 	req.Body = tr
 
 	go func() {
