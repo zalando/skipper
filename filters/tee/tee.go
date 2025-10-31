@@ -230,11 +230,12 @@ func (r *tee) Request(fc filters.FilterContext) {
 		return
 	}
 
-	copyOfRequest.Header.Set(ShadowTrafficHeader, "yes")
+	copyOfRequest.Header.Set(ShadowTrafficHeader, copyOfRequest.Host)
 	if req.Header == nil {
 		req.Header = make(http.Header)
 	}
-	req.Header.Set(ShadowTrafficHeader, "yes")
+	// TODO(sszuecs): why do we need this to be set in tests?
+	req.Header.Set(ShadowTrafficHeader, fc.OutgoingHost())
 	req.Body = tr
 
 	go func() {
