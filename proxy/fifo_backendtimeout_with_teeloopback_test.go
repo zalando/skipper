@@ -246,21 +246,13 @@ func TestBackendTimeoutWithSlowBodyShadow(t *testing.T) {
 	}))
 	defer slowBackend.Close()
 
-	p, mockMetrics, closer := createProxy(t, backend, slowBackend)
-	defer closer()
+	p, mockMetrics, closeProxy := createProxy(t, backend, slowBackend)
+	defer closeProxy()
 
 	N := 500 //500000
 	resCH := make(chan int, N)
-	client := skpnet.NewClient(skpnet.Options{
-		Timeout:               80 * time.Millisecond,
-		ResponseHeaderTimeout: 120 * time.Millisecond,
-		IdleConnTimeout:       time.Second,
-		Log:                   p.Log,
-		MaxIdleConnsPerHost:   100,
-		MaxIdleConns:          100,
-	})
-	defer client.Close()
-	defer client.CloseIdleConnections()
+	client, closeClient := createClient(p, 120*time.Millisecond)
+	defer closeClient()
 	sendRequests(t, N, p, client, resCH)
 	logFifoMetrics(t, mockMetrics)
 	close(resCH)
@@ -292,6 +284,22 @@ func TestBackendTimeoutWithSlowBodyShadow(t *testing.T) {
 	} else {
 		t.Log("Found error log")
 	}
+}
+
+func createClient(p *proxytest.TestProxy, rspHeaderTimeout time.Duration) (*skpnet.Client, func()) {
+	client := skpnet.NewClient(skpnet.Options{
+		Timeout:               80 * time.Millisecond,
+		ResponseHeaderTimeout: rspHeaderTimeout,
+		IdleConnTimeout:       time.Second,
+		Log:                   p.Log,
+		MaxIdleConnsPerHost:   100,
+		MaxIdleConns:          100,
+	})
+	f := func() {
+		defer client.Close()
+		defer client.CloseIdleConnections()
+	}
+	return client, f
 }
 
 func createProxy(t *testing.T, backend *httptest.Server, slowBackend *httptest.Server) (*proxytest.TestProxy, *metricstest.MockMetrics, func()) {
@@ -379,21 +387,13 @@ func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
 	}))
 	defer slowBackend.Close()
 
-	p, mockMetrics, closer := createProxy(t, backend, slowBackend)
-	defer closer()
+	p, mockMetrics, closeProxy := createProxy(t, backend, slowBackend)
+	defer closeProxy()
 
 	N := 500 //500000
 	resCH := make(chan int, N)
-	client := skpnet.NewClient(skpnet.Options{
-		Timeout:               80 * time.Millisecond,
-		ResponseHeaderTimeout: 120 * time.Millisecond,
-		IdleConnTimeout:       time.Second,
-		Log:                   p.Log,
-		MaxIdleConnsPerHost:   100,
-		MaxIdleConns:          100,
-	})
-	defer client.Close()
-	defer client.CloseIdleConnections()
+	client, closeClient := createClient(p, 120*time.Millisecond)
+	defer closeClient()
 	sendRequests(t, N, p, client, resCH)
 	logFifoMetrics(t, mockMetrics)
 	close(resCH)
@@ -459,21 +459,13 @@ func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
 	slowBackend.Start()
 	defer slowBackend.Close()
 
-	p, mockMetrics, closer := createProxy(t, backend, slowBackend)
-	defer closer()
+	p, mockMetrics, closeProxy := createProxy(t, backend, slowBackend)
+	defer closeProxy()
 
 	N := 500 //500000
 	resCH := make(chan int, N)
-	client := skpnet.NewClient(skpnet.Options{
-		Timeout:               80 * time.Millisecond,
-		ResponseHeaderTimeout: 1200 * time.Millisecond,
-		IdleConnTimeout:       time.Second,
-		Log:                   p.Log,
-		MaxIdleConnsPerHost:   100,
-		MaxIdleConns:          100,
-	})
-	defer client.Close()
-	defer client.CloseIdleConnections()
+	client, closeClient := createClient(p, 1020*time.Millisecond)
+	defer closeClient()
 	sendRequests(t, N, p, client, resCH)
 	logFifoMetrics(t, mockMetrics)
 	close(resCH)
