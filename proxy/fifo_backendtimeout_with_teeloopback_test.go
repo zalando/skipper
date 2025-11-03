@@ -228,7 +228,6 @@ func Listen(lo *slowAcceptListener) (net.Listener, error) {
 func TestBackendTimeoutWithSlowBodyShadow(t *testing.T) {
 	proxyLog := proxy.NewTestLog()
 	defer proxyLog.Close()
-
 	backend := createBackend(t)
 	defer backend.Close()
 
@@ -251,7 +250,7 @@ func TestBackendTimeoutWithSlowBodyShadow(t *testing.T) {
 
 	N := 500 //500000
 	resCH := make(chan int, N)
-	client, closeClient := createClient(p, 120*time.Millisecond)
+	client, closeClient := createClient(p, 800*time.Millisecond, 120*time.Millisecond)
 	defer closeClient()
 	sendRequests(t, N, p, client, resCH)
 	logFifoMetrics(t, mockMetrics)
@@ -271,7 +270,6 @@ func TestBackendTimeoutWithSlowBodyShadow(t *testing.T) {
 func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
 	proxyLog := proxy.NewTestLog()
 	defer proxyLog.Close()
-
 	backend := createBackend(t)
 	defer backend.Close()
 
@@ -292,7 +290,7 @@ func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
 
 	N := 500 //500000
 	resCH := make(chan int, N)
-	client, closeClient := createClient(p, 120*time.Millisecond)
+	client, closeClient := createClient(p, 80*time.Millisecond, 120*time.Millisecond)
 	defer closeClient()
 	sendRequests(t, N, p, client, resCH)
 	logFifoMetrics(t, mockMetrics)
@@ -322,7 +320,6 @@ func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
 func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
 	proxyLog := proxy.NewTestLog()
 	defer proxyLog.Close()
-
 	backend := createBackend(t)
 	defer backend.Close()
 
@@ -336,7 +333,7 @@ func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
 	l, err := Listen(&slowAcceptListener{
 		Network: "tcp",
 		Address: ":0",
-		delay:   90 * time.Millisecond,
+		delay:   1900 * time.Millisecond,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create listener: %v", err)
@@ -350,14 +347,17 @@ func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
 
 	N := 500 //500000
 	resCH := make(chan int, N)
-	client, closeClient := createClient(p, 1020*time.Millisecond)
+	client, closeClient := createClient(p, 80*time.Millisecond, 1500*time.Millisecond)
 	defer closeClient()
+	client.CloseIdleConnections()
 	sendRequests(t, N, p, client, resCH)
 	logFifoMetrics(t, mockMetrics)
 	close(resCH)
 	checkStatusCode(t, resCH, N)
 
+	// restore to be fast listener
 	l.(*slowAcceptListener).Delay(time.Microsecond)
+	client.CloseIdleConnections()
 
 	// check that we can hit the main route now again correctly
 	checkMainRouteIsFine(t, p, client)
@@ -369,9 +369,9 @@ func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
 	// }
 }
 
-func createClient(p *proxytest.TestProxy, rspHeaderTimeout time.Duration) (*skpnet.Client, func()) {
+func createClient(p *proxytest.TestProxy, timeout, rspHeaderTimeout time.Duration) (*skpnet.Client, func()) {
 	client := skpnet.NewClient(skpnet.Options{
-		Timeout:               80 * time.Millisecond,
+		Timeout:               timeout,
 		ResponseHeaderTimeout: rspHeaderTimeout,
 		IdleConnTimeout:       time.Second,
 		Log:                   p.Log,
