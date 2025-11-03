@@ -229,18 +229,9 @@ func TestBackendTimeoutWithSlowBodyShadow(t *testing.T) {
 	proxyLog := proxy.NewTestLog()
 	defer proxyLog.Close()
 
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		buf, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Logf("backend: failed to read body: %v", err)
-			w.WriteHeader(500)
-			fmt.Fprintf(w, "backend: failed to read body: %v", err.Error())
-		} else {
-			w.WriteHeader(200)
-			fmt.Fprintf(w, "backend: read %d of data", len(buf))
-		}
-	}))
+	backend := createBackend(t)
 	defer backend.Close()
+
 	slowBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sr := NewSlowReader(r.Body, 2*time.Millisecond)
 		io.ReadAll(sr)
@@ -255,48 +246,8 @@ func TestBackendTimeoutWithSlowBodyShadow(t *testing.T) {
 	}))
 	defer slowBackend.Close()
 
-	doc := fmt.Sprintf(`
-main: PathSubtree("/") -> fifo(5000, 20, "1s") -> teeLoopback("tag") -> "%s";
-shadow: PathSubtree("/") && Tee("tag") -> fifo(5, 40, "150ms") -> backendTimeout("20ms") -> "%s";`,
-		backend.URL, slowBackend.URL)
-
-	fr := builtin.MakeRegistry()
-	dc, err := testdataclient.NewDoc(doc)
-	if err != nil {
-		t.Fatalf("Failed to create dataclient: %v", err)
-	}
-	defer dc.Close()
-	mockMetrics := &metricstest.MockMetrics{}
-	defer mockMetrics.Close()
-	epRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
-	schedulerRegistry := scheduler.RegistryWith(scheduler.Options{
-		Metrics:                mockMetrics,
-		MetricsUpdateTimeout:   100 * time.Millisecond,
-		EnableRouteFIFOMetrics: true,
-		EnableRouteLIFOMetrics: true,
-	})
-	defer schedulerRegistry.Close()
-
-	p := proxytest.Config{
-		RoutingOptions: routing.Options{
-			FilterRegistry: fr,
-			PollTimeout:    sourcePollTimeout,
-			DataClients:    []routing.DataClient{dc},
-			Metrics:        mockMetrics,
-			PostProcessors: []routing.PostProcessor{
-				loadbalancer.NewAlgorithmProvider(),
-				epRegistry,
-				schedulerRegistry,
-			},
-			Predicates: []routing.PredicateSpec{teePredicate.New()},
-		},
-		ProxyParams: proxy.Params{
-			CloseIdleConnsPeriod: time.Second,
-			EndpointRegistry:     epRegistry,
-			Metrics:              mockMetrics,
-		},
-	}.Create()
-	defer p.Close()
+	p, mockMetrics, closer := createProxy(t, backend, slowBackend)
+	defer closer()
 
 	N := 500 //500000
 	resCH := make(chan int, N)
@@ -343,34 +294,8 @@ shadow: PathSubtree("/") && Tee("tag") -> fifo(5, 40, "150ms") -> backendTimeout
 	}
 }
 
-func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
-	proxyLog := proxy.NewTestLog()
-	defer proxyLog.Close()
-
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		buf, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Logf("backend: failed to read body: %v", err)
-			w.WriteHeader(500)
-			fmt.Fprintf(w, "backend: failed to read body: %v", err.Error())
-		} else {
-			w.WriteHeader(200)
-			fmt.Fprintf(w, "backend: read %d of data", len(buf))
-		}
-	}))
-	defer backend.Close()
-	slowBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.Copy(io.Discard, r.Body)
-		sw := NewSlowWriter(w, 10*time.Millisecond)
-		sw.WriteHeader(599)
-		sw.Flush()
-
-		from := bytes.NewBufferString(strings.Repeat("A", 150*1024))
-		b := make([]byte, 1024)
-		io.CopyBuffer(sw, from, b)
-	}))
-	defer slowBackend.Close()
-
+func createProxy(t *testing.T, backend *httptest.Server, slowBackend *httptest.Server) (*proxytest.TestProxy, *metricstest.MockMetrics, func()) {
+	t.Helper()
 	doc := fmt.Sprintf(`
 main: PathSubtree("/") -> fifo(5000, 20, "1s") -> teeLoopback("tag") -> "%s";
 shadow: PathSubtree("/") && Tee("tag") -> fifo(5, 40, "150ms") -> backendTimeout("20ms") -> "%s";`,
@@ -381,9 +306,7 @@ shadow: PathSubtree("/") && Tee("tag") -> fifo(5, 40, "150ms") -> backendTimeout
 	if err != nil {
 		t.Fatalf("Failed to create dataclient: %v", err)
 	}
-	defer dc.Close()
 	mockMetrics := &metricstest.MockMetrics{}
-	defer mockMetrics.Close()
 	epRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	schedulerRegistry := scheduler.RegistryWith(scheduler.Options{
 		Metrics:                mockMetrics,
@@ -391,7 +314,6 @@ shadow: PathSubtree("/") && Tee("tag") -> fifo(5, 40, "150ms") -> backendTimeout
 		EnableRouteFIFOMetrics: true,
 		EnableRouteLIFOMetrics: true,
 	})
-	defer schedulerRegistry.Close()
 
 	p := proxytest.Config{
 		RoutingOptions: routing.Options{
@@ -412,7 +334,53 @@ shadow: PathSubtree("/") && Tee("tag") -> fifo(5, 40, "150ms") -> backendTimeout
 			Metrics:              mockMetrics,
 		},
 	}.Create()
-	defer p.Close()
+
+	close := func() {
+		defer dc.Close()
+		defer mockMetrics.Close()
+		defer schedulerRegistry.Close()
+		defer p.Close()
+	}
+
+	return p, mockMetrics, close
+}
+
+func createBackend(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Logf("backend: failed to read body: %v", err)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, "backend: failed to read body: %v", err.Error())
+		} else {
+			w.WriteHeader(200)
+			fmt.Fprintf(w, "backend: read %d of data", len(buf))
+		}
+	}))
+}
+
+func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
+	proxyLog := proxy.NewTestLog()
+	defer proxyLog.Close()
+
+	backend := createBackend(t)
+	defer backend.Close()
+
+	slowBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(io.Discard, r.Body)
+		sw := NewSlowWriter(w, 10*time.Millisecond)
+		sw.WriteHeader(599)
+		sw.Flush()
+
+		from := bytes.NewBufferString(strings.Repeat("A", 150*1024))
+		b := make([]byte, 1024)
+		io.CopyBuffer(sw, from, b)
+	}))
+	defer slowBackend.Close()
+
+	p, mockMetrics, closer := createProxy(t, backend, slowBackend)
+	defer closer()
 
 	N := 500 //500000
 	resCH := make(chan int, N)
@@ -469,17 +437,7 @@ func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
 	proxyLog := proxy.NewTestLog()
 	defer proxyLog.Close()
 
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		buf, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Logf("backend: failed to read body: %v", err)
-			w.WriteHeader(500)
-			fmt.Fprintf(w, "backend: failed to read body: %v", err.Error())
-		} else {
-			w.WriteHeader(200)
-			fmt.Fprintf(w, "backend: read %d of data", len(buf))
-		}
-	}))
+	backend := createBackend(t)
 	defer backend.Close()
 
 	slowBackend := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -501,48 +459,8 @@ func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
 	slowBackend.Start()
 	defer slowBackend.Close()
 
-	doc := fmt.Sprintf(`
-main: PathSubtree("/") -> fifo(5000, 20, "1s") -> teeLoopback("tag") -> "%s";
-shadow: PathSubtree("/") && Tee("tag") -> fifo(5, 40, "150ms") -> backendTimeout("20ms") -> "%s";`,
-		backend.URL, slowBackend.URL)
-
-	fr := builtin.MakeRegistry()
-	dc, err := testdataclient.NewDoc(doc)
-	if err != nil {
-		t.Fatalf("Failed to create dataclient: %v", err)
-	}
-	defer dc.Close()
-	mockMetrics := &metricstest.MockMetrics{}
-	defer mockMetrics.Close()
-	epRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
-	schedulerRegistry := scheduler.RegistryWith(scheduler.Options{
-		Metrics:                mockMetrics,
-		MetricsUpdateTimeout:   100 * time.Millisecond,
-		EnableRouteFIFOMetrics: true,
-		EnableRouteLIFOMetrics: true,
-	})
-	defer schedulerRegistry.Close()
-
-	p := proxytest.Config{
-		RoutingOptions: routing.Options{
-			FilterRegistry: fr,
-			PollTimeout:    sourcePollTimeout,
-			DataClients:    []routing.DataClient{dc},
-			Metrics:        mockMetrics,
-			PostProcessors: []routing.PostProcessor{
-				loadbalancer.NewAlgorithmProvider(),
-				epRegistry,
-				schedulerRegistry,
-			},
-			Predicates: []routing.PredicateSpec{teePredicate.New()},
-		},
-		ProxyParams: proxy.Params{
-			CloseIdleConnsPeriod: time.Second,
-			EndpointRegistry:     epRegistry,
-			Metrics:              mockMetrics,
-		},
-	}.Create()
-	defer p.Close()
+	p, mockMetrics, closer := createProxy(t, backend, slowBackend)
+	defer closer()
 
 	N := 500 //500000
 	resCH := make(chan int, N)
