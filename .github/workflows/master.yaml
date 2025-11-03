@@ -35,3 +35,56 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: coverage.lcov
+  alert-on-failure:
+    runs-on: ubuntu-latest
+    needs: [tests]
+    if: ${{ failure() }}
+    steps:
+    - id: failed-name
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: echo NAME=$(gh api /repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs | jq -r '.jobs[0].steps[]|select(.conclusion == "failure")|.name') >> "$GITHUB_OUTPUT"
+    - id: job-id
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: echo ID=$(gh api /repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs | jq -r '.jobs[0].id') >> "$GITHUB_OUTPUT" 
+    - run: >- 
+        curl 
+        -H 'content-type:application/json'
+        "${{ secrets.INTERNAL_CHAT_WEBHOOK }}"
+        -d "{
+          \"cardsV2\": [
+            {
+              \"cardId\": \"skipper-failing-pipeline\",
+              \"card\": {
+                \"header\": {
+                  \"title\": \"Build Failed\",
+                  \"imageUrl\": \"https://raw.githubusercontent.com/zalando/skipper/master/img/skipper-h180.png\",
+                  \"imageType\": \"CIRCLE\"
+                },
+                \"sections\": [
+                  {
+                    \"header\": \"Failed Step: ${{ steps.failed-name.outputs.NAME }}\",
+                    \"collapsible\": false,
+                    \"widgets\": [
+                      {
+                        \"buttonList\": {
+                          \"buttons\": [
+                            {
+                              \"text\": \"View Build Logs\",
+                              \"onClick\": {
+                                \"openLink\": {
+                                  \"url\": \"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/job/${{ steps.job-id.outputs.ID}}\"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+          }"
