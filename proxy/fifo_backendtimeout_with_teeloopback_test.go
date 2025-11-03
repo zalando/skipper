@@ -341,16 +341,7 @@ shadow: Path("/") && Tee("tag") -> fifo(5, 40, "150ms") -> backendTimeout("20ms"
 	}
 	wg.Wait()
 
-	for _, route := range []string{"main", "shadow"} {
-		for _, kfmt := range []string{"fifo.%s.active", "fifo.%s.queued", "fifo.%s.error.full", "fifo.%s.error.other", "fifo.%s.error.timeout"} {
-			k := fmt.Sprintf(kfmt, route)
-			if v, ok := mockMetrics.Gauge(k); ok {
-				t.Logf("metric %q: %v", k, v)
-			} else {
-				t.Logf("metric not found: %q", k)
-			}
-		}
-	}
+	logFifoMetrics(t, mockMetrics)
 
 	close(resCH)
 	sometimes = rate.Sometimes{First: 3, Interval: time.Second}
@@ -419,12 +410,6 @@ func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
 		from := bytes.NewBufferString(strings.Repeat("A", 150*1024))
 		b := make([]byte, 1024)
 		io.CopyBuffer(sw, from, b)
-		// n, err := io.CopyBuffer(sw, from, b)
-		// if err != nil {
-		// 	t.Logf("Failed to write body (wrote %d) to client: %v", n, err)
-		// } else {
-		// 	t.Logf("bytes written: %d", n)
-		// }
 	}))
 	defer slowBackend.Close()
 
@@ -514,16 +499,7 @@ shadow: Path("/") && Tee("tag") -> fifo(5, 40, "150ms") -> backendTimeout("20ms"
 	}
 	wg.Wait()
 
-	for _, route := range []string{"main", "shadow"} {
-		for _, kfmt := range []string{"fifo.%s.active", "fifo.%s.queued", "fifo.%s.error.full", "fifo.%s.error.other", "fifo.%s.error.timeout"} {
-			k := fmt.Sprintf(kfmt, route)
-			if v, ok := mockMetrics.Gauge(k); ok {
-				t.Logf("metric %q: %v", k, v)
-			} else {
-				t.Logf("metric not found: %q", k)
-			}
-		}
-	}
+	logFifoMetrics(t, mockMetrics)
 
 	close(resCH)
 	sometimes = rate.Sometimes{First: 3, Interval: time.Second}
@@ -572,6 +548,19 @@ shadow: Path("/") && Tee("tag") -> fifo(5, 40, "150ms") -> backendTimeout("20ms"
 		t.Log(`Found "discarding remainder response body" error log`)
 	}
 
+}
+
+func logFifoMetrics(t *testing.T, mockMetrics *metricstest.MockMetrics) {
+	for _, route := range []string{"main", "shadow"} {
+		for _, kfmt := range []string{"fifo.%s.active", "fifo.%s.queued", "fifo.%s.error.full", "fifo.%s.error.other", "fifo.%s.error.timeout"} {
+			k := fmt.Sprintf(kfmt, route)
+			if v, ok := mockMetrics.Gauge(k); ok {
+				t.Logf("metric %q: %v", k, v)
+			} else {
+				t.Logf("metric not found: %q", k)
+			}
+		}
+	}
 }
 
 func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
@@ -696,16 +685,7 @@ shadow: PathSubtree("/") && Tee("tag") -> fifo(5, 40, "150ms") -> backendTimeout
 	}
 	wg.Wait()
 
-	for _, route := range []string{"main", "shadow"} {
-		for _, kfmt := range []string{"fifo.%s.active", "fifo.%s.queued", "fifo.%s.error.full", "fifo.%s.error.other", "fifo.%s.error.timeout"} {
-			k := fmt.Sprintf(kfmt, route)
-			if v, ok := mockMetrics.Gauge(k); ok {
-				t.Logf("metric %q: %v", k, v)
-			} else {
-				t.Logf("metric not found: %q", k)
-			}
-		}
-	}
+	logFifoMetrics(t, mockMetrics)
 
 	close(resCH)
 	sometimes = rate.Sometimes{First: 3, Interval: time.Second}
