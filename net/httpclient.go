@@ -63,6 +63,7 @@ func NewClient(o Options) *Client {
 	c := &Client{
 		once: sync.Once{},
 		client: http.Client{
+			Timeout:       o.Timeout,
 			Transport:     tr,
 			CheckRedirect: o.CheckRedirect,
 		},
