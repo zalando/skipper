@@ -259,31 +259,114 @@ func TestBackendTimeoutWithSlowBodyShadow(t *testing.T) {
 	checkStatusCode(t, resCH, N)
 
 	// check that we can hit the main route now again correctly
-	bodyData := strings.Repeat("A", 1023) + "\n"
-	buf := bytes.NewBufferString(bodyData)
-	sr := NewSlowReader(buf, 1*time.Microsecond)
-
-	req, err := http.NewRequest("PUT", p.URL, sr)
-	if err != nil {
-		t.Logf("Failed to create request: %v", err)
-		return
-	}
-	rsp, err := client.Do(req)
-	if err != nil {
-		t.Fatalf("Failed to get response: %v", err)
-	}
-	io.Copy(io.Discard, rsp.Body)
-	if rsp.StatusCode != 200 {
-		t.Fatalf("Failed to get 200 response code: %d", rsp.StatusCode)
-	} else {
-		t.Logf("response code: %d", rsp.StatusCode)
-	}
+	checkMainRouteIsFine(t, p, client)
 
 	if err := proxyLog.WaitFor("failed to execute loopback request: dialing failed false: context deadline exceeded", time.Second); err != nil {
 		t.Fatalf("Failed to get expected error: %v", err)
 	} else {
 		t.Log("Found error log")
 	}
+}
+
+func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
+	proxyLog := proxy.NewTestLog()
+	defer proxyLog.Close()
+
+	backend := createBackend(t)
+	defer backend.Close()
+
+	slowBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(io.Discard, r.Body)
+		sw := NewSlowWriter(w, 10*time.Millisecond)
+		sw.WriteHeader(599)
+		sw.Flush()
+
+		from := bytes.NewBufferString(strings.Repeat("A", 150*1024))
+		b := make([]byte, 1024)
+		io.CopyBuffer(sw, from, b)
+	}))
+	defer slowBackend.Close()
+
+	p, mockMetrics, closeProxy := createProxy(t, backend, slowBackend)
+	defer closeProxy()
+
+	N := 500 //500000
+	resCH := make(chan int, N)
+	client, closeClient := createClient(p, 120*time.Millisecond)
+	defer closeClient()
+	sendRequests(t, N, p, client, resCH)
+	logFifoMetrics(t, mockMetrics)
+	close(resCH)
+	checkStatusCode(t, resCH, N)
+
+	// check that we can hit the main route now again correctly
+	shouldReturn := checkMainRouteIsFine(t, p, client)
+	if shouldReturn {
+		return
+	}
+
+	if err := proxyLog.WaitFor("failed to execute loopback request: dialing failed false: context deadline exceeded", time.Second); err != nil {
+		t.Fatalf("Failed to get expected error: %v", err)
+	} else {
+		t.Log(`Found "failed to execute loopback request" error log`)
+	}
+
+	if err := proxyLog.WaitFor("context: error while discarding remainder response body", time.Second); err != nil {
+		t.Fatalf("Failed to get expected error: %v", err)
+	} else {
+		t.Log(`Found "discarding remainder response body" error log`)
+	}
+
+}
+
+func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
+	proxyLog := proxy.NewTestLog()
+	defer proxyLog.Close()
+
+	backend := createBackend(t)
+	defer backend.Close()
+
+	slowBackend := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		//println("We should not be HERE:", r.URL.Path)
+		sr := NewSlowReader(r.Body, 1*time.Microsecond)
+		io.ReadAll(sr)
+		w.WriteHeader(599)
+		w.Write([]byte("slow backend"))
+	}))
+	l, err := Listen(&slowAcceptListener{
+		Network: "tcp",
+		Address: ":0",
+		delay:   90 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+	slowBackend.Listener = l
+	slowBackend.Start()
+	defer slowBackend.Close()
+
+	p, mockMetrics, closeProxy := createProxy(t, backend, slowBackend)
+	defer closeProxy()
+
+	N := 500 //500000
+	resCH := make(chan int, N)
+	client, closeClient := createClient(p, 1020*time.Millisecond)
+	defer closeClient()
+	sendRequests(t, N, p, client, resCH)
+	logFifoMetrics(t, mockMetrics)
+	close(resCH)
+	checkStatusCode(t, resCH, N)
+
+	l.(*slowAcceptListener).Delay(time.Microsecond)
+
+	// check that we can hit the main route now again correctly
+	checkMainRouteIsFine(t, p, client)
+
+	// if err := proxyLog.WaitFor("failed to execute loopback request: dialing failed false: context deadline exceeded", time.Second); err != nil {
+	// 	t.Fatalf("Failed to get expected error: %v", err)
+	// } else {
+	// 	t.Log("Found error log")
+	// }
 }
 
 func createClient(p *proxytest.TestProxy, rspHeaderTimeout time.Duration) (*skpnet.Client, func()) {
@@ -368,120 +451,15 @@ func createBackend(t *testing.T) *httptest.Server {
 	}))
 }
 
-func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
-	proxyLog := proxy.NewTestLog()
-	defer proxyLog.Close()
-
-	backend := createBackend(t)
-	defer backend.Close()
-
-	slowBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.Copy(io.Discard, r.Body)
-		sw := NewSlowWriter(w, 10*time.Millisecond)
-		sw.WriteHeader(599)
-		sw.Flush()
-
-		from := bytes.NewBufferString(strings.Repeat("A", 150*1024))
-		b := make([]byte, 1024)
-		io.CopyBuffer(sw, from, b)
-	}))
-	defer slowBackend.Close()
-
-	p, mockMetrics, closeProxy := createProxy(t, backend, slowBackend)
-	defer closeProxy()
-
-	N := 500 //500000
-	resCH := make(chan int, N)
-	client, closeClient := createClient(p, 120*time.Millisecond)
-	defer closeClient()
-	sendRequests(t, N, p, client, resCH)
-	logFifoMetrics(t, mockMetrics)
-	close(resCH)
-	checkStatusCode(t, resCH, N)
-
-	// check that we can hit the main route now again correctly
+func checkMainRouteIsFine(t *testing.T, p *proxytest.TestProxy, client *skpnet.Client) bool {
+	t.Helper()
 	bodyData := strings.Repeat("A", 1023) + "\n"
 	buf := bytes.NewBufferString(bodyData)
 	sr := NewSlowReader(buf, 1*time.Microsecond)
 	req, err := http.NewRequest("PUT", p.URL, sr)
 	if err != nil {
 		t.Logf("Failed to create request: %v", err)
-		return
-	}
-	rsp, err := client.Do(req)
-	if err != nil {
-		t.Fatalf("Failed to get response: %v", err)
-	}
-	io.Copy(io.Discard, rsp.Body)
-	if rsp.StatusCode != 200 {
-		t.Fatalf("Failed to get 200 response code: %d", rsp.StatusCode)
-	} else {
-		t.Logf("response code: %d", rsp.StatusCode)
-	}
-
-	if err := proxyLog.WaitFor("failed to execute loopback request: dialing failed false: context deadline exceeded", time.Second); err != nil {
-		t.Fatalf("Failed to get expected error: %v", err)
-	} else {
-		t.Log(`Found "failed to execute loopback request" error log`)
-	}
-
-	if err := proxyLog.WaitFor("context: error while discarding remainder response body", time.Second); err != nil {
-		t.Fatalf("Failed to get expected error: %v", err)
-	} else {
-		t.Log(`Found "discarding remainder response body" error log`)
-	}
-
-}
-
-func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
-	proxyLog := proxy.NewTestLog()
-	defer proxyLog.Close()
-
-	backend := createBackend(t)
-	defer backend.Close()
-
-	slowBackend := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		//println("We should not be HERE:", r.URL.Path)
-		sr := NewSlowReader(r.Body, 1*time.Microsecond)
-		io.ReadAll(sr)
-		w.WriteHeader(599)
-		w.Write([]byte("slow backend"))
-	}))
-	l, err := Listen(&slowAcceptListener{
-		Network: "tcp",
-		Address: ":0",
-		delay:   90 * time.Millisecond,
-	})
-	if err != nil {
-		t.Fatalf("Failed to create listener: %v", err)
-	}
-	slowBackend.Listener = l
-	slowBackend.Start()
-	defer slowBackend.Close()
-
-	p, mockMetrics, closeProxy := createProxy(t, backend, slowBackend)
-	defer closeProxy()
-
-	N := 500 //500000
-	resCH := make(chan int, N)
-	client, closeClient := createClient(p, 1020*time.Millisecond)
-	defer closeClient()
-	sendRequests(t, N, p, client, resCH)
-	logFifoMetrics(t, mockMetrics)
-	close(resCH)
-	checkStatusCode(t, resCH, N)
-
-	l.(*slowAcceptListener).Delay(time.Microsecond)
-
-	// check that we can hit the main route now again correctly
-	bodyData := strings.Repeat("A", 1023) + "\n"
-	buf := bytes.NewBufferString(bodyData)
-	sr := NewSlowReader(buf, 1*time.Microsecond)
-
-	req, err := http.NewRequest("PUT", p.URL, sr)
-	if err != nil {
-		t.Logf("Failed to create request: %v", err)
-		return
+		return true
 	}
 	rsp, err := client.Do(req)
 	if err != nil {
@@ -494,12 +472,7 @@ func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
 	} else {
 		t.Logf("response code: %d", rsp.StatusCode)
 	}
-
-	// if err := proxyLog.WaitFor("failed to execute loopback request: dialing failed false: context deadline exceeded", time.Second); err != nil {
-	// 	t.Fatalf("Failed to get expected error: %v", err)
-	// } else {
-	// 	t.Log("Found error log")
-	// }
+	return false
 }
 
 func checkStatusCode(t *testing.T, resCH chan int, N int) {
