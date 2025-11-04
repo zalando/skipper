@@ -160,7 +160,7 @@ func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
 	checkStatusCode(t, resCH, N)
 
 	// restore to be fast listener
-	l.(*nettest.SlowAcceptListener).Delay(time.Microsecond)
+	l.Delay(time.Microsecond)
 	client.CloseIdleConnections()
 
 	// check that we can hit the main route now again correctly
