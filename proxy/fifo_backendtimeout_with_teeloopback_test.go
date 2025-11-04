@@ -2,10 +2,8 @@ package proxy_test
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -15,9 +13,11 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/filters/builtin"
+	skpiotest "github.com/zalando/skipper/io/iotest"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/metrics/metricstest"
 	skpnet "github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/net/nettest"
 	teePredicate "github.com/zalando/skipper/predicates/tee"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -29,202 +29,6 @@ import (
 
 const sourcePollTimeout time.Duration = 6 * time.Millisecond
 
-type slowReader struct {
-	r io.Reader
-	d time.Duration
-}
-
-// NewSlowReader creates a new slowReader wrapping the given io.Reader
-// with a 1 millisecond delay after each byte.
-func NewSlowReader(r io.Reader, d time.Duration) *slowReader {
-	return &slowReader{
-		r: r,
-		d: d,
-	}
-}
-
-// Read implements the io.Reader interface.
-// It reads one byte at a time from the underlying reader,
-// sleeps for the specified Delay, and populates the provided buffer 'p'.
-func (sr *slowReader) Read(p []byte) (n int, err error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-
-	for i := range len(p) {
-		oneByte := make([]byte, 1)
-		bytesRead, err := sr.r.Read(oneByte)
-
-		if err != nil {
-			if n > 0 && err == io.EOF {
-				return n, nil
-			}
-			return n, err
-		}
-
-		// single byte read
-		if bytesRead == 1 {
-			p[i] = oneByte[0]
-			n++
-			time.Sleep(sr.d)
-		} else if n > 0 {
-			return n, nil
-		} else {
-			return 0, nil
-		}
-	}
-
-	return n, nil
-}
-
-type flushedResponseWriter interface {
-	http.ResponseWriter
-	http.Flusher
-	Unwrap() http.ResponseWriter
-}
-
-type slowWriter struct {
-	rw http.ResponseWriter
-
-	d time.Duration
-}
-
-var _ flushedResponseWriter = &slowWriter{}
-
-// NewSlowWriter creates a new slowWriter wrapping the given io.Writer
-// with a delay after each byte.
-func NewSlowWriter(rw http.ResponseWriter, d time.Duration) *slowWriter {
-	return &slowWriter{
-		rw: rw,
-		d:  d,
-	}
-}
-
-func (sw *slowWriter) Header() http.Header {
-	return sw.rw.Header()
-}
-
-func (sw *slowWriter) WriteHeader(i int) {
-	sw.rw.WriteHeader(i)
-}
-
-func (sw *slowWriter) Flush() {
-	sw.rw.(http.Flusher).Flush()
-}
-
-func (sw *slowWriter) Unwrap() http.ResponseWriter {
-	return sw.rw
-}
-
-// Write implements the io.Writer interface.
-// It writes one byte at a time to the underlying writer,
-// sleeps for the specified delay, reading from buffer 'p'.
-func (sw *slowWriter) Write(p []byte) (n int, err error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-
-	for i := range len(p) {
-		oneByte := make([]byte, 1)
-		oneByte[0] = p[i]
-		bytesWrite, err := sw.rw.Write(oneByte)
-
-		if err != nil {
-			if n > 0 && err == io.EOF {
-				return n, nil
-			}
-			return n, err
-		}
-		sw.Flush()
-
-		// single byte write
-		if bytesWrite == 1 {
-			n++
-			time.Sleep(sw.d)
-		} else if n > 0 {
-			return n, nil
-		} else {
-			return 0, nil
-		}
-	}
-
-	return n, nil
-}
-
-var (
-	errListenerClosed = errors.New("failed to listen, closed")
-)
-
-type slowAcceptListener struct {
-	Network string
-	Address string
-
-	mu    sync.Mutex
-	delay time.Duration
-
-	l    net.Listener
-	once sync.Once
-	quit chan struct{}
-}
-
-var _ net.Listener = &slowAcceptListener{}
-
-func (lo *slowAcceptListener) listen(l net.Listener) error {
-	lo.l = l
-	return nil
-}
-
-func (lo *slowAcceptListener) Delay(d time.Duration) {
-	lo.mu.Lock()
-	lo.delay = d
-	lo.mu.Unlock()
-}
-func (lo *slowAcceptListener) Accept() (net.Conn, error) {
-	select {
-	case <-lo.quit:
-		return nil, errListenerClosed
-	default:
-	}
-
-	conn, err := lo.l.Accept()
-	if err != nil {
-		return nil, err
-	}
-
-	lo.mu.Lock()
-	time.Sleep(lo.delay) // slow accept
-	lo.mu.Unlock()
-	return conn, nil
-}
-
-func (lo *slowAcceptListener) Addr() net.Addr {
-	return lo.l.Addr()
-}
-
-func (lo *slowAcceptListener) Close() error {
-	if lo.l != nil {
-		lo.l.Close()
-	}
-	lo.once.Do(func() { close(lo.quit) })
-
-	return nil
-}
-
-func Listen(lo *slowAcceptListener) (net.Listener, error) {
-	nl, err := net.Listen(lo.Network, lo.Address)
-	if err != nil {
-		return nil, err
-	}
-
-	err = lo.listen(nl)
-	if err != nil {
-		return nil, err
-	}
-
-	lo.quit = make(chan struct{})
-	return lo, nil
-}
-
 func TestBackendTimeoutWithSlowBodyShadow(t *testing.T) {
 	proxyLog := proxy.NewTestLog()
 	defer proxyLog.Close()
@@ -232,7 +36,7 @@ func TestBackendTimeoutWithSlowBodyShadow(t *testing.T) {
 	defer backend.Close()
 
 	slowBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sr := NewSlowReader(r.Body, 2*time.Millisecond)
+		sr := skpiotest.NewSlowReader(r.Body, 2*time.Millisecond)
 		io.ReadAll(sr)
 		// buf, err := io.ReadAll(sr)
 		// if err != nil {
@@ -275,7 +79,7 @@ func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
 
 	slowBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.Copy(io.Discard, r.Body)
-		sw := NewSlowWriter(w, 10*time.Millisecond)
+		sw := skpiotest.NewSlowResponseWriter(w, 10*time.Millisecond)
 		sw.WriteHeader(599)
 		sw.Flush()
 
@@ -325,15 +129,15 @@ func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
 
 	slowBackend := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		//println("We should not be HERE:", r.URL.Path)
-		sr := NewSlowReader(r.Body, 1*time.Microsecond)
+		sr := skpiotest.NewSlowReader(r.Body, 1*time.Microsecond)
 		io.ReadAll(sr)
 		w.WriteHeader(599)
 		w.Write([]byte("slow backend"))
 	}))
-	l, err := Listen(&slowAcceptListener{
+	l, err := nettest.NewSlowAcceptListener(&nettest.SlowAcceptListenerOptions{
 		Network: "tcp",
 		Address: ":0",
-		delay:   1900 * time.Millisecond,
+		Delay:   1900 * time.Millisecond,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create listener: %v", err)
@@ -356,7 +160,7 @@ func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
 	checkStatusCode(t, resCH, N)
 
 	// restore to be fast listener
-	l.(*slowAcceptListener).Delay(time.Microsecond)
+	l.(*nettest.SlowAcceptListener).Delay(time.Microsecond)
 	client.CloseIdleConnections()
 
 	// check that we can hit the main route now again correctly
@@ -455,7 +259,7 @@ func checkMainRouteIsFine(t *testing.T, p *proxytest.TestProxy, client *skpnet.C
 	t.Helper()
 	bodyData := strings.Repeat("A", 1023) + "\n"
 	buf := bytes.NewBufferString(bodyData)
-	sr := NewSlowReader(buf, 1*time.Microsecond)
+	sr := skpiotest.NewSlowReader(buf, 1*time.Microsecond)
 	req, err := http.NewRequest("PUT", p.URL, sr)
 	if err != nil {
 		t.Logf("Failed to create request: %v", err)
@@ -517,7 +321,7 @@ func sendRequests(t *testing.T, N int, p *proxytest.TestProxy, client *skpnet.Cl
 			defer wg.Done()
 			bodyData := strings.Repeat("A", 1023) + "\n"
 			buf := bytes.NewBufferString(bodyData)
-			sr := NewSlowReader(buf, 1*time.Microsecond)
+			sr := skpiotest.NewSlowReader(buf, 1*time.Microsecond)
 			req, err := http.NewRequest("PUT", p.URL+"/"+strconv.Itoa(i), sr)
 			if err != nil {
 				t.Logf("Failed to create request: %v", err)
