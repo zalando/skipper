@@ -38,12 +38,6 @@ func TestBackendTimeoutWithSlowBodyShadow(t *testing.T) {
 	slowBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sr := skpiotest.NewSlowReader(r.Body, 2*time.Millisecond)
 		io.ReadAll(sr)
-		// buf, err := io.ReadAll(sr)
-		// if err != nil {
-		// 	t.Logf("slowBackend: failed to read body: %v", err)
-		// } else {
-		// 	t.Logf("slowBackend: read %d bytes", len(buf))
-		// }
 		w.WriteHeader(599)
 		w.Write([]byte("slow backend"))
 	}))
@@ -128,7 +122,6 @@ func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
 	defer backend.Close()
 
 	slowBackend := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		//println("We should not be HERE:", r.URL.Path)
 		sr := skpiotest.NewSlowReader(r.Body, 1*time.Microsecond)
 		io.ReadAll(sr)
 		w.WriteHeader(599)
@@ -166,11 +159,11 @@ func TestBackendTimeoutWithConnectTimingOutShadow(t *testing.T) {
 	// check that we can hit the main route now again correctly
 	checkMainRouteIsFine(t, p, client)
 
-	// if err := proxyLog.WaitFor("failed to execute loopback request: dialing failed false: context deadline exceeded", time.Second); err != nil {
-	// 	t.Fatalf("Failed to get expected error: %v", err)
-	// } else {
-	// 	t.Log("Found error log")
-	// }
+	if err := proxyLog.WaitFor("failed to execute loopback request: dialing failed false: context deadline exceeded", time.Second); err != nil {
+		t.Fatalf("Failed to get expected error: %v", err)
+	} else {
+		t.Log("Found error log")
+	}
 }
 
 func createClient(p *proxytest.TestProxy, timeout, rspHeaderTimeout time.Duration) (*skpnet.Client, func()) {
