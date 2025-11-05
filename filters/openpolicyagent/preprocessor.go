@@ -113,6 +113,7 @@ func (p *opaPreProcessor) preloadInstancesParallel(bundles []string) {
 
 // enqueueInstancesSequential enqueues new instances for sequential processing using background tasks
 func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
+	instanceInProcess := make(map[string]struct{})
 	for _, bundle := range bundles {
 		// Check if instance already exists to avoid unnecessary work
 		inst, err := p.registry.getExistingInstance(bundle)
@@ -123,7 +124,8 @@ func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
 		}
 
 		if inst != nil {
-			if !inst.Started() {
+			if _, ok := instanceInProcess[bundle]; !ok && !inst.Started() {
+				instanceInProcess[bundle] = struct{}{}
 				p.log.Info("Scheduling background task to start existing OPA instance for bundle: ", bundle)
 				if _, err := p.registry.ScheduleBackgroundTask(inst.Start); err != nil {
 					p.log.Errorf("Failed to reschedule OPA instance for bundle %q: %v", bundle, err)
