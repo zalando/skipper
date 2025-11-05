@@ -72,8 +72,6 @@ func (lo *SlowAcceptListener) Close() error {
 	return nil
 }
 
-var _ net.Listener = &SlowAcceptListener{}
-
 func NewSlowAcceptListener(opt *SlowAcceptListenerOptions) (*SlowAcceptListener, error) {
 	lo := &SlowAcceptListener{
 		Network: opt.Network,
