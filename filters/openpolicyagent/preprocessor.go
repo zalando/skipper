@@ -15,6 +15,8 @@ type opaPreProcessor struct {
 	mu       sync.Mutex
 	registry *OpenPolicyAgentRegistry
 
+	bundleMap map[string]struct{}
+
 	log logging.Logger
 }
 
@@ -22,7 +24,8 @@ type opaPreProcessor struct {
 // Only used when pre-loading is enabled via command line flag
 func (registry *OpenPolicyAgentRegistry) NewPreProcessor() routing.PreProcessor {
 	return &opaPreProcessor{
-		registry: registry,
+		registry:  registry,
+		bundleMap: make(map[string]struct{}),
 
 		log: &logging.DefaultLog{},
 	}
@@ -41,9 +44,18 @@ func (p *opaPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
 		p.preloadInstancesParallel(bundleConfigs)
 	})
 
+	// check already processed bundles
+	bundles := make([]string, 0, len(bundleConfigs))
+	for _, bundleName := range bundleConfigs {
+		if _, ok := p.bundleMap[bundleName]; !ok {
+			bundles = append(bundles, bundleName)
+			p.bundleMap[bundleName] = struct{}{}
+		}
+	}
+
 	// For subsequent loads (or if no initial bundles), enqueue new instances for sequential processing
-	if len(bundleConfigs) > 0 {
-		p.enqueueInstancesSequential(bundleConfigs)
+	if len(bundles) > 0 {
+		p.enqueueInstancesSequential(bundles)
 	}
 
 	return routes
@@ -113,7 +125,6 @@ func (p *opaPreProcessor) preloadInstancesParallel(bundles []string) {
 
 // enqueueInstancesSequential enqueues new instances for sequential processing using background tasks
 func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
-	instanceInProcess := make(map[string]struct{})
 	for _, bundle := range bundles {
 		// Check if instance already exists to avoid unnecessary work
 		inst, err := p.registry.getExistingInstance(bundle)
@@ -124,8 +135,7 @@ func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
 		}
 
 		if inst != nil {
-			if _, ok := instanceInProcess[bundle]; !ok && !inst.Started() {
-				instanceInProcess[bundle] = struct{}{}
+			if !inst.Started() {
 				p.log.Info("Scheduling background task to start existing OPA instance for bundle: ", bundle)
 				if _, err := p.registry.ScheduleBackgroundTask(inst.Start); err != nil {
 					p.log.Errorf("Failed to reschedule OPA instance for bundle %q: %v", bundle, err)
