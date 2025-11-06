@@ -13,13 +13,14 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/openpolicyagent"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/otel"
 	"github.com/zalando/skipper/proxy"
@@ -106,6 +107,8 @@ type Config struct {
 	MetricsUseExpDecaySample            bool      `yaml:"metrics-exp-decay-sample"`
 	HistogramMetricBucketsString        string    `yaml:"histogram-metric-buckets"`
 	HistogramMetricBuckets              []float64 `yaml:"-"`
+	ResponseSizeBucketsString           string    `yaml:"response-size-buckets"`
+	ResponseSizeBuckets                 []float64 `yaml:"-"`
 	DisableMetricsCompat                bool      `yaml:"disable-metrics-compat"`
 	ApplicationLog                      string    `yaml:"application-log"`
 	ApplicationLogLevel                 log.Level `yaml:"-"`
@@ -435,6 +438,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.RouteCreationMetrics, "route-creation-metrics", false, "enables reporting for route creation times")
 	flag.BoolVar(&cfg.MetricsUseExpDecaySample, "metrics-exp-decay-sample", false, "use exponentially decaying sample in metrics")
 	flag.StringVar(&cfg.HistogramMetricBucketsString, "histogram-metric-buckets", "", "use custom buckets for prometheus histograms, must be a comma-separated list of numbers")
+	flag.StringVar(&cfg.ResponseSizeBucketsString, "response-size-buckets", "", "use custom buckets for prometheus response size metrics, must be a comma-separated list of numbers")
 	flag.BoolVar(&cfg.DisableMetricsCompat, "disable-metrics-compat", false, "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters")
 	flag.StringVar(&cfg.ApplicationLog, "application-log", "", "output file for the application log. When not set, /dev/stderr is used")
 	flag.StringVar(&cfg.ApplicationLogLevelString, "application-log-level", "INFO", "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG")
@@ -686,7 +690,11 @@ func validate(c *Config) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.parseHistogramBuckets()
+	_, err = c.parseHistogramBuckets(c.HistogramMetricBucketsString, prometheus.DefBuckets)
+	if err != nil {
+		return err
+	}
+	_, err = c.parseHistogramBuckets(c.ResponseSizeBucketsString, metrics.DefaultResponseSizeBuckets)
 	if err != nil {
 		return err
 	}
@@ -749,7 +757,8 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 	c.KubernetesEastWestRangeAnnotationPredicates, _ = parseAnnotationPredicates(c.KubernetesEastWestRangeAnnotationPredicatesString)
 	c.KubernetesEastWestRangeAnnotationFiltersAppend, _ = parseAnnotationFilters(c.KubernetesEastWestRangeAnnotationFiltersAppendString)
 	c.KubernetesBackendTrafficAlgorithm, _ = kubernetes.ParseBackendTrafficAlgorithm(c.KubernetesBackendTrafficAlgorithmString)
-	c.HistogramMetricBuckets, _ = c.parseHistogramBuckets()
+	c.HistogramMetricBuckets, _ = c.parseHistogramBuckets(c.HistogramMetricBucketsString, prometheus.DefBuckets)
+	c.ResponseSizeBuckets, _ = c.parseHistogramBuckets(c.ResponseSizeBucketsString, metrics.DefaultResponseSizeBuckets)
 
 	if c.ClientKeyFile != "" && c.ClientCertFile != "" {
 		certsFiles := strings.Split(c.ClientCertFile, ",")
@@ -862,6 +871,7 @@ func (c *Config) ToOptions() skipper.Options {
 		EnableRouteCreationMetrics:          c.RouteCreationMetrics,
 		MetricsUseExpDecaySample:            c.MetricsUseExpDecaySample,
 		HistogramMetricBuckets:              c.HistogramMetricBuckets,
+		ResponseSizeBuckets:                 c.ResponseSizeBuckets,
 		DisableMetricsCompatibilityDefaults: c.DisableMetricsCompat,
 		ApplicationLogOutput:                c.ApplicationLog,
 		ApplicationLogPrefix:                c.ApplicationLogPrefix,
@@ -1177,13 +1187,13 @@ func (c *Config) filterCipherSuites() []uint16 {
 	return cipherSuites
 }
 
-func (c *Config) parseHistogramBuckets() ([]float64, error) {
-	if c.HistogramMetricBucketsString == "" {
-		return prometheus.DefBuckets, nil
+func (c *Config) parseHistogramBuckets(bucketString string, defaultBuckets []float64) ([]float64, error) {
+	if bucketString == "" {
+		return defaultBuckets, nil
 	}
 
 	var result []float64
-	thresholds := strings.Split(c.HistogramMetricBucketsString, ",")
+	thresholds := strings.Split(bucketString, ",")
 	for _, v := range thresholds {
 		bucket, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
 		if err != nil {

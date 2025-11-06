@@ -39,8 +39,8 @@ const (
 //   - 8 KiB for [Spring Boot](https://docs.spring.io/spring-boot/appendix/application-properties/index.html#application-properties.server.server.max-http-request-header-size)
 var headerSizeBuckets = []float64{4 * KiB, 8 * KiB, 16 * KiB, 64 * KiB}
 
-// responseSizeBuckets are chosen to cover 2^(10*n) sizes up to 1 GiB and halves of those.
-var responseSizeBuckets = []float64{1, 512, 1 * KiB, 512 * KiB, 1 * MiB, 512 * MiB, 1 * GiB}
+// DefaultResponseSizeBuckets are chosen to cover 2^(10*n) sizes up to 1 GiB and halves of those.
+var DefaultResponseSizeBuckets = []float64{1, 512, 1 * KiB, 512 * KiB, 1 * MiB, 512 * MiB, 1 * GiB}
 
 // Prometheus implements the prometheus metrics backend.
 type Prometheus struct {
@@ -95,6 +95,11 @@ func NewPrometheus(opts Options) *Prometheus {
 
 	if p.registry == nil {
 		p.registry = prometheus.NewRegistry()
+	}
+
+	responseSizeBuckets := DefaultResponseSizeBuckets
+	if len(opts.ResponseSizeBuckets) > 1 {
+		responseSizeBuckets = opts.ResponseSizeBuckets
 	}
 
 	namespace := promNamespace
