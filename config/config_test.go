@@ -3,6 +3,7 @@ package config
 import (
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"slices"
@@ -16,6 +17,7 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/openpolicyagent"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
 	"gopkg.in/yaml.v2"
@@ -92,6 +94,7 @@ func defaultConfig(with func(*Config)) *Config {
 		MetricsPrefix:                           "skipper.",
 		RuntimeMetrics:                          true,
 		HistogramMetricBuckets:                  []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+		ResponseSizeBuckets:                     metrics.DefaultResponseSizeBuckets,
 		ApplicationLogLevel:                     log.InfoLevel,
 		ApplicationLogLevelString:               "INFO",
 		ApplicationLogPrefix:                    "[APP]",
@@ -272,6 +275,7 @@ func Test_Validate(t *testing.T) {
 			name: "test valid config",
 			change: func(c *Config) {
 				c.HistogramMetricBucketsString = ""
+				c.ResponseSizeBucketsString = ""
 				c.ApplicationLogLevel = log.InfoLevel
 				c.ApplicationLogLevelString = "INFO"
 			},
@@ -301,6 +305,22 @@ func Test_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			want:    errors.New(`unable to parse histogram-metric-buckets: strconv.ParseFloat: parsing "abc": invalid syntax`),
+		},
+		{
+			name: "test wrong HistoGramBuckets 2",
+			change: func(c *Config) {
+				c.HistogramMetricBucketsString = "5,10k,10"
+			},
+			wantErr: true,
+			want:    errors.New(`unable to parse histogram-metric-buckets: strconv.ParseFloat: parsing "10k": invalid syntax`),
+		},
+		{
+			name: "test wrong HistoGramBuckets 3",
+			change: func(c *Config) {
+				c.HistogramMetricBucketsString = "10kb,5,10"
+			},
+			wantErr: true,
+			want:    errors.New(`unable to parse histogram-metric-buckets: strconv.ParseFloat: parsing "10kb": invalid syntax`),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -392,12 +412,18 @@ func Test_parseHistogramBuckets(t *testing.T) {
 			args:    "1,1.33,1.5,1.66,2",
 			want:    []float64{1, 1.33, 1.5, 1.66, 2},
 			wantErr: false,
+		},
+		{
+			name:    "test parse 1,512,1024,524288",
+			args:    fmt.Sprintf("1,512,1024,%d,%d", 512*1024, 1024*1024),
+			want:    []float64{1, 512, 1 * metrics.KiB, 512 * metrics.KiB, 1 * metrics.MiB},
+			wantErr: false,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := new(Config)
 			cfg.HistogramMetricBucketsString = tt.args
 
-			got, err := cfg.parseHistogramBuckets()
+			got, err := cfg.parseHistogramBuckets(tt.args, []float64{})
 			if !reflect.DeepEqual(got, tt.want) || (tt.wantErr && err == nil) || (!tt.wantErr && err != nil) {
 				t.Errorf("Failed to parse histogram buckets: Want %v, got %v, err %v", tt.want, got, err)
 			}
