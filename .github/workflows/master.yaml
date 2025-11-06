@@ -13,11 +13,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
-      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00
+      - uses: actions/setup-go@v5 # Use the latest major version tag (e.g., v5)
         with:
-          # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
-          go-version: "^1.23"
-          check-latest: true
+          go-version: 'stable'
       - run: go version
       - run: make deps
       - run: make check-fmt
@@ -47,9 +45,9 @@ jobs:
     - id: job-id
       env:
         GH_TOKEN: ${{ github.token }}
-      run: echo ID=$(gh api /repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs | jq -r '.jobs[0].id') >> "$GITHUB_OUTPUT" 
-    - run: >- 
-        curl 
+      run: echo ID=$(gh api /repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs | jq -r '.jobs[0].id') >> "$GITHUB_OUTPUT"
+    - run: >-
+        curl
         -H 'content-type:application/json'
         "${{ secrets.INTERNAL_CHAT_WEBHOOK }}"
         -d "{
