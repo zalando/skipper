@@ -46,11 +46,16 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: echo ID=$(gh api /repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs | jq -r '.jobs[0].id') >> "$GITHUB_OUTPUT"
+    - id: thread-key
+      run: echo KEY=$(date +"%d-%m-%y") >> "$GITHUB_OUTPUT"
     - run: >-
         curl
         -H 'content-type:application/json'
-        "${{ secrets.INTERNAL_CHAT_WEBHOOK }}"
+        "${{ secrets.INTERNAL_CHAT_WEBHOOK }}&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
         -d "{
+          \"thread\": {
+              \"threadKey\": \"${{ step.thread-key.KEY }}\"
+            },
           \"cardsV2\": [
             {
               \"cardId\": \"skipper-failing-pipeline\",
