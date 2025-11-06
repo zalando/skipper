@@ -15,8 +15,6 @@ type opaPreProcessor struct {
 	mu       sync.Mutex
 	registry *OpenPolicyAgentRegistry
 
-	bundleMap map[string]struct{}
-
 	log logging.Logger
 }
 
@@ -24,8 +22,7 @@ type opaPreProcessor struct {
 // Only used when pre-loading is enabled via command line flag
 func (registry *OpenPolicyAgentRegistry) NewPreProcessor() routing.PreProcessor {
 	return &opaPreProcessor{
-		registry:  registry,
-		bundleMap: make(map[string]struct{}),
+		registry: registry,
 
 		log: &logging.DefaultLog{},
 	}
@@ -44,18 +41,9 @@ func (p *opaPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
 		p.preloadInstancesParallel(bundleConfigs)
 	})
 
-	// check already processed bundles
-	bundles := make([]string, 0, len(bundleConfigs))
-	for _, bundleName := range bundleConfigs {
-		if _, ok := p.bundleMap[bundleName]; !ok {
-			bundles = append(bundles, bundleName)
-			p.bundleMap[bundleName] = struct{}{}
-		}
-	}
-
 	// For subsequent loads (or if no initial bundles), enqueue new instances for sequential processing
-	if len(bundles) > 0 {
-		p.enqueueInstancesSequential(bundles)
+	if len(bundleConfigs) > 0 {
+		p.enqueueInstancesSequential(bundleConfigs)
 	}
 
 	return routes

@@ -69,7 +69,6 @@ type BackgroundTask struct {
 	fn   func() error
 	done chan struct{}
 	err  error
-	once sync.Once
 }
 
 // Wait blocks until the task completes and returns the result and error
@@ -80,10 +79,8 @@ func (t *BackgroundTask) Wait() error {
 
 // execute runs the task function and stores the result
 func (t *BackgroundTask) execute() {
-	t.once.Do(func() {
-		defer close(t.done)
-		t.err = t.fn()
-	})
+	defer close(t.done)
+	t.err = t.fn()
 }
 
 type OpenPolicyAgentRegistry struct {
@@ -741,6 +738,7 @@ func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ..
 func (opa *OpenPolicyAgentInstance) Start() error {
 	opa.Logger().Info("Starting OPA instance...")
 	opa.startedOnce.Do(func() {
+		opa.started.Store(true)
 		ctx, cancel := context.WithTimeout(context.Background(), opa.registry.instanceStartupTimeout)
 		defer cancel()
 
@@ -751,7 +749,6 @@ func (opa *OpenPolicyAgentInstance) Start() error {
 			opa.startingErr = opa.start(ctx, opa.registry.instanceStartupTimeout)
 		}
 
-		opa.started.Store(true)
 	})
 	return opa.startingErr
 }
