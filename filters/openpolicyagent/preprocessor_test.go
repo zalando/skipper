@@ -140,3 +140,21 @@ func TestPreprocessorRoutesUnchanged(t *testing.T) {
 	assert.Equal(t, expectedRoutes, result)
 	assert.Equal(t, expectedRoutes, originalRoutes) // Original should also be unchanged
 }
+
+// TestStartScheduledPreventsDuplicateEnqueue tests that enqueueInstancesSequential
+// will not allocate multiple queue slots to the same instance start task
+func TestStartScheduledPreventsDuplicateEnqueue(t *testing.T) {
+	registry, err := NewOpenPolicyAgentRegistry(WithPreloadingEnabled(true),
+		WithBackgroundTaskBufferSize(2), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate([]byte(""))))
+	require.NoError(t, err, "Expected no error creating OpenPolicyAgentRegistry")
+	defer registry.Close()
+	preprocessor := registry.NewPreProcessor().(*opaPreProcessor)
+
+	//in the real would scenario this will happen only with multiple route updates combined
+	preprocessor.enqueueInstancesSequential([]string{"bundle1", "bundle1", "bundle1", "bundle1", "bundle1", "bundle2"})
+	instance1, _ := registry.GetOrStartInstance("bundle1")
+	instance2, _ := registry.GetOrStartInstance("bundle2")
+
+	assert.True(t, instance1.StartScheduled(), "Expected StartScheduled to be true")
+	assert.True(t, instance2.StartScheduled(), "Expected StartScheduled to be true")
+}
