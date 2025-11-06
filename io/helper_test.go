@@ -1,6 +1,8 @@
 package io
 
-import "bytes"
+import (
+	"bytes"
+)
 
 type mybuf struct {
 	buf *bytes.Buffer
