@@ -56,7 +56,7 @@ jobs:
         "${{ secrets.INTERNAL_CHAT_WEBHOOK }}&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
         -d "{
           \"thread\": {
-              \"threadKey\": \"${{ step.thread-key.KEY }}\"
+              \"threadKey\": \"${{ steps.thread-key.KEY }}\"
             },
           \"cardsV2\": [
             {
