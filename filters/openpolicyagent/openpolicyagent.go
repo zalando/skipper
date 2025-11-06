@@ -599,6 +599,7 @@ type OpenPolicyAgentInstance struct {
 	startedOnce                 sync.Once
 	startingErr                 error
 	started                     atomic.Bool
+	startScheduled              atomic.Bool
 	registry                    *OpenPolicyAgentRegistry
 	healthy                     atomic.Bool
 	logger                      logging.Logger
@@ -799,6 +800,14 @@ func (opa *OpenPolicyAgentInstance) Healthy() bool {
 
 func (opa *OpenPolicyAgentInstance) Started() bool {
 	return opa.started.Load()
+}
+
+func (opa *OpenPolicyAgentInstance) StartScheduled() bool {
+	return opa.startScheduled.Load()
+}
+
+func (opa *OpenPolicyAgentInstance) MarkStartScheduled() {
+	opa.startScheduled.Store(true)
 }
 
 // StartAndTriggerPlugins Start starts the policy engine's plugin manager and triggers the plugins to download policies etc.
