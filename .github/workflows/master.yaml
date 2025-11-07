@@ -23,9 +23,9 @@ jobs:
       - run: make check-fmt
       - run: make vet
       - run: make staticcheck
-      - run: make check-race
       - run: make osv-scanner
       - run: make govulncheck
+      - run: make check-race
       - run: make capslock
       - run: make coverprofile
       - name: Convert coverage to lcov
@@ -53,10 +53,10 @@ jobs:
     - run: >-
         curl
         -H 'content-type:application/json'
-        "${{ secrets.INTERNAL_CHAT_WEBHOOK }}&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
+        "${{ secrets.INTERNAL_CHAT_WEBHOOK }}"
         -d "{
           \"thread\": {
-              \"threadKey\": \"${{ steps.thread-key.KEY }}\"
+              \"threadKey\": \"${{ steps.thread-key.outputs.KEY }}\"
             },
           \"cardsV2\": [
             {
