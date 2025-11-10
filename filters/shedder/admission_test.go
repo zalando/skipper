@@ -3,7 +3,6 @@ package shedder
 import (
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -151,12 +150,11 @@ func TestAdmissionControl(t *testing.T) {
 		pExpectedAdmissionShedding: 0.0,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			rand.Seed(2)
-
+			randFunc := randWithSeed()
 			var mu sync.Mutex
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				mu.Lock()
-				p := rand.Float64()
+				p := randFunc()
 				mu.Unlock()
 				if p < ti.pBackendErr {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -166,7 +164,9 @@ func TestAdmissionControl(t *testing.T) {
 			}))
 			defer backend.Close()
 
-			spec := NewAdmissionControl(Options{}).(*AdmissionControlSpec)
+			spec := NewAdmissionControl(Options{
+				rand: randWithSeed(),
+			}).(*AdmissionControlSpec)
 
 			args := make([]interface{}, 0, 6)
 			args = append(args, "testmetric", ti.mode, ti.d.String(), ti.windowsize, ti.minRequests, ti.successThreshold, ti.maxrejectprobability, ti.exponent)
@@ -264,7 +264,9 @@ func TestAdmissionControlChainOnlyBackendErrorPass(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	spec := NewAdmissionControl(Options{}).(*AdmissionControlSpec)
+	spec := NewAdmissionControl(Options{
+		rand: randWithSeed(),
+	}).(*AdmissionControlSpec)
 
 	argsLeaf := make([]interface{}, 0, 6)
 	argsLeaf = append(argsLeaf, "testmetric-leaf", "active", "5ms", 5, 5, 0.9, 0.95, 1.0)
@@ -395,7 +397,9 @@ func TestAdmissionControlCleanupModes(t *testing.T) {
 			}))
 			defer backend2.Close()
 
-			fspec := NewAdmissionControl(Options{})
+			fspec := NewAdmissionControl(Options{
+				rand: randWithSeed(),
+			})
 			spec, ok := fspec.(*AdmissionControlSpec)
 			if !ok {
 				t.Fatal("FilterSpec is not a AdmissionControlSpec")
@@ -566,7 +570,9 @@ func TestAdmissionControlCleanupMultipleFilters(t *testing.T) {
 			}))
 			defer backend.Close()
 
-			fspec := NewAdmissionControl(Options{})
+			fspec := NewAdmissionControl(Options{
+				rand: randWithSeed(),
+			})
 			spec, ok := fspec.(*AdmissionControlSpec)
 			if !ok {
 				t.Fatal("FilterSpec is not a AdmissionControlSpec")
@@ -607,7 +613,7 @@ func TestAdmissionControlSetsSpansTags(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	fspec := NewAdmissionControl(Options{Tracer: tracer})
+	fspec := NewAdmissionControl(Options{Tracer: tracer, rand: randWithSeed()})
 	spec, ok := fspec.(*AdmissionControlSpec)
 	if !ok {
 		t.Fatal("FilterSpec is not a AdmissionControlSpec")

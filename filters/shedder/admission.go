@@ -95,6 +95,7 @@ const (
 
 type Options struct {
 	Tracer opentracing.Tracer
+	rand   func() float64
 }
 
 type admissionControlPre struct{}
@@ -165,6 +166,7 @@ func (spec *admissionControlPost) Do(routes []*routing.Route) []*routing.Route {
 
 type AdmissionControlSpec struct {
 	tracer opentracing.Tracer
+	rand   func() float64
 }
 
 type admissionControl struct {
@@ -190,6 +192,11 @@ type admissionControl struct {
 	success          []int64
 	counter          *atomic.Int64
 	successCounter   *atomic.Int64
+	rand             func() float64
+}
+
+func randWithSeed() func() float64 {
+	return rand.New(rand.NewSource(2)).Float64
 }
 
 func NewAdmissionControl(o Options) filters.Spec {
@@ -197,8 +204,13 @@ func NewAdmissionControl(o Options) filters.Spec {
 	if tracer == nil {
 		tracer = &opentracing.NoopTracer{}
 	}
+	r := o.rand
+	if r == nil {
+		r = rand.Float64
+	}
 	return &AdmissionControlSpec{
 		tracer: tracer,
+		rand:   o.rand,
 	}
 }
 
@@ -319,6 +331,7 @@ func (spec *AdmissionControlSpec) CreateFilter(args []interface{}) (filters.Filt
 		success:          make([]int64, windowSize),
 		counter:          new(atomic.Int64),
 		successCounter:   new(atomic.Int64),
+		rand:             spec.rand,
 	}
 	go ac.tickWindows(d)
 	return ac, nil
@@ -407,7 +420,7 @@ func (ac *admissionControl) pReject() float64 {
 func (ac *admissionControl) shouldReject() bool {
 	p := ac.pReject() // [0, ac.maxRejectProbability] and -1 to disable
 	/* #nosec */
-	r := rand.Float64() // [0,1)
+	r := ac.rand() // [0,1)
 
 	if ac.mode == logInactive {
 		log.Infof("%s: p: %0.2f, r: %0.2f", filters.AdmissionControlName, p, r)
