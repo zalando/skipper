@@ -151,6 +151,8 @@ func TestAdmissionControl(t *testing.T) {
 		pExpectedAdmissionShedding: 0.0,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
+			rand.Seed(2)
+
 			var mu sync.Mutex
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				mu.Lock()
