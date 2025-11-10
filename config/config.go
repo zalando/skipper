@@ -460,7 +460,7 @@ func NewConfig() *Config {
 	flag.Var(cfg.RoutesURLs, "routes-urls", "comma separated URLs to route definitions in eskip format")
 	flag.StringVar(&cfg.InlineRoutes, "inline-routes", "", "inline routes in eskip format")
 	flag.StringVar(&cfg.ForwardBackendURL, "forward-backend-url", "", "target url of the <forward> backend")
-	flag.Int64Var(&cfg.SourcePollTimeout, "source-poll-timeout", int64(3000), "polling timeout of the routing data sources, in milliseconds")
+	flag.Int64Var(&cfg.SourcePollTimeout, "source-poll-timeout", int64(3000), "polling timeout of the routing data sources, in milliseconds. Use 0 to not poll routes.")
 	flag.Var(cfg.AppendFilters, "default-filters-append", "set of default filters to apply to append to all filters of all routes")
 	flag.Var(cfg.PrependFilters, "default-filters-prepend", "set of default filters to apply to prepend to all filters of all routes")
 	flag.Var(cfg.DisabledFilters, "disabled-filters", "comma separated list of filters unavailable for use")

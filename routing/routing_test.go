@@ -1032,3 +1032,23 @@ func TestDuplicateDataClients(t *testing.T) {
 		t.Errorf("expected 2 dataclients, got: %v", clients)
 	}
 }
+
+func TestNoPollDataClients(t *testing.T) {
+	l := loggingtest.New()
+	defer l.Close()
+
+	dc1 := testdataclient.New([]*eskip.Route{{Id: "r1", Backend: "https://foo.example.org"}})
+	defer dc1.Close()
+
+	rt := routing.New(routing.Options{
+		SignalFirstLoad: true,
+		FilterRegistry:  builtin.MakeRegistry(),
+		DataClients:     []routing.DataClient{dc1},
+		PollTimeout:     0,
+		Log:             l,
+	})
+
+	defer rt.Close()
+
+	l.WaitFor("Polling routetable is ignored as timeout is set to 0", 10*pollTimeout)
+}

@@ -1863,14 +1863,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				}
 				other := []*swarm.NodeInfo{self}
 
-				for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
+				for addr := range strings.SplitSeq(o.SwarmStaticOther, ",") {
 					ni, err := swarm.NewStaticNodeInfo(addr, addr)
 					if err != nil {
 						return fmt.Errorf("failed to get static NodeInfo: %w", err)
 					}
 					other = append(other, ni)
 				}
-
 				swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
 			}
 
@@ -2046,7 +2045,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	// ensure a non-zero poll timeout
-	if o.SourcePollTimeout <= 0 {
+	if o.SourcePollTimeout < 0 {
 		o.SourcePollTimeout = defaultSourcePollTimeout
 	}
 

@@ -252,6 +252,7 @@ type Routing struct {
 	firstLoadSignaled bool
 	quit              chan struct{}
 	metrics           metrics.Metrics
+	noPolls           bool
 }
 
 // New initializes a routing instance, and starts listening for route
@@ -276,6 +277,13 @@ func New(o Options) *Routing {
 
 	r := &Routing{log: o.Log, firstLoad: make(chan struct{}), quit: make(chan struct{})}
 	r.metrics = o.Metrics
+
+	if o.PollTimeout == 0 {
+		o.Log.Info("Polling routetable is ignored as timeout is set to 0")
+		r.noPolls = true
+		return r
+	}
+
 	if !o.SignalFirstLoad {
 		close(r.firstLoad)
 		r.firstLoadSignaled = true
@@ -295,6 +303,12 @@ func New(o Options) *Routing {
 func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" && req.Method != "HEAD" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	if r.noPolls {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
@@ -437,9 +451,7 @@ func slice(r []*eskip.Route, offset int, limit int) []*eskip.Route {
 		offset = len(r)
 	}
 	end := offset + limit
-	if end > len(r) {
-		end = len(r)
-	}
+	end = min(end, len(r))
 	result := r[offset:end]
 	if result == nil {
 		return []*eskip.Route{}
