@@ -275,7 +275,7 @@ func TestPHCNoHealthyEndpoints(t *testing.T) {
 	)
 
 	servicesString := setupServices(t, healthy, unhealthy)
-	mockMetrics, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("20ms") -> <random, %s>`,
+	mockMetrics, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("20ms") -> <roundRobin, %s>`,
 		servicesString))
 	va := fireVegeta(t, ps, 5000, 1*time.Second, 5*time.Second)
 
