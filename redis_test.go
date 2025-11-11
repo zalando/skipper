@@ -9,7 +9,6 @@ import (
 	"net/http"
 	stdlibhttptest "net/http/httptest"
 	"os"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -136,9 +135,9 @@ spec:
 	lb := stdlibhttptest.NewServer(pr)
 	defer lb.Close()
 
-	muFindAddress.Lock()
+	skipper.MuFindAddress.Lock()
 	rsvo := skipper.Options{
-		Address:                         findAddress(t),
+		Address:                         skipper.FindAddress(t),
 		Kubernetes:                      true,
 		KubernetesURL:                   lb.URL,
 		KubernetesRedisServiceNamespace: "skipper",
@@ -152,7 +151,7 @@ spec:
 
 	// run skipper proxy that we want to test
 	o := skipper.Options{
-		Address:                        findAddress(t),
+		Address:                        skipper.FindAddress(t),
 		EnableRatelimiters:             true,
 		EnableSwarm:                    true,
 		Kubernetes:                     true,
@@ -164,7 +163,7 @@ spec:
 		ClusterRatelimitMaxGroupShards: 2,
 		SwarmRedisDialTimeout:          100 * time.Millisecond,
 		SuppressRouteUpdateLogs:        false,
-		SupportListener:                findAddress(t),
+		SupportListener:                skipper.FindAddress(t),
 		SwarmRedisUpdateInterval:       time.Second,
 	}
 
@@ -173,7 +172,7 @@ spec:
 	go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 	waitForOK(t, "http://"+o.Address+"/kube-system/healthz", 1*time.Second)
-	muFindAddress.Unlock()
+	skipper.MuFindAddress.Unlock()
 
 	rate := 10
 	sec := 5
@@ -312,9 +311,9 @@ spec:
 	defer lb.Close()
 
 	// run skipper proxy that we want to test
-	muFindAddress.Lock()
+	skipper.MuFindAddress.Lock()
 	o := skipper.Options{
-		Address:                         findAddress(t),
+		Address:                         skipper.FindAddress(t),
 		EnableRatelimiters:              true,
 		EnableSwarm:                     true,
 		Kubernetes:                      true,
@@ -328,7 +327,7 @@ spec:
 		ClusterRatelimitMaxGroupShards:  2,
 		SwarmRedisDialTimeout:           100 * time.Millisecond,
 		SuppressRouteUpdateLogs:         false,
-		SupportListener:                 findAddress(t),
+		SupportListener:                 skipper.FindAddress(t),
 		SwarmRedisUpdateInterval:        time.Second,
 	}
 
@@ -337,7 +336,7 @@ spec:
 	go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 	waitForOK(t, "http://"+o.Address+"/kube-system/healthz", 1*time.Second)
-	muFindAddress.Unlock()
+	skipper.MuFindAddress.Unlock()
 
 	rate := 10
 	sec := 5
@@ -410,9 +409,9 @@ spec:
 
 		metrics := &metricstest.MockMetrics{}
 
-		muFindAddress.Lock()
+		skipper.MuFindAddress.Lock()
 		o := skipper.Options{
-			Address:                         findAddress(t),
+			Address:                         skipper.FindAddress(t),
 			EnableRatelimiters:              true,
 			EnableSwarm:                     true,
 			Kubernetes:                      false, // do not enable kubernetes dataclient
@@ -430,7 +429,7 @@ spec:
 		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 		waitForOK(t, "http://"+o.Address+"/ready", 1*time.Second)
-		muFindAddress.Unlock()
+		skipper.MuFindAddress.Unlock()
 		time.Sleep(2 * redisUpdateInterval)
 
 		metrics.WithGauges(func(g map[string]float64) {
@@ -450,9 +449,9 @@ spec:
 
 		metrics := &metricstest.MockMetrics{}
 
-		muFindAddress.Lock()
+		skipper.MuFindAddress.Lock()
 		o := skipper.Options{
-			Address:                         findAddress(t),
+			Address:                         skipper.FindAddress(t),
 			EnableRatelimiters:              true,
 			EnableSwarm:                     true,
 			Kubernetes:                      true, // enable kubernetes dataclient
@@ -469,7 +468,7 @@ spec:
 		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 		waitForOK(t, "http://"+o.Address+"/test", 1*time.Second)
-		muFindAddress.Unlock()
+		skipper.MuFindAddress.Unlock()
 		time.Sleep(2 * redisUpdateInterval)
 
 		metrics.WithGauges(func(g map[string]float64) {
@@ -497,9 +496,9 @@ spec:
 
 		metrics := &metricstest.MockMetrics{}
 
-		muFindAddress.Lock()
+		skipper.MuFindAddress.Lock()
 		o := skipper.Options{
-			Address:                      findAddress(t),
+			Address:                      skipper.FindAddress(t),
 			EnableRatelimiters:           true,
 			EnableSwarm:                  true,
 			SwarmRedisEndpointsRemoteURL: eps.URL,
@@ -513,7 +512,7 @@ spec:
 		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 		waitForOK(t, "http://"+o.Address+"/ready", 1*time.Second)
-		muFindAddress.Unlock()
+		skipper.MuFindAddress.Unlock()
 		time.Sleep(2 * redisUpdateInterval)
 
 		metrics.WithGauges(func(g map[string]float64) {
@@ -581,32 +580,6 @@ func createRedisEndpointsSpec(t *testing.T, addrs ...string) string {
 	require.NoError(t, err)
 
 	return fmt.Sprintf("---\n%s\n", b)
-}
-
-var muFindAddress sync.Mutex
-
-// findAddress returns an addr that you can listen on TCP. You need to
-// hold muFindAddress to call this function.
-func findAddress(t *testing.T) string {
-	t.Helper()
-
-	var (
-		err error
-		l   *net.TCPListener
-	)
-	for range 3 {
-		l, err = net.ListenTCP("tcp6", &net.TCPAddr{})
-		if err == nil {
-			break
-		}
-	}
-	require.NoError(t, err)
-
-	addr := l.Addr().String()
-	require.NoError(t, l.Close())
-	t.Logf("Found address %q to be free", addr)
-
-	return addr
 }
 
 func waitForOK(t *testing.T, url string, timeout time.Duration) {
