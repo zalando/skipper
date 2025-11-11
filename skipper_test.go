@@ -276,7 +276,11 @@ func TestHTTPSServer(t *testing.T) {
 		DataClients:    []routing.DataClient{}})
 	defer rt.Close()
 
-	proxy := proxy.New(rt, proxy.OptionsNone)
+	proxy := proxy.WithParams(proxy.Params{
+		Routing: rt,
+		Flags:   proxy.Flags(proxy.OptionsNone),
+		Metrics: &metricstest.MockMetrics{},
+	})
 	defer proxy.Close()
 	go listenAndServe(proxy, &o)
 
@@ -329,7 +333,11 @@ func TestHTTPServer(t *testing.T) {
 		DataClients:    []routing.DataClient{}})
 	defer rt.Close()
 
-	proxy := proxy.New(rt, proxy.OptionsNone)
+	proxy := proxy.WithParams(proxy.Params{
+		Routing: rt,
+		Flags:   proxy.Flags(proxy.OptionsNone),
+		Metrics: &metricstest.MockMetrics{},
+	})
 	defer proxy.Close()
 	go listenAndServe(proxy, &o)
 	r, err := waitConnGet("http://" + o.Address)
@@ -387,7 +395,12 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 	})
 	defer rt.Close()
 
-	proxy := proxy.New(rt, proxy.OptionsNone)
+	proxy := proxy.WithParams(proxy.Params{
+		Routing:              rt,
+		Flags:                proxy.Flags(proxy.OptionsNone),
+		CloseIdleConnsPeriod: -time.Second,
+		Metrics:              &metricstest.MockMetrics{},
+	})
 	defer proxy.Close()
 
 	sigs := make(chan os.Signal, 1)
