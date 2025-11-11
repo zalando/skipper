@@ -8,6 +8,7 @@ import (
 	"github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/annotate"
 	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/filters/awssigner/awssigv4"
 	"github.com/zalando/skipper/filters/circuit"
 	"github.com/zalando/skipper/filters/consistenthash"
 	"github.com/zalando/skipper/filters/cookie"
@@ -170,6 +171,7 @@ func Filters() []filters.Spec {
 		NewSetDynamicBackendScheme(),
 		NewSetDynamicBackendUrl(),
 		NewOriginMarkerSpec(),
+		awssigv4.New(),
 		diag.NewRandom(),
 		diag.NewRepeat(),
 		diag.NewRepeatHex(),
