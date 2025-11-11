@@ -278,7 +278,7 @@ func New(o Options) *Routing {
 	r := &Routing{log: o.Log, firstLoad: make(chan struct{}), quit: make(chan struct{})}
 	r.metrics = o.Metrics
 
-	if o.PollTimeout == 0 {
+	if o.PollTimeout == -1 {
 		o.Log.Info("Polling routetable is ignored as timeout is set to 0")
 		r.noPolls = true
 		return r

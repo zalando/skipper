@@ -2045,7 +2045,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	// ensure a non-zero poll timeout
-	if o.SourcePollTimeout < 0 {
+	if o.SourcePollTimeout != -1 && o.SourcePollTimeout <= 0 {
 		o.SourcePollTimeout = defaultSourcePollTimeout
 	}
 
