@@ -335,7 +335,6 @@ func (spec *AdmissionControlSpec) CreateFilter(args []interface{}) (filters.Filt
 		counter:          new(atomic.Int64),
 		successCounter:   new(atomic.Int64),
 		rand:             r,
-		//rand:             randWithSeed(), // flakytest
 	}
 	go ac.tickWindows(d)
 	return ac, nil

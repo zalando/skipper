@@ -27,24 +27,6 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func TestRand(t *testing.T) {
-	r := randWithSeed()
-
-	for _, ti := range []struct {
-		msg string
-	}{
-		{msg: "1"},
-		{msg: "2"},
-	} {
-		t.Run(ti.msg, func(t *testing.T) {
-			for range 10 {
-				t.Logf("%0.2f", r())
-			}
-		})
-	}
-
-}
-
 func TestAdmissionControl(t *testing.T) {
 	for _, ti := range []struct {
 		msg                        string
