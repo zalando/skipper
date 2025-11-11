@@ -170,9 +170,7 @@ func TestAdmissionControl(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			randFunc := randWithSeed()
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				var p float64
-				p = randFunc()
-				if p < ti.pBackendErr {
+				if randFunc() < ti.pBackendErr {
 					w.WriteHeader(http.StatusInternalServerError)
 				} else {
 					w.WriteHeader(http.StatusOK)
