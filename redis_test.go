@@ -9,6 +9,7 @@ import (
 	"net/http"
 	stdlibhttptest "net/http/httptest"
 	"os"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -135,6 +136,7 @@ spec:
 	lb := stdlibhttptest.NewServer(pr)
 	defer lb.Close()
 
+	muFindAddress.Lock()
 	rsvo := skipper.Options{
 		Address:                         findAddress(t),
 		Kubernetes:                      true,
@@ -145,9 +147,7 @@ spec:
 		KubernetesHealthcheck:           true,
 		SourcePollTimeout:               1500 * time.Millisecond,
 	}
-
 	go routesrv.Run(rsvo)
-
 	waitForOK(t, "http://"+rsvo.Address+"/routes", 1*time.Second)
 
 	// run skipper proxy that we want to test
@@ -173,6 +173,7 @@ spec:
 	go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 	waitForOK(t, "http://"+o.Address+"/kube-system/healthz", 1*time.Second)
+	muFindAddress.Unlock()
 
 	rate := 10
 	sec := 5
@@ -311,6 +312,7 @@ spec:
 	defer lb.Close()
 
 	// run skipper proxy that we want to test
+	muFindAddress.Lock()
 	o := skipper.Options{
 		Address:                         findAddress(t),
 		EnableRatelimiters:              true,
@@ -335,6 +337,7 @@ spec:
 	go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 	waitForOK(t, "http://"+o.Address+"/kube-system/healthz", 1*time.Second)
+	muFindAddress.Unlock()
 
 	rate := 10
 	sec := 5
@@ -407,6 +410,7 @@ spec:
 
 		metrics := &metricstest.MockMetrics{}
 
+		muFindAddress.Lock()
 		o := skipper.Options{
 			Address:                         findAddress(t),
 			EnableRatelimiters:              true,
@@ -426,6 +430,7 @@ spec:
 		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 		waitForOK(t, "http://"+o.Address+"/ready", 1*time.Second)
+		muFindAddress.Unlock()
 		time.Sleep(2 * redisUpdateInterval)
 
 		metrics.WithGauges(func(g map[string]float64) {
@@ -445,6 +450,7 @@ spec:
 
 		metrics := &metricstest.MockMetrics{}
 
+		muFindAddress.Lock()
 		o := skipper.Options{
 			Address:                         findAddress(t),
 			EnableRatelimiters:              true,
@@ -463,6 +469,7 @@ spec:
 		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 		waitForOK(t, "http://"+o.Address+"/test", 1*time.Second)
+		muFindAddress.Unlock()
 		time.Sleep(2 * redisUpdateInterval)
 
 		metrics.WithGauges(func(g map[string]float64) {
@@ -490,6 +497,7 @@ spec:
 
 		metrics := &metricstest.MockMetrics{}
 
+		muFindAddress.Lock()
 		o := skipper.Options{
 			Address:                      findAddress(t),
 			EnableRatelimiters:           true,
@@ -505,6 +513,7 @@ spec:
 		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 		waitForOK(t, "http://"+o.Address+"/ready", 1*time.Second)
+		muFindAddress.Unlock()
 		time.Sleep(2 * redisUpdateInterval)
 
 		metrics.WithGauges(func(g map[string]float64) {
@@ -574,14 +583,28 @@ func createRedisEndpointsSpec(t *testing.T, addrs ...string) string {
 	return fmt.Sprintf("---\n%s\n", b)
 }
 
+var muFindAddress sync.Mutex
+
+// findAddress returns an addr that you can listen on TCP. You need to
+// hold muFindAddress to call this function.
 func findAddress(t *testing.T) string {
 	t.Helper()
 
-	l, err := net.ListenTCP("tcp6", &net.TCPAddr{})
+	var (
+		err error
+		l   *net.TCPListener
+	)
+	for range 3 {
+		l, err = net.ListenTCP("tcp6", &net.TCPAddr{})
+		if err == nil {
+			break
+		}
+	}
 	require.NoError(t, err)
 
 	addr := l.Addr().String()
 	require.NoError(t, l.Close())
+	t.Logf("Found address %q to be free", addr)
 
 	return addr
 }
@@ -603,7 +626,7 @@ func waitForOK(t *testing.T, url string, timeout time.Duration) {
 		case <-to:
 			t.Fatalf("timeout waiting for %s", url)
 		default:
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(timeout / 10)
 		}
 	}
 }
