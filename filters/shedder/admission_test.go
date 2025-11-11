@@ -27,6 +27,24 @@ import (
 	"golang.org/x/time/rate"
 )
 
+func TestRand(t *testing.T) {
+	r := randWithSeed()
+
+	for _, ti := range []struct {
+		msg string
+	}{
+		{msg: "1"},
+		{msg: "2"},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			for range 10 {
+				t.Logf("%0.2f", r())
+			}
+		})
+	}
+
+}
+
 func TestAdmissionControl(t *testing.T) {
 	for _, ti := range []struct {
 		msg                        string
@@ -151,11 +169,9 @@ func TestAdmissionControl(t *testing.T) {
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			randFunc := randWithSeed()
-			var mu sync.Mutex
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				mu.Lock()
-				p := randFunc()
-				mu.Unlock()
+				var p float64
+				p = randFunc()
 				if p < ti.pBackendErr {
 					w.WriteHeader(http.StatusInternalServerError)
 				} else {
@@ -165,7 +181,7 @@ func TestAdmissionControl(t *testing.T) {
 			defer backend.Close()
 
 			spec := NewAdmissionControl(Options{
-				rand: randWithSeed(),
+				testRand: true,
 			}).(*AdmissionControlSpec)
 
 			args := make([]interface{}, 0, 6)
@@ -265,7 +281,7 @@ func TestAdmissionControlChainOnlyBackendErrorPass(t *testing.T) {
 	defer backend.Close()
 
 	spec := NewAdmissionControl(Options{
-		rand: randWithSeed(),
+		testRand: true,
 	}).(*AdmissionControlSpec)
 
 	argsLeaf := make([]interface{}, 0, 6)
@@ -398,7 +414,7 @@ func TestAdmissionControlCleanupModes(t *testing.T) {
 			defer backend2.Close()
 
 			fspec := NewAdmissionControl(Options{
-				rand: randWithSeed(),
+				testRand: true,
 			})
 			spec, ok := fspec.(*AdmissionControlSpec)
 			if !ok {
@@ -571,7 +587,7 @@ func TestAdmissionControlCleanupMultipleFilters(t *testing.T) {
 			defer backend.Close()
 
 			fspec := NewAdmissionControl(Options{
-				rand: randWithSeed(),
+				testRand: true,
 			})
 			spec, ok := fspec.(*AdmissionControlSpec)
 			if !ok {
@@ -613,7 +629,7 @@ func TestAdmissionControlSetsSpansTags(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	fspec := NewAdmissionControl(Options{Tracer: tracer, rand: randWithSeed()})
+	fspec := NewAdmissionControl(Options{Tracer: tracer, testRand: true})
 	spec, ok := fspec.(*AdmissionControlSpec)
 	if !ok {
 		t.Fatal("FilterSpec is not a AdmissionControlSpec")
