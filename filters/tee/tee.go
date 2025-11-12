@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -88,6 +89,7 @@ type tee struct {
 	rx                *regexp.Regexp
 	replacement       string
 	shadowRequestDone func() // test hook
+	max               float64
 }
 
 type teeTie struct {
@@ -207,6 +209,11 @@ func (r *tee) Response(filters.FilterContext) {}
 
 // Request is copied and then modified to adopt changes in new backend
 func (r *tee) Request(fc filters.FilterContext) {
+	if r.max != float64(0) {
+		if rand.Float64() > r.max {
+			return
+		}
+	}
 	req := fc.Request()
 
 	// omit loops
@@ -301,7 +308,7 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, io.ReadCloser, erro
 // Creates out tee Filter
 // If only one parameter is given shadow backend is used as it is specified
 // If second and third parameters are also set, then path is modified
-func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (spec *teeSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	var checkRedirect func(req *http.Request, via []*http.Request) error
 	if spec.options.NoFollow {
 		checkRedirect = func(req *http.Request, via []*http.Request) error {
@@ -309,10 +316,10 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 		}
 	}
 
-	if len(config) == 0 {
+	if len(args) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
-	backend, ok := config[0].(string)
+	backend, ok := args[0].(string)
 	if !ok {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -349,20 +356,30 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 		scheme: u.Scheme,
 	}
 
-	switch len(config) {
+	switch len(args) {
 	case 1:
 		tee.typ = asBackend
 		return &tee, nil
+	case 2:
+		// shadow only percentage of the traffic
+		if probMax, ok := args[1].(float64); ok && 0.0 <= probMax && probMax <= 1.0 {
+			tee.max = probMax
+		} else {
+			return nil, fmt.Errorf("invalid filter config in %s, expecting float64 [0,1], got %v", filters.TeeName, args)
+		}
+		tee.typ = asBackend
+		return &tee, nil
+
 	case 3:
 		// modpath
-		expr, ok := config[1].(string)
+		expr, ok := args[1].(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, config)
+			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, args)
 		}
 
-		replacement, ok := config[2].(string)
+		replacement, ok := args[2].(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, config)
+			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, args)
 		}
 
 		rx, err := regexp.Compile(expr)
@@ -374,6 +391,34 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 		tee.rx = rx
 		tee.replacement = replacement
 
+		return &tee, nil
+	case 4:
+		// modpath and shadow percentage
+		expr, ok := args[1].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, args)
+		}
+
+		replacement, ok := args[2].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, args)
+		}
+
+		if probMax, ok := args[3].(float64); ok && 0.0 <= probMax && probMax <= 1.0 {
+			tee.max = probMax
+		} else {
+			return nil, fmt.Errorf("invalid filter config in %s, expecting float64 [0,1], got %v", filters.TeeName, args)
+
+		}
+
+		rx, err := regexp.Compile(expr)
+		if err != nil {
+			return nil, err
+		}
+
+		tee.typ = pathModified
+		tee.rx = rx
+		tee.replacement = replacement
 		return &tee, nil
 	default:
 		return nil, filters.ErrInvalidFilterParameters
