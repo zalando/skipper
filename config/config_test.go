@@ -114,6 +114,7 @@ func defaultConfig(with func(*Config)) *Config {
 		KubernetesRedisServicePort:              6379,
 		KubernetesBackendTrafficAlgorithmString: "traffic-predicate",
 		KubernetesDefaultLoadBalancerAlgorithm:  "roundRobin",
+		KubernetesNoPoll:                        false,
 		Oauth2TokeninfoTimeout:                  2 * time.Second,
 		Oauth2TokenintrospectionTimeout:         2 * time.Second,
 		Oauth2TokeninfoSubjectKey:               "uid",
