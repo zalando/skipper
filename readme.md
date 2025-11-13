@@ -366,3 +366,4 @@ Every update that changes the minor version (the `m` in `v0.m.p`),
 should be done by `+1` only. So `v0.N.x` to `v0.N+1.y` and you should
 read `v0.N+1.0` release page to see what can break and what you have
 to do in order to have no issues while updating.
+bar
