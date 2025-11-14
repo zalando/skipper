@@ -8,6 +8,7 @@ import (
 
 	"github.com/docker/go-connections/nat"
 	"github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/maintnotifications"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -18,14 +19,17 @@ type options struct {
 }
 
 func NewTestRedis(t testing.TB) (address string, done func()) {
+	t.Helper()
 	return newTestRedisWithOptions(t, options{})
 }
 
 func NewTestRedisWithPassword(t testing.TB, password string) (address string, done func()) {
+	t.Helper()
 	return newTestRedisWithOptions(t, options{password: password})
 }
 
 func newTestRedisWithOptions(t testing.TB, opts options) (address string, done func()) {
+	t.Helper()
 	var args []string
 	if opts.password != "" {
 		args = append(args, "--requirepass", opts.password)
@@ -100,7 +104,15 @@ func newTestRedisWithOptions(t testing.TB, opts options) (address string, done f
 }
 
 func ping(ctx context.Context, address, password string) error {
-	rdb := redis.NewClient(&redis.Options{Addr: address, Password: password})
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     address,
+		Password: password,
+		// https://github.com/redis/go-redis/issues/3536#issuecomment-3499924405
+		// Explicitly disable maintenance notifications
+		// This prevents the client from sending CLIENT MAINT_NOTIFICATIONS ON
+		MaintNotificationsConfig: &maintnotifications.Config{
+			Mode: maintnotifications.ModeDisabled,
+		}})
 	defer rdb.Close()
 
 	for _, err := rdb.Ping(ctx).Result(); ctx.Err() == nil && err != nil; _, err = rdb.Ping(ctx).Result() {

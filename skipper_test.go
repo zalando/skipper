@@ -8,6 +8,8 @@ import (
 	"net/http"
 	stdlibhttptest "net/http/httptest"
 	"os"
+	"slices"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -43,13 +45,7 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 }
 
 func testListener() bool {
-	for _, a := range os.Args {
-		if a == "listener" {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(os.Args, "listener")
 }
 
 func waitConn(req func() (*http.Response, error)) (*http.Response, error) {
@@ -78,14 +74,31 @@ func waitConnGet(url string) (*http.Response, error) {
 	})
 }
 
-func findAddress() (string, error) {
-	l, err := net.ListenTCP("tcp6", &net.TCPAddr{})
-	if err != nil {
-		return "", err
-	}
+// MuFindAddress has to be hold to be able to call FindAddress. Caller has to release when he is ready.
+var MuFindAddress sync.Mutex
 
-	defer l.Close()
-	return l.Addr().String(), nil
+// skipper.FindAddress returns an addr that you can listen on TCP. You need to
+// hold skipper.MuFindAddress to call this function.
+func FindAddress(t *testing.T) string {
+	t.Helper()
+
+	var (
+		err error
+		l   *net.TCPListener
+	)
+	for range 3 {
+		l, err = net.ListenTCP("tcp6", &net.TCPAddr{})
+		if err == nil {
+			break
+		}
+	}
+	require.NoError(t, err)
+
+	addr := l.Addr().String()
+	require.NoError(t, l.Close())
+	t.Logf("Found address %q to be free", addr)
+
+	return addr
 }
 
 func TestOptionsFilterRegistry(t *testing.T) {
@@ -247,15 +260,9 @@ func TestHTTPSServer(t *testing.T) {
 		t.Skip()
 	}
 
-	a, err := findAddress()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	i, err := findAddress()
-	if err != nil {
-		t.Fatal(err)
-	}
+	MuFindAddress.Lock()
+	a := FindAddress(t)
+	i := FindAddress(t)
 
 	o := Options{
 		Address:         a,
@@ -269,7 +276,11 @@ func TestHTTPSServer(t *testing.T) {
 		DataClients:    []routing.DataClient{}})
 	defer rt.Close()
 
-	proxy := proxy.New(rt, proxy.OptionsNone)
+	proxy := proxy.WithParams(proxy.Params{
+		Routing: rt,
+		Flags:   proxy.Flags(proxy.OptionsNone),
+		Metrics: &metricstest.MockMetrics{},
+	})
 	defer proxy.Close()
 	go listenAndServe(proxy, &o)
 
@@ -289,6 +300,7 @@ func TestHTTPSServer(t *testing.T) {
 	}
 
 	r, err = waitConnGet("http://" + o.InsecureAddress)
+	MuFindAddress.Unlock()
 	if r != nil {
 		defer r.Body.Close()
 	}
@@ -311,10 +323,8 @@ func TestHTTPServer(t *testing.T) {
 		t.Skip()
 	}
 
-	a, err := findAddress()
-	if err != nil {
-		t.Fatal(err)
-	}
+	MuFindAddress.Lock()
+	a := FindAddress(t)
 
 	o := Options{Address: a}
 
@@ -323,10 +333,15 @@ func TestHTTPServer(t *testing.T) {
 		DataClients:    []routing.DataClient{}})
 	defer rt.Close()
 
-	proxy := proxy.New(rt, proxy.OptionsNone)
+	proxy := proxy.WithParams(proxy.Params{
+		Routing: rt,
+		Flags:   proxy.Flags(proxy.OptionsNone),
+		Metrics: &metricstest.MockMetrics{},
+	})
 	defer proxy.Close()
 	go listenAndServe(proxy, &o)
 	r, err := waitConnGet("http://" + o.Address)
+	MuFindAddress.Unlock()
 	if r != nil {
 		defer r.Body.Close()
 	}
@@ -363,11 +378,12 @@ type responseOrError struct {
 func testServerShutdown(t *testing.T, o *Options, scheme string) {
 	const shutdownDelay = 1 * time.Second
 
-	address, err := findAddress()
-	require.NoError(t, err)
+	MuFindAddress.Lock()
+	defer MuFindAddress.Unlock()
+	address := FindAddress(t)
 
 	o.Address, o.WaitForHealthcheckInterval = address, shutdownDelay
-	testUrl := scheme + "://" + address
+	testURL := scheme + "://" + address
 
 	// simulate a backend that got a request and should be handled correctly
 	dc, err := routestring.New(`r0: * -> latency("3s") -> inlineContent("OK") -> status(200) -> <shunt>`)
@@ -379,7 +395,12 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 	})
 	defer rt.Close()
 
-	proxy := proxy.New(rt, proxy.OptionsNone)
+	proxy := proxy.WithParams(proxy.Params{
+		Routing:              rt,
+		Flags:                proxy.Flags(proxy.OptionsNone),
+		CloseIdleConnsPeriod: -time.Second,
+		Metrics:              &metricstest.MockMetrics{},
+	})
 	defer proxy.Close()
 
 	sigs := make(chan os.Signal, 1)
@@ -398,7 +419,7 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 
 	roeCh := make(chan responseOrError)
 	go func() {
-		rsp, err := waitConnGet(testUrl)
+		rsp, err := waitConnGet(testURL)
 		roeCh <- responseOrError{rsp, err}
 	}()
 
@@ -410,7 +431,7 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 	case <-roeCh:
 		t.Fatalf("Request should still be in progress after shutdown started")
 	default:
-		_, err = waitConnGet(testUrl)
+		_, err = waitConnGet(testURL)
 		assert.ErrorContains(t, err, "connection refused", "Another request should fail after shutdown started")
 	}
 
