@@ -2969,3 +2969,16 @@ func (mockSecretProvider) Add(string) error {
 }
 
 func (mockSecretProvider) Close() {}
+
+func TestNoPoll(t *testing.T) {
+	api := newTestAPI(t, nil, &definitions.IngressV1List{})
+	defer api.Close()
+
+	dc, err := New(Options{KubernetesURL: api.server.URL, KubernetesNoPoll: true})
+	require.NoError(t, err)
+
+	routes, err := dc.LoadAll()
+	require.NoError(t, err)
+
+	assert.Len(t, routes, 0)
+}

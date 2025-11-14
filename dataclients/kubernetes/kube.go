@@ -257,6 +257,9 @@ type Options struct {
 
 	// ForwardBackendURL allows to use <forward> backend via kubernetes, for example routgroup backend `type: forward`.
 	ForwardBackendURL string
+
+	// KubernetesNoPoll force kubernetes dataclient to not create routing table
+	KubernetesNoPoll bool
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -276,6 +279,7 @@ type Client struct {
 	state                  *clusterState
 	loggingInterval        time.Duration
 	loggingLastEnabled     time.Time
+	noPoll                 bool
 }
 
 // New creates and initializes a Kubernetes DataClient.
@@ -355,6 +359,7 @@ func New(o Options) (*Client, error) {
 		defaultFiltersDir:      o.DefaultFiltersDir,
 		forwardBackendURL:      o.ForwardBackendURL,
 		loggingInterval:        1 * time.Minute,
+		noPoll:                 o.KubernetesNoPoll,
 	}, nil
 }
 
@@ -420,6 +425,11 @@ func mapRoutes(routes []*eskip.Route) (map[string]*eskip.Route, []*eskip.Route) 
 }
 
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
+	if c.noPoll {
+		log.Debug("kubernetes dataclient is set to not poll")
+		return []*eskip.Route{}, nil
+	}
+
 	c.mu.Lock()
 	state, err := c.ClusterClient.fetchClusterState()
 	if err != nil {
@@ -503,7 +513,7 @@ func healthcheckRoutes(reverseSourcePredicate bool) []*eskip.Route {
 		if i > 0 {
 			cidrs.WriteString(", ")
 		}
-		cidrs.WriteString(fmt.Sprintf("%q", ip))
+		fmt.Fprintf(cidrs, "%q", ip)
 	}
 	params.SourceCIDRs = cidrs.String()
 
@@ -533,7 +543,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 //
 // TODO: implement a force reset after some time.
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
-	log.Debugf("polling for updates")
+	log.Debug("polling for updates")
 	r, err := c.loadAndConvert()
 	if err != nil {
 		log.Errorf("polling for updates failed: %v", err)
@@ -549,8 +559,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	)
 
 	for id := range c.current {
-		// TODO: use eskip.Eq()
-		if r, ok := next[id]; ok && r.String() != c.current[id].String() {
+		if r, ok := next[id]; ok && eskip.Eq(r, c.current[id]) {
 			updatedRoutes = append(updatedRoutes, r)
 		} else if !ok {
 			deletedIDs = append(deletedIDs, id)

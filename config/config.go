@@ -195,6 +195,7 @@ type Config struct {
 	KubernetesBackendTrafficAlgorithm                    kubernetes.BackendTrafficAlgorithm `yaml:"-"`
 	KubernetesDefaultLoadBalancerAlgorithm               string                             `yaml:"kubernetes-default-lb-algorithm"`
 	KubernetesForceService                               bool                               `yaml:"kubernetes-force-service"`
+	KubernetesNoPoll                                     bool                               `yaml:"kubernetes-no-poll"`
 
 	// Default filters
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
@@ -519,6 +520,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesBackendTrafficAlgorithmString, "kubernetes-backend-traffic-algorithm", kubernetes.TrafficPredicateAlgorithm.String(), "sets the algorithm to be used for traffic splitting between backends: traffic-predicate or traffic-segment-predicate")
 	flag.StringVar(&cfg.KubernetesDefaultLoadBalancerAlgorithm, "kubernetes-default-lb-algorithm", kubernetes.DefaultLoadBalancerAlgorithm, "sets the default algorithm to be used for load balancing between backend endpoints, available options: roundRobin, consistentHash, random, powerOfRandomNChoices")
 	flag.BoolVar(&cfg.KubernetesForceService, "kubernetes-force-service", false, "overrides default Skipper functionality and routes traffic using Kubernetes Services instead of Endpoints")
+	flag.BoolVar(&cfg.KubernetesNoPoll, "kubernetes-no-poll", false, "force kubernetes dataclient to not to create/update routing table")
 
 	// Auth:
 	flag.BoolVar(&cfg.EnableOAuth2GrantFlow, "enable-oauth2-grant-flow", false, "enables OAuth2 Grant Flow filter")
@@ -935,6 +937,7 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesBackendTrafficAlgorithm:              c.KubernetesBackendTrafficAlgorithm,
 		KubernetesDefaultLoadBalancerAlgorithm:         c.KubernetesDefaultLoadBalancerAlgorithm,
 		KubernetesForceService:                         c.KubernetesForceService,
+		KubernetesNoPoll:                               c.KubernetesNoPoll,
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                c.ApiUsageMonitoringEnable,
