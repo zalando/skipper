@@ -67,7 +67,6 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ringClient := net.NewRedisRingClient(&net.RedisOptions{
 				Addrs:    []string{redisAddr},
@@ -93,7 +92,7 @@ func Benchmark_clusterLimitRedis_Allow(b *testing.B) {
 	redisAddr, done := redistest.NewTestRedis(b)
 	defer done()
 
-	for i := 0; i < 21; i++ {
+	for i := range 21 {
 		benchmarkName := fmt.Sprintf("ratelimit with group name of %d symbols", 1<<i)
 		b.Run(benchmarkName, func(b *testing.B) {
 			groupName := strings.Repeat("a", 1<<i)
@@ -177,7 +176,6 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
 			defer ringClient.Close()
@@ -239,7 +237,6 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
 			defer ringClient.Close()
@@ -303,7 +300,6 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
 			defer ringClient.Close()
@@ -368,7 +364,6 @@ func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
 			defer ringClient.Close()
@@ -434,7 +429,7 @@ func TestFailOpenOnRedisError(t *testing.T) {
 }
 
 func repeat(b bool, n int) (result []bool) {
-	for i := 0; i < n; i++ {
+	for range n {
 		result = append(result, b)
 	}
 	return

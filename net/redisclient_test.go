@@ -168,7 +168,6 @@ func TestRedisClient(t *testing.T) {
 			wantErr: false,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			cli := NewRedisRingClient(tt.options)
 			defer func() {
