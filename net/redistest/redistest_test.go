@@ -11,7 +11,7 @@ func TestRedistest(t *testing.T) {
 	defer done()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := ping(ctx, r, ""); err != nil {
+	if err := ping(ctx, r, "", ""); err != nil {
 		t.Fatalf("Failed to ping redis: %v", err)
 	}
 }
@@ -21,7 +21,7 @@ func TestRedistestRedis6(t *testing.T) {
 	defer done()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := ping(ctx, r, ""); err != nil {
+	if err := ping(ctx, r, "", ""); err != nil {
 		t.Fatalf("Failed to ping redis: %v", err)
 	}
 }
