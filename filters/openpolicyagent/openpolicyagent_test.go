@@ -265,6 +265,8 @@ func TestRegistry(t *testing.T) {
 	}
 	runWithTestCases(t, testCases,
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			t.Parallel()
+			d := 50 * time.Millisecond
 			var config []byte
 			if tc.discoveryBundle != "" {
 				_, config = mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
@@ -272,7 +274,7 @@ func TestRegistry(t *testing.T) {
 				_, config = mockControlPlaneWithResourceBundle()
 			}
 
-			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(d), WithCleanInterval(d), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
 			inst1, err := registry.GetOrStartInstance("test")
@@ -296,7 +298,7 @@ func TestRegistry(t *testing.T) {
 			registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
 
 			//Allow clean up
-			time.Sleep(3 * time.Second)
+			time.Sleep(3 * d)
 
 			inst_different_bundle, err := registry.GetOrStartInstance("anotherbundlename")
 			assert.NoError(t, err)
@@ -313,7 +315,7 @@ func TestRegistry(t *testing.T) {
 			})
 
 			// Allow clean up
-			time.Sleep(3 * time.Second)
+			time.Sleep(3 * d)
 
 			inst5, err := registry.GetOrStartInstance("test")
 			assert.NoError(t, err)
