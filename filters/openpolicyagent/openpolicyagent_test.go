@@ -133,7 +133,7 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 		}),
 	)
 
-	config := []byte(fmt.Sprintf(`{
+	config := fmt.Appendf(nil, `{
 		"services": {
 			"test": {
 				"url": %q,
@@ -148,7 +148,7 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 			"resource": %q,
 			"service": "test"
 		}
-	}`, opaControlPlane.URL(), discoveryBundle))
+	}`, opaControlPlane.URL(), discoveryBundle)
 
 	return opaControlPlane, config
 }
@@ -176,7 +176,7 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 		opasdktest.MockBundle("/bundles/use_body", map[string]string{
 			"main.rego": `
 				package envoy.authz
-				
+
 				import rego.v1
 
 				default allow = false
@@ -215,7 +215,7 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 		`
 	}
 
-	config := []byte(fmt.Sprintf(`{
+	config := fmt.Appendf(nil, `{
 		"services": {
 			"test": {
 				"url": %q
@@ -234,7 +234,7 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 				"skip-request-body-parse": false
 			}
 		}
-	}`, opaControlPlane.URL(), jwtCacheConfig))
+	}`, opaControlPlane.URL(), jwtCacheConfig)
 
 	return opaControlPlane, config
 }
@@ -519,7 +519,7 @@ func TestOpaActivationFailureWithRetry(t *testing.T) {
 			}))
 			defer server.Close()
 
-			config := []byte(fmt.Sprintf(`{
+			config := fmt.Appendf(nil, `{
 		"services": {
 			"test": {
 				"url": %q,
@@ -534,7 +534,7 @@ func TestOpaActivationFailureWithRetry(t *testing.T) {
 			"resource": %q,
 			"service": "test"
 		}
-	}`, server.URL, "/bundles/discovery"))
+	}`, server.URL, "/bundles/discovery")
 			additionalWait := 0 * time.Millisecond
 			if tc.latency != nil {
 				additionalWait += 2 * *tc.latency
