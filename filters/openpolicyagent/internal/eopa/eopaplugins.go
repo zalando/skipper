@@ -1,3 +1,4 @@
+// Package eopa provides enterprise opa plugins aggregation.
 package eopa
 
 import (
