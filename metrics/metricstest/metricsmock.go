@@ -129,7 +129,6 @@ func (m *MockMetrics) MeasureFilterCreate(filterName string, start time.Time) {
 	key := fmt.Sprintf("%sfilter.%s.create", m.Prefix, filterName)
 	m.WithMeasures(func(measures map[string][]time.Duration) {
 		measures[key] = append(m.measures[key], time.Since(start))
-		fmt.Printf("measures: %#v\n", measures)
 	})
 }
 
