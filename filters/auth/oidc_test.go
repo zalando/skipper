@@ -889,6 +889,7 @@ func TestOIDCSetup(t *testing.T) {
 		expectCookieDomain: "skipper.test",
 	}} {
 		t.Run(tc.msg, func(t *testing.T) {
+			t.Parallel()
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				requestDump, _ := httputil.DumpRequest(r, false)
 				assert.Contains(t, string(requestDump), tc.expectRequest, "expected request not fulfilled")
