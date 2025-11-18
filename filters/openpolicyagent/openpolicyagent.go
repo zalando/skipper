@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/zalando/skipper/filters/openpolicyagent/internal/eopa"
 	"io"
 	"maps"
 	"math/rand"
@@ -115,6 +116,8 @@ type OpenPolicyAgentRegistry struct {
 	controlLoopInterval     time.Duration
 	controlLoopMaxJitter    time.Duration
 
+	enableEopaPlugins bool
+
 	enableDataPreProcessingOptimization bool
 
 	valueCache iCache.InterQueryValueCache
@@ -196,6 +199,13 @@ func WithTracer(tracer opentracing.Tracer) func(*OpenPolicyAgentRegistry) error 
 func WithEnableCustomControlLoop(enabled bool) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.enableCustomControlLoop = enabled
+		return nil
+	}
+}
+
+func WithEnableEopaPlugins(enabled bool) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.enableEopaPlugins = enabled
 		return nil
 	}
 }
@@ -690,7 +700,14 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		return nil, err
 	}
 
-	discoveryPlugin, err := discovery.New(manager, discovery.Factories(map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}}), discovery.Hooks(configHooks))
+	discoveryOpts := map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}}
+	if registry.enableEopaPlugins {
+		for name, factory := range eopa.All() {
+			discoveryOpts[name] = factory
+		}
+	}
+
+	discoveryPlugin, err := discovery.New(manager, discovery.Factories(discoveryOpts), discovery.Hooks(configHooks))
 	if err != nil {
 		return nil, err
 	}
