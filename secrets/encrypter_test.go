@@ -168,7 +168,6 @@ func Test_GetSecret(t *testing.T) {
 			wantErr: false,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			fss := &fileSecretSource{fileName: tt.args}
 			got, err := fss.GetSecret()
@@ -202,7 +201,7 @@ func TestGetEncrypter(t *testing.T) {
 		t.Fatalf("Failed to write secret: %v", err)
 	}
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		wg.Add(1)
 		go func() {
 			enc, err := reg.GetEncrypter(time.Second, fd.Name())
@@ -235,5 +234,4 @@ func TestGetEncrypter(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	//time.Sleep(2 * time.Second)
 }
