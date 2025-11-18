@@ -51,10 +51,7 @@ func (rc *requestCheck) Request(ctx filters.FilterContext) {
 func checkWithTolerance(start time.Time, expected time.Duration) bool {
 	now := time.Now()
 
-	epsilon := time.Duration(float64(expected) * 0.3)
-	if epsilon < minEpsilon {
-		epsilon = minEpsilon
-	}
+	epsilon := max(time.Duration(float64(expected)*0.3), minEpsilon)
 
 	lower := start.Add(expected - epsilon)
 	higher := start.Add(expected + epsilon)
