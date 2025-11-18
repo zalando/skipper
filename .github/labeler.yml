@@ -1,0 +1,11 @@
+# Add 'docs' to any changes within 'docs' folder or any subfolders
+documentation:
+  - docs/**/*
+
+# Add 'enhancement' label to any PR where the head branch name starts with `feature/` in the name
+enhancement:
+  - head-branch: ['^feature/']
+
+# Add 'codefreeze' label to any PR that is opened against the `cw2025` branch
+codefreeze:
+  - base-branch: 'cw2025'
