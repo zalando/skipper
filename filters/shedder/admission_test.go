@@ -150,6 +150,7 @@ func TestAdmissionControl(t *testing.T) {
 		pExpectedAdmissionShedding: 0.0,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
+			t.Parallel()
 			randFunc := randWithSeed()
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if randFunc() < ti.pBackendErr {
