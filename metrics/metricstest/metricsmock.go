@@ -129,6 +129,7 @@ func (m *MockMetrics) MeasureFilterCreate(filterName string, start time.Time) {
 	key := fmt.Sprintf("%sfilter.%s.create", m.Prefix, filterName)
 	m.WithMeasures(func(measures map[string][]time.Duration) {
 		measures[key] = append(m.measures[key], time.Since(start))
+		fmt.Printf("measures: %#v\n", measures)
 	})
 }
 
@@ -136,7 +137,7 @@ func (m *MockMetrics) MeasureFilterRequest(filterName string, start time.Time) {
 	// implement me
 }
 
-func (m *MockMetrics) MeasureAllFiltersRequest(routeId string, start time.Time) {
+func (m *MockMetrics) MeasureAllFiltersRequest(routeID string, start time.Time) {
 	// implement me
 }
 
@@ -147,7 +148,7 @@ func (m *MockMetrics) MeasureBackendRequestHeader(host string, size int) {
 	})
 }
 
-func (m *MockMetrics) MeasureBackend(routeId string, start time.Time) {
+func (m *MockMetrics) MeasureBackend(routeID string, start time.Time) {
 	// implement me
 }
 
@@ -159,11 +160,11 @@ func (m *MockMetrics) MeasureFilterResponse(filterName string, start time.Time) 
 	// implement me
 }
 
-func (m *MockMetrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
+func (m *MockMetrics) MeasureAllFiltersResponse(routeID string, start time.Time) {
 	// implement me
 }
 
-func (m *MockMetrics) MeasureResponse(code int, method string, routeId string, start time.Time) {
+func (m *MockMetrics) MeasureResponse(code int, method string, routeID string, start time.Time) {
 	// implement me
 }
 
@@ -187,7 +188,7 @@ func (m *MockMetrics) MeasureProxy(requestDuration, responseDuration time.Durati
 	})
 }
 
-func (m *MockMetrics) MeasureServe(routeId, host, method string, code int, start time.Time) {
+func (m *MockMetrics) MeasureServe(routeID, host, method string, code int, start time.Time) {
 	// implement me
 }
 
@@ -195,7 +196,7 @@ func (m *MockMetrics) IncRoutingFailures() {
 	// implement me
 }
 
-func (m *MockMetrics) IncErrorsBackend(routeId string) {
+func (m *MockMetrics) IncErrorsBackend(routeID string) {
 	// implement me
 }
 
@@ -203,7 +204,7 @@ func (m *MockMetrics) MeasureBackend5xx(t time.Time) {
 	// implement me
 }
 
-func (m *MockMetrics) IncErrorsStreaming(routeId string) {
+func (m *MockMetrics) IncErrorsStreaming(routeID string) {
 	// implement me
 }
 
@@ -225,14 +226,14 @@ func (m *MockMetrics) Gauge(key string) (v float64, ok bool) {
 	return
 }
 
-func (m *MockMetrics) SetInvalidRoute(routeId, reason string) {
-	key := fmt.Sprintf("route.invalid.%s..%s", routeId, reason)
+func (m *MockMetrics) SetInvalidRoute(routeID, reason string) {
+	key := fmt.Sprintf("route.invalid.%s..%s", routeID, reason)
 	m.UpdateGauge(key, 1)
 }
 
-func (m *MockMetrics) DeleteInvalidRoute(routeId string) {
+func (m *MockMetrics) DeleteInvalidRoute(routeID string) {
 	m.WithGauges(func(gauges map[string]float64) {
-		prefix := fmt.Sprintf("route.invalid.%s.", routeId)
+		prefix := fmt.Sprintf("route.invalid.%s.", routeID)
 		for key := range gauges {
 			if strings.HasPrefix(key, prefix) {
 				gauges[key] = 0
@@ -241,4 +242,4 @@ func (m *MockMetrics) DeleteInvalidRoute(routeId string) {
 	})
 }
 
-func (m *MockMetrics) Close() {}
+func (*MockMetrics) Close() {}
