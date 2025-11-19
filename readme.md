@@ -11,6 +11,7 @@
 ![CodeQL](https://github.com/zalando/skipper/actions/workflows/codeql-analysis.yml/badge.svg)
 
 
+
 <p><img height="180" alt="Skipper" src="https://raw.githubusercontent.com/zalando/skipper/master/img/skipper-h180.png"></p>
 
 # Skipper
