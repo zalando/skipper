@@ -486,7 +486,7 @@ func TestRetryableErrors(t *testing.T) {
 
 func TestOpaActivationFailureWithRetry(t *testing.T) {
 	slowResponse := 1005 * time.Millisecond
-	testCases := []struct {
+	for _, tc := range []struct {
 		status  int
 		latency *time.Duration
 		error   string
@@ -508,10 +508,9 @@ func TestOpaActivationFailureWithRetry(t *testing.T) {
 			status: 404,
 			error:  "server replied with Not Found",
 		},
-	}
-
-	for _, tc := range testCases {
+	} {
 		t.Run(fmt.Sprintf("status=%v;added-latency:%v", tc.status, tc.latency), func(t *testing.T) {
+			t.Parallel()
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if tc.latency != nil {
