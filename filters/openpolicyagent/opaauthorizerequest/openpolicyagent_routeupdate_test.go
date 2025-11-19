@@ -22,19 +22,14 @@ import (
 )
 
 const (
-	routeUpdatePollingTimeout = 10 * time.Millisecond
-	//startUpTimeOut            = 1 * time.Second
-	startUpTimeOut = 500 * time.Millisecond
-	//startupTimeoutWithoutControlLoop = 3 * time.Second
-	//startupTimeoutWithoutControlLoop = 1 * time.Second
+	routeUpdatePollingTimeout        = 10 * time.Millisecond
+	startUpTimeOut                   = 500 * time.Millisecond
 	startupTimeoutWithoutControlLoop = 500 * time.Millisecond
 	cleanInterval                    = 5 * time.Minute
 	reuseDuration                    = 5 * time.Minute
 	controlLoopInterval              = 30 * time.Millisecond
 	controlLoopMaxJitter             = 3 * time.Millisecond
-	//proxyWaitTime        = 5 * time.Second
-	//proxyWaitTime = 2 * time.Second
-	proxyWaitTime = 1200 * time.Millisecond
+	proxyWaitTime                    = 1200 * time.Millisecond
 )
 
 type testPhase struct {
