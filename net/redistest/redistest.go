@@ -14,6 +14,7 @@ import (
 )
 
 type options struct {
+	username string
 	password string
 	image    string
 }
@@ -84,7 +85,7 @@ func newTestRedisWithOptions(t testing.TB, opts options) (address string, done f
 
 	t.Logf("Started redis server at %s in %v", address, time.Since(start))
 
-	if err := ping(ctx, address, opts.password); err != nil {
+	if err := ping(ctx, address, opts.username, opts.password); err != nil {
 		t.Fatalf("Failed to ping redis server: %v", err)
 	}
 
@@ -103,9 +104,10 @@ func newTestRedisWithOptions(t testing.TB, opts options) (address string, done f
 	return
 }
 
-func ping(ctx context.Context, address, password string) error {
+func ping(ctx context.Context, address, username, password string) error {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     address,
+		Username: username,
 		Password: password,
 		// https://github.com/redis/go-redis/issues/3536#issuecomment-3499924405
 		// Explicitly disable maintenance notifications
