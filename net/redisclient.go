@@ -10,6 +10,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/opentracing/opentracing-go"
 	"github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/maintnotifications"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 
@@ -36,6 +37,8 @@ type RedisOptions struct {
 	// triggered and SetAddrs be used to update the redis shards
 	UpdateInterval time.Duration
 
+	// Username used to connect to the Redis server
+	Username string
 	// Password is the password needed to connect to Redis server
 	Password string
 
@@ -207,6 +210,28 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 
 	ringOptions := &redis.RingOptions{
 		Addrs: map[string]string{},
+		NewClient: func(opt *redis.Options) *redis.Client {
+			if ro != nil {
+				opt.Username = ro.Username
+				opt.Password = ro.Password
+				opt.ReadTimeout = ro.ReadTimeout
+				opt.WriteTimeout = ro.WriteTimeout
+				opt.PoolTimeout = ro.PoolTimeout
+				opt.DialTimeout = ro.DialTimeout
+				opt.MinIdleConns = ro.MinIdleConns
+				opt.PoolSize = ro.MaxIdleConns
+
+			}
+
+			// https://github.com/redis/go-redis/issues/3536
+			// Explicitly disable maintenance notifications
+			// This prevents the client from sending CLIENT MAINT_NOTIFICATIONS ON
+			opt.MaintNotificationsConfig = &maintnotifications.Config{
+				Mode: maintnotifications.ModeDisabled,
+			}
+
+			return redis.NewClient(opt)
+		},
 	}
 	if ro != nil {
 		switch ro.HashAlgorithm {
@@ -242,14 +267,6 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		}
 
 		ro.Log.Infof("Created ring with addresses: %v", ro.Addrs)
-
-		ringOptions.ReadTimeout = ro.ReadTimeout
-		ringOptions.WriteTimeout = ro.WriteTimeout
-		ringOptions.PoolTimeout = ro.PoolTimeout
-		ringOptions.DialTimeout = ro.DialTimeout
-		ringOptions.MinIdleConns = ro.MinIdleConns
-		ringOptions.PoolSize = ro.MaxIdleConns
-		ringOptions.Password = ro.Password
 
 		if ro.ConnMetricsInterval <= 0 {
 			ro.ConnMetricsInterval = defaultConnMetricsInterval

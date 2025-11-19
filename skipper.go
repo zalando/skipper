@@ -948,6 +948,7 @@ type Options struct {
 	EnableSwarm bool
 	// redis based swarm
 	SwarmRedisURLs                []string
+	SwarmRedisUsername            string
 	SwarmRedisPassword            string
 	SwarmRedisHashAlgorithm       string
 	SwarmRedisDialTimeout         time.Duration
@@ -1828,6 +1829,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			redisOptions = &skpnet.RedisOptions{
 				Addrs:               o.SwarmRedisURLs,
+				Username:            o.SwarmRedisUsername,
 				Password:            o.SwarmRedisPassword,
 				HashAlgorithm:       o.SwarmRedisHashAlgorithm,
 				DialTimeout:         o.SwarmRedisDialTimeout,
