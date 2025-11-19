@@ -135,7 +135,7 @@ func TestTeeRedirectLoop(t *testing.T) {
 			defer shadow.Close()
 			defer http.DefaultClient.CloseIdleConnections()
 
-			doc := fmt.Sprintf(`route1: * -> %s("%s") -> "%s";`, tt.filterName, backend.URL, shadow.URL)
+			doc := fmt.Sprintf(`route1: * -> %s("%s") -> "%s"; health: Path("/health") -> status(200) -> <shunt>;`, tt.filterName, backend.URL, shadow.URL)
 
 			fr := builtin.MakeRegistry()
 			dc, err := testdataclient.NewDoc(doc)
@@ -172,24 +172,47 @@ func TestTeeRedirectLoop(t *testing.T) {
 			defer pr.Close()
 			p := httptest.NewServer(pr)
 			defer p.Close()
+			defer p.Client().CloseIdleConnections()
 
 			// create the loop: shadow to proxy
 			target = p.URL
+
+			var count int64
+			for range 3 {
+				count++
+				req, err := http.NewRequest("GET", p.URL+"/health", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rsp, err := p.Client().Do(req)
+				if err != nil {
+					t.Logf("proxy not yet available on /health: %v", err)
+				} else if rsp.StatusCode == http.StatusOK {
+					rsp.Body.Close()
+					break
+				} else {
+					t.Logf("proxy not yet available on /health: %d", rsp.StatusCode)
+				}
+				rsp.Body.Close()
+				time.Sleep(10 * time.Millisecond)
+			}
 
 			req, err := http.NewRequest("GET", p.URL, nil)
 			if err != nil {
 				t.Error(err)
 			}
+			count++
 
 			rsp, err := p.Client().Do(req)
 			if err != nil {
 				t.Error(err)
 			}
+			count++
 			mockMetrics.WithCounters(func(counters map[string]int64) {
 				for k, v := range counters {
 					t.Logf("%s: %d", k, v)
-					if k == "incoming.HTTP/1.1" && v > 2 {
-						t.Fatalf("Failed to mitigate request incoming: %d", v)
+					if k == "incoming.HTTP/1.1" && v > count {
+						t.Fatalf("Failed to mitigate request incoming: %d > %d", v, count)
 					}
 					if k == "outgoing.HTTP/1.1" && v > 1 {
 						t.Fatalf("Failed to mitigate duplicate request outgoing: %d", v)
