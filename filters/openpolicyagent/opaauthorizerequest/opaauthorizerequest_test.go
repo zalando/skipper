@@ -394,6 +394,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
+			t.Parallel()
 			t.Logf("Running test for %v", ti)
 			clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte("Welcome!"))
