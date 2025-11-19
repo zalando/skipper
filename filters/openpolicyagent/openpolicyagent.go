@@ -762,6 +762,8 @@ func (opa *OpenPolicyAgentInstance) Start() error {
 		ctx, cancel := context.WithTimeout(context.Background(), opa.registry.instanceStartupTimeout)
 		defer cancel()
 
+		opa.logger.Info("EOPA plugins enabled: %t", opa.registry.enableEopaPlugins)
+
 		if opa.registry.enableCustomControlLoop {
 			opa.Logger().Info("Custom control loop enabled, starting and triggering plugins")
 			opa.startingErr = opa.startAndTriggerPlugins(ctx)
