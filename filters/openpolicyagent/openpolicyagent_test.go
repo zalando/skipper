@@ -569,6 +569,7 @@ func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
 	}
 	runWithTestCases(t, testCases,
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			t.Parallel()
 			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
 			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
@@ -626,6 +627,7 @@ func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
 		},
 	}
 	runWithTestCases(t, testCases, func(t *testing.T, tc opaInstanceStartupTestCase) {
+		t.Parallel()
 		configWithUnknownService := []byte(`{
 		"discovery": {
 			"name": "discovery",
@@ -656,6 +658,7 @@ func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
 	}
 	runWithTestCases(t, testCases,
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			t.Parallel()
 			_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-wrong-bundle")
 
 			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
@@ -685,9 +688,11 @@ func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
 	}
 	runWithTestCases(t, testCases,
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			t.Parallel()
 			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
-			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			d := time.Second
+			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(d), WithReuseDuration(d), WithCleanInterval(d), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
 			instance, err := registry.GetOrStartInstance("test")
