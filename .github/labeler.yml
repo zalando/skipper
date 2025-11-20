@@ -1,6 +1,8 @@
 # Add 'docs' to any changes within 'docs' folder or any subfolders
 documentation:
-  - docs/**/*
+- changed-files:
+  - any-glob-to-any-file:
+    - 'docs/**/*'
 
 # Add 'enhancement' label to any PR where the head branch name starts with `feature/` in the name
 enhancement:
