@@ -96,6 +96,7 @@ func TestEncryptDecrypt(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.secSrc.SetSecret(tt.secretKey)
 			enc := &Encrypter{
 				secretSource: tt.secSrc,
