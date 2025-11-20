@@ -89,6 +89,7 @@ func newBreakerProxy(
 }
 
 func testBreaker(t *testing.T, s breakerScenario) {
+	t.Helper()
 	backends := make(map[string]*failingBackend)
 	for _, si := range s.settings {
 		h := si.Host
@@ -124,36 +125,44 @@ func testBreaker(t *testing.T, s breakerScenario) {
 }
 
 func setBackendHostSucceed(c *breakerTestContext, host string) {
+	c.t.Helper()
 	c.backends[host].succeed()
 }
 
 func setBackendSucceed(c *breakerTestContext) {
+	c.t.Helper()
 	setBackendHostSucceed(c, defaultHost)
 }
 
 func setBackendFailForHost(c *breakerTestContext, host string) {
+	c.t.Helper()
 	c.backends[host].fail()
 }
 
 func setBackendHostFail(host string) scenarioStep {
 	return func(c *breakerTestContext) {
+		c.t.Helper()
 		setBackendFailForHost(c, host)
 	}
 }
 
 func setBackendFail(c *breakerTestContext) {
+	c.t.Helper()
 	setBackendFailForHost(c, defaultHost)
 }
 
 func setBackendHostDown(c *breakerTestContext, host string) {
+	c.t.Helper()
 	c.backends[host].down()
 }
 
 func setBackendDown(c *breakerTestContext) {
+	c.t.Helper()
 	setBackendHostDown(c, defaultHost)
 }
 
 func proxyRequestHost(c *breakerTestContext, host string) (*http.Response, error) {
+	c.t.Helper()
 	req, err := http.NewRequest("GET", c.proxy.URL, nil)
 	if err != nil {
 		return nil, err
@@ -171,12 +180,14 @@ func proxyRequestHost(c *breakerTestContext, host string) (*http.Response, error
 }
 
 func checkStatus(c *breakerTestContext, rsp *http.Response, expected int) {
+	c.t.Helper()
 	if rsp.StatusCode != expected {
 		c.t.Errorf("step %d: wrong response status: %d, expected %d", c.step, rsp.StatusCode, expected)
 	}
 }
 
 func requestHostForStatus(c *breakerTestContext, host string, expectedStatus int) *http.Response {
+	c.t.Helper()
 	rsp, err := proxyRequestHost(c, host)
 	if err != nil {
 		c.t.Errorf("step %d: %v", c.step, err)
@@ -189,17 +200,20 @@ func requestHostForStatus(c *breakerTestContext, host string, expectedStatus int
 
 func requestHost(host string, expectedStatus int) scenarioStep {
 	return func(c *breakerTestContext) {
+		c.t.Helper()
 		requestHostForStatus(c, host, expectedStatus)
 	}
 }
 
 func request(expectedStatus int) scenarioStep {
 	return func(c *breakerTestContext) {
+		c.t.Helper()
 		requestHostForStatus(c, defaultHost, expectedStatus)
 	}
 }
 
 func requestOpenForHost(c *breakerTestContext, host string) {
+	c.t.Helper()
 	rsp := requestHostForStatus(c, host, 503)
 	if c.t.Failed() {
 		return
@@ -212,15 +226,18 @@ func requestOpenForHost(c *breakerTestContext, host string) {
 
 func requestHostOpen(host string) scenarioStep {
 	return func(c *breakerTestContext) {
+		c.t.Helper()
 		requestOpenForHost(c, host)
 	}
 }
 
 func requestOpen(c *breakerTestContext) {
+	c.t.Helper()
 	requestOpenForHost(c, defaultHost)
 }
 
 func checkBackendForCounter(c *breakerTestContext, host string, expected int) {
+	c.t.Helper()
 	if counter := c.backends[host].counter(); counter != expected {
 		c.t.Errorf("step %d: invalid number of requests on the backend: %d, expected: %d", c.step, counter, expected)
 	}
@@ -230,12 +247,14 @@ func checkBackendForCounter(c *breakerTestContext, host string, expected int) {
 
 func checkBackendHostCounter(host string, count int) scenarioStep {
 	return func(c *breakerTestContext) {
+		c.t.Helper()
 		checkBackendForCounter(c, host, count)
 	}
 }
 
 func checkBackendCounter(count int) scenarioStep {
 	return func(c *breakerTestContext) {
+		c.t.Helper()
 		checkBackendForCounter(c, defaultHost, count)
 	}
 }
@@ -243,6 +262,7 @@ func checkBackendCounter(count int) scenarioStep {
 // as in scenario step N times
 func times(n int, s ...scenarioStep) scenarioStep {
 	return func(c *breakerTestContext) {
+		c.t.Helper()
 		for !c.t.Failed() && n > 0 {
 			for _, si := range s {
 				si(c)
@@ -254,13 +274,15 @@ func times(n int, s ...scenarioStep) scenarioStep {
 }
 
 func wait(d time.Duration) scenarioStep {
-	return func(*breakerTestContext) {
+	return func(c *breakerTestContext) {
+		c.t.Helper()
 		time.Sleep(d)
 	}
 }
 
 func trace(msg string) scenarioStep {
-	return func(*breakerTestContext) {
+	return func(c *breakerTestContext) {
+		c.t.Helper()
 		println(msg)
 	}
 }
@@ -377,6 +399,7 @@ func TestBreakerConsecutive(t *testing.T) {
 		},
 	}} {
 		t.Run(s.title, func(t *testing.T) {
+			t.Parallel()
 			testBreaker(t, s)
 		})
 	}
@@ -488,6 +511,7 @@ func TestBreakerRate(t *testing.T) {
 		},
 	}} {
 		t.Run(s.title, func(t *testing.T) {
+			t.Parallel()
 			testBreaker(t, s)
 		})
 	}
