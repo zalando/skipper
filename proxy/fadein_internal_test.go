@@ -124,6 +124,7 @@ func testFadeInMonotony(
 	endpointAges ...float64,
 ) {
 	t.Run(name, func(t *testing.T) {
+		t.Parallel()
 		fadeInDuration := calculateFadeInDuration(t, algorithmName, endpointAges)
 		route, proxy, eps := initializeEndpoints(endpointAges, algorithmName, fadeInDuration)
 		defer proxy.Close()
