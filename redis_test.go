@@ -35,6 +35,7 @@ import (
 )
 
 func TestConcurrentKubernetesClusterStateAccessWithRemoteRedis(t *testing.T) {
+	t.Parallel()
 	kubeSpec := `
 apiVersion: zalando.org/v1
 kind: RouteGroup
@@ -210,6 +211,7 @@ spec:
 }
 
 func TestConcurrentKubernetesClusterStateAccess(t *testing.T) {
+	t.Parallel()
 	kubeSpec := `
 apiVersion: zalando.org/v1
 kind: RouteGroup
@@ -365,6 +367,7 @@ spec:
 }
 
 func TestRedisAddrUpdater(t *testing.T) {
+	t.Parallel()
 	dm := metrics.Default
 	t.Cleanup(func() { metrics.Default = dm })
 
@@ -548,6 +551,7 @@ func createFilterRegistry(specs ...filters.Spec) filters.Registry {
 }
 
 func createRedisEndpointsSpec(t *testing.T, addrs ...string) string {
+	t.Helper()
 	var addresses []map[string]any
 	for _, addr := range addrs {
 		host, port, err := net.SplitHostPort(addr)
