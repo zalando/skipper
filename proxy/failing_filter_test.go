@@ -66,12 +66,7 @@ func TestResponseFilterOnProxyError(t *testing.T) {
 		r...)
 	defer proxy.Close()
 
-	reqURL, err := url.Parse(proxy.URL)
-	if err != nil {
-		t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-	}
-
-	req, err := http.NewRequest("GET", reqURL.String(), nil)
+	req, err := http.NewRequest("GET", proxy.URL, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -88,7 +83,7 @@ func TestResponseFilterOnProxyError(t *testing.T) {
 	sec := 5
 	d := time.Duration(sec) * time.Second
 	total := uint64(rate * sec)
-	va := httptest.NewVegetaAttacker(reqURL.String(), rate, time.Second, timeout)
+	va := httptest.NewVegetaAttacker(proxy.URL, rate, time.Second, timeout)
 	va.Attack(io.Discard, d, "mytest")
 	t.Logf("Success [0..1]: %0.2f", va.Success())
 
