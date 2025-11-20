@@ -35,7 +35,6 @@ import (
 )
 
 func TestConcurrentKubernetesClusterStateAccessWithRemoteRedis(t *testing.T) {
-	t.Parallel()
 	kubeSpec := `
 apiVersion: zalando.org/v1
 kind: RouteGroup
@@ -211,7 +210,6 @@ spec:
 }
 
 func TestConcurrentKubernetesClusterStateAccess(t *testing.T) {
-	t.Parallel()
 	kubeSpec := `
 apiVersion: zalando.org/v1
 kind: RouteGroup
@@ -367,7 +365,6 @@ spec:
 }
 
 func TestRedisAddrUpdater(t *testing.T) {
-	t.Parallel()
 	dm := metrics.Default
 	t.Cleanup(func() { metrics.Default = dm })
 
