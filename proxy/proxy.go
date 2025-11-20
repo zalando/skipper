@@ -1666,7 +1666,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	defer func() {
 		accessLogEnabled, ok := ctx.stateBag[al.AccessLogEnabledKey].(*al.AccessLogFilter)
-
 		if !ok {
 			if p.accessLogDisabled {
 				accessLogEnabled = &disabledAccessLog
@@ -1689,7 +1688,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]interface{})
-
 			logging.LogAccess(entry, additionalData)
 		}
 
