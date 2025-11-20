@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -126,19 +127,21 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 
 func TestCipherRefreshing(t *testing.T) {
-	d := 1 * time.Second
-	sleepD := 4 * d
-	SecSource := &testingSecretSource{secretKey: "abc"}
-	enc := &Encrypter{
-		secretSource: SecSource,
-		closer:       make(chan struct{}),
-		closedHook:   make(chan struct{}),
-	}
-	enc.runCipherRefresher(d)
-	time.Sleep(sleepD)
-	enc.Close()
-	<-enc.closedHook
-	assert.True(t, SecSource.getCount >= 3, "secret fetched more than 3 times in %s", sleepD)
+	synctest.Test(t, func(t *testing.T) {
+		d := 1 * time.Second
+		sleepD := 4 * d
+		SecSource := &testingSecretSource{secretKey: "abc"}
+		enc := &Encrypter{
+			secretSource: SecSource,
+			closer:       make(chan struct{}),
+			closedHook:   make(chan struct{}),
+		}
+		enc.runCipherRefresher(d)
+		time.Sleep(sleepD)
+		enc.Close()
+		<-enc.closedHook
+		assert.True(t, SecSource.getCount >= 3, "secret fetched more than 3 times in %s", sleepD)
+	})
 }
 
 func Test_GetSecret(t *testing.T) {
