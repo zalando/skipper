@@ -20,6 +20,7 @@ import (
 )
 
 func TestResponseFilterOnProxyError(t *testing.T) {
+	t.Parallel()
 	counter := int64(1)
 	serverErrN := int64(37)
 	timeoutN := int64(5)
@@ -117,6 +118,7 @@ func TestResponseFilterOnProxyError(t *testing.T) {
 }
 
 func TestAdmissionControlBeforeLoopback(t *testing.T) {
+	t.Parallel()
 	counter := int64(1)
 	serverErrN := int64(37)
 	timeoutN := int64(5)
@@ -216,6 +218,7 @@ func TestAdmissionControlBeforeLoopback(t *testing.T) {
 }
 
 func TestAdmissionControlInLoopback(t *testing.T) {
+	t.Parallel()
 	counter := int64(1)
 	serverErrN := int64(37)
 	timeoutN := int64(5)
