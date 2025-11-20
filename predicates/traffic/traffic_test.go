@@ -169,6 +169,7 @@ func TestTrafficPredicateInRoutes(t *testing.T) {
 		expectedR3: 0.25,
 	}} {
 		t.Run(tc.msg, func(t *testing.T) {
+			t.Parallel()
 			var (
 				goalR1 float64
 				goalR2 float64
