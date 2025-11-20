@@ -42,7 +42,7 @@ func newCountingBackend() *countingBackend {
 }
 
 func newCountingBackends(n int) (result countingBackends) {
-	for i := 0; i < n; i++ {
+	for range n {
 		result = append(result, newCountingBackend())
 	}
 	return
@@ -199,7 +199,7 @@ func TestBackendRatelimitScenarios(t *testing.T) {
 
 			var urls []string
 			for path, count := range ti.requests {
-				for i := 0; i < count; i++ {
+				for range count {
 					urls = append(urls, p.URL+path)
 				}
 			}
@@ -210,7 +210,7 @@ func TestBackendRatelimitScenarios(t *testing.T) {
 				if err != nil {
 					t.Fatalf("%s: %v", url, err)
 				}
-				defer rsp.Body.Close()
+				rsp.Body.Close()
 
 				if rsp.StatusCode != http.StatusOK && rsp.StatusCode != ti.rejectStatusCode {
 					t.Fatalf("%s: unexpected status %d", url, rsp.StatusCode)

@@ -133,7 +133,7 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 		}),
 	)
 
-	config := []byte(fmt.Sprintf(`{
+	config := fmt.Appendf(nil, `{
 		"services": {
 			"test": {
 				"url": %q,
@@ -148,7 +148,7 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 			"resource": %q,
 			"service": "test"
 		}
-	}`, opaControlPlane.URL(), discoveryBundle))
+	}`, opaControlPlane.URL(), discoveryBundle)
 
 	return opaControlPlane, config
 }
@@ -176,7 +176,7 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 		opasdktest.MockBundle("/bundles/use_body", map[string]string{
 			"main.rego": `
 				package envoy.authz
-				
+
 				import rego.v1
 
 				default allow = false
@@ -215,7 +215,7 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 		`
 	}
 
-	config := []byte(fmt.Sprintf(`{
+	config := fmt.Appendf(nil, `{
 		"services": {
 			"test": {
 				"url": %q
@@ -234,7 +234,7 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 				"skip-request-body-parse": false
 			}
 		}
-	}`, opaControlPlane.URL(), jwtCacheConfig))
+	}`, opaControlPlane.URL(), jwtCacheConfig)
 
 	return opaControlPlane, config
 }
@@ -265,6 +265,8 @@ func TestRegistry(t *testing.T) {
 	}
 	runWithTestCases(t, testCases,
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			t.Parallel()
+			d := 50 * time.Millisecond
 			var config []byte
 			if tc.discoveryBundle != "" {
 				_, config = mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
@@ -272,7 +274,7 @@ func TestRegistry(t *testing.T) {
 				_, config = mockControlPlaneWithResourceBundle()
 			}
 
-			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(d), WithCleanInterval(d), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
 			inst1, err := registry.GetOrStartInstance("test")
@@ -296,7 +298,7 @@ func TestRegistry(t *testing.T) {
 			registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
 
 			//Allow clean up
-			time.Sleep(3 * time.Second)
+			time.Sleep(3 * d)
 
 			inst_different_bundle, err := registry.GetOrStartInstance("anotherbundlename")
 			assert.NoError(t, err)
@@ -313,7 +315,7 @@ func TestRegistry(t *testing.T) {
 			})
 
 			// Allow clean up
-			time.Sleep(3 * time.Second)
+			time.Sleep(3 * d)
 
 			inst5, err := registry.GetOrStartInstance("test")
 			assert.NoError(t, err)
@@ -484,7 +486,7 @@ func TestRetryableErrors(t *testing.T) {
 
 func TestOpaActivationFailureWithRetry(t *testing.T) {
 	slowResponse := 1005 * time.Millisecond
-	testCases := []struct {
+	for _, tc := range []struct {
 		status  int
 		latency *time.Duration
 		error   string
@@ -506,10 +508,9 @@ func TestOpaActivationFailureWithRetry(t *testing.T) {
 			status: 404,
 			error:  "server replied with Not Found",
 		},
-	}
-
-	for _, tc := range testCases {
+	} {
 		t.Run(fmt.Sprintf("status=%v;added-latency:%v", tc.status, tc.latency), func(t *testing.T) {
+			t.Parallel()
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if tc.latency != nil {
@@ -519,7 +520,7 @@ func TestOpaActivationFailureWithRetry(t *testing.T) {
 			}))
 			defer server.Close()
 
-			config := []byte(fmt.Sprintf(`{
+			config := fmt.Appendf(nil, `{
 		"services": {
 			"test": {
 				"url": %q,
@@ -534,7 +535,7 @@ func TestOpaActivationFailureWithRetry(t *testing.T) {
 			"resource": %q,
 			"service": "test"
 		}
-	}`, server.URL, "/bundles/discovery"))
+	}`, server.URL, "/bundles/discovery")
 			additionalWait := 0 * time.Millisecond
 			if tc.latency != nil {
 				additionalWait += 2 * *tc.latency
@@ -568,6 +569,7 @@ func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
 	}
 	runWithTestCases(t, testCases,
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			t.Parallel()
 			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
 			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
@@ -625,6 +627,7 @@ func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
 		},
 	}
 	runWithTestCases(t, testCases, func(t *testing.T, tc opaInstanceStartupTestCase) {
+		t.Parallel()
 		configWithUnknownService := []byte(`{
 		"discovery": {
 			"name": "discovery",
@@ -655,6 +658,7 @@ func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
 	}
 	runWithTestCases(t, testCases,
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			t.Parallel()
 			_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-wrong-bundle")
 
 			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
@@ -684,9 +688,11 @@ func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
 	}
 	runWithTestCases(t, testCases,
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			t.Parallel()
 			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
-			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			d := time.Second
+			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(d), WithReuseDuration(d), WithCleanInterval(d), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
 			instance, err := registry.GetOrStartInstance("test")

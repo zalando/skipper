@@ -553,6 +553,7 @@ func endpointStartTest(
 func sub(title string, tests ...func(*testing.T)) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Run(title, func(t *testing.T) {
+			t.Parallel()
 			for _, test := range tests {
 				test(t)
 			}

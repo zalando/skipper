@@ -51,10 +51,7 @@ func (rc *requestCheck) Request(ctx filters.FilterContext) {
 func checkWithTolerance(start time.Time, expected time.Duration) bool {
 	now := time.Now()
 
-	epsilon := time.Duration(float64(expected) * 0.3)
-	if epsilon < minEpsilon {
-		epsilon = minEpsilon
-	}
+	epsilon := max(time.Duration(float64(expected)*0.3), minEpsilon)
 
 	lower := start.Add(expected - epsilon)
 	higher := start.Add(expected + epsilon)
@@ -488,44 +485,23 @@ func TestThrottleArgs(t *testing.T) {
 		[]interface{}{float64(1), "42us"},
 		false,
 	}} {
-		s := ti.spec()
-		_, err := s.CreateFilter(ti.args)
-		switch {
-		case err == nil && ti.err:
-			t.Error(ti.msg, "failed to fail")
-		case err != filters.ErrInvalidFilterParameters && ti.err:
-			t.Error(ti.msg, "failed to fail with the right error")
-		case err != nil && !ti.err:
-			t.Error(ti.msg, err)
-		}
+		t.Run(ti.msg, func(t *testing.T) {
+			t.Parallel()
+			s := ti.spec()
+			_, err := s.CreateFilter(ti.args)
+			switch {
+			case err == nil && ti.err:
+				t.Error(ti.msg, "failed to fail")
+			case err != filters.ErrInvalidFilterParameters && ti.err:
+				t.Error(ti.msg, "failed to fail with the right error")
+			case err != nil && !ti.err:
+				t.Error(ti.msg, err)
+			}
+		})
 	}
 }
 
 func TestThrottle(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-
-	rc := &requestCheck{}
-	r := filters.Registry{
-		requestCheckName:          rc,
-		filters.RandomContentName: &random{}}
-
-	testServer := proxytest.New(r, &eskip.Route{
-		Filters: []*eskip.Filter{
-			{Name: requestCheckName, Args: nil},
-			{Name: filters.RandomContentName, Args: []interface{}{float64(testDataLen)}}},
-		Shunt: true})
-	defer testServer.Close()
-
-	proxyFilters := filters.Registry{
-		filters.LatencyName:          NewLatency(),
-		filters.BandwidthName:        NewBandwidth(),
-		filters.ChunksName:           NewChunks(),
-		filters.BackendLatencyName:   NewBackendLatency(),
-		filters.BackendBandwidthName: NewBackendBandwidth(),
-		filters.BackendChunksName:    NewBackendChunks()}
-
 	for _, ti := range []struct {
 		msg           string
 		filters       []*eskip.Filter
@@ -646,7 +622,27 @@ func TestThrottle(t *testing.T) {
 			testDataLen / 4, time.Duration(highDelay) * time.Millisecond,
 		}}},
 	}} {
-		func() {
+		t.Run(ti.msg, func(t *testing.T) {
+			t.Parallel()
+			rc := &requestCheck{}
+			r := filters.Registry{
+				requestCheckName:          rc,
+				filters.RandomContentName: &random{}}
+
+			testServer := proxytest.New(r, &eskip.Route{
+				Filters: []*eskip.Filter{
+					{Name: requestCheckName, Args: nil},
+					{Name: filters.RandomContentName, Args: []interface{}{float64(testDataLen)}}},
+				Shunt: true})
+			defer testServer.Close()
+
+			proxyFilters := filters.Registry{
+				filters.LatencyName:          NewLatency(),
+				filters.BandwidthName:        NewBandwidth(),
+				filters.ChunksName:           NewChunks(),
+				filters.BackendLatencyName:   NewBackendLatency(),
+				filters.BackendBandwidthName: NewBackendBandwidth(),
+				filters.BackendChunksName:    NewBackendChunks()}
 			var requestStart time.Time
 
 			rc.check = func(req *http.Request) bool {
@@ -693,7 +689,7 @@ func TestThrottle(t *testing.T) {
 				t.Error(ti.msg, err)
 			}
 
-		}()
+		})
 	}
 }
 
