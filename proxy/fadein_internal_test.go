@@ -261,6 +261,7 @@ func testFadeInLoadBetweenOldAndNewEps(
 	nOld int, nNew int,
 ) {
 	t.Run(name, func(t *testing.T) {
+		t.Parallel()
 		const (
 			numberOfReqs            = 100000
 			acceptableErrorNearZero = 10
