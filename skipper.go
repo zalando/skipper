@@ -998,6 +998,7 @@ type Options struct {
 	OpenPolicyAgentControlLoopMaxJitter                time.Duration
 	EnableOpenPolicyAgentDataPreProcessingOptimization bool
 	EnableOpenPolicyAgentPreloading                    bool
+	EnableEnterpriseOpenPolicyAgentPlugins             bool
 	OpenPolicyAgentConfigTemplate                      string
 	OpenPolicyAgentEnvoyMetadata                       string
 	OpenPolicyAgentCleanerInterval                     time.Duration
@@ -2007,6 +2008,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			openpolicyagent.WithEnableDataPreProcessingOptimization(o.EnableOpenPolicyAgentDataPreProcessingOptimization),
 			openpolicyagent.WithPreloadingEnabled(o.EnableOpenPolicyAgentPreloading),
 			openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...),
+			openpolicyagent.WithEnableEopaPlugins(o.EnableEnterpriseOpenPolicyAgentPlugins),
 		)
 
 		if err != nil {

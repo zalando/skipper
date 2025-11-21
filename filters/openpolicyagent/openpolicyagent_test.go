@@ -121,6 +121,44 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 				{"discovery":{"bundles":{"bundles/test":{"persist":false,"resource":"bundles/test","service":"test"}}}}
 			`,
 		}),
+		opasdktest.MockBundle("/bundles/discovery-eopa-plugin", map[string]string{
+			"data.json": `{
+			  "discovery": {
+				"bundles": {
+				  "bundles/test": {
+					"persist": false,
+					"resource": "bundles/test",
+					"service": "test"
+				  }
+				},
+				"decision_logs": {
+					"plugin": "eopa_dl"
+				},
+				"plugins": {
+					"eopa_dl": {
+					  "buffer": {
+						"type": "memory",
+						"max_bytes": 50000000
+					  },
+					  "output": {
+						"type": "s3",
+						"bucket": "logs",
+						"endpoint": "https://example.s3.eu-central-1.amazonaws.com/",
+						"force_path": true,
+						"region": "eu-central-1",
+						"access_key_id": "myid",
+						"access_secret": "mysecret",
+						"batching": {
+						  "at_bytes": 10000000,
+						  "at_period": "1s"
+						}
+					  }
+					}
+			  	}
+		}
+			}
+			`,
+		}),
 		opasdktest.MockBundle("/bundles/discovery-with-wrong-bundle", map[string]string{
 			"data.json": `
 				{"discovery":{"bundles":{"bundles/non-existing-bundle":{"persist":false,"resource":"bundles/non-existing-bundle","service":"test"}}}}
@@ -560,17 +598,24 @@ func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
 		{
 			enableCustomControlLoop: true,
 			discoveryBundle:         "bundles/discovery",
+			enableEopaPlugins:       false,
 		},
 		{
 			enableCustomControlLoop: false,
 			discoveryBundle:         "bundles/discovery",
+			enableEopaPlugins:       true,
+		},
+		{
+			enableCustomControlLoop: false,
+			discoveryBundle:         "bundles/discovery-eopa-plugin",
+			enableEopaPlugins:       true,
 		},
 	}
 	runWithTestCases(t, testCases,
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
 			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
-			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)), WithEnableEopaPlugins(tc.enableEopaPlugins))
 			assert.NoError(t, err)
 
 			instance, err := registry.GetOrStartInstance("test")
@@ -1084,6 +1129,7 @@ type opaInstanceStartupTestCase struct {
 	expectedTriggerMode     plugins.TriggerMode
 	discoveryBundle         string
 	resourceBundle          bool
+	enableEopaPlugins       bool
 }
 
 func runWithTestCases(t *testing.T, cases []opaInstanceStartupTestCase, test func(t *testing.T, tc opaInstanceStartupTestCase)) {
