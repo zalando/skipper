@@ -3,6 +3,7 @@ package openpolicyagent
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -63,6 +64,7 @@ const (
 	DefaultRequestBodyBufferSize = 8 * 1024 // 8 KB
 
 	spanNameEval = "open-policy-agent"
+	tokeninfoKey = "tokeninfo"
 )
 
 type BackgroundTask struct {
@@ -332,11 +334,31 @@ func WithEnvoyMetadata(metadata *ext_authz_v3_core.Metadata) func(*OpenPolicyAge
 	}
 }
 
-func WithEnvoyMetadataBytes(content []byte) func(*OpenPolicyAgentInstanceConfig) error {
+func WithEnvoyMetadataBytes(ctx filters.FilterContext, content []byte) func(*OpenPolicyAgentInstanceConfig) error {
 	return func(cfg *OpenPolicyAgentInstanceConfig) error {
 		cfg.envoyMetadata = &ext_authz_v3_core.Metadata{}
+		if err := protojson.Unmarshal(content, cfg.envoyMetadata); err != nil {
+			return err
+		}
 
-		return protojson.Unmarshal(content, cfg.envoyMetadata)
+		cachedValue, ok := ctx.StateBag()[tokeninfoKey].(map[string]interface{})
+		if ok && cachedValue != nil {
+			//delete(cachedValue, "access_token")
+			tokeninfoJSON, err := json.Marshal(cachedValue)
+			if err != nil {
+				return err
+			}
+			if cfg.envoyMetadata.FilterMetadata == nil {
+				cfg.envoyMetadata.FilterMetadata = make(map[string]*ext_authz_v3_core)
+			}
+			cfg.envoyMetadata.FilterMetadata["com.zalando.skipper.statebag"] = &ext_authz_v3_core.Metadata_FilterMetadataEntry{
+				FilterMetadata: map[string]string{
+					"tokeninfo": string(tokeninfoJSON),
+				},
+			}
+
+		}
+		return nil
 	}
 }
 
