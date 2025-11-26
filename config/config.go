@@ -317,7 +317,7 @@ type Config struct {
 	OpenPolicyAgentControlLoopMaxJitter                time.Duration `yaml:"open-policy-agent-control-loop-max-jitter"`
 	EnableOpenPolicyAgentDataPreProcessingOptimization bool          `yaml:"enable-open-policy-agent-data-preprocessing-optimization"`
 	EnableOpenPolicyAgentPreloading                    bool          `yaml:"enable-open-policy-agent-preloading"`
-	EnableEnterpriseOpenPolicyAgentPlugins             bool          `yaml:"enable-enterprise-open-policy-agent-plugins"`
+	EnableEnterpriseOpenPolicyAgentPlugins             bool          `yaml:"enable-enterprise-open-policy-agent"`
 	OpenPolicyAgentConfigTemplate                      string        `yaml:"open-policy-agent-config-template"`
 	OpenPolicyAgentEnvoyMetadata                       string        `yaml:"open-policy-agent-envoy-metadata"`
 	OpenPolicyAgentCleanerInterval                     time.Duration `yaml:"open-policy-agent-cleaner-interval"`
@@ -572,7 +572,7 @@ func NewConfig() *Config {
 	flag.Int64Var(&cfg.OpenPolicyAgentMaxRequestBodySize, "open-policy-agent-max-request-body-size", openpolicyagent.DefaultMaxRequestBodySize, "Maximum number of bytes from a http request body that are passed as input to the policy")
 	flag.Int64Var(&cfg.OpenPolicyAgentRequestBodyBufferSize, "open-policy-agent-request-body-buffer-size", openpolicyagent.DefaultRequestBodyBufferSize, "Read buffer size for the request body")
 	flag.Int64Var(&cfg.OpenPolicyAgentMaxMemoryBodyParsing, "open-policy-agent-max-memory-body-parsing", openpolicyagent.DefaultMaxMemoryBodyParsing, "Total number of bytes used to parse http request bodies across all requests. Once the limit is met, requests will be rejected.")
-	flag.BoolVar(&cfg.EnableEnterpriseOpenPolicyAgentPlugins, "enable-enterprise-open-policy-agent-plugins", false, "Allowing open policy agent to load additional plugins which are available with EOPA. EOPA has been donated to the OPA community")
+	flag.BoolVar(&cfg.EnableEnterpriseOpenPolicyAgentPlugins, "enable-enterprise-open-policy-agent", false, "Allowing open policy agent to load additional plugins which are available with EOPA. EOPA has been donated to the OPA community")
 
 	// TLS client certs
 	flag.StringVar(&cfg.ClientKeyFile, "client-tls-key", "", "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs")

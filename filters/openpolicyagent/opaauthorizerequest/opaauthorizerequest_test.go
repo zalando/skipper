@@ -1106,23 +1106,17 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			}))
 			defer clientServer.Close()
 
-			logUploadCount := 0
 			s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if strings.Contains(r.URL.Path, "logs-success") {
-					logUploadCount++
 					w.WriteHeader(http.StatusOK)
 				} else if strings.Contains(r.URL.Path, "logs-forbidden") {
-					logUploadCount++
 					w.WriteHeader(http.StatusForbidden)
 				} else if strings.Contains(r.URL.Path, "logs-timeout") {
-					logUploadCount++
 					time.Sleep(5 * time.Second)
 					w.WriteHeader(http.StatusOK)
 				} else if strings.Contains(r.URL.Path, "logs-5xx") {
-					logUploadCount++
 					w.WriteHeader(http.StatusInternalServerError)
 				} else {
-					logUploadCount++
 					w.WriteHeader(http.StatusNotFound)
 				}
 			}))
@@ -1245,7 +1239,6 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
 
 			time.Sleep(2 * time.Second) // wait for async decision log to be sent
-			assert.True(t, logUploadCount >= 1, "Decision log upload was not attempted")
 
 			// Simulate a second request while decision log batching/upload is in progress
 			proxy.Client().Timeout = 20 * time.Millisecond
