@@ -15,13 +15,12 @@ import (
 	eopaStorage "github.com/open-policy-agent/eopa/pkg/storage"
 )
 
-func Init() (fs map[string]plugins.Factory, configHooks hooks.Hook, store storage.Store) {
+func Init() (fs map[string]plugins.Factory, configHook hooks.Hook, store storage.Store) {
 	rego_vm.SetDefault(true)
 	builtins.Init()
 
 	ekmHook := ekm.NewEKM()
 	ekmHook.SetLogger(logging.NewNoOpLogger())
-	configHooks = hooks.New(configHooks, ekmHook)
 
 	return Plugins(), ekmHook, eopaStorage.New()
 }
