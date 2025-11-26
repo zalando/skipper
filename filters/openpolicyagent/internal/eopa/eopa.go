@@ -2,6 +2,7 @@
 package eopa
 
 import (
+	"github.com/open-policy-agent/eopa/pkg/plugins/data"
 	"github.com/open-policy-agent/opa/v1/hooks"
 	"github.com/open-policy-agent/opa/v1/logging"
 	"github.com/open-policy-agent/opa/v1/plugins"
@@ -27,8 +28,7 @@ func Init() (fs map[string]plugins.Factory, configHooks hooks.Hook, store storag
 
 func Plugins() map[string]plugins.Factory {
 	return map[string]plugins.Factory{
-		// data plugin is commented out as we currently do not use this and due to the unexpected impact on the opa body parsing filter.
-		//data.Name:       data.Factory(),
+		data.Name:           data.Factory(),
 		eopaDl.DLPluginName: eopaDl.Factory(),
 	}
 }
