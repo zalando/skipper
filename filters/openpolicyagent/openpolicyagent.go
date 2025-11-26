@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/open-policy-agent/opa/v1/util"
+	"github.com/zalando/skipper/filters/openpolicyagent/internal/eopa"
 	"io"
 	"maps"
 	"math/rand"
@@ -115,6 +117,8 @@ type OpenPolicyAgentRegistry struct {
 	controlLoopInterval     time.Duration
 	controlLoopMaxJitter    time.Duration
 
+	enableEopa bool
+
 	enableDataPreProcessingOptimization bool
 
 	valueCache iCache.InterQueryValueCache
@@ -196,6 +200,13 @@ func WithTracer(tracer opentracing.Tracer) func(*OpenPolicyAgentRegistry) error 
 func WithEnableCustomControlLoop(enabled bool) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.enableCustomControlLoop = enabled
+		return nil
+	}
+}
+
+func WithEnableEopaPlugins(enabled bool) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.enableEopa = enabled
 		return nil
 	}
 }
@@ -679,10 +690,23 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
 	logger = logger.WithFields(map[string]interface{}{"bundle-name": bundleName})
 
-	configHooks := hooks.New()
+	hs := make([]hooks.Hook, 0)
 	if registry.enableCustomControlLoop {
-		configHooks = hooks.New(&internal.ManualOverride{})
+		hs = append(hs, &internal.ManualOverride{})
 	}
+
+	discoveryOpts := map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}}
+	if registry.enableEopa {
+		options, ekmHook, eopaStore := eopa.Init()
+		hs = append(hs, ekmHook)
+
+		for name, factory := range options {
+			discoveryOpts[name] = factory
+		}
+		store = eopaStore
+	}
+
+	configHooks := hooks.New(hs...)
 
 	manager, err := plugins.New(configBytes, id, store, configLabelsInfo(*opaConfig), plugins.Logger(logger), registry.withTracingOptions(bundleName), plugins.WithHooks(configHooks))
 
@@ -690,7 +714,13 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		return nil, err
 	}
 
-	discoveryPlugin, err := discovery.New(manager, discovery.Factories(map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}}), discovery.Hooks(configHooks))
+	var bootConfig map[string]any
+	err = util.Unmarshal(configBytes, &bootConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	discoveryPlugin, err := discovery.New(manager, discovery.Factories(discoveryOpts), discovery.Hooks(configHooks), discovery.BootConfig(bootConfig))
 	if err != nil {
 		return nil, err
 	}
@@ -744,6 +774,8 @@ func (opa *OpenPolicyAgentInstance) Start() error {
 	opa.startedOnce.Do(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), opa.registry.instanceStartupTimeout)
 		defer cancel()
+
+		opa.logger.Info("EOPA plugins enabled: %t", opa.registry.enableEopa)
 
 		if opa.registry.enableCustomControlLoop {
 			opa.Logger().Info("Custom control loop enabled, starting and triggering plugins")
