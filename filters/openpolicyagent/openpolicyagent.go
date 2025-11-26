@@ -690,21 +690,23 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
 	logger = logger.WithFields(map[string]interface{}{"bundle-name": bundleName})
 
-	configHooks := hooks.New()
+	hs := make([]hooks.Hook, 0)
 	if registry.enableCustomControlLoop {
-		configHooks = hooks.New(&internal.ManualOverride{})
+		hs = append(hs, &internal.ManualOverride{})
 	}
 
 	discoveryOpts := map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}}
 	if registry.enableEopa {
 		options, ekmHook, eopaStore := eopa.Init()
-		configHooks = hooks.New(configHooks, ekmHook)
+		hs = append(hs, ekmHook)
 
 		for name, factory := range options {
 			discoveryOpts[name] = factory
 		}
 		store = eopaStore
 	}
+
+	configHooks := hooks.New(hs...)
 
 	manager, err := plugins.New(configBytes, id, store, configLabelsInfo(*opaConfig), plugins.Logger(logger), registry.withTracingOptions(bundleName), plugins.WithHooks(configHooks))
 
