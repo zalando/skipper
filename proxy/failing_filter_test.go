@@ -84,7 +84,7 @@ func TestResponseFilterOnProxyError(t *testing.T) {
 	d := time.Duration(sec) * time.Second
 	total := uint64(rate * sec)
 	va := httptest.NewVegetaAttacker(proxy.URL, rate, time.Second, timeout)
-	va.Attack(io.Discard, d, "mytest")
+	va.Attack(io.Discard, d, t.Name())
 	t.Logf("Success [0..1]: %0.2f", va.Success())
 
 	if successRate := va.Success(); successRate < 0.5 || successRate > 0.9 {
@@ -184,7 +184,7 @@ func TestAdmissionControlBeforeLoopback(t *testing.T) {
 	d := time.Duration(sec) * time.Second
 	total := uint64(rate * sec)
 	va := httptest.NewVegetaAttacker(proxy.URL, rate, time.Second, timeout)
-	va.Attack(io.Discard, d, "mytest")
+	va.Attack(io.Discard, d, t.Name())
 	t.Logf("Success [0..1]: %0.2f", va.Success())
 
 	if successRate := va.Success(); successRate < 0.5 || successRate > 0.9 {
@@ -284,7 +284,7 @@ func TestAdmissionControlInLoopback(t *testing.T) {
 	d := time.Duration(sec) * time.Second
 	total := uint64(rate * sec)
 	va := httptest.NewVegetaAttacker(proxy.URL, rate, time.Second, timeout)
-	va.Attack(io.Discard, d, "mytest")
+	va.Attack(io.Discard, d, t.Name())
 	t.Logf("Success [0..1]: %0.2f", va.Success())
 
 	if successRate := va.Success(); successRate < 0.5 || successRate > 0.9 {

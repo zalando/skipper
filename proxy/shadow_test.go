@@ -90,7 +90,7 @@ shadow: PathSubtree("/") && Tee("test") && True()
 	defer ts.Close()
 
 	N := 1000
-	for i := 0; i < N; i++ {
+	for range N {
 		rsp, err := ts.Client().Get(ts.URL)
 		if err != nil {
 			t.Fatalf("Failed to get response from %s: %v", ts.URL, err)
@@ -231,6 +231,7 @@ shadow: PathSubtree("/") && Tee("test") && True()
 				return nil
 			},
 		},
+		// TODO(sszuecs) failing
 		{
 			name: "50% shadow with fifo and 100% timing out main",
 			routes: `
@@ -363,7 +364,7 @@ shadow: PathSubtree("/") && Tee("test") && True()
 			if tt.debug {
 				out = os.Stderr
 			}
-			va.Attack(out, duration, "mytest")
+			va.Attack(out, duration, tt.name)
 
 			t.Logf("backends observe: counter main=%d, counter shadow=%d", counterMain.Load(), counterShadow.Load())
 
