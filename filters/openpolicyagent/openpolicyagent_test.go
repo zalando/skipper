@@ -121,44 +121,6 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 				{"discovery":{"bundles":{"bundles/test":{"persist":false,"resource":"bundles/test","service":"test"}}}}
 			`,
 		}),
-		opasdktest.MockBundle("/bundles/discovery-eopa-plugin", map[string]string{
-			"data.json": `{
-			  "discovery": {
-				"bundles": {
-				  "bundles/test": {
-					"persist": false,
-					"resource": "bundles/test",
-					"service": "test"
-				  }
-				},
-				"decision_logs": {
-					"plugin": "eopa_dl"
-				},
-				"plugins": {
-					"eopa_dl": {
-					  "buffer": {
-						"type": "memory",
-						"max_bytes": 50000000
-					  },
-					  "output": {
-						"type": "s3",
-						"bucket": "logs",
-						"endpoint": "https://example.s3.eu-central-1.amazonaws.com/",
-						"force_path": true,
-						"region": "eu-central-1",
-						"access_key_id": "myid",
-						"access_secret": "mysecret",
-						"batching": {
-						  "at_bytes": 10000000,
-						  "at_period": "1s"
-						}
-					  }
-					}
-			  	}
-		}
-			}
-			`,
-		}),
 		opasdktest.MockBundle("/bundles/discovery-with-wrong-bundle", map[string]string{
 			"data.json": `
 				{"discovery":{"bundles":{"bundles/non-existing-bundle":{"persist":false,"resource":"bundles/non-existing-bundle","service":"test"}}}}
@@ -1122,7 +1084,6 @@ type opaInstanceStartupTestCase struct {
 	expectedTriggerMode     plugins.TriggerMode
 	discoveryBundle         string
 	resourceBundle          bool
-	enableEopaPlugins       bool
 }
 
 func runWithTestCases(t *testing.T, cases []opaInstanceStartupTestCase, test func(t *testing.T, tc opaInstanceStartupTestCase)) {
