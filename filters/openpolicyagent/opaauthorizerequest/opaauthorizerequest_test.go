@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,7 +40,6 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		expectedStatus    int
 		backendHeaders    http.Header
 		removeHeaders     http.Header
-		enableEopaPlugins bool
 	}{
 		{
 			msg:               "Allow Requests",
@@ -394,385 +394,6 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			backendHeaders:    make(http.Header),
 			removeHeaders:     make(http.Header),
 		},
-		// Testing same cases with eopa plugins enabled
-		{
-			msg:               "[EOPA] Allow Requests",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/allow",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Allow Requests with spaces in path",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_with_space_in_path",
-			requestPath:       "/my%20path",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Allow Requests with request path overridden by the setPath filter",
-			filterName:        "opaAuthorizeRequest",
-			extraeskipBefore:  `setPath("/allow") ->`,
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/some-random-path-that-would-fail",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Allow Request based on http path",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_with_http_path",
-			requestPath:       "/some/api/path?q1=v1&msg=help%20me",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Allow Requests with query parameters",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_with_query",
-			requestPath:       "/allow-with-query?pass=yes&id=1&id=2&msg=help%20me",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Allow Matching Context Extension",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_context_extensions",
-			requestPath:       "/allow",
-			requestMethod:     "GET",
-			contextExtensions: "com.mycompany.myprop: myvalue",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Allow Requests with an empty query string",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_with_path_having_empty_query",
-			requestPath:       "/path-with-empty-query?",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Allow Matching Environment",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_runtime_environment",
-			requestPath:       "/allow",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Simple Forbidden",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/forbidden",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusForbidden,
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Simple Forbidden with Query Parameters",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/deny_with_query",
-			requestPath:       "/allow-me?tofail=true",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusForbidden,
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Allow With Structured Rules",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_object",
-			requestPath:       "/allow/structured",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   map[string][]string{"X-Response-Header": {"a response header value"}, "Server": {"Skipper", "server header"}},
-			backendHeaders:    map[string][]string{"X-Consumer": {"x-consumer header value"}},
-			removeHeaders:     map[string][]string{"X-Remove-Me": {"Remove me"}},
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Forbidden With Body",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_object",
-			requestPath:       "/forbidden",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusUnauthorized,
-			expectedHeaders:   map[string][]string{"X-Ext-Auth-Allow": {"no"}},
-			expectedBody:      "Unauthorized Request",
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Misconfigured Rego Query",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/invalid_path",
-			requestPath:       "/allow",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusInternalServerError,
-			expectedBody:      "",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Wrong Query Data Type",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_wrong_type",
-			requestPath:       "/allow",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusInternalServerError,
-			expectedBody:      "",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Wrong Query Data Type",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_object_invalid_headers_to_remove",
-			requestPath:       "/allow",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusInternalServerError,
-			expectedBody:      "",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Wrong Query Data Type",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_object_invalid_headers",
-			requestPath:       "/allow",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusInternalServerError,
-			expectedBody:      "",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Allow With Body",
-			filterName:        "opaAuthorizeRequestWithBody",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_body",
-			requestMethod:     "POST",
-			body:              `{ "target_id" : "123456" }`,
-			requestHeaders:    map[string][]string{"content-type": {"application/json"}},
-			requestPath:       "/allow_body",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Forbidden With Body",
-			filterName:        "opaAuthorizeRequestWithBody",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_body",
-			requestMethod:     "POST",
-			body:              `{ "target_id" : "wrong id" }`,
-			requestHeaders:    map[string][]string{"content-type": {"application/json"}},
-			requestPath:       "/allow_body",
-			expectedStatus:    http.StatusForbidden,
-			expectedBody:      "",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] GET against body protected endpoint",
-			filterName:        "opaAuthorizeRequestWithBody",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_body",
-			requestMethod:     "GET",
-			requestHeaders:    map[string][]string{"content-type": {"application/json"}},
-			requestPath:       "/allow_body",
-			expectedStatus:    http.StatusForbidden,
-			expectedBody:      "",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Broken Body",
-			filterName:        "opaAuthorizeRequestWithBody",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_body",
-			requestMethod:     "POST",
-			body:              `{ "target_id" / "wrong id" }`,
-			requestHeaders:    map[string][]string{"content-type": {"application/json"}},
-			requestPath:       "/allow_body",
-			expectedStatus:    http.StatusBadRequest,
-			expectedBody:      "",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Chained OPA filter with body",
-			filterName:        "opaAuthorizeRequestWithBody",
-			extraeskipAfter:   `-> opaAuthorizeRequestWithBody("somebundle.tar.gz")`,
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_body",
-			requestMethod:     "POST",
-			body:              `{ "target_id" : "123456" }`,
-			requestHeaders:    map[string][]string{"content-type": {"application/json"}},
-			requestPath:       "/allow_body",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Decision id in request header",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_object_decision_id_in_header",
-			requestMethod:     "POST",
-			body:              `{ "target_id" : "123456" }`,
-			requestHeaders:    map[string][]string{"content-type": {"application/json"}},
-			requestPath:       "/allow/structured",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   map[string][]string{"Decision-Id": {"some-random-decision-id-generated-during-evaluation"}},
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Invalid UTF-8 in Path",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/allow/%c0%ae%c0%ae",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusBadRequest,
-			expectedBody:      "",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Invalid UTF-8 in Query",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/allow?%c0%ae=%c0%ae%c0%ae",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusBadRequest,
-			expectedBody:      "",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
-		{
-			msg:               "[EOPA] Allow Requests ignoring fragment",
-			filterName:        "opaAuthorizeRequest",
-			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_with_path_having_fragment",
-			requestPath:       "/path-with-empty-query#fragment?",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			enableEopaPlugins: true,
-		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Logf("Running test for %v", ti)
@@ -939,8 +560,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig),
 			)
 
-			opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()),
-				openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...), openpolicyagent.WithEnableEopaPlugins(ti.enableEopaPlugins))
+			opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()), openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...))
 			assert.NoError(t, err)
 
 			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory)
@@ -1106,23 +726,23 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			}))
 			defer clientServer.Close()
 
-			logUploadCount := 0
+			var logUploadCount int32
 			s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if strings.Contains(r.URL.Path, "logs-success") {
-					logUploadCount++
+					atomic.AddInt32(&logUploadCount, 1)
 					w.WriteHeader(http.StatusOK)
 				} else if strings.Contains(r.URL.Path, "logs-forbidden") {
-					logUploadCount++
+					atomic.AddInt32(&logUploadCount, 1)
 					w.WriteHeader(http.StatusForbidden)
 				} else if strings.Contains(r.URL.Path, "logs-timeout") {
-					logUploadCount++
+					atomic.AddInt32(&logUploadCount, 1)
 					time.Sleep(5 * time.Second)
 					w.WriteHeader(http.StatusOK)
 				} else if strings.Contains(r.URL.Path, "logs-5xx") {
-					logUploadCount++
+					atomic.AddInt32(&logUploadCount, 1)
 					w.WriteHeader(http.StatusInternalServerError)
 				} else {
-					logUploadCount++
+					atomic.AddInt32(&logUploadCount, 1)
 					w.WriteHeader(http.StatusNotFound)
 				}
 			}))
@@ -1141,8 +761,8 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 						}
 					`,
 				}),
-				opasdktest.MockBundle("/bundles/discovery-eopa", map[string]string{
-					"data.json": fmt.Sprintf(`{
+				opasdktest.MockBundle("/bundles/discovery", map[string]string{
+					"data.json": `{
 					  "discovery": {
 						"bundles": {
 						  "bundles/test": {
@@ -1150,17 +770,39 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 							"resource": "bundles/test",
 							"service": "test"
 						  }
-					},
-					  "decision_logs": {
+				}}
+				}`,
+				}),
+			)
+
+			config := []byte(fmt.Sprintf(`{
+				"services": {
+					"test": {
+						"url": %q
+					}
+				},
+				"discovery": {
+					"name": "discovery",
+					"resource": "/bundles/discovery",
+					"service": "test"
+				},
+				"labels": {
+					"environment": "test"
+				},
+				"decision_logs": {
 						"plugin": "eopa_dl"
-					  },
-					  "plugins": {
-						"eopa_dl": {
-						  "buffer": {
+				},
+				"plugins": {
+					"envoy_ext_authz_grpc": {
+						"path": %q,
+						"dry-run": false
+					},
+					"eopa_dl": {
+						"buffer": {
 							"type": "memory",
 							"max_bytes": 50000000
-						  },
-						  "output": {
+						},
+						"output": {
 							"type": "s3",
 							"bucket": %q,
 							"endpoint": %q,
@@ -1173,28 +815,10 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 							  "at_bytes": 10000000,
 							  "at_period": "1s"
 							}
-						  }
+						}
 					}
-			  		}}
-				}`, ti.discoveryPath, s3Server.URL)}),
-			)
-
-			config := []byte(fmt.Sprintf(`{
-				"services": {
-					"test": {
-						"url": %q,
-						"response_header_timeout_seconds": 1
-					}
-				},
-				"labels": {
-					"environment": "envValue"
-				},
-				"discovery": {
-					"name": "discovery",
-					"resource": %q,
-					"service": "test"
-				}
-			}`, opaControlPlane.URL(), "/bundles/discovery-eopa"))
+			}
+			}`, opaControlPlane.URL(), ti.regoQuery, ti.discoveryPath, s3Server.URL))
 
 			fr := make(filters.Registry)
 
@@ -1212,7 +836,7 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig),
 			)
 			opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()),
-				openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...), openpolicyagent.WithEnableEopaPlugins(true))
+				openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...))
 			assert.NoError(t, err)
 
 			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory)
@@ -1245,7 +869,7 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
 
 			time.Sleep(2 * time.Second) // wait for async decision log to be sent
-			assert.True(t, logUploadCount >= 1, "Decision log upload was not attempted")
+			assert.True(t, atomic.LoadInt32(&logUploadCount) >= 1, "Decision log upload was not attempted")
 
 			// Simulate a second request while decision log batching/upload is in progress
 			proxy.Client().Timeout = 20 * time.Millisecond
