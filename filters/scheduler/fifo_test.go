@@ -394,7 +394,7 @@ func TestFifo(t *testing.T) {
 	}{
 		{
 			name:        "fifo simple ok",
-			filter:      `fifo(3, 5, "1s")`,
+			filter:      `fifo(30, 5, "1s")`,
 			freq:        20,
 			per:         100 * time.Millisecond,
 			backendTime: 1 * time.Millisecond,
@@ -402,7 +402,7 @@ func TestFifo(t *testing.T) {
 		},
 		{
 			name:          "fifoWithBody simple ok",
-			filter:        `fifoWithBody(3, 5, "1s")`,
+			filter:        `fifoWithBody(30, 5, "1s")`,
 			freq:          20,
 			per:           100 * time.Millisecond,
 			backendTime:   1 * time.Millisecond,
