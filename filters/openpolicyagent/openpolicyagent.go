@@ -5,7 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/filters/openpolicyagent/internal/eopa"
+	dl "github.com/open-policy-agent/eopa/pkg/plugins/decision_logs"
+	"github.com/open-policy-agent/opa/v1/util"
 	"io"
 	"maps"
 	"math/rand"
@@ -116,8 +117,6 @@ type OpenPolicyAgentRegistry struct {
 	controlLoopInterval     time.Duration
 	controlLoopMaxJitter    time.Duration
 
-	enableEopaPlugins bool
-
 	enableDataPreProcessingOptimization bool
 
 	valueCache iCache.InterQueryValueCache
@@ -199,13 +198,6 @@ func WithTracer(tracer opentracing.Tracer) func(*OpenPolicyAgentRegistry) error 
 func WithEnableCustomControlLoop(enabled bool) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.enableCustomControlLoop = enabled
-		return nil
-	}
-}
-
-func WithEnableEopaPlugins(enabled bool) func(*OpenPolicyAgentRegistry) error {
-	return func(cfg *OpenPolicyAgentRegistry) error {
-		cfg.enableEopaPlugins = enabled
 		return nil
 	}
 }
@@ -700,14 +692,15 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		return nil, err
 	}
 
-	discoveryOpts := map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}}
-	if registry.enableEopaPlugins {
-		for name, factory := range eopa.All() {
-			discoveryOpts[name] = factory
-		}
+	discoveryOpts := map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}, dl.DLPluginName: dl.Factory()}
+
+	var bootConfig map[string]any
+	err = util.Unmarshal(configBytes, &bootConfig)
+	if err != nil {
+		return nil, err
 	}
 
-	discoveryPlugin, err := discovery.New(manager, discovery.Factories(discoveryOpts), discovery.Hooks(configHooks))
+	discoveryPlugin, err := discovery.New(manager, discovery.Factories(discoveryOpts), discovery.Hooks(configHooks), discovery.BootConfig(bootConfig))
 	if err != nil {
 		return nil, err
 	}
@@ -761,8 +754,6 @@ func (opa *OpenPolicyAgentInstance) Start() error {
 	opa.startedOnce.Do(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), opa.registry.instanceStartupTimeout)
 		defer cancel()
-
-		opa.logger.Info("EOPA plugins enabled: %t", opa.registry.enableEopaPlugins)
 
 		if opa.registry.enableCustomControlLoop {
 			opa.Logger().Info("Custom control loop enabled, starting and triggering plugins")
