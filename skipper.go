@@ -310,6 +310,9 @@ type Options struct {
 	// instead using Kubernetes Services.
 	KubernetesForceService bool
 
+	// KubernetesNoPoll force kubernetes dataclient to not create routing table
+	KubernetesNoPoll bool
+
 	// KubernetesBackendTrafficAlgorithm specifies the algorithm to calculate the backend traffic
 	KubernetesBackendTrafficAlgorithm kubernetes.BackendTrafficAlgorithm
 
@@ -1055,6 +1058,7 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		BackendTrafficAlgorithm:                        o.KubernetesBackendTrafficAlgorithm,
 		DefaultLoadBalancerAlgorithm:                   o.KubernetesDefaultLoadBalancerAlgorithm,
 		ForwardBackendURL:                              o.ForwardBackendURL,
+		KubernetesNoPoll:                               o.KubernetesNoPoll,
 	}
 }
 
