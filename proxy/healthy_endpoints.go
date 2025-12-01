@@ -3,6 +3,7 @@ package proxy
 import (
 	"math/rand"
 
+	ot "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 )
@@ -16,6 +17,8 @@ func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []rout
 	if h == nil {
 		return endpoints
 	}
+
+	span := ot.SpanFromContext(ctx.request.Context())
 
 	p := h.rnd.Float64()
 
@@ -34,15 +37,28 @@ func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []rout
 		}
 
 		if float64(unhealthyEndpointsCount) > maxUnhealthyEndpointsCount {
+			if span != nil {
+				span.SetTag("phc.endpoints.insufficient", true)
+			}
 			return endpoints
 		}
 	}
 
 	if len(filtered) == 0 {
+		if span != nil {
+			span.SetTag("phc.endpoints.insufficient", true)
+		}
 		return endpoints
 	}
 
 	if len(filtered) < len(endpoints) {
+		if span != nil {
+			span.SetTag("phc.endpoints.dropped", true)
+			span.LogKV(
+				"event", "phc",
+				"dropped_endpoints", unhealthyEndpointsCount,
+			)
+		}
 		metrics.IncCounter("passive-health-check.requests.passed")
 	}
 
