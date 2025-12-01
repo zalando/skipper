@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -213,10 +214,6 @@ func TestProcessRouteDefWeight(t *testing.T) {
 }
 
 func TestLogging(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-
 	const routes = `
 		r1_1: Path("/foo") -> "https://foo.example.org";
 		r1_2: Path("/bar") -> "https://bar.example.org";
@@ -292,55 +289,61 @@ func TestLogging(t *testing.T) {
 	}
 
 	t.Run("full", func(t *testing.T) {
-		testUpdate(
-			t, false,
-			"route settings, reset", 5,
-			"route settings, update, route:", 2,
-			"route settings, update, deleted", 1,
-		)
+		synctest.Test(t, func(t *testing.T) {
+			testUpdate(
+				t, false,
+				"route settings, reset", 5,
+				"route settings, update, route:", 2,
+				"route settings, update, deleted", 1,
+			)
+		})
 	})
 
 	t.Run("suppressed", func(t *testing.T) {
-		testUpdate(
-			t, true,
-			"route settings, reset", 2,
-			"route settings, update, upsert count:", 1,
-			"route settings, update, delete count:", 1,
-		)
+		synctest.Test(t, func(t *testing.T) {
+			testUpdate(
+				t, true,
+				"route settings, reset", 2,
+				"route settings, update, upsert count:", 1,
+				"route settings, update, delete count:", 1,
+			)
+		})
 	})
 }
 
 func TestMetrics(t *testing.T) {
 	t.Run("create filter latency", func(t *testing.T) {
-		client, err := testdataclient.NewDoc(`
+		synctest.Test(t, func(t *testing.T) {
+			client, err := testdataclient.NewDoc(`
 			r0: * -> slowCreate("100ms") -> slowCreate("200ms") -> slowCreate("100ms") -> <shunt>;
 		`)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer client.Close()
 
-		metrics := &metricstest.MockMetrics{
-			Now: time.Now(),
-		}
-		fr := make(filters.Registry)
-		fr.Register(slowCreateSpec{})
+			metrics := &metricstest.MockMetrics{
+				Now: time.Now(),
+			}
+			fr := make(filters.Registry)
+			fr.Register(slowCreateSpec{})
 
-		r := routing.New(routing.Options{
-			DataClients:     []routing.DataClient{client},
-			FilterRegistry:  fr,
-			Metrics:         metrics,
-			SignalFirstLoad: true,
-		})
-		defer r.Close()
-		<-r.FirstLoad()
+			r := routing.New(routing.Options{
+				DataClients:     []routing.DataClient{client},
+				FilterRegistry:  fr,
+				Metrics:         metrics,
+				SignalFirstLoad: true,
+			})
+			defer r.Close()
+			<-r.FirstLoad()
 
-		metrics.WithMeasures(func(m map[string][]time.Duration) {
-			assert.InEpsilonSlice(t, []time.Duration{
-				100 * time.Millisecond,
-				200 * time.Millisecond,
-				100 * time.Millisecond,
-			}, m["filter.slowCreate.create"], 0.1)
+			metrics.WithMeasures(func(m map[string][]time.Duration) {
+				assert.InEpsilonSlice(t, []time.Duration{
+					100 * time.Millisecond,
+					200 * time.Millisecond,
+					100 * time.Millisecond,
+				}, m["filter.slowCreate.create"], 0.1)
+			})
 		})
 	})
 }
@@ -393,11 +396,15 @@ func TestRouteValidationReasonMetrics(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("MockMetrics", func(t *testing.T) {
-				testRouteValidationReasonMetricsWithMock(t, tc.routes, tc.expectedValid, tc.expectedInvalidRoutes)
+				synctest.Test(t, func(t *testing.T) {
+					testRouteValidationReasonMetricsWithMock(t, tc.routes, tc.expectedValid, tc.expectedInvalidRoutes)
+				})
 			})
 
 			t.Run("Prometheus", func(t *testing.T) {
-				testRouteValidationReasonMetricsWithPrometheus(t, tc.routes, tc.expectedValid, tc.expectedInvalidRoutes)
+				synctest.Test(t, func(t *testing.T) {
+					testRouteValidationReasonMetricsWithPrometheus(t, tc.routes, tc.expectedValid, tc.expectedInvalidRoutes)
+				})
 			})
 		})
 	}
@@ -589,11 +596,15 @@ func waitForIndividualRouteMetrics(t *testing.T, metrics *metricstest.MockMetric
 
 func TestRouteMetricsSetToZeroWhenFixed(t *testing.T) {
 	t.Run("MockMetrics", func(t *testing.T) {
-		testRouteMetricsSetToZeroWhenFixedWithMock(t)
+		synctest.Test(t, func(t *testing.T) {
+			testRouteMetricsSetToZeroWhenFixedWithMock(t)
+		})
 	})
 
 	t.Run("Prometheus", func(t *testing.T) {
-		testRouteMetricsSetToZeroWhenFixedWithPrometheus(t)
+		synctest.Test(t, func(t *testing.T) {
+			testRouteMetricsSetToZeroWhenFixedWithPrometheus(t)
+		})
 	})
 }
 

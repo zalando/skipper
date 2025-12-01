@@ -30,7 +30,7 @@ type Client struct {
 	quit         chan struct{}
 }
 
-// Creates a Client with an initial set of route definitions.
+// New creates a Client with an initial set of route definitions.
 func New(initial []*eskip.Route) *Client {
 	routes := make(map[string]*eskip.Route)
 	for _, r := range initial {
@@ -44,7 +44,7 @@ func New(initial []*eskip.Route) *Client {
 	}
 }
 
-// Creates a Client with an initial set of route definitions in eskip
+// NewDoc creates a Client with an initial set of route definitions in eskip
 // format. If parsing the eskip document fails, returns an error.
 func NewDoc(doc string) (*Client, error) {
 	routes, err := eskip.Parse(doc)
@@ -55,7 +55,7 @@ func NewDoc(doc string) (*Client, error) {
 	return New(routes), nil
 }
 
-// Returns the initial/current set of route definitions.
+// LoadAll returns the initial/current set of route definitions.
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	if c.failNext > 0 {
 		c.upsert, c.deletedIDs = nil, nil
@@ -72,7 +72,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	return routes, nil
 }
 
-// Returns the route definitions upserted/deleted since the last call to
+// LoadUpdate returns the route definitions upserted/deleted since the last call to
 // LoadAll.
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	select {

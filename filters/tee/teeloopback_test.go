@@ -80,7 +80,7 @@ func TestOriginalBackendServeEvenWhenShadowDoesNotReply(t *testing.T) {
 	original := backendtest.NewBackendRecorder(listenFor)
 	split := backendtest.NewBackendRecorder(listenFor)
 
-	const responseTimeout = 2 * time.Second
+	const responseTimeout = 100 * time.Millisecond
 	shadow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(2 * responseTimeout)
 	}))
