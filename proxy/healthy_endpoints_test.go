@@ -33,6 +33,7 @@ func defaultEndpointRegistry() *routing.EndpointRegistry {
 }
 
 func sendGetRequest(t *testing.T, ps *httptest.Server, consistentHashKey int) *http.Response {
+	t.Helper()
 	req, err := http.NewRequest("GET", ps.URL, nil)
 	require.NoError(t, err)
 	req.Header.Add("ConsistentHashKey", fmt.Sprintf("%d", consistentHashKey))
@@ -43,7 +44,8 @@ func sendGetRequest(t *testing.T, ps *httptest.Server, consistentHashKey int) *h
 }
 
 func sendGetRequests(t *testing.T, ps *httptest.Server) (failed int) {
-	for i := 0; i < nRequests; i++ {
+	t.Helper()
+	for i := range nRequests {
 		rsp := sendGetRequest(t, ps, i)
 		if rsp.StatusCode != http.StatusOK {
 			failed++
@@ -61,6 +63,7 @@ func fireVegeta(t *testing.T, ps *httptest.Server, freq int, per time.Duration, 
 }
 
 func setupProxy(t *testing.T, doc string) (*metricstest.MockMetrics, *httptest.Server) {
+	t.Helper()
 	m := &metricstest.MockMetrics{}
 	endpointRegistry := defaultEndpointRegistry()
 	proxyParams := Params{
@@ -76,6 +79,7 @@ func setupProxy(t *testing.T, doc string) (*metricstest.MockMetrics, *httptest.S
 }
 
 func setupProxyWithCustomEndpointRegisty(t *testing.T, doc string, endpointRegistry *routing.EndpointRegistry) (*metricstest.MockMetrics, *httptest.Server) {
+	t.Helper()
 	m := &metricstest.MockMetrics{}
 	proxyParams := Params{
 		EnablePassiveHealthCheck: true,
@@ -90,6 +94,7 @@ func setupProxyWithCustomEndpointRegisty(t *testing.T, doc string, endpointRegis
 }
 
 func setupProxyWithCustomProxyParams(t *testing.T, doc string, proxyParams Params) *httptest.Server {
+	t.Helper()
 	tp, err := newTestProxyWithParams(doc, proxyParams)
 	require.NoError(t, err)
 
@@ -102,15 +107,16 @@ func setupProxyWithCustomProxyParams(t *testing.T, doc string, proxyParams Param
 }
 
 func setupServices(t *testing.T, healthy, unhealthy int) string {
+	t.Helper()
 	services := []string{}
-	for i := 0; i < healthy; i++ {
+	for range healthy {
 		service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 		services = append(services, service.URL)
 		t.Cleanup(service.Close)
 	}
-	for i := 0; i < unhealthy; i++ {
+	for range unhealthy {
 		service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(100 * time.Millisecond)
 			w.WriteHeader(http.StatusOK)
@@ -199,6 +205,7 @@ func TestPHC(t *testing.T) {
 			servicesString := setupServices(t, tt.healthy, tt.unhealthy)
 			for _, algorithm := range []string{"random", "roundRobin", "powerOfRandomNChoices"} {
 				t.Run(algorithm, func(t *testing.T) {
+					t.Parallel()
 					mockMetrics, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("20ms") -> <%s, %s>`,
 						algorithm, servicesString))
 					va := fireVegeta(t, ps, 5000, 1*time.Second, 5*time.Second)

@@ -177,7 +177,7 @@ spec:
 	rate := 10
 	sec := 5
 	va := httptest.NewVegetaAttacker("http://"+o.Address+"/test", rate, time.Second, time.Second)
-	va.Attack(io.Discard, time.Duration(sec)*time.Second, "mytest")
+	va.Attack(io.Discard, time.Duration(sec)*time.Second, t.Name())
 
 	successRate := va.Success()
 	t.Logf("Success [0..1]: %0.2f", successRate)
@@ -341,7 +341,7 @@ spec:
 	rate := 10
 	sec := 5
 	va := httptest.NewVegetaAttacker("http://"+o.Address+"/test", rate, time.Second, time.Second)
-	va.Attack(io.Discard, time.Duration(sec)*time.Second, "mytest")
+	va.Attack(io.Discard, time.Duration(sec)*time.Second, t.Name())
 	t.Logf("Success [0..1]: %0.2f", va.Success())
 
 	if successRate := va.Success(); successRate < 0.1 || successRate > 0.5 {
@@ -548,6 +548,7 @@ func createFilterRegistry(specs ...filters.Spec) filters.Registry {
 }
 
 func createRedisEndpointsSpec(t *testing.T, addrs ...string) string {
+	t.Helper()
 	var addresses []map[string]any
 	for _, addr := range addrs {
 		host, port, err := net.SplitHostPort(addr)
