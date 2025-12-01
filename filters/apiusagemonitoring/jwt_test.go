@@ -1,9 +1,10 @@
 package apiusagemonitoring
 
 import (
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_parseJwtBody_NoHeader(t *testing.T) {
@@ -79,4 +80,17 @@ func Test_parseJwtBody_AuthorizationHeaderWithValidJwtBody(t *testing.T) {
 
 	body := parseJwtBody(req)
 	assert.Equal(t, jwtTokenPayload{"foo": "bar"}, body)
+}
+
+func BenchmarkParseJwtBody(b *testing.B) {
+	req, err := http.NewRequest(http.MethodGet, "", nil)
+	assert.NoError(b, err)
+	req.Header = http.Header{
+		authorizationHeaderName: []string{"Bearer Zm9v.eyJmb28iOiJiYXIifQ.bW9v"},
+	}
+
+	for b.Loop() {
+		body := parseJwtBody(req)
+		assert.Equal(b, jwtTokenPayload{"foo": "bar"}, body)
+	}
 }

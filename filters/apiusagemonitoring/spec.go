@@ -57,7 +57,7 @@ func NewApiUsageMonitoring(
 
 	// parse realm keys comma separated list
 	var realmKeyList []string
-	for _, key := range strings.Split(realmKeys, ",") {
+	for key := range strings.SplitSeq(realmKeys, ",") {
 		strippedKey := strings.TrimSpace(key)
 		if strippedKey != "" {
 			realmKeyList = append(realmKeyList, strippedKey)
@@ -65,7 +65,7 @@ func NewApiUsageMonitoring(
 	}
 	// parse client keys comma separated list
 	var clientKeyList []string
-	for _, key := range strings.Split(clientKeys, ",") {
+	for key := range strings.SplitSeq(clientKeys, ",") {
 		strippedKey := strings.TrimSpace(key)
 		if strippedKey != "" {
 			clientKeyList = append(clientKeyList, strippedKey)
@@ -105,7 +105,21 @@ func NewApiUsageMonitoring(
 		realmsTrackingMatcher: realmsTrackingMatcher,
 		sometimes:             rate.Sometimes{First: 3, Interval: 1 * time.Minute},
 		filterMap:             make(map[string]*apiUsageMonitoringFilter),
+		quitCH:                make(chan struct{}),
 	}
+
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		for {
+			select {
+			case <-spec.quitCH:
+				return
+			case <-ticker.C:
+				jwtCache.Clear()
+			}
+		}
+	}()
+
 	log.Debugf("created filter spec: %+v", spec)
 	return spec
 }
@@ -129,6 +143,8 @@ type apiUsageMonitoringSpec struct {
 
 	mu        sync.Mutex
 	filterMap map[string]*apiUsageMonitoringFilter
+
+	quitCH chan struct{}
 }
 
 func (s *apiUsageMonitoringSpec) errorf(format string, args ...interface{}) {
@@ -170,6 +186,11 @@ func keyFromArgs(args []interface{}) (string, error) {
 		sb.WriteString(s)
 	}
 	return sb.String(), nil
+}
+
+func (s *apiUsageMonitoringSpec) Close() error {
+	close(s.quitCH)
+	return nil
 }
 
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
