@@ -39,7 +39,7 @@ spec:
       hostNetwork: true
       containers:
       - name: skipper-ingress
-        image: registry.opensource.zalan.do/teapot/skipper:v0.12.0
+        image: registry.opensource.zalan.do/teapot/skipper:v0.22.170
         ports:
         - name: ingress-port
           containerPort: 9999
