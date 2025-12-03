@@ -396,6 +396,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
+			t.Parallel()
 			t.Logf("Running test for %v", ti)
 			clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte("Welcome!"))
@@ -524,7 +525,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 			fr := make(filters.Registry)
 
-			config := []byte(fmt.Sprintf(`{
+			config := fmt.Appendf(nil, `{
 				"services": {
 					"test": {
 						"url": %q
@@ -544,7 +545,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 						"dry-run": false
 					}
 				}
-			}`, opaControlPlane.URL(), ti.regoQuery))
+			}`, opaControlPlane.URL(), ti.regoQuery)
 
 			envoyMetaDataConfig := []byte(`{
 				"filter_metadata": {
@@ -969,7 +970,7 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 
 			fr := make(filters.Registry)
 
-			config := []byte(fmt.Sprintf(`{
+			config := fmt.Appendf(nil, `{
 				"services": {
 					"test": {
 						"url": %q
@@ -984,12 +985,12 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 					"environment": "test"
 				},
 				"plugins": {
-					"envoy_ext_authz_grpc": {    
+					"envoy_ext_authz_grpc": {
 						"path": %q,
-						"dry-run": false    
+						"dry-run": false
 					}
 				}
-			}`, opaControlPlane.URL(), ti.regoQuery))
+			}`, opaControlPlane.URL(), ti.regoQuery)
 
 			envoyMetaDataConfig := []byte(`{
 				"filter_metadata": {
@@ -1047,6 +1048,7 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 }
 
 func isHeadersPresent(t *testing.T, expectedHeaders http.Header, headers http.Header) bool {
+	t.Helper()
 	for headerName, expectedValues := range expectedHeaders {
 		actualValues, headerFound := headers[headerName]
 
@@ -1065,6 +1067,7 @@ func isHeadersPresent(t *testing.T, expectedHeaders http.Header, headers http.He
 }
 
 func isHeadersAbsent(t *testing.T, unwantedHeaders http.Header, headers http.Header) bool {
+	t.Helper()
 	for headerName := range unwantedHeaders {
 		if _, ok := headers[headerName]; ok {
 			return false

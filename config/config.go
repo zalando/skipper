@@ -287,6 +287,7 @@ type Config struct {
 	EnableSwarm bool `yaml:"enable-swarm"`
 	// redis based
 	SwarmRedisURLs               *listFlag     `yaml:"swarm-redis-urls"`
+	SwarmRedisUsername           string        `yaml:"swarm-redis-username"`
 	SwarmRedisPassword           string        `yaml:"swarm-redis-password"`
 	SwarmRedisHashAlgorithm      string        `yaml:"swarm-redis-hash-algorithm"`
 	SwarmRedisDialTimeout        time.Duration `yaml:"swarm-redis-dial-timeout"`
@@ -1010,6 +1011,7 @@ func (c *Config) ToOptions() skipper.Options {
 		EnableSwarm: c.EnableSwarm,
 		// redis based
 		SwarmRedisURLs:               c.SwarmRedisURLs.values,
+		SwarmRedisUsername:           c.SwarmRedisUsername,
 		SwarmRedisPassword:           c.SwarmRedisPassword,
 		SwarmRedisHashAlgorithm:      c.SwarmRedisHashAlgorithm,
 		SwarmRedisDialTimeout:        c.SwarmRedisDialTimeout,

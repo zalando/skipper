@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -184,17 +185,17 @@ func TestTeeEndToEndBody2TeeRoutesAndClosing(t *testing.T) {
 
 	shadowHandler := newTestHandler(t, "shadow")
 	shadowServer := httptest.NewServer(shadowHandler)
-	shadowUrl := shadowServer.URL
+	shadowURL := shadowServer.URL
 	defer shadowServer.Close()
 
 	originalHandler := newTestHandler(t, "original")
 	originalServer := httptest.NewServer(originalHandler)
-	originalUrl := originalServer.URL
+	originalURL := originalServer.URL
 	defer originalServer.Close()
 
-	routeStrNoShadow := fmt.Sprintf(`route1: * -> "%v";`, originalUrl)
-	routeStr := fmt.Sprintf(`route1: * -> tee("%v") -> "%v";`, shadowUrl, originalUrl)
-	routesStr := fmt.Sprintf(`route1: * -> tee("%v") -> "%v";route2: Path("/") -> tee("%v") -> "%v";`, shadowUrl, originalUrl, shadowUrl, originalUrl)
+	routeStrNoShadow := fmt.Sprintf(`route1: * -> "%v";`, originalURL)
+	routeStr := fmt.Sprintf(`route1: * -> tee("%v") -> "%v";`, shadowURL, originalURL)
+	routesStr := fmt.Sprintf(`route1: * -> tee("%v") -> "%v";route2: Path("/") -> tee("%v") -> "%v";`, shadowURL, originalURL, shadowURL, originalURL)
 
 	routeNoShadow := eskip.MustParse(routeStrNoShadow)
 	route := eskip.MustParse(routeStr)
@@ -237,12 +238,14 @@ func TestTeeEndToEndBody2TeeRoutesAndClosing(t *testing.T) {
 
 	testFunc()
 	dc.Update(route, []string{"route2"})
+	time.Sleep(50 * time.Millisecond)
 
 	shadowHandler.served = make(chan struct{})
 	originalHandler.served = make(chan struct{})
 	testFunc()
 
 	dc.Update(routeNoShadow, nil)
+	time.Sleep(50 * time.Millisecond)
 	originalHandler.served = make(chan struct{})
 	shadowHandler.served = make(chan struct{})
 

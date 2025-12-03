@@ -235,10 +235,11 @@ shadow: PathSubtree("/") && Tee("tag") -> fifo(5, 40, "150ms") -> backendTimeout
 
 func createBackend(t *testing.T) *httptest.Server {
 	t.Helper()
+	sometimes := rate.Sometimes{First: 3, Interval: time.Second}
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf, err := io.ReadAll(r.Body)
 		if err != nil {
-			t.Logf("backend: failed to read body: %v", err)
+			sometimes.Do(func() { t.Logf("backend: failed to read body: %v", err) })
 			w.WriteHeader(500)
 			fmt.Fprintf(w, "backend: failed to read body: %v", err.Error())
 		} else {
@@ -323,7 +324,7 @@ func sendRequests(t *testing.T, N int, p *proxytest.TestProxy, client *skpnet.Cl
 
 			rsp, err := client.Do(req)
 			if err != nil {
-				t.Logf("Failed to get response: %v", err)
+				sometimes.Do(func() { t.Logf("Failed to get response: %v", err) })
 				return
 			}
 			if rsp.StatusCode != 200 {
