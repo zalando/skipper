@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -168,7 +169,6 @@ func TestRedisClient(t *testing.T) {
 			wantErr: false,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			cli := NewRedisRingClient(tt.options)
 			defer func() {
@@ -1087,15 +1087,17 @@ func TestRedisClientSetAddr(t *testing.T) {
 }
 
 func TestRedisClientFailingAddrUpdater(t *testing.T) {
-	cli := NewRedisRingClient(&RedisOptions{
-		AddrUpdater: func() ([]string, error) {
-			return nil, fmt.Errorf("failed to get addresses")
-		},
-		UpdateInterval: 1 * time.Second,
-	})
-	defer cli.Close()
+	synctest.Test(t, func(t *testing.T) {
+		cli := NewRedisRingClient(&RedisOptions{
+			AddrUpdater: func() ([]string, error) {
+				return nil, fmt.Errorf("failed to get addresses")
+			},
+			UpdateInterval: 1 * time.Second,
+		})
+		defer cli.Close()
 
-	if cli.RingAvailable() {
-		t.Error("Unexpected available ring")
-	}
+		if cli.RingAvailable() {
+			t.Error("Unexpected available ring")
+		}
+	})
 }

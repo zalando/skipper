@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zalando/skipper/filters"
@@ -30,6 +31,10 @@ const (
 const (
 	authorizationHeaderName   = "Authorization"
 	authorizationHeaderPrefix = "Bearer "
+)
+
+var (
+	jwtCache = sync.Map{}
 )
 
 // apiUsageMonitoringFilter implements filters.Filter interface and is the structure
@@ -219,11 +224,17 @@ func parseJwtBody(req *http.Request) jwtTokenPayload {
 	if tv == ahead {
 		return nil
 	}
+	if tk, ok := jwtCache.Load(tv); ok {
+		if token, ok := tk.(*jwt.Token); ok {
+			return token.Claims
+		}
+	}
 
 	token, err := jwt.Parse(tv)
 	if err != nil {
 		return nil
 	}
+	jwtCache.Store(tv, token)
 
 	return token.Claims
 }

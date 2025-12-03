@@ -15,6 +15,25 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
+func TestNew(t *testing.T) {
+	fr := builtin.MakeRegistry()
+	routes := eskip.MustParse(`r: * -> status(200) -> inlineContent("ok") -> <shunt>;`)
+	p := proxytest.New(fr, routes...)
+	defer p.Close()
+
+	rsp, body, err := p.Client().GetBody(p.URL)
+	if err != nil {
+		t.Fatalf("Failed to get response: %v", err)
+	}
+	if rsp.StatusCode != 200 {
+		t.Fatalf("Failed to get response status 200, got: %d", rsp.StatusCode)
+	}
+	if s := string(body); s != "ok" {
+		t.Fatalf(`Failed to get response body "ok", got: %q`, s)
+	}
+
+}
+
 func TestHttps(t *testing.T) {
 	dnstest.LoopbackNames(t, "foo.skipper.test", "bar.skipper.test")
 

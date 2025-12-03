@@ -441,6 +441,7 @@ func TestNewLIFO(t *testing.T) {
 }
 
 func TestLifoErrors(t *testing.T) {
+
 	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		time.Sleep(time.Second)
 	}))
@@ -515,9 +516,10 @@ func TestLifoErrors(t *testing.T) {
 }
 
 func requestSpike(t *testing.T, n int, url string) {
+	t.Helper()
 	var wg sync.WaitGroup
 	wg.Add(n)
-	for i := 0; i < n; i++ {
+	for range n {
 		go func() {
 			rsp, err := http.Get(url)
 			require.NoError(t, err)

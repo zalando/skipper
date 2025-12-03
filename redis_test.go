@@ -135,8 +135,9 @@ spec:
 	lb := stdlibhttptest.NewServer(pr)
 	defer lb.Close()
 
+	skipper.MuFindAddress.Lock()
 	rsvo := skipper.Options{
-		Address:                         findAddress(t),
+		Address:                         skipper.FindAddress(t),
 		Kubernetes:                      true,
 		KubernetesURL:                   lb.URL,
 		KubernetesRedisServiceNamespace: "skipper",
@@ -145,14 +146,12 @@ spec:
 		KubernetesHealthcheck:           true,
 		SourcePollTimeout:               1500 * time.Millisecond,
 	}
-
 	go routesrv.Run(rsvo)
-
 	waitForOK(t, "http://"+rsvo.Address+"/routes", 1*time.Second)
 
 	// run skipper proxy that we want to test
 	o := skipper.Options{
-		Address:                        findAddress(t),
+		Address:                        skipper.FindAddress(t),
 		EnableRatelimiters:             true,
 		EnableSwarm:                    true,
 		Kubernetes:                     true,
@@ -164,7 +163,7 @@ spec:
 		ClusterRatelimitMaxGroupShards: 2,
 		SwarmRedisDialTimeout:          100 * time.Millisecond,
 		SuppressRouteUpdateLogs:        false,
-		SupportListener:                findAddress(t),
+		SupportListener:                skipper.FindAddress(t),
 		SwarmRedisUpdateInterval:       time.Second,
 	}
 
@@ -173,11 +172,12 @@ spec:
 	go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 	waitForOK(t, "http://"+o.Address+"/kube-system/healthz", 1*time.Second)
+	skipper.MuFindAddress.Unlock()
 
 	rate := 10
 	sec := 5
 	va := httptest.NewVegetaAttacker("http://"+o.Address+"/test", rate, time.Second, time.Second)
-	va.Attack(io.Discard, time.Duration(sec)*time.Second, "mytest")
+	va.Attack(io.Discard, time.Duration(sec)*time.Second, t.Name())
 
 	successRate := va.Success()
 	t.Logf("Success [0..1]: %0.2f", successRate)
@@ -311,8 +311,9 @@ spec:
 	defer lb.Close()
 
 	// run skipper proxy that we want to test
+	skipper.MuFindAddress.Lock()
 	o := skipper.Options{
-		Address:                         findAddress(t),
+		Address:                         skipper.FindAddress(t),
 		EnableRatelimiters:              true,
 		EnableSwarm:                     true,
 		Kubernetes:                      true,
@@ -326,7 +327,7 @@ spec:
 		ClusterRatelimitMaxGroupShards:  2,
 		SwarmRedisDialTimeout:           100 * time.Millisecond,
 		SuppressRouteUpdateLogs:         false,
-		SupportListener:                 findAddress(t),
+		SupportListener:                 skipper.FindAddress(t),
 		SwarmRedisUpdateInterval:        time.Second,
 	}
 
@@ -335,11 +336,12 @@ spec:
 	go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 	waitForOK(t, "http://"+o.Address+"/kube-system/healthz", 1*time.Second)
+	skipper.MuFindAddress.Unlock()
 
 	rate := 10
 	sec := 5
 	va := httptest.NewVegetaAttacker("http://"+o.Address+"/test", rate, time.Second, time.Second)
-	va.Attack(io.Discard, time.Duration(sec)*time.Second, "mytest")
+	va.Attack(io.Discard, time.Duration(sec)*time.Second, t.Name())
 	t.Logf("Success [0..1]: %0.2f", va.Success())
 
 	if successRate := va.Success(); successRate < 0.1 || successRate > 0.5 {
@@ -407,8 +409,9 @@ spec:
 
 		metrics := &metricstest.MockMetrics{}
 
+		skipper.MuFindAddress.Lock()
 		o := skipper.Options{
-			Address:                         findAddress(t),
+			Address:                         skipper.FindAddress(t),
 			EnableRatelimiters:              true,
 			EnableSwarm:                     true,
 			Kubernetes:                      false, // do not enable kubernetes dataclient
@@ -426,6 +429,7 @@ spec:
 		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 		waitForOK(t, "http://"+o.Address+"/ready", 1*time.Second)
+		skipper.MuFindAddress.Unlock()
 		time.Sleep(2 * redisUpdateInterval)
 
 		metrics.WithGauges(func(g map[string]float64) {
@@ -445,8 +449,9 @@ spec:
 
 		metrics := &metricstest.MockMetrics{}
 
+		skipper.MuFindAddress.Lock()
 		o := skipper.Options{
-			Address:                         findAddress(t),
+			Address:                         skipper.FindAddress(t),
 			EnableRatelimiters:              true,
 			EnableSwarm:                     true,
 			Kubernetes:                      true, // enable kubernetes dataclient
@@ -463,6 +468,7 @@ spec:
 		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 		waitForOK(t, "http://"+o.Address+"/test", 1*time.Second)
+		skipper.MuFindAddress.Unlock()
 		time.Sleep(2 * redisUpdateInterval)
 
 		metrics.WithGauges(func(g map[string]float64) {
@@ -490,8 +496,9 @@ spec:
 
 		metrics := &metricstest.MockMetrics{}
 
+		skipper.MuFindAddress.Lock()
 		o := skipper.Options{
-			Address:                      findAddress(t),
+			Address:                      skipper.FindAddress(t),
 			EnableRatelimiters:           true,
 			EnableSwarm:                  true,
 			SwarmRedisEndpointsRemoteURL: eps.URL,
@@ -505,6 +512,7 @@ spec:
 		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 		waitForOK(t, "http://"+o.Address+"/ready", 1*time.Second)
+		skipper.MuFindAddress.Unlock()
 		time.Sleep(2 * redisUpdateInterval)
 
 		metrics.WithGauges(func(g map[string]float64) {
@@ -540,6 +548,7 @@ func createFilterRegistry(specs ...filters.Spec) filters.Registry {
 }
 
 func createRedisEndpointsSpec(t *testing.T, addrs ...string) string {
+	t.Helper()
 	var addresses []map[string]any
 	for _, addr := range addrs {
 		host, port, err := net.SplitHostPort(addr)
@@ -574,18 +583,6 @@ func createRedisEndpointsSpec(t *testing.T, addrs ...string) string {
 	return fmt.Sprintf("---\n%s\n", b)
 }
 
-func findAddress(t *testing.T) string {
-	t.Helper()
-
-	l, err := net.ListenTCP("tcp6", &net.TCPAddr{})
-	require.NoError(t, err)
-
-	addr := l.Addr().String()
-	require.NoError(t, l.Close())
-
-	return addr
-}
-
 func waitForOK(t *testing.T, url string, timeout time.Duration) {
 	t.Helper()
 
@@ -603,7 +600,7 @@ func waitForOK(t *testing.T, url string, timeout time.Duration) {
 		case <-to:
 			t.Fatalf("timeout waiting for %s", url)
 		default:
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(timeout / 10)
 		}
 	}
 }
