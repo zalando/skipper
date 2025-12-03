@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: skipper-demo
-        image: registry.opensource.zalan.do/teapot/skipper:v0.12.0
+        image: registry.opensource.zalan.do/teapot/skipper:v0.22.170
         args:
           - "skipper"
           - "-inline-routes"
