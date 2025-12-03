@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	stdlibhttptest "net/http/httptest"
-	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -21,6 +20,7 @@ import (
 )
 
 func TestResponseFilterOnProxyError(t *testing.T) {
+	t.Parallel()
 	counter := int64(1)
 	serverErrN := int64(37)
 	timeoutN := int64(5)
@@ -66,12 +66,7 @@ func TestResponseFilterOnProxyError(t *testing.T) {
 		r...)
 	defer proxy.Close()
 
-	reqURL, err := url.Parse(proxy.URL)
-	if err != nil {
-		t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-	}
-
-	req, err := http.NewRequest("GET", reqURL.String(), nil)
+	req, err := http.NewRequest("GET", proxy.URL, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -88,8 +83,8 @@ func TestResponseFilterOnProxyError(t *testing.T) {
 	sec := 5
 	d := time.Duration(sec) * time.Second
 	total := uint64(rate * sec)
-	va := httptest.NewVegetaAttacker(reqURL.String(), rate, time.Second, timeout)
-	va.Attack(io.Discard, d, "mytest")
+	va := httptest.NewVegetaAttacker(proxy.URL, rate, time.Second, timeout)
+	va.Attack(io.Discard, d, t.Name())
 	t.Logf("Success [0..1]: %0.2f", va.Success())
 
 	if successRate := va.Success(); successRate < 0.5 || successRate > 0.9 {
@@ -123,6 +118,7 @@ func TestResponseFilterOnProxyError(t *testing.T) {
 }
 
 func TestAdmissionControlBeforeLoopback(t *testing.T) {
+	t.Parallel()
 	counter := int64(1)
 	serverErrN := int64(37)
 	timeoutN := int64(5)
@@ -170,12 +166,7 @@ func TestAdmissionControlBeforeLoopback(t *testing.T) {
 		r...)
 	defer proxy.Close()
 
-	reqURL, err := url.Parse(proxy.URL)
-	if err != nil {
-		t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-	}
-
-	req, err := http.NewRequest("GET", reqURL.String(), nil)
+	req, err := http.NewRequest("GET", proxy.URL, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -192,8 +183,8 @@ func TestAdmissionControlBeforeLoopback(t *testing.T) {
 	sec := 5
 	d := time.Duration(sec) * time.Second
 	total := uint64(rate * sec)
-	va := httptest.NewVegetaAttacker(reqURL.String(), rate, time.Second, timeout)
-	va.Attack(io.Discard, d, "mytest")
+	va := httptest.NewVegetaAttacker(proxy.URL, rate, time.Second, timeout)
+	va.Attack(io.Discard, d, t.Name())
 	t.Logf("Success [0..1]: %0.2f", va.Success())
 
 	if successRate := va.Success(); successRate < 0.5 || successRate > 0.9 {
@@ -227,6 +218,7 @@ func TestAdmissionControlBeforeLoopback(t *testing.T) {
 }
 
 func TestAdmissionControlInLoopback(t *testing.T) {
+	t.Parallel()
 	counter := int64(1)
 	serverErrN := int64(37)
 	timeoutN := int64(5)
@@ -274,12 +266,7 @@ func TestAdmissionControlInLoopback(t *testing.T) {
 		r...)
 	defer proxy.Close()
 
-	reqURL, err := url.Parse(proxy.URL)
-	if err != nil {
-		t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-	}
-
-	req, err := http.NewRequest("GET", reqURL.String(), nil)
+	req, err := http.NewRequest("GET", proxy.URL, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -296,8 +283,8 @@ func TestAdmissionControlInLoopback(t *testing.T) {
 	sec := 5
 	d := time.Duration(sec) * time.Second
 	total := uint64(rate * sec)
-	va := httptest.NewVegetaAttacker(reqURL.String(), rate, time.Second, timeout)
-	va.Attack(io.Discard, d, "mytest")
+	va := httptest.NewVegetaAttacker(proxy.URL, rate, time.Second, timeout)
+	va.Attack(io.Discard, d, t.Name())
 	t.Logf("Success [0..1]: %0.2f", va.Success())
 
 	if successRate := va.Success(); successRate < 0.5 || successRate > 0.9 {

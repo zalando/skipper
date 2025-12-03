@@ -276,6 +276,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		},
 	} {
 		t.Run(tc.msg, func(t *testing.T) {
+			t.Parallel()
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				t.Logf("backend got request: %+v", r)
 				w.Write([]byte("OK"))

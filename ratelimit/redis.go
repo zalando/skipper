@@ -36,6 +36,12 @@ const (
 
 	allowSpanName       = "redis_allow"
 	oldestScoreSpanName = "redis_oldest_score"
+
+	redisErrorTag                    = "redis.error"
+	redisErrorFailedToDetermineAllow = "failedToDetermineAllow"
+	redisErrorFailedZRange           = "failedZRange"
+	redisErrorFailedToEvaluate       = "failedToEvaluate"
+	redisErrorFailedToConvert        = "failedToConvert"
 )
 
 // newClusterRateLimiterRedis creates a new clusterLimitRedis for given
@@ -123,7 +129,7 @@ func (c *clusterLimitRedis) Allow(ctx context.Context, clearText string) bool {
 	if failed {
 		allow = !c.failClosed
 		msgFmt := "Failed to determine if operation is allowed: %v"
-		setError(span, fmt.Sprintf(msgFmt, err))
+		setError(span, fmt.Sprintf(msgFmt, err), redisErrorFailedToDetermineAllow)
 		c.logError(msgFmt, err)
 	}
 	if span != nil {
@@ -208,9 +214,10 @@ func (c *clusterLimitRedis) Delta(clearText string) time.Duration {
 	return d
 }
 
-func setError(span opentracing.Span, msg string) {
+func setError(span opentracing.Span, msg string, tagValue string) {
 	if span != nil {
 		ext.Error.Set(span, true)
+		span.SetTag("redis.error", tagValue)
 		span.LogKV("log", msg)
 	}
 }
@@ -235,7 +242,7 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.
 	res, err := c.ringClient.ZRangeByScoreWithScoresFirst(ctx, key, 0.0, float64(now.UnixNano()), 0, 1)
 
 	if err != nil {
-		setError(span, fmt.Sprintf("Failed to execute ZRangeByScoreWithScoresFirst: %v", err))
+		setError(span, fmt.Sprintf("Failed to execute ZRangeByScoreWithScoresFirst: %v", err), redisErrorFailedZRange)
 		return time.Time{}, err
 	}
 
@@ -246,13 +253,13 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.
 	s, ok := res.(string)
 	if !ok {
 		msg := "failed to evaluate redis data"
-		setError(span, msg)
+		setError(span, msg, redisErrorFailedToEvaluate)
 		return time.Time{}, errors.New(msg)
 	}
 
 	oldest, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		setError(span, fmt.Sprintf("failed to convert value to int64: %v", err))
+		setError(span, fmt.Sprintf("failed to convert value to int64: %v", err), redisErrorFailedToConvert)
 		return time.Time{}, fmt.Errorf("failed to convert value to int64: %w", err)
 	}
 

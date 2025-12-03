@@ -249,6 +249,7 @@ func TestFifoWithBody(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
 			backend := stdlibhttptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				t.Logf("backend path: %s", r.URL.Path)
@@ -393,7 +394,7 @@ func TestFifo(t *testing.T) {
 	}{
 		{
 			name:        "fifo simple ok",
-			filter:      `fifo(3, 5, "1s")`,
+			filter:      `fifo(30, 5, "1s")`,
 			freq:        20,
 			per:         100 * time.Millisecond,
 			backendTime: 1 * time.Millisecond,
@@ -401,7 +402,7 @@ func TestFifo(t *testing.T) {
 		},
 		{
 			name:          "fifoWithBody simple ok",
-			filter:        `fifoWithBody(3, 5, "1s")`,
+			filter:        `fifoWithBody(30, 5, "1s")`,
 			freq:          20,
 			per:           100 * time.Millisecond,
 			backendTime:   1 * time.Millisecond,
@@ -464,6 +465,7 @@ func TestFifo(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			metrics := &metricstest.MockMetrics{}
 			reg := scheduler.RegistryWith(scheduler.Options{
 				Metrics:                metrics,
@@ -592,6 +594,7 @@ func TestFifoConstantRouteUpdates(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			metrics := &metricstest.MockMetrics{}
 			reg := scheduler.RegistryWith(scheduler.Options{
 				Metrics:                metrics,

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"testing/synctest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,11 +16,13 @@ import (
 const refresh = 50 * time.Millisecond
 
 func writeFile(t *testing.T, path string, content string) {
+	t.Helper()
 	require.NoError(t, os.WriteFile(path, []byte(content), 0600))
 	time.Sleep(2 * refresh)
 }
 
 func removeFile(t *testing.T, path string) {
+	t.Helper()
 	require.NoError(t, os.Remove(path))
 	time.Sleep(2 * refresh)
 }
@@ -227,38 +231,42 @@ func TestSecretPaths(t *testing.T) {
 	})
 
 	t.Run("trims newline", func(t *testing.T) {
-		path := t.TempDir() + "/foo"
+		synctest.Test(t, func(t *testing.T) {
+			path := t.TempDir() + "/foo"
 
-		writeFile(t, path, "created\n")
+			writeFile(t, path, "created\n")
 
-		require.NoError(t, sp.Add(path))
+			require.NoError(t, sp.Add(path))
 
-		checkSecret(t, path, "created")
+			checkSecret(t, path, "created")
+		})
 	})
 }
 
 func TestSecretPathsDoesNotRefreshAfterClose(t *testing.T) {
-	sp := NewSecretPaths(refresh)
+	synctest.Test(t, func(t *testing.T) {
+		sp := NewSecretPaths(refresh)
 
-	checkSecret := func(t *testing.T, path string, expected string) {
-		got, ok := sp.GetSecret(path)
-		if assert.True(t, ok) {
-			assert.Equal(t, []byte(expected), got)
+		checkSecret := func(t *testing.T, path string, expected string) {
+			got, ok := sp.GetSecret(path)
+			if assert.True(t, ok) {
+				assert.Equal(t, []byte(expected), got)
+			}
 		}
-	}
 
-	path := t.TempDir() + "/foo"
+		path := t.TempDir() + "/foo"
 
-	writeFile(t, path, "created")
+		writeFile(t, path, "created")
 
-	require.NoError(t, sp.Add(path))
+		require.NoError(t, sp.Add(path))
 
-	checkSecret(t, path, "created")
+		checkSecret(t, path, "created")
 
-	sp.Close()
+		sp.Close()
 
-	time.Sleep(2 * refresh)
+		time.Sleep(2 * refresh)
 
-	writeFile(t, path, "updated")
-	checkSecret(t, path, "created")
+		writeFile(t, path, "updated")
+		checkSecret(t, path, "created")
+	})
 }

@@ -109,7 +109,7 @@ func calculateFadeInDuration(t *testing.T, algorithmName string, endpointAges []
 	t.Log("preemulation start", time.Now())
 	// Preemulate the load balancer loop to find out the approximate amount of RPS
 	begin := time.Now()
-	for i := 0; i < fadeInRequestCount/precalculateRatio; i++ {
+	for range fadeInRequestCount / precalculateRatio {
 		_ = proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(rnd.Intn(100000))}})
 	}
 	preemulationDuration := time.Since(begin)
@@ -124,6 +124,7 @@ func testFadeInMonotony(
 	endpointAges ...float64,
 ) {
 	t.Run(name, func(t *testing.T) {
+		t.Parallel()
 		fadeInDuration := calculateFadeInDuration(t, algorithmName, endpointAges)
 		route, proxy, eps := initializeEndpoints(endpointAges, algorithmName, fadeInDuration)
 		defer proxy.Close()
@@ -151,7 +152,7 @@ func testFadeInMonotony(
 		t.Log("CSV timestamp," + strings.Join(eps, ","))
 		bucketSize := len(stats) / bucketCount
 		var allBuckets []map[string]int
-		for i := 0; i < bucketCount; i++ {
+		for i := range bucketCount {
 			bucketStats := make(map[string]int)
 			for j := i * bucketSize; j < (i+1)*bucketSize; j++ {
 				bucketStats[stats[j]]++
@@ -260,6 +261,7 @@ func testFadeInLoadBetweenOldAndNewEps(
 	nOld int, nNew int,
 ) {
 	t.Run(name, func(t *testing.T) {
+		t.Parallel()
 		const (
 			numberOfReqs            = 100000
 			acceptableErrorNearZero = 10
@@ -267,10 +269,10 @@ func testFadeInLoadBetweenOldAndNewEps(
 			new                     = 0.0
 		)
 		endpointAges := []float64{}
-		for i := 0; i < nOld; i++ {
+		for range nOld {
 			endpointAges = append(endpointAges, old)
 		}
-		for i := 0; i < nNew; i++ {
+		for range nNew {
 			endpointAges = append(endpointAges, new)
 		}
 
@@ -282,7 +284,7 @@ func testFadeInLoadBetweenOldAndNewEps(
 		t.Log("test start", time.Now())
 		// Emulate the load balancer loop, sending requests to it with random hash keys
 		// over and over again till fadeIn period is over.
-		for i := 0; i < numberOfReqs; i++ {
+		for range numberOfReqs {
 			ep := proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(rnd.Intn(100000))}})
 			nReqs[ep.Host]++
 		}
@@ -309,8 +311,8 @@ func testFadeInLoadBetweenOldAndNewEps(
 // Those tests check that the amount of requests per period for every endpoint at the very beginning of fading in (when all endpoints are new)
 // and at the very end of fading in (when all endpoints are old) is correct.
 func TestFadeInLoadBetweenOldAndNewEps(t *testing.T) {
-	for nOld := 0; nOld < 6; nOld++ {
-		for nNew := 0; nNew < 6; nNew++ {
+	for nOld := range 6 {
+		for nNew := range 6 {
 			if nOld == 0 && nNew == 0 {
 				continue
 			}
@@ -374,7 +376,7 @@ func benchmarkFadeIn(
 		// Emulate the load balancer loop, sending requests to it with random hash keys
 		// over and over again till fadeIn period is over.
 		b.ResetTimer()
-		for i := 0; i < clients; i++ {
+		for i := range clients {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
@@ -392,7 +394,7 @@ func benchmarkFadeIn(
 
 func repeatedSlice(v float64, n int) []float64 {
 	var s []float64
-	for i := 0; i < n; i++ {
+	for range n {
 		s = append(s, v)
 	}
 	return s

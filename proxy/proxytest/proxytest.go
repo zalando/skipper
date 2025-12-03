@@ -40,48 +40,34 @@ type Config struct {
 	WaitTime       time.Duration // Optional wait time, defaults to 3s if zero
 }
 
-func WithParamsAndRoutingOptions(fr filters.Registry, proxyParams proxy.Params, o routing.Options, routes ...*eskip.Route) *TestProxy {
+func WithParamsAndRoutingOptionsAndWait(fr filters.Registry, proxyParams proxy.Params, o routing.Options, wait time.Duration, routes ...*eskip.Route) *TestProxy {
 	o.FilterRegistry = fr
 	return Config{
 		RoutingOptions: o,
 		ProxyParams:    proxyParams,
-		Routes:         routes,
-	}.Create()
-}
-
-func WithRoutingOptions(fr filters.Registry, o routing.Options, routes ...*eskip.Route) *TestProxy {
-	o.FilterRegistry = fr
-	return Config{
-		RoutingOptions: o,
-		ProxyParams:    proxy.Params{CloseIdleConnsPeriod: -time.Second},
-		Routes:         routes,
-	}.Create()
-}
-
-func WithRoutingOptionsWithWait(fr filters.Registry, o routing.Options, wait time.Duration, routes ...*eskip.Route) *TestProxy {
-	o.FilterRegistry = fr
-	return Config{
-		RoutingOptions: o,
-		ProxyParams:    proxy.Params{CloseIdleConnsPeriod: -time.Second},
 		Routes:         routes,
 		WaitTime:       wait,
 	}.Create()
 }
 
+func WithParamsAndRoutingOptions(fr filters.Registry, proxyParams proxy.Params, o routing.Options, routes ...*eskip.Route) *TestProxy {
+	return WithParamsAndRoutingOptionsAndWait(fr, proxyParams, o, 0, routes...)
+}
+
+func WithRoutingOptions(fr filters.Registry, o routing.Options, routes ...*eskip.Route) *TestProxy {
+	return WithParamsAndRoutingOptions(fr, proxy.Params{CloseIdleConnsPeriod: -time.Second}, o, routes...)
+}
+
+func WithRoutingOptionsWithWait(fr filters.Registry, o routing.Options, wait time.Duration, routes ...*eskip.Route) *TestProxy {
+	return WithParamsAndRoutingOptionsAndWait(fr, proxy.Params{CloseIdleConnsPeriod: -time.Second}, o, wait, routes...)
+}
+
 func WithParams(fr filters.Registry, proxyParams proxy.Params, routes ...*eskip.Route) *TestProxy {
-	return Config{
-		RoutingOptions: routing.Options{FilterRegistry: fr},
-		ProxyParams:    proxyParams,
-		Routes:         routes,
-	}.Create()
+	return WithParamsAndRoutingOptions(fr, proxyParams, routing.Options{FilterRegistry: fr}, routes...)
 }
 
 func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {
-	return Config{
-		RoutingOptions: routing.Options{FilterRegistry: fr},
-		ProxyParams:    proxy.Params{CloseIdleConnsPeriod: -time.Second},
-		Routes:         routes,
-	}.Create()
+	return WithParams(fr, proxy.Params{CloseIdleConnsPeriod: -time.Second}, routes...)
 }
 
 func (c Config) Create() *TestProxy {

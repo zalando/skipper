@@ -3,7 +3,7 @@ package shedder
 import (
 	"context"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -94,7 +94,8 @@ const (
 )
 
 type Options struct {
-	Tracer opentracing.Tracer
+	Tracer   opentracing.Tracer
+	testRand bool
 }
 
 type admissionControlPre struct{}
@@ -164,7 +165,8 @@ func (spec *admissionControlPost) Do(routes []*routing.Route) []*routing.Route {
 }
 
 type AdmissionControlSpec struct {
-	tracer opentracing.Tracer
+	tracer   opentracing.Tracer
+	testRand bool
 }
 
 type admissionControl struct {
@@ -190,6 +192,13 @@ type admissionControl struct {
 	success          []int64
 	counter          *atomic.Int64
 	successCounter   *atomic.Int64
+
+	muRand sync.Mutex
+	rand   func() float64
+}
+
+func randWithSeed() func() float64 {
+	return rand.New(rand.NewPCG(2, 3)).Float64
 }
 
 func NewAdmissionControl(o Options) filters.Spec {
@@ -198,7 +207,8 @@ func NewAdmissionControl(o Options) filters.Spec {
 		tracer = &opentracing.NoopTracer{}
 	}
 	return &AdmissionControlSpec{
-		tracer: tracer,
+		tracer:   tracer,
+		testRand: o.testRand,
 	}
 }
 
@@ -298,6 +308,11 @@ func (spec *AdmissionControlSpec) CreateFilter(args []interface{}) (filters.Filt
 
 	averageRpsFactor := float64(time.Second) / (float64(d) * float64(windowSize))
 
+	r := rand.Float64
+	if spec.testRand {
+		r = randWithSeed()
+	}
+
 	ac := &admissionControl{
 		once: sync.Once{},
 
@@ -319,6 +334,7 @@ func (spec *AdmissionControlSpec) CreateFilter(args []interface{}) (filters.Filt
 		success:          make([]int64, windowSize),
 		counter:          new(atomic.Int64),
 		successCounter:   new(atomic.Int64),
+		rand:             r,
 	}
 	go ac.tickWindows(d)
 	return ac, nil
@@ -406,8 +422,11 @@ func (ac *admissionControl) pReject() float64 {
 
 func (ac *admissionControl) shouldReject() bool {
 	p := ac.pReject() // [0, ac.maxRejectProbability] and -1 to disable
+	var r float64
+	ac.muRand.Lock()
 	/* #nosec */
-	r := rand.Float64() // [0,1)
+	r = ac.rand() // [0,1)
+	ac.muRand.Unlock()
 
 	if ac.mode == logInactive {
 		log.Infof("%s: p: %0.2f, r: %0.2f", filters.AdmissionControlName, p, r)

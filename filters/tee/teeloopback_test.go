@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/predicates/source"
@@ -59,10 +60,12 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 	if err != nil {
 		t.Error("teeloopback: failed to execute the request.", err)
 	}
+	assert.Eventually(t, func() bool {
+		return matchRequestsCount(split, 1) && matchRequestsCount(shadow, 1)
+	}, 100*time.Millisecond, 10*time.Millisecond,
+		"teeloopback: expected to receive 1 requests in split and shadow backend but got Split: %d, Shadow: %d",
+		len(split.GetRequests()), len(shadow.GetRequests()))
 	waitForAll(split, original, shadow)
-	if !matchRequestsCount(shadow, 1) || !matchRequestsCount(split, 1) {
-		t.Errorf("teeloopback: expected to receive 1 requests in split and shadow backend but got Split: %d, Shadow: %d", len(split.GetRequests()), len(shadow.GetRequests()))
-	}
 	if !matchRequestsCount(original, 0) {
 		t.Errorf("teeloopback: backend of original route should not receive requests but got %d", len(original.GetRequests()))
 	}
@@ -77,7 +80,7 @@ func TestOriginalBackendServeEvenWhenShadowDoesNotReply(t *testing.T) {
 	original := backendtest.NewBackendRecorder(listenFor)
 	split := backendtest.NewBackendRecorder(listenFor)
 
-	const responseTimeout = 2 * time.Second
+	const responseTimeout = 100 * time.Millisecond
 	shadow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(2 * responseTimeout)
 	}))
