@@ -279,6 +279,10 @@ type Params struct {
 	// When set, no access log is printed.
 	AccessLogDisabled bool
 
+	// EnableCopyStreamPoolExperimental if set to true the Proxy will use a
+	// sync.Pool to reduce memory garbage in copy stream.
+	EnableCopyStreamPoolExperimental bool
+
 	// DualStack sets if the proxy TCP connections to the backend should be dual stack
 	DualStack bool
 
@@ -436,6 +440,7 @@ type Proxy struct {
 	experimentalUpgrade      bool
 	experimentalUpgradeAudit bool
 	accessLogDisabled        bool
+	copyStreamPoolEnabled    bool
 	maxLoops                 int
 	defaultHTTPStatus        int
 	routing                  *routing.Routing
@@ -550,11 +555,16 @@ var bufPool = sync.Pool{
 	},
 }
 
-func copyStream(to flushWriter, from io.Reader) (int64, error) {
+func copyStreamPooled(to flushWriter, from io.Reader) (int64, error) {
 	b := bufPool.Get().(*[]byte)
 	defer bufPool.Put(b)
 
 	return io.CopyBuffer(&flusher{to}, from, *b)
+}
+
+func copyStream(to flushWriter, from io.Reader) (int64, error) {
+	b := make([]byte, proxyBufferSize)
+	return io.CopyBuffer(&flusher{to}, from, b)
 }
 
 func schemeFromRequest(r *http.Request) string {
@@ -883,6 +893,7 @@ func WithParams(p Params) *Proxy {
 		log:                      &logging.DefaultLog{},
 		defaultHTTPStatus:        defaultHTTPStatus,
 		tracing:                  newProxyTracing(p.OpenTracing),
+		copyStreamPoolEnabled:    p.EnableCopyStreamPoolExperimental,
 		accessLogDisabled:        p.AccessLogDisabled,
 		upgradeAuditLogOut:       os.Stdout,
 		upgradeAuditLogErr:       os.Stderr,
@@ -1443,7 +1454,6 @@ func retryable(ctx *context, perr *proxyError) bool {
 }
 
 func (p *Proxy) serveResponse(ctx *context) {
-
 	responseStopWatch := newStopWatch()
 	responseStopWatch.Start()
 	defer func() {
@@ -1482,7 +1492,15 @@ func (p *Proxy) serveResponse(ctx *context) {
 
 	responseStopWatch.Stop()
 
-	n, err := copyStream(ctx.responseWriter, ctx.response.Body)
+	var (
+		n   int64
+		err error
+	)
+	if p.copyStreamPoolEnabled {
+		n, err = copyStreamPooled(ctx.responseWriter, ctx.response.Body)
+	} else {
+		n, err = copyStream(ctx.responseWriter, ctx.response.Body)
+	}
 
 	responseStopWatch.Start()
 

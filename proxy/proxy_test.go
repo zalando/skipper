@@ -2586,19 +2586,27 @@ func (nopFlusher) Flush() {}
 func BenchmarkCopyStream(b *testing.B) {
 	for _, size := range []int64{100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000} {
 		b.Run(fmt.Sprintf("size %d", size), func(b *testing.B) {
-			benchmarkCopyStream(b, size)
+			benchmarkCopyStream(b, size, copyStream)
 		})
 	}
 }
 
-func benchmarkCopyStream(b *testing.B, size int64) {
+func BenchmarkCopyStreamPooled(b *testing.B) {
+	for _, size := range []int64{100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000} {
+		b.Run(fmt.Sprintf("size %d", size), func(b *testing.B) {
+			benchmarkCopyStream(b, size, copyStreamPooled)
+		})
+	}
+}
+
+func benchmarkCopyStream(b *testing.B, size int64, cpStream func(to flushWriter, from io.Reader) (int64, error)) {
 	from := io.LimitReader(zeroReader{}, size)
 	to := &nopFlusher{io.Discard}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := copyStream(to, from)
+		_, err := cpStream(to, from)
 		if err != nil {
 			b.Fatal(err)
 		}
