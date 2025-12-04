@@ -329,4 +329,4 @@ require (
 
 go 1.25.2
 
-replace github.com/open-policy-agent/eopa => github.com/wisinghe/eopa v0.0.0-20251204145217-26aaf08544a9
+replace github.com/open-policy-agent/eopa => github.com/wisinghe/eopa v0.0.0-20251204191650-46a098cdc553
