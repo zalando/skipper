@@ -209,7 +209,7 @@ type Options struct {
 	// MutexProfileFraction calls runtime.SetMutexProfileFraction(MutexProfileFraction) if != 0 (<0 will disable) and profiling is enabled
 	MutexProfileFraction int
 
-	// MemProfileRate calls runtime.SetMemProfileRate(MemProfileRate) if != 0 (<0 will disable) and profiling is enabled
+	// MemProfileRate sets `runtime.MemProfileRate=MemProfileRate` if != 0 (<0 will disable) and profiling is enabled
 	MemProfileRate int
 
 	// An instance of a Prometheus registry. It allows registering and serving custom metrics when skipper is used as a

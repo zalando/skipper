@@ -493,7 +493,7 @@ type Options struct {
 	// MutexProfileFraction calls runtime.SetMutexProfileFraction(MutexProfileFraction) if non zero value, deactivate with <0
 	MutexProfileFraction int
 
-	// MemProfileRate calls runtime.SetMemProfileRate(MemProfileRate) if non zero value, deactivate with <0
+	// MemProfileRate calls runtime.MemProfileRate(MemProfileRate) if non zero value, deactivate with <0
 	MemProfileRate int
 
 	// Flag that enables reporting of the Go garbage collector statistics exported in debug.GCStats
