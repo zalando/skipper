@@ -144,7 +144,7 @@ func (f *encodeHeader) Request(ctx filters.FilterContext) {
 
 	sNew, err := f.encoder.String(s)
 	if err != nil {
-		log.Errorf("Failed to encode %q: %v", s, err)
+		log.Errorf("Failed to encode header value of %q: %v", f.header, err)
 	}
 	ctx.Request().Header.Set(f.header, sNew)
 }
@@ -160,7 +160,7 @@ func (f *encodeHeader) Response(ctx filters.FilterContext) {
 
 	sNew, err := f.encoder.String(s)
 	if err != nil {
-		log.Errorf("Failed to encode %q: %v", s, err)
+		log.Errorf("Failed to encode header value of %q: %v", f.header, err)
 	}
 	ctx.Response().Header.Set(f.header, sNew)
 
