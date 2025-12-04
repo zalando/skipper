@@ -163,5 +163,4 @@ func (f *encodeHeader) Response(ctx filters.FilterContext) {
 		log.Errorf("Failed to encode header value of %q: %v", f.header, err)
 	}
 	ctx.Response().Header.Set(f.header, sNew)
-
 }
