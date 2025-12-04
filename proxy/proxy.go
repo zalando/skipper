@@ -19,6 +19,7 @@ import (
 	"runtime/pprof"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -278,6 +279,10 @@ type Params struct {
 	// When set, no access log is printed.
 	AccessLogDisabled bool
 
+	// EnableCopyStreamPoolExperimental if set to true the Proxy will use a
+	// sync.Pool to reduce memory garbage in copy stream.
+	EnableCopyStreamPoolExperimental bool
+
 	// DualStack sets if the proxy TCP connections to the backend should be dual stack
 	DualStack bool
 
@@ -435,6 +440,7 @@ type Proxy struct {
 	experimentalUpgrade      bool
 	experimentalUpgradeAudit bool
 	accessLogDisabled        bool
+	copyStreamPoolEnabled    bool
 	maxLoops                 int
 	defaultHTTPStatus        int
 	routing                  *routing.Routing
@@ -524,9 +530,15 @@ func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Heade
 	return hh
 }
 
-type flusher struct {
-	w flushedResponseWriter
-}
+type (
+	flushWriter interface {
+		io.Writer
+		http.Flusher
+	}
+	flusher struct {
+		w flushWriter
+	}
+)
 
 func (f *flusher) Write(p []byte) (n int, err error) {
 	n, err = f.w.Write(p)
@@ -536,9 +548,22 @@ func (f *flusher) Write(p []byte) (n int, err error) {
 	return
 }
 
-func copyStream(to flushedResponseWriter, from io.Reader) (int64, error) {
-	b := make([]byte, proxyBufferSize)
+var bufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, proxyBufferSize)
+		return &b
+	},
+}
 
+func copyStreamPooled(to flushWriter, from io.Reader) (int64, error) {
+	b := bufPool.Get().(*[]byte)
+	defer bufPool.Put(b)
+
+	return io.CopyBuffer(&flusher{to}, from, *b)
+}
+
+func copyStream(to flushWriter, from io.Reader) (int64, error) {
+	b := make([]byte, proxyBufferSize)
 	return io.CopyBuffer(&flusher{to}, from, b)
 }
 
@@ -868,6 +893,7 @@ func WithParams(p Params) *Proxy {
 		log:                      &logging.DefaultLog{},
 		defaultHTTPStatus:        defaultHTTPStatus,
 		tracing:                  newProxyTracing(p.OpenTracing),
+		copyStreamPoolEnabled:    p.EnableCopyStreamPoolExperimental,
 		accessLogDisabled:        p.AccessLogDisabled,
 		upgradeAuditLogOut:       os.Stdout,
 		upgradeAuditLogErr:       os.Stderr,
@@ -1428,7 +1454,6 @@ func retryable(ctx *context, perr *proxyError) bool {
 }
 
 func (p *Proxy) serveResponse(ctx *context) {
-
 	responseStopWatch := newStopWatch()
 	responseStopWatch.Start()
 	defer func() {
@@ -1467,7 +1492,15 @@ func (p *Proxy) serveResponse(ctx *context) {
 
 	responseStopWatch.Stop()
 
-	n, err := copyStream(ctx.responseWriter, ctx.response.Body)
+	var (
+		n   int64
+		err error
+	)
+	if p.copyStreamPoolEnabled {
+		n, err = copyStreamPooled(ctx.responseWriter, ctx.response.Body)
+	} else {
+		n, err = copyStream(ctx.responseWriter, ctx.response.Body)
+	}
 
 	responseStopWatch.Start()
 
