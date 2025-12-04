@@ -809,14 +809,13 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 							"endpoint": %q,
 							"force_path": true,
 							"region": "eu-central-1",
-							"access_key_id": "myid",
-							"access_secret": "mysecret",
+							"role": "arn:aws:iam::100985445320:role/open-policy-agent-instance",
 							"timeout": "2s",	
 							"batching": {
 							  "at_bytes": 10000000,
 							  "at_period": "1s"
 							}
-						}
+						  }
 					}
 			}
 			}`, opaControlPlane.URL(), ti.regoQuery, ti.discoveryPath, s3Server.URL))
@@ -877,6 +876,13 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			rsp, err = proxy.Client().Do(req)
 			assert.NoError(t, err)
 			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
+
+			time.Sleep(2 * time.Second)
+			rsp, err = proxy.Client().Do(req)
+			assert.NoError(t, err)
+			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
+
+			time.Sleep(2 * time.Second)
 		})
 	}
 }
