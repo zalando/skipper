@@ -133,6 +133,10 @@ type Options struct {
 	// If defines the maximum number of pending connection waiting in the queue.
 	MaxTCPListenerQueue int
 
+	// EnableCopyStreamPoolExperimental if set to true the Proxy will use a
+	// sync.Pool to reduce memory garbage in copy stream.
+	EnableCopyStreamPoolExperimental bool
+
 	// List of custom filter specifications.
 	CustomFilters []filters.Spec
 
@@ -2187,32 +2191,33 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
-		Routing:                    routing,
-		Flags:                      proxyFlags,
-		Metrics:                    mtr,
-		PriorityRoutes:             o.PriorityRoutes,
-		IdleConnectionsPerHost:     o.IdleConnectionsPerHost,
-		CloseIdleConnsPeriod:       o.CloseIdleConnsPeriod,
-		FlushInterval:              o.BackendFlushInterval,
-		ExperimentalUpgrade:        o.ExperimentalUpgrade,
-		ExperimentalUpgradeAudit:   o.ExperimentalUpgradeAudit,
-		MaxLoopbacks:               o.MaxLoopbacks,
-		DefaultHTTPStatus:          o.DefaultHTTPStatus,
-		Timeout:                    o.TimeoutBackend,
-		ResponseHeaderTimeout:      o.ResponseHeaderTimeoutBackend,
-		ExpectContinueTimeout:      o.ExpectContinueTimeoutBackend,
-		KeepAlive:                  o.KeepAliveBackend,
-		DualStack:                  o.DualStackBackend,
-		TLSHandshakeTimeout:        o.TLSHandshakeTimeoutBackend,
-		MaxIdleConns:               o.MaxIdleConnsBackend,
-		DisableHTTPKeepalives:      o.DisableHTTPKeepalives,
-		AccessLogDisabled:          o.AccessLogDisabled,
-		ClientTLS:                  o.ClientTLS,
-		CustomHttpRoundTripperWrap: o.CustomHttpRoundTripperWrap,
-		RateLimiters:               ratelimitRegistry,
-		EndpointRegistry:           endpointRegistry,
-		EnablePassiveHealthCheck:   passiveHealthCheckEnabled,
-		PassiveHealthCheck:         passiveHealthCheck,
+		Routing:                          routing,
+		Flags:                            proxyFlags,
+		Metrics:                          mtr,
+		PriorityRoutes:                   o.PriorityRoutes,
+		IdleConnectionsPerHost:           o.IdleConnectionsPerHost,
+		CloseIdleConnsPeriod:             o.CloseIdleConnsPeriod,
+		FlushInterval:                    o.BackendFlushInterval,
+		ExperimentalUpgrade:              o.ExperimentalUpgrade,
+		ExperimentalUpgradeAudit:         o.ExperimentalUpgradeAudit,
+		MaxLoopbacks:                     o.MaxLoopbacks,
+		DefaultHTTPStatus:                o.DefaultHTTPStatus,
+		Timeout:                          o.TimeoutBackend,
+		ResponseHeaderTimeout:            o.ResponseHeaderTimeoutBackend,
+		ExpectContinueTimeout:            o.ExpectContinueTimeoutBackend,
+		KeepAlive:                        o.KeepAliveBackend,
+		DualStack:                        o.DualStackBackend,
+		TLSHandshakeTimeout:              o.TLSHandshakeTimeoutBackend,
+		MaxIdleConns:                     o.MaxIdleConnsBackend,
+		DisableHTTPKeepalives:            o.DisableHTTPKeepalives,
+		AccessLogDisabled:                o.AccessLogDisabled,
+		EnableCopyStreamPoolExperimental: o.EnableCopyStreamPoolExperimental,
+		ClientTLS:                        o.ClientTLS,
+		CustomHttpRoundTripperWrap:       o.CustomHttpRoundTripperWrap,
+		RateLimiters:                     ratelimitRegistry,
+		EndpointRegistry:                 endpointRegistry,
+		EnablePassiveHealthCheck:         passiveHealthCheckEnabled,
+		PassiveHealthCheck:               passiveHealthCheck,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
