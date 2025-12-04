@@ -521,6 +521,10 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 			}
 		case "Host":
 			if args, err = getStringArgs(p, 1); err == nil {
+				if strings.HasPrefix(args[0], "*.") {
+					log.Infof("Host %q starts with '*.'; replacing with regex", args[0])
+					args[0] = strings.Replace(args[0], "*", "[a-z0-9]+((-[a-z0-9]+)?)*", 1)
+				}
 				route.HostRegexps = append(route.HostRegexps, args[0])
 			}
 		case "PathRegexp":
