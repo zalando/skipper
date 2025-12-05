@@ -28,6 +28,71 @@ func TestCreateFilterEncodeRequestHeader(t *testing.T) {
 		wantErr error
 	}{
 		{
+			name:    "CodePage037",
+			args:    []interface{}{"X-foo", "CodePage037"},
+			wantErr: nil,
+		},
+		{
+			name:    "CodePage1047",
+			args:    []interface{}{"X-foo", "CodePage1047"},
+			wantErr: nil,
+		},
+		{
+			name:    "CodePage1140",
+			args:    []interface{}{"X-foo", "CodePage1140"},
+			wantErr: nil,
+		},
+		{
+			name:    "CodePage437",
+			args:    []interface{}{"X-foo", "CodePage437"},
+			wantErr: nil,
+		},
+		{
+			name:    "CodePage850",
+			args:    []interface{}{"X-foo", "CodePage850"},
+			wantErr: nil,
+		},
+		{
+			name:    "CodePage852",
+			args:    []interface{}{"X-foo", "CodePage852"},
+			wantErr: nil,
+		},
+		{
+			name:    "CodePage855",
+			args:    []interface{}{"X-foo", "CodePage855"},
+			wantErr: nil,
+		},
+		{
+			name:    "CodePage858",
+			args:    []interface{}{"X-foo", "CodePage858"},
+			wantErr: nil,
+		},
+		{
+			name:    "CodePage860",
+			args:    []interface{}{"X-foo", "CodePage860"},
+			wantErr: nil,
+		},
+		{
+			name:    "CodePage862",
+			args:    []interface{}{"X-foo", "CodePage862"},
+			wantErr: nil,
+		},
+		{
+			name:    "CodePage863",
+			args:    []interface{}{"X-foo", "CodePage863"},
+			wantErr: nil,
+		},
+		{
+			name:    "CodePage865",
+			args:    []interface{}{"X-foo", "CodePage865"},
+			wantErr: nil,
+		},
+		{
+			name:    "CodePage866",
+			args:    []interface{}{"X-foo", "CodePage866"},
+			wantErr: nil,
+		},
+		{
 			name:    "ISO8859_1",
 			args:    []interface{}{"X-foo", "ISO8859_1"},
 			wantErr: nil,

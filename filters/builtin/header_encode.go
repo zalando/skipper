@@ -64,6 +64,32 @@ func (spec *encodeHeaderSpec) CreateFilter(args []interface{}) (filters.Filter, 
 	)
 
 	switch to {
+	case "CodePage037":
+		encoder = charmap.CodePage037.NewEncoder()
+	case "CodePage1047":
+		encoder = charmap.CodePage1047.NewEncoder()
+	case "CodePage1140":
+		encoder = charmap.CodePage1140.NewEncoder()
+	case "CodePage437":
+		encoder = charmap.CodePage437.NewEncoder()
+	case "CodePage850":
+		encoder = charmap.CodePage850.NewEncoder()
+	case "CodePage852":
+		encoder = charmap.CodePage852.NewEncoder()
+	case "CodePage855":
+		encoder = charmap.CodePage855.NewEncoder()
+	case "CodePage858":
+		encoder = charmap.CodePage858.NewEncoder()
+	case "CodePage860":
+		encoder = charmap.CodePage860.NewEncoder()
+	case "CodePage862":
+		encoder = charmap.CodePage862.NewEncoder()
+	case "CodePage863":
+		encoder = charmap.CodePage863.NewEncoder()
+	case "CodePage865":
+		encoder = charmap.CodePage865.NewEncoder()
+	case "CodePage866":
+		encoder = charmap.CodePage866.NewEncoder()
 	case "ISO8859_1":
 		encoder = charmap.ISO8859_1.NewEncoder()
 	case "ISO8859_10":

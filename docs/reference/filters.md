@@ -308,6 +308,28 @@ PathSubtree("/") && Method("OPTIONS")
  -> <shunt>;
 ```
 
+### encodeRequestHeader
+
+The filter has 2 arguments, the header name and the encoding.
+If the encoding can not be changed we set the header value to empty string.
+Supported encodings are listed in https://pkg.go.dev/golang.org/x/text/encoding/charmap .
+
+Example:
+```
+encodeRequestHeader("X-Foo", "Windows1252")
+```
+
+### encodeResponseHeader
+
+The filter has 2 arguments, the header name and the encoding.
+If the encoding can not be changed we set the header value to empty string.
+Supported encodings are listed in https://pkg.go.dev/golang.org/x/text/encoding/charmap .
+
+Example:
+```
+encodeResponseHeader("X-Foo", "Windows1252")
+```
+
 ### headerToQuery
 
 Filter which assigns the value of a given header from the incoming Request to a given query param
