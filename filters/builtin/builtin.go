@@ -140,6 +140,8 @@ func Filters() []filters.Spec {
 		NewSetPath(),
 		NewModRequestHeader(),
 		NewModResponseHeader(),
+		NewEncodeRequestHeader(),
+		NewEncodeResponseHeader(),
 		NewDropQuery(),
 		NewSetQuery(),
 		NewHealthCheck(),
