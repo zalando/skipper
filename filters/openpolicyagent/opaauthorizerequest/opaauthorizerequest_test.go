@@ -809,7 +809,6 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 							"endpoint": %q,
 							"force_path": true,
 							"region": "eu-central-1",
-							"role": "arn:aws:iam::100985445320:role/open-policy-agent-instance",
 							"timeout": "2s",	
 							"batching": {
 							  "at_bytes": 10000000,
