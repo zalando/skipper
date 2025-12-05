@@ -235,7 +235,9 @@ func (l *lifoFilter) GetQueue() *scheduler.Queue {
 
 // Close will cleanup underlying queues
 func (l *lifoFilter) Close() error {
-	l.queue.Close()
+	if l.queue != nil {
+		l.queue.Close()
+	}
 	return nil
 }
 
@@ -286,7 +288,9 @@ func (l *lifoGroupFilter) GetQueue() *scheduler.Queue {
 
 // Close will cleanup underlying queues
 func (l *lifoGroupFilter) Close() error {
-	l.queue.Close()
+	if l.queue != nil {
+		l.queue.Close()
+	}
 	return nil
 }
 

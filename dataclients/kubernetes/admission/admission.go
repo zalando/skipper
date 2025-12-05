@@ -71,6 +71,8 @@ func Handler(admitter admitter) http.HandlerFunc {
 			return
 		}
 
+		defer r.Body.Close()
+
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			log.Errorf("Failed to read request: %v", err)
