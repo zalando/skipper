@@ -136,11 +136,6 @@ func (a *All) SetInvalidRoute(routeId, reason string) {
 	a.codaHale.SetInvalidRoute(routeId, reason)
 }
 
-func (a *All) DeleteInvalidRoute(routeId string) {
-	a.prometheus.DeleteInvalidRoute(routeId)
-	a.codaHale.DeleteInvalidRoute(routeId)
-}
-
 func (a *All) Close() {
 	a.codaHale.Close()
 	a.prometheus.Close()

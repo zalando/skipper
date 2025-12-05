@@ -2,6 +2,7 @@ package routing
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -87,10 +88,9 @@ func TestValidationErrorsNoError(t *testing.T) {
 	}
 
 	mtr.WithGauges(func(g map[string]float64) {
-		for k, v := range g {
-			if strings.HasPrefix(k, "route.invalid") && v > 0 {
-				t.Fatalf("Failed to have no invalid routes %q -> %0.2f", k, v)
-			}
+		key := fmt.Sprintf("route.invalid.%s..%s", routeID, errInvalidPredicateParams)
+		if v := g[key]; v != 1 {
+			t.Fatalf("Invalid route metric should remain set, got %0.2f", v)
 		}
 	})
 }
