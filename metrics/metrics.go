@@ -81,7 +81,6 @@ type Metrics interface {
 	RegisterHandler(path string, handler *http.ServeMux)
 	UpdateGauge(key string, value float64)
 	SetInvalidRoute(routeId, reason string)
-	DeleteInvalidRoute(routeId string)
 	Close()
 }
 

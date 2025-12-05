@@ -594,21 +594,21 @@ func waitForIndividualRouteMetrics(t *testing.T, metrics *metricstest.MockMetric
 	}
 }
 
-func TestRouteMetricsSetToZeroWhenFixed(t *testing.T) {
+func TestRouteMetricsStaySetWhenRouteIsFixed(t *testing.T) {
 	t.Run("MockMetrics", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			testRouteMetricsSetToZeroWhenFixedWithMock(t)
+			testRouteMetricsStaySetWhenRouteIsFixedWithMock(t)
 		})
 	})
 
 	t.Run("Prometheus", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			testRouteMetricsSetToZeroWhenFixedWithPrometheus(t)
+			testRouteMetricsStaySetWhenRouteIsFixedWithPrometheus(t)
 		})
 	})
 }
 
-func testRouteMetricsSetToZeroWhenFixedWithMock(t *testing.T) {
+func testRouteMetricsStaySetWhenRouteIsFixedWithMock(t *testing.T) {
 	metrics := &metricstest.MockMetrics{}
 
 	// Start with an invalid route
@@ -649,16 +649,16 @@ func testRouteMetricsSetToZeroWhenFixedWithMock(t *testing.T) {
 	// Wait for the update to be processed
 	time.Sleep(50 * time.Millisecond)
 
-	// Verify the metric is now set to 0 (not deleted)
+	// Verify the metric remains set (not deleted or zeroed out)
 	metrics.WithGauges(func(gauges map[string]float64) {
 		expectedKey := "route.invalid.invalidBackend1..failed_backend_split"
-		if gauges[expectedKey] != 0 {
-			t.Errorf("Expected invalid route metric to be set to 0 when route becomes valid, got %f", gauges[expectedKey])
+		if gauges[expectedKey] != 1 {
+			t.Errorf("Expected invalid route metric to stay set when route becomes valid, got %f", gauges[expectedKey])
 		}
 	})
 }
 
-func testRouteMetricsSetToZeroWhenFixedWithPrometheus(t *testing.T) {
+func testRouteMetricsStaySetWhenRouteIsFixedWithPrometheus(t *testing.T) {
 	pm := metrics.NewPrometheus(metrics.Options{})
 	path := "/metrics"
 
@@ -708,16 +708,16 @@ func testRouteMetricsSetToZeroWhenFixedWithPrometheus(t *testing.T) {
 	// Wait for the update to be processed
 	time.Sleep(50 * time.Millisecond)
 
-	// Check that the metric is now set to 0
+	// Check that the metric stays set (not deleted or zeroed out)
 	req = httptest.NewRequest("GET", path, nil)
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	body, _ = io.ReadAll(w.Result().Body)
 	output = string(body)
 
-	expectedZeroLine := `skipper_route_invalid{reason="failed_backend_split",route_id="invalidBackend1"} 0`
-	if !strings.Contains(output, expectedZeroLine) {
-		t.Errorf("Expected to find invalid route metric set to 0 when route becomes valid")
+	expectedLine = `skipper_route_invalid{reason="failed_backend_split",route_id="invalidBackend1"} 1`
+	if !strings.Contains(output, expectedLine) {
+		t.Errorf("Expected invalid route metric to remain set when route becomes valid")
 		t.Logf("Output: %s", output)
 	}
 }
