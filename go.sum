@@ -725,8 +725,8 @@ github.com/vmihailenco/msgpack/v5 v5.4.1 h1:cQriyiUvjTwOHg8QZaPihLWeRAAVoCpE00IU
 github.com/vmihailenco/msgpack/v5 v5.4.1/go.mod h1:GaZTsDaehaPpQVyxrf5mtQlH+pc21PIudVV/E3rRQok=
 github.com/vmihailenco/tagparser/v2 v2.0.0 h1:y09buUbR+b5aycVFQs/g70pqKVZNBmxwAhO7/IwNM9g=
 github.com/vmihailenco/tagparser/v2 v2.0.0/go.mod h1:Wri+At7QHww0WTrCBeu4J6bNtoV6mEfg5OIWRZA9qds=
-github.com/wisinghe/eopa v0.0.0-20251205113014-a55b2111d4d7 h1:XiSUPBx6lkhbjXVvtE7DTnmKJDHT0w3lMWg6TMnyJeI=
-github.com/wisinghe/eopa v0.0.0-20251205113014-a55b2111d4d7/go.mod h1:cMxAHMz01112TcFsoj6ImMDtf1wvnyTktX4+VyQ2+/s=
+github.com/wisinghe/eopa v0.0.0-20251205125712-54c22d9fa7d6 h1:VIVJxZO/uhRZzT/8ShrANmk1So9/28QoKCJSfb6AxIU=
+github.com/wisinghe/eopa v0.0.0-20251205125712-54c22d9fa7d6/go.mod h1:cMxAHMz01112TcFsoj6ImMDtf1wvnyTktX4+VyQ2+/s=
 github.com/xdg-go/pbkdf2 v1.0.0 h1:Su7DPu48wXMwC3bs7MCNG+z4FhcyEuz5dlvchbq0B0c=
 github.com/xdg-go/pbkdf2 v1.0.0/go.mod h1:jrpuAogTd400dnrH08LKmI/xc1MbPOebTwRqcT5RDeI=
 github.com/xdg-go/scram v1.1.2 h1:FHX5I5B4i4hKRVRBCFRxq1iQRej7WO3hhBuJf+UUySY=
