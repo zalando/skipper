@@ -1,11 +1,13 @@
 package builtin
 
 import (
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -80,17 +82,13 @@ func compareHeaders(left, right http.Header) bool {
 }
 
 func testHeaders(t *testing.T, got, expected http.Header) {
+	t.Helper()
 	for n := range got {
 		if !strings.HasPrefix(n, "X-Test-") {
 			delete(got, n)
 		}
 	}
-
-	if !compareHeaders(got, expected) {
-		printHeader(t, expected, "invalid header", "expected")
-		printHeader(t, got, "invalid header", "got")
-		t.Error("invalid header")
-	}
+	assert.Equal(t, expected, got)
 }
 
 func TestHeader(t *testing.T) {
@@ -132,10 +130,11 @@ func TestHeader(t *testing.T) {
 			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value"}},
 		}, {
-			msg:   "set outgoing host on set",
-			args:  []interface{}{"Host", "www.example.org"},
-			valid: true,
-			host:  "www.example.org",
+			msg:            "set outgoing host on set",
+			args:           []interface{}{"Host", "www.example.org"},
+			valid:          true,
+			host:           "www.example.org",
+			expectedHeader: http.Header{},
 		}, {
 			msg:            "set request header from path params",
 			args:           []interface{}{"X-Test-Name", "Mit ${was} zu ${wo}"},
@@ -161,10 +160,11 @@ func TestHeader(t *testing.T) {
 			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value0", "value1", "value"}},
 		}, {
-			msg:   "append outgoing host on set",
-			args:  []interface{}{"Host", "www.example.org"},
-			valid: true,
-			host:  "www.example.org",
+			msg:            "append outgoing host on set",
+			args:           []interface{}{"Host", "www.example.org"},
+			valid:          true,
+			host:           "www.example.org",
+			expectedHeader: http.Header{},
 		}, {
 			msg:            "append request header from path params",
 			args:           []interface{}{"X-Test-Name", "a ${foo}ter"},
@@ -186,19 +186,42 @@ func TestHeader(t *testing.T) {
 			expectedHeader: http.Header{"X-Test-Request-Name": []string{"Value"}},
 		}},
 		"dropRequestHeader": {{
-			msg:   "drop request header when none",
-			args:  []interface{}{"X-Test-Name"},
-			valid: true,
+			msg:            "drop request header when none",
+			args:           []interface{}{"X-Test-Name"},
+			valid:          true,
+			expectedHeader: http.Header{},
 		}, {
-			msg:           "drop request header when exists",
-			args:          []interface{}{"X-Test-Name"},
-			valid:         true,
-			requestHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			msg:            "drop request header when exists",
+			args:           []interface{}{"X-Test-Name"},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{},
 		}, {
-			msg:           "name parameter is case-insensitive",
-			args:          []interface{}{"x-test-name"},
-			valid:         true,
-			requestHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-name"},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{},
+		}},
+		"dropRequestHeaderRegexp": {{
+			msg:            "drop request header with regex exact match",
+			args:           []interface{}{"X-Test-Name", "^value1$"},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value0"}},
+		}, {
+			msg:            "drop request header with multiple regex matches",
+			args:           []interface{}{"X-Test-Name", "^value."},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1", "value01", "bsvalue0"}},
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"bsvalue0"}},
+		}, {
+
+			msg:            "drop request header with multiple regex matches drop all headers",
+			args:           []interface{}{"X-Test-Name", "^value."},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{},
 		}},
 		"setResponseHeader": {{
 			msg:            "set response header when none",
@@ -220,9 +243,10 @@ func TestHeader(t *testing.T) {
 			valid:          true,
 			expectedHeader: http.Header{"X-Test-Name": []string{"a small barter"}},
 		}, {
-			msg:   "set response header from path params when missing",
-			args:  []interface{}{"X-Test-Name", "a ${foo}ter"},
-			valid: true,
+			msg:            "set response header from path params when missing",
+			args:           []interface{}{"X-Test-Name", "a ${foo}ter"},
+			valid:          true,
+			expectedHeader: http.Header{},
 		}, {
 			msg:            "name parameter is case-insensitive",
 			args:           []interface{}{"x-test-name", "Value"},
@@ -261,19 +285,42 @@ func TestHeader(t *testing.T) {
 			expectedHeader: http.Header{"X-Test-Name": []string{"Value"}},
 		}},
 		"dropResponseHeader": {{
-			msg:   "drop response header when none",
-			args:  []interface{}{"X-Test-Name"},
-			valid: true,
+			msg:            "drop response header when none",
+			args:           []interface{}{"X-Test-Name"},
+			valid:          true,
+			expectedHeader: http.Header{},
 		}, {
 			msg:            "drop response header when exists",
 			args:           []interface{}{"X-Test-Name"},
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{},
 		}, {
 			msg:            "name parameter is case-insensitive",
 			args:           []interface{}{"x-test-name"},
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{},
+		}},
+		"dropResponseHeaderRegexp": {{
+			msg:            "drop response header with regex exact match",
+			args:           []interface{}{"X-Test-Name", "^value1$"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Name": []string{"value0"}},
+		}, {
+			msg:            "drop response header with multiple regex matches",
+			args:           []interface{}{"X-Test-Name", "^value."},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1", "value01", "bsvalue0"}},
+			expectedHeader: http.Header{"X-Test-Name": []string{"bsvalue0"}},
+		}, {
+
+			msg:            "drop response header with multiple regex matches drop all headers",
+			args:           []interface{}{"X-Test-Name", "^value."},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{},
 		}},
 		"setContextRequestHeader": {{
 			msg:            "set request header from context",
@@ -282,11 +329,12 @@ func TestHeader(t *testing.T) {
 			valid:          true,
 			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"bar"}},
 		}, {
-			msg:     "set request host header from context",
-			args:    []interface{}{"Host", "foo"},
-			context: map[string]interface{}{"foo": "www.example.org"},
-			valid:   true,
-			host:    "www.example.org",
+			msg:            "set request host header from context",
+			args:           []interface{}{"Host", "foo"},
+			context:        map[string]interface{}{"foo": "www.example.org"},
+			valid:          true,
+			host:           "www.example.org",
+			expectedHeader: http.Header{},
 		}, {
 			msg:            "name parameter is case-insensitive",
 			args:           []interface{}{"x-test-foo", "foo"},
@@ -302,11 +350,12 @@ func TestHeader(t *testing.T) {
 			requestHeader:  http.Header{"X-Test-Foo": []string{"bar"}},
 			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"bar", "baz"}},
 		}, {
-			msg:     "append request host header from context",
-			args:    []interface{}{"Host", "foo"},
-			context: map[string]interface{}{"foo": "www.example.org"},
-			valid:   true,
-			host:    "www.example.org",
+			msg:            "append request host header from context",
+			args:           []interface{}{"Host", "foo"},
+			context:        map[string]interface{}{"foo": "www.example.org"},
+			valid:          true,
+			host:           "www.example.org",
+			expectedHeader: http.Header{},
 		}, {
 			msg:            "name parameter is case-insensitive",
 			args:           []interface{}{"x-test-foo", "foo"},
@@ -356,9 +405,10 @@ func TestHeader(t *testing.T) {
 			msg:  "invalid target header name",
 			args: []interface{}{"X-Test-Foo", 42},
 		}, {
-			msg:   "no header to copy",
-			args:  []interface{}{"X-Test-Foo", "X-Test-Bar"},
-			valid: true,
+			msg:            "no header to copy",
+			args:           []interface{}{"X-Test-Foo", "X-Test-Bar"},
+			valid:          true,
+			expectedHeader: http.Header{},
 		}, {
 			msg:           "copy header",
 			args:          []interface{}{"X-Test-Foo", "X-Test-Bar"},
@@ -405,7 +455,7 @@ func TestHeader(t *testing.T) {
 			msg:  "too few args",
 			args: []interface{}{"X-Test-Foo"},
 		}, {
-			msg:  "too many args",
+			msg:  "too minterface{} args",
 			args: []interface{}{"X-Test-Foo", "X-Test-Bar", "baz"},
 		}, {
 			msg:  "invalid source header name",
@@ -414,9 +464,10 @@ func TestHeader(t *testing.T) {
 			msg:  "invalid target header name",
 			args: []interface{}{"X-Test-Foo", 42},
 		}, {
-			msg:   "no header to copy",
-			args:  []interface{}{"X-Test-Foo", "X-Test-Bar"},
-			valid: true,
+			msg:            "no header to copy",
+			args:           []interface{}{"X-Test-Foo", "X-Test-Bar"},
+			valid:          true,
+			expectedHeader: http.Header{},
 		}, {
 			msg:            "copy header",
 			args:           []interface{}{"X-Test-Foo", "X-Test-Bar"},
@@ -479,6 +530,8 @@ func TestHeader(t *testing.T) {
 					fr.Register(NewAppendContextResponseHeader())
 					fr.Register(NewCopyRequestHeader())
 					fr.Register(NewCopyResponseHeader())
+					fr.Register(NewDropRequestHeaderValueRegexp())
+					fr.Register(NewDropResponseHeaderValueRegexp())
 					fr.Register(testContext{})
 
 					filters := []*eskip.Filter{{Name: filter, Args: ti.args}}
@@ -514,9 +567,7 @@ func TestHeader(t *testing.T) {
 
 					req.Close = true
 
-					for n, vs := range ti.requestHeader {
-						req.Header[n] = vs
-					}
+					maps.Copy(req.Header, ti.requestHeader)
 
 					rsp, err := http.DefaultClient.Do(req)
 					if err != nil {
