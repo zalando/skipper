@@ -175,6 +175,21 @@ Example:
 foo: * -> dropRequestHeader("User-Agent") -> "https://backend.example.org";
 ```
 
+### dropRequestHeaderValueRegexp
+
+Removes header values matched by regex from the request
+
+Parameters:
+
+* header name (string)
+* the expression to match (regex)
+
+Example:
+
+```
+foo: * -> dropRequestHeaderValueRegexp("User-Agent", "^value.") -> "https://backend.example.org";
+```
+
 ### modResponseHeader
 
 Same as [modRequestHeader](#modrequestheader), only for responses
@@ -212,6 +227,10 @@ Same as [appendRequestHeader](#appendrequestheader), only for responses
 ### dropResponseHeader
 
 Same as [dropRequestHeader](#droprequestheader) but for responses from the backend
+
+### dropResponseHeaderValueRegexp
+
+Same as [dropRequestHeaderValueRegexp](#droprequestheadervalueregexp) but for responses from the backend
 
 ### setContextRequestHeader
 

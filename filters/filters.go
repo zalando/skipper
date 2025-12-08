@@ -235,6 +235,8 @@ const (
 	CopyResponseHeaderName                     = "copyResponseHeader"
 	EncodeRequestHeaderName                    = "encodeRequestHeader"
 	EncodeResponseHeaderName                   = "encodeResponseHeader"
+	DropRequestHeaderValueRegexpName           = "dropRequestHeaderRegexp"
+	DropResponseHeaderValueRegexpName          = "dropResponseHeaderRegexp"
 	ModPathName                                = "modPath"
 	SetPathName                                = "setPath"
 	RedirectToName                             = "redirectTo"
