@@ -475,7 +475,13 @@ func processTreePredicates(r *Route, predicateList []*eskip.Predicate) error {
 // ValidateRoute processes a route definition for the routing table.
 // This function is exported to be used by validation webhooks.
 func ValidateRoute(o *Options, def *eskip.Route) (*Route, error) {
-	return processRouteDef(o, mapPredicates(o.Predicates), def)
+	route, err := processRouteDef(o, mapPredicates(o.Predicates), def)
+	if err != nil {
+		return nil, err
+	}
+
+	defer closeFilters(route.Filters)
+	return route, nil
 }
 
 // processes a route definition for the routing table
@@ -563,13 +569,17 @@ type routeTable struct {
 func (rt *routeTable) close() {
 	rt.once.Do(func() {
 		for _, route := range rt.routes {
-			for _, f := range route.Filters {
-				if fc, ok := f.Filter.(filters.FilterCloser); ok {
-					fc.Close()
-				}
-			}
+			closeFilters(route.Filters)
 		}
 	})
+}
+
+func closeFilters(rfs []*RouteFilter) {
+	for _, f := range rfs {
+		if fc, ok := f.Filter.(filters.FilterCloser); ok {
+			fc.Close()
+		}
+	}
 }
 
 // receives the next version of the routing table on the output channel,
