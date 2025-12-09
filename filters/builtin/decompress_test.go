@@ -32,6 +32,7 @@ func backend(t *testing.T, contentEncoding string, content io.Reader) *httptest.
 }
 
 func decompressingProxy(t *testing.T, backendURL string) *proxytest.TestProxy {
+	t.Helper()
 	routes := `
 		* -> decompress() -> "%s"
 	`

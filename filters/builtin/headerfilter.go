@@ -48,47 +48,6 @@ type headerFilter struct {
 	valueRegexp *regexp.Regexp
 }
 
-// verifies that the filter config has two string parameters
-func headerFilterConfig(typ headerType, config []interface{}) (string, string, *regexp.Regexp, *eskip.Template, error) {
-	switch typ {
-	case dropRequestHeader, dropResponseHeader:
-		if len(config) != 1 {
-			return "", "", nil, nil, filters.ErrInvalidFilterParameters
-		}
-	default:
-		if len(config) != 2 {
-			return "", "", nil, nil, filters.ErrInvalidFilterParameters
-		}
-	}
-
-	key, ok := config[0].(string)
-	if !ok {
-		return "", "", nil, nil, filters.ErrInvalidFilterParameters
-	}
-
-	var value string
-	if len(config) == 2 {
-		value, ok = config[1].(string)
-		if !ok {
-			return "", "", nil, nil, filters.ErrInvalidFilterParameters
-		}
-	}
-
-	switch typ {
-	case setRequestHeader, appendRequestHeader,
-		setResponseHeader, appendResponseHeader:
-		return key, "", nil, eskip.NewTemplate(value), nil
-	case dropRequestHeaderValueRegexp, dropResponseHeaderValueRegexp:
-		re, err := regexp.Compile(value)
-		if err != nil {
-			return "", "", nil, nil, fmt.Errorf("filter expects valid regex: %w", filters.ErrInvalidFilterParameters)
-		}
-		return key, value, re, nil, nil
-	default:
-		return key, value, nil, nil, nil
-	}
-}
-
 // Deprecated: use setRequestHeader or appendRequestHeader
 func NewRequestHeader() filters.Spec {
 	return &headerFilter{typ: depRequestHeader}
@@ -256,8 +215,56 @@ func (spec *headerFilter) Name() string {
 
 //lint:ignore ST1016 "spec" makes sense here and we reuse the type for the filter
 func (spec *headerFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
-	key, value, valueRegexp, template, err := headerFilterConfig(spec.typ, config)
-	return &headerFilter{typ: spec.typ, key: key, value: value, valueRegexp: valueRegexp, template: template}, err
+	switch spec.typ {
+	case dropRequestHeader, dropResponseHeader:
+		if len(config) != 1 {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+	default:
+		if len(config) != 2 {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+	}
+
+	key, ok := config[0].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	var value string
+	if len(config) == 2 {
+		value, ok = config[1].(string)
+		if !ok {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+	}
+
+	switch spec.typ {
+	case setRequestHeader, appendRequestHeader,
+		setResponseHeader, appendResponseHeader:
+		return &headerFilter{
+			typ:      spec.typ,
+			key:      key,
+			template: eskip.NewTemplate(value),
+		}, nil
+	case dropRequestHeaderValueRegexp, dropResponseHeaderValueRegexp:
+		re, err := regexp.Compile(value)
+		if err != nil {
+			return nil, fmt.Errorf("filter expects valid regex: %w", filters.ErrInvalidFilterParameters)
+		}
+		return &headerFilter{
+			typ:         spec.typ,
+			key:         key,
+			value:       value,
+			valueRegexp: re,
+		}, nil
+	}
+
+	return &headerFilter{
+		typ:   spec.typ,
+		key:   key,
+		value: value,
+	}, nil
 }
 
 func valueFromContext(
