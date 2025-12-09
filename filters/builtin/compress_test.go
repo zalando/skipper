@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -543,13 +544,7 @@ func TestCompress(t *testing.T) {
 				rsp.Header.Del("Content-Type")
 			}
 
-			if !compareHeaders(rsp.Header, ti.expectedHeader) {
-				printHeader(t, ti.expectedHeader, "invalid header", "expected")
-				printHeader(t, rsp.Header, "invalid header", "got")
-
-				t.Error("invalid header")
-				return
-			}
+			assert.Equal(t, ti.expectedHeader, rsp.Header)
 
 			if ok, err := compareBody(rsp, ti.contentLength); err != nil {
 				t.Error(err)
