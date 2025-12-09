@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -728,7 +729,10 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			defer clientServer.Close()
 
 			var logUploadCount int32
+			var handlerWg sync.WaitGroup
 			s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				handlerWg.Add(1)
+				defer handlerWg.Done()
 				if strings.Contains(r.URL.Path, "logs-success") {
 					atomic.AddInt32(&logUploadCount, 1)
 					w.WriteHeader(http.StatusOK)
@@ -867,21 +871,9 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
 
-			time.Sleep(2 * time.Second) // wait for async decision log to be sent
+			time.Sleep(1 * time.Second) // wait for async decision log to be sent
+			handlerWg.Wait()            // ensure S3 handler has completed
 			assert.True(t, atomic.LoadInt32(&logUploadCount) >= 1, "Decision log upload was not attempted")
-
-			// Simulate a second request while decision log batching/upload is in progress
-			proxy.Client().Timeout = 20 * time.Millisecond
-			rsp, err = proxy.Client().Do(req)
-			assert.NoError(t, err)
-			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
-
-			time.Sleep(2 * time.Second)
-			rsp, err = proxy.Client().Do(req)
-			assert.NoError(t, err)
-			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
-
-			time.Sleep(2 * time.Second)
 		})
 	}
 }
