@@ -5,7 +5,7 @@ ADD build/linux/arm/v7/skipper \
     build/linux/arm/v7/eskip \
     build/linux/arm/v7/webhook \
     build/linux/arm/v7/routesrv /usr/bin/
-ENV PATH $PATH:/usr/bin
+ENV PATH=$PATH:/usr/bin
 
 EXPOSE 9090 9911
 
