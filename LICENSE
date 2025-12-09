@@ -37,7 +37,7 @@ SOFTWARE.
 
 MODIFICATIONS TO pathmux/tree.go and pathmux/tree_test.go:
 
-02.09.2015 - Exposed the internal tree implementation of http://godoc.org/github.com/dimfeld/httptreemux so that
+02.09.2015 - Exposed the internal tree implementation of http://pkg.go.dev/github.com/dimfeld/httptreemux so that
 it can be used to look up arbitrary objects in a Patricia tree.
 
 21.04.2016 - Enabled backtracking in the tree lookup.

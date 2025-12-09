@@ -18,7 +18,7 @@ const breakerUsage = `set global or host specific circuit breakers, e.g. -breake
 	timeout: duration string or milliseconds while the breaker stays open
 	half-open-requests: the number of requests in half-open state to succeed before getting closed again
 	idle-ttl: duration string or milliseconds after the breaker is considered idle and reset
-	(see also: https://godoc.org/github.com/zalando/skipper/circuit)`
+	(see also: https://pkg.go.dev/github.com/zalando/skipper/circuit)`
 
 const enableBreakersUsage = `enable breakers to be set from filters without providing global or host settings (equivalent to: -breaker type=disabled)`
 
