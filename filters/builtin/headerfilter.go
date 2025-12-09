@@ -2,6 +2,8 @@ package builtin
 
 import (
 	"fmt"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/zalando/skipper/eskip"
@@ -28,6 +30,8 @@ const (
 
 	depRequestHeader
 	depResponseHeader
+	dropRequestHeaderValueRegexp
+	dropResponseHeaderValueRegexp
 )
 
 const (
@@ -38,44 +42,10 @@ const (
 // common structure for requestHeader, responseHeader specifications and
 // filters
 type headerFilter struct {
-	typ        headerType
-	key, value string
-	template   *eskip.Template
-}
-
-// verifies that the filter config has two string parameters
-func headerFilterConfig(typ headerType, config []interface{}) (string, string, *eskip.Template, error) {
-	switch typ {
-	case dropRequestHeader, dropResponseHeader:
-		if len(config) != 1 {
-			return "", "", nil, filters.ErrInvalidFilterParameters
-		}
-	default:
-		if len(config) != 2 {
-			return "", "", nil, filters.ErrInvalidFilterParameters
-		}
-	}
-
-	key, ok := config[0].(string)
-	if !ok {
-		return "", "", nil, filters.ErrInvalidFilterParameters
-	}
-
-	var value string
-	if len(config) == 2 {
-		value, ok = config[1].(string)
-		if !ok {
-			return "", "", nil, filters.ErrInvalidFilterParameters
-		}
-	}
-
-	switch typ {
-	case setRequestHeader, appendRequestHeader,
-		setResponseHeader, appendResponseHeader:
-		return key, "", eskip.NewTemplate(value), nil
-	default:
-		return key, value, nil, nil
-	}
+	typ         headerType
+	key, value  string
+	template    *eskip.Template
+	valueRegexp *regexp.Regexp
 }
 
 // Deprecated: use setRequestHeader or appendRequestHeader
@@ -192,6 +162,14 @@ func NewCopyResponseHeaderDeprecated() filters.Spec {
 	return &headerFilter{typ: copyResponseHeaderDeprecated}
 }
 
+func NewDropRequestHeaderValueRegexp() filters.Spec {
+	return &headerFilter{typ: dropRequestHeaderValueRegexp}
+}
+
+func NewDropResponseHeaderValueRegexp() filters.Spec {
+	return &headerFilter{typ: dropResponseHeaderValueRegexp}
+}
+
 func (spec *headerFilter) Name() string {
 	switch spec.typ {
 	case setRequestHeader:
@@ -226,6 +204,10 @@ func (spec *headerFilter) Name() string {
 		return copyRequestHeaderDeprecatedName
 	case copyResponseHeaderDeprecated:
 		return copyResponseHeaderDeprecatedName
+	case dropRequestHeaderValueRegexp:
+		return filters.DropRequestHeaderValueRegexpName
+	case dropResponseHeaderValueRegexp:
+		return filters.DropResponseHeaderValueRegexpName
 	default:
 		panic("invalid header type")
 	}
@@ -233,8 +215,56 @@ func (spec *headerFilter) Name() string {
 
 //lint:ignore ST1016 "spec" makes sense here and we reuse the type for the filter
 func (spec *headerFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
-	key, value, template, err := headerFilterConfig(spec.typ, config)
-	return &headerFilter{typ: spec.typ, key: key, value: value, template: template}, err
+	switch spec.typ {
+	case dropRequestHeader, dropResponseHeader:
+		if len(config) != 1 {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+	default:
+		if len(config) != 2 {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+	}
+
+	key, ok := config[0].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	var value string
+	if len(config) == 2 {
+		value, ok = config[1].(string)
+		if !ok {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+	}
+
+	switch spec.typ {
+	case setRequestHeader, appendRequestHeader,
+		setResponseHeader, appendResponseHeader:
+		return &headerFilter{
+			typ:      spec.typ,
+			key:      key,
+			template: eskip.NewTemplate(value),
+		}, nil
+	case dropRequestHeaderValueRegexp, dropResponseHeaderValueRegexp:
+		re, err := regexp.Compile(value)
+		if err != nil {
+			return nil, fmt.Errorf("filter expects valid regex: %w", filters.ErrInvalidFilterParameters)
+		}
+		return &headerFilter{
+			typ:         spec.typ,
+			key:         key,
+			value:       value,
+			valueRegexp: re,
+		}, nil
+	}
+
+	return &headerFilter{
+		typ:   spec.typ,
+		key:   key,
+		value: value,
+	}, nil
 }
 
 func valueFromContext(
@@ -282,6 +312,10 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 		}
 	case dropRequestHeader:
 		header.Del(f.key)
+	case dropRequestHeaderValueRegexp:
+		if headerValue := header.Get(f.key); headerValue != "" {
+			header[f.key] = slices.DeleteFunc(header.Values(f.key), f.valueRegexp.MatchString)
+		}
 	case setContextRequestHeader:
 		valueFromContext(ctx, f.key, f.value, true, header.Set)
 	case appendContextRequestHeader:
@@ -314,6 +348,10 @@ func (f *headerFilter) Response(ctx filters.FilterContext) {
 		header.Add(f.key, f.value)
 	case dropResponseHeader:
 		header.Del(f.key)
+	case dropResponseHeaderValueRegexp:
+		if headerValue := header.Get(f.key); headerValue != "" {
+			header[f.key] = slices.DeleteFunc(header.Values(f.key), f.valueRegexp.MatchString)
+		}
 	case setContextResponseHeader:
 		valueFromContext(ctx, f.key, f.value, false, header.Set)
 	case appendContextResponseHeader:

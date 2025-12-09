@@ -175,6 +175,21 @@ Example:
 foo: * -> dropRequestHeader("User-Agent") -> "https://backend.example.org";
 ```
 
+### dropRequestHeaderValueRegexp
+
+Removes header values matched by regex from the request
+
+Parameters:
+
+* header name (string)
+* the expression to match (regex)
+
+Example:
+
+```
+foo: * -> dropRequestHeaderValueRegexp("User-Agent", "^value.") -> "https://backend.example.org";
+```
+
 ### modResponseHeader
 
 Same as [modRequestHeader](#modrequestheader), only for responses
@@ -212,6 +227,10 @@ Same as [appendRequestHeader](#appendrequestheader), only for responses
 ### dropResponseHeader
 
 Same as [dropRequestHeader](#droprequestheader) but for responses from the backend
+
+### dropResponseHeaderValueRegexp
+
+Same as [dropRequestHeaderValueRegexp](#droprequestheadervalueregexp) but for responses from the backend
 
 ### setContextRequestHeader
 
@@ -306,6 +325,28 @@ PathSubtree("/") && Method("OPTIONS")
  -> setResponseHeader("Access-Control-Allow-Headers", "authorization, origin, content-type, accept")
  -> status(200)
  -> <shunt>;
+```
+
+### encodeRequestHeader
+
+The filter has 2 arguments, the header name and the encoding.
+If the encoding can not be changed we set the header value to empty string.
+Supported encodings are listed in https://pkg.go.dev/golang.org/x/text/encoding/charmap .
+
+Example:
+```
+encodeRequestHeader("X-Foo", "Windows1252")
+```
+
+### encodeResponseHeader
+
+The filter has 2 arguments, the header name and the encoding.
+If the encoding can not be changed we set the header value to empty string.
+Supported encodings are listed in https://pkg.go.dev/golang.org/x/text/encoding/charmap .
+
+Example:
+```
+encodeResponseHeader("X-Foo", "Windows1252")
 ```
 
 ### headerToQuery
