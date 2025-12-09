@@ -23,7 +23,7 @@ ADD ${BUILD_FOLDER}/${TARGETPLATFORM}/skipper \
     ${BUILD_FOLDER}/${TARGETPLATFORM}/eskip \
     ${BUILD_FOLDER}/${TARGETPLATFORM}/webhook \
     ${BUILD_FOLDER}/${TARGETPLATFORM}/routesrv /usr/bin/
-ENV PATH $PATH:/usr/bin
+ENV PATH=$PATH:/usr/bin
 
 EXPOSE 9090 9911
 
