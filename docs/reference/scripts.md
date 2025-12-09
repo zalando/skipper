@@ -125,7 +125,7 @@ end
 > Header table is a [functable](http://lua-users.org/wiki/FuncTables) that returns [iterator](https://www.lua.org/pil/7.2.html)
 
 Header names are normalized by the `net/http` go module
-[like usual](https://godoc.org/net/http#CanonicalHeaderKey). Setting a
+[like usual](https://pkg.go.dev/net/http#CanonicalHeaderKey). Setting a
 header is done by assigning to the header table. Setting a header to `nil` or
 an empty string deletes the header - setting to `nil` is preferred.
 

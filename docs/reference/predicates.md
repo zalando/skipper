@@ -21,7 +21,7 @@ representation:
 * numbers are regular (decimal) numbers like `401` or `1.23456`. The eskip syntax doesn't define a limitation on the size of the numbers, but the underlying implementation currently relies on the float64 values of the Go runtime.
 
 Other higher level argument types must be represented as one of the above types. E.g. it is a convention to
-represent time duration values as strings, parseable by [time.Duration](https://godoc.org/time#ParseDuration)).
+represent time duration values as strings, parseable by [time.Duration](https://pkg.go.dev/time#ParseDuration)).
 
 ## The path tree
 
@@ -520,7 +520,7 @@ Matches routes when the given cron-like expression matches the system time.
 
 Parameters:
 
-* [Cron](https://en.wikipedia.org/wiki/Cron#CRON_expression)\-like expression. See [the package documentation](https://godoc.org/github.com/sarslanhan/cronmask#New) for supported & unsupported features. Expressions are expected to be in the same time zone as the system that generates the `time.Time` instances.
+* [Cron](https://en.wikipedia.org/wiki/Cron#CRON_expression)\-like expression. See [the package documentation](https://pkg.go.dev/github.com/sarslanhan/cronmask#New) for supported & unsupported features. Expressions are expected to be in the same time zone as the system that generates the `time.Time` instances.
 
 
 Examples:

@@ -39,7 +39,7 @@ looks like:
 - Your pull request must receive a :thumbsup: from two [Maintainers](https://github.com/zalando/skipper/blob/master/MAINTAINERS)
 - Major changes need to include tests. Features need
   additionally include documentation for developers as
-  [godoc](https://godoc.org/github.com/zalando/skipper) and add
+  [godoc](https://pkg.go.dev/github.com/zalando/skipper) and add
   [user documentation in markdown](https://opensource.zalando.com/skipper) in the docs/ directory.
 
 Thanks for your contributions!
