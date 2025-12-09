@@ -227,6 +227,7 @@ func Filters() []filters.Spec {
 		//lint:ignore SA1019 due to backward compatibility
 		accesslog.NewAccessLogDisabled(),
 		accesslog.NewDisableAccessLog(),
+		accesslog.NewMaskAccessLogQuery(),
 		accesslog.NewEnableAccessLog(),
 		auth.NewForwardToken(),
 		auth.NewForwardTokenField(),

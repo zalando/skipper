@@ -336,6 +336,7 @@ const (
 	HeaderToQueryName                          = "headerToQuery"
 	QueryToHeaderName                          = "queryToHeader"
 	DisableAccessLogName                       = "disableAccessLog"
+	MaskAccessLogQueryName                     = "maskAccessLogQuery"
 	EnableAccessLogName                        = "enableAccessLog"
 	AuditLogName                               = "auditLog"
 	UnverifiedAuditLogName                     = "unverifiedAuditLog"
