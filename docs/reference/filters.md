@@ -2813,6 +2813,20 @@ unverifiedAuditLog()
 unverifiedAuditLog("azp")
 ```
 
+### maskAccessLogQuery
+
+Filter `maskAccessLogQuery` masks values of the provided query parameters in access logs by replacing them with hashes. It accepts query parameter keys as arguments.
+
+Examples:
+
+```
+maskAccessLogQuery("key_1")
+```
+
+```
+maskAccessLogQuery("key_1", "key_2")
+```
+
 ## Backend
 ### backendIsProxy
 
