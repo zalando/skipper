@@ -61,7 +61,7 @@ individual route settings. The values are merged in the same order, so the globa
 the host settings, and the result of the global and host settings serve as defaults for the route settings.
 Setting global values happens the same way as setting host values, but leaving the Host field empty.  Setting
 route based values happens with filters in the route definitions.
-(https://godoc.org/github.com/zalando/skipper/filters/circuit)
+(https://pkg.go.dev/github.com/zalando/skipper/filters/circuit)
 
 # Settings - Type
 

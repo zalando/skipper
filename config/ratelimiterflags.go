@@ -17,7 +17,7 @@ const ratelimitsUsage = `set global rate limit settings, e.g. -ratelimits type=c
 	max-hits: the number of hits a ratelimiter can get
 	time-window: the duration of the sliding window for the rate limiter
 	group: defines the ratelimit group, which can be the same for different routes.
-	(see also: https://godoc.org/github.com/zalando/skipper/ratelimit)`
+	(see also: https://pkg.go.dev/github.com/zalando/skipper/ratelimit)`
 
 const enableRatelimitsUsage = `enable ratelimits`
 

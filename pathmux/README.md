@@ -1,4 +1,4 @@
-[![GoDoc](https://godoc.org/github.com/zalando/pathmux?status.svg)](https://godoc.org/github.com/zalando/pathmux)
+[![GoDoc](https://pkg.go.dev/github.com/zalando/pathmux?status.svg)](https://pkg.go.dev/github.com/zalando/pathmux)
 [![Go Report Card](https://goreportcard.com/badge/github.com/zalando/pathmux)](https://goreportcard.com/report/github.com/zalando/pathmux)
 [![Go Cover](https://gocover.io/_badge/github.com/zalando/pathmux)](https://gocover.io/github.com/zalando/pathmux)
 
@@ -29,7 +29,7 @@ Pathmux is 'go get compatible'. The master head is always stable (at least by in
 
 ### Documentation
 
-You can find detailed package documentation [here](https://godoc.org/github.com/zalando/pathmux).
+You can find detailed package documentation [here](https://pkg.go.dev/github.com/zalando/pathmux).
 
 ### Working with the Code
 

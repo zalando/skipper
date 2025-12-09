@@ -10,11 +10,11 @@ var ErrInvalidPredicateParameters = errors.New("invalid predicate parameters")
 const (
 	// PathName represents the name of builtin path predicate.
 	// (See more details about the Path and PathSubtree predicates
-	// at https://godoc.org/github.com/zalando/skipper/eskip)
+	// at https://pkg.go.dev/github.com/zalando/skipper/eskip)
 	PathName = "Path"
 	// PathSubtreeName represents the name of the builtin path subtree predicate.
 	// (See more details about the Path and PathSubtree predicates
-	// at https://godoc.org/github.com/zalando/skipper/eskip)
+	// at https://pkg.go.dev/github.com/zalando/skipper/eskip)
 	PathSubtreeName           = "PathSubtree"
 	PathRegexpName            = "PathRegexp"
 	HostName                  = "Host"
