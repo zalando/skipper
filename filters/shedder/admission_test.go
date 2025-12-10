@@ -1,8 +1,10 @@
 package shedder
 
 import (
+	"context"
 	"fmt"
 	"io"
+	gonet "net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -151,93 +154,130 @@ func TestAdmissionControl(t *testing.T) {
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Parallel()
-			randFunc := randWithSeed()
-			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if randFunc() < ti.pBackendErr {
-					w.WriteHeader(http.StatusInternalServerError)
-				} else {
-					w.WriteHeader(http.StatusOK)
+			synctest.Test(t, func(t *testing.T) {
+				backendListener := fakeNetListen()
+				defer backendListener.Close()
+
+				randFunc := randWithSeed()
+
+				backend := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if randFunc() < ti.pBackendErr {
+						w.WriteHeader(http.StatusInternalServerError)
+					} else {
+						w.WriteHeader(http.StatusOK)
+					}
+				}))
+
+				defer backend.Close()
+
+				backend.Listener.Close()
+				backend.Listener = backendListener
+				backend.Start()
+
+				spec := NewAdmissionControl(Options{
+					testRand: true,
+				}).(*AdmissionControlSpec)
+
+				args := make([]any, 0, 6)
+				args = append(args, "testmetric", ti.mode, ti.d.String(), ti.windowsize, ti.minRequests, ti.successThreshold, ti.maxrejectprobability, ti.exponent)
+
+				f, err := spec.CreateFilter(args)
+				if err != nil {
+					t.Logf("args: %+v", args...)
+					t.Fatalf("error creating filter: %v", err)
+					return
 				}
-			}))
-			defer backend.Close()
+				defer f.(*admissionControl).Close()
 
-			spec := NewAdmissionControl(Options{
-				testRand: true,
-			}).(*AdmissionControlSpec)
+				fr := make(filters.Registry)
+				fr.Register(spec)
+				r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 
-			args := make([]interface{}, 0, 6)
-			args = append(args, "testmetric", ti.mode, ti.d.String(), ti.windowsize, ti.minRequests, ti.successThreshold, ti.maxrejectprobability, ti.exponent)
+				dc := testdataclient.New([]*eskip.Route{r})
+				defer dc.Close()
 
-			f, err := spec.CreateFilter(args)
-			if err != nil {
-				t.Logf("args: %+v", args...)
-				t.Fatalf("error creating filter: %v", err)
-				return
-			}
-			defer f.(*admissionControl).Close()
+				proxy := proxytest.WithParamsAndRoutingOptionsAndWaitUnstarted(fr,
+					proxy.Params{
+						CustomHttpRoundTripperWrap: func(rt http.RoundTripper) http.RoundTripper {
+							tr := rt.(*http.Transport)
+							tr.DialContext = func(ctx context.Context, network, addr string) (gonet.Conn, error) {
+								return backendListener.connect(), nil
+							}
+							return tr
+						},
+					},
+					routing.Options{
+						DataClients:    []routing.DataClient{dc},
+						PostProcessors: []routing.PostProcessor{spec.PostProcessor()},
+						PreProcessors:  []routing.PreProcessor{spec.PreProcessor()},
+					},
+					0,
+				)
 
-			fr := make(filters.Registry)
-			fr.Register(spec)
-			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
+				proxyListener := fakeNetListen()
+				defer proxyListener.Close()
 
-			dc := testdataclient.New([]*eskip.Route{r})
-			defer dc.Close()
+				proxy.SetListener(proxyListener)
+				proxy.Start()
+				defer proxy.Close()
 
-			proxy := proxytest.WithRoutingOptions(fr, routing.Options{
-				DataClients:    []routing.DataClient{dc},
-				PostProcessors: []routing.PostProcessor{spec.PostProcessor()},
-				PreProcessors:  []routing.PreProcessor{spec.PreProcessor()},
-			})
-			defer proxy.Close()
+				client := proxy.Client()
+				tr := client.Transport.(*http.Transport)
 
-			client := proxy.Client()
-			req, err := http.NewRequest("GET", proxy.URL, nil)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
-			var failBackend, fail, ok, N float64
-			// iterations to make sure we have enough traffic
-			until := time.After(time.Duration(ti.N) * time.Duration(ti.windowsize) * ti.d)
-		work:
-			for {
-				select {
-				case <-until:
-					break work
-				default:
+				tr.DialContext = func(ctx context.Context, network, addr string) (gonet.Conn, error) {
+					return proxyListener.connect(), nil
 				}
-				N++
-				rsp, err := client.Do(req)
+
+				req, err := http.NewRequest("GET", proxy.URL, nil)
 				if err != nil {
 					t.Error(err)
+					return
 				}
-				switch rsp.StatusCode {
-				case http.StatusInternalServerError:
-					failBackend += 1
-				case http.StatusServiceUnavailable:
-					fail += 1
-				case http.StatusOK:
-					ok += 1
-				default:
-					t.Logf("Unexpected status code %d %s", rsp.StatusCode, rsp.Status)
+				var failBackend, fail, ok, N float64
+				// iterations to make sure we have enough traffic
+				until := time.After(time.Duration(ti.N) * time.Duration(ti.windowsize) * ti.d)
+			work:
+				for {
+					select {
+					case <-until:
+						break work
+					default:
+					}
+					time.Sleep(1 * time.Millisecond)
+					N++
+					rsp, err := client.Do(req)
+					if err != nil {
+						t.Error(err)
+					}
+					switch rsp.StatusCode {
+					case http.StatusInternalServerError:
+						failBackend += 1
+					case http.StatusServiceUnavailable:
+						fail += 1
+					case http.StatusOK:
+						ok += 1
+					default:
+						t.Logf("Unexpected status code %d %s", rsp.StatusCode, rsp.Status)
+					}
+					rsp.Body.Close()
 				}
-				rsp.Body.Close()
-			}
-			t.Logf("ok: %0.2f, fail: %0.2f, failBackend: %0.2f", ok, fail, failBackend)
+				synctest.Wait()
+				t.Logf("ok: %0.2f, fail: %0.2f, failBackend: %0.2f", ok, fail, failBackend)
 
-			epsilon := 0.05 * N // maybe 5% instead of 0.1%
-			expectedFails := (N - failBackend) * ti.pExpectedAdmissionShedding
+				epsilon := 0.05 * N // maybe 5% instead of 0.1%
+				expectedFails := (N - failBackend) * ti.pExpectedAdmissionShedding
 
-			if expectedFails-epsilon > fail || fail > expectedFails+epsilon {
-				t.Errorf("Failed to get expected fails should be in: %0.2f < %0.2f < %0.2f", expectedFails-epsilon, fail, expectedFails+epsilon)
-			}
+				if expectedFails-epsilon > fail || fail > expectedFails+epsilon {
+					t.Errorf("Failed to get expected fails should be in: %0.2f < %0.2f < %0.2f", expectedFails-epsilon, fail, expectedFails+epsilon)
+				}
 
-			// TODO(sszuecs) how to calculate expected oks?
-			// expectedOKs := N - (N-failBackend)*ti.pExpectedAdmissionShedding
-			// if ok < expectedOKs-epsilon || expectedOKs+epsilon < ok {
-			// 	t.Errorf("Failed to get expected ok should be in: %0.2f < %0.2f < %0.2f", expectedOKs-epsilon, ok, expectedOKs+epsilon)
-			// }
+				// TODO(sszuecs) how to calculate expected oks?
+				// expectedOKs := N - (N-failBackend)*ti.pExpectedAdmissionShedding
+				// if ok < expectedOKs-epsilon || expectedOKs+epsilon < ok {
+				// 	t.Errorf("Failed to get expected ok should be in: %0.2f < %0.2f < %0.2f", expectedOKs-epsilon, ok, expectedOKs+epsilon)
+				// }
+
+			})
 		})
 	}
 }

@@ -41,13 +41,19 @@ type Config struct {
 }
 
 func WithParamsAndRoutingOptionsAndWait(fr filters.Registry, proxyParams proxy.Params, o routing.Options, wait time.Duration, routes ...*eskip.Route) *TestProxy {
+	p := WithParamsAndRoutingOptionsAndWaitUnstarted(fr, proxyParams, o, wait, routes...)
+	p.Start()
+	return p
+}
+
+func WithParamsAndRoutingOptionsAndWaitUnstarted(fr filters.Registry, proxyParams proxy.Params, o routing.Options, wait time.Duration, routes ...*eskip.Route) *TestProxy {
 	o.FilterRegistry = fr
 	return Config{
 		RoutingOptions: o,
 		ProxyParams:    proxyParams,
 		Routes:         routes,
 		WaitTime:       wait,
-	}.Create()
+	}.CreateUnstarted()
 }
 
 func WithParamsAndRoutingOptions(fr filters.Registry, proxyParams proxy.Params, o routing.Options, routes ...*eskip.Route) *TestProxy {
@@ -70,7 +76,7 @@ func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {
 	return WithParams(fr, proxy.Params{CloseIdleConnsPeriod: -time.Second}, routes...)
 }
 
-func (c Config) Create() *TestProxy {
+func (c Config) CreateUnstarted() *TestProxy {
 	waitTime := 3 * time.Second
 	if c.WaitTime > 0 {
 		waitTime = c.WaitTime
@@ -99,9 +105,8 @@ func (c Config) Create() *TestProxy {
 	if len(c.Certificates) > 0 {
 		tsp = httptest.NewUnstartedServer(pr)
 		tsp.TLS = &tls.Config{Certificates: c.Certificates}
-		tsp.StartTLS()
 	} else {
-		tsp = httptest.NewServer(pr)
+		tsp = httptest.NewUnstartedServer(pr)
 	}
 
 	if err := tl.WaitFor("route settings applied", waitTime); err != nil {
@@ -119,6 +124,22 @@ func (c Config) Create() *TestProxy {
 		proxy:   pr,
 		server:  tsp,
 	}
+}
+
+func (p *TestProxy) Start() {
+	p.server.Start()
+	p.URL = p.server.URL
+}
+
+func (c Config) Create() *TestProxy {
+	p := c.CreateUnstarted()
+	p.Start()
+	return p
+}
+
+func (p *TestProxy) SetListener(l net.Listener) {
+	p.server.Listener.Close()
+	p.server.Listener = l
 }
 
 func (p *TestProxy) Client() *TestClient {
