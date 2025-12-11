@@ -2,7 +2,7 @@ package proxy
 
 import (
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	"github.com/zalando/skipper/routing"

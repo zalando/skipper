@@ -1,7 +1,7 @@
 package proxy
 
 import (
-	"math/rand"
+	"math/rand/v2"
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/metrics"

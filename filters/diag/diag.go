@@ -12,7 +12,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"sync"
@@ -107,6 +107,14 @@ type jitter struct {
 	typ   distribution
 	sleep func(time.Duration)
 }
+
+var (
+	// https://github.com/cilium/cilium/pull/32542/
+	// randSrc is a source of pseudo-random numbers. It is seeded to the current time in
+	// nanoseconds by default but can be reseeded in tests so they are deterministic.
+	randSrc = rand.NewPCG(uint64(time.Now().UnixNano()), 0)
+	randGen = rand.New(randSrc)
+)
 
 var randomChars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
 
@@ -225,17 +233,15 @@ func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	if l, ok := args[0].(float64); ok {
-		return &random{rand: rand.New(rand.NewSource(time.Now().UnixNano())), len: int64(l)}, nil // #nosec
+		return &random{rand: randGen, len: int64(l)}, nil
 	} else {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 }
 
 func (r *random) Read(p []byte) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	for i := 0; i < len(p); i++ {
-		p[i] = randomChars[r.rand.Intn(len(randomChars))]
+		p[i] = randomChars[r.rand.IntN(len(randomChars))]
 	}
 	return len(p), nil
 }
@@ -629,7 +635,6 @@ func (j *jitter) Request(filters.FilterContext) {
 
 	switch j.typ {
 	case uniformRequestDistribution:
-		/* #nosec */
 		r = 2*rand.Float64() - 1 // +/- sizing
 	case normalRequestDistribution:
 		r = rand.NormFloat64()
@@ -645,7 +650,6 @@ func (j *jitter) Response(filters.FilterContext) {
 
 	switch j.typ {
 	case uniformResponseDistribution:
-		/* #nosec */
 		r = 2*rand.Float64() - 1 // +/- sizing
 	case normalResponseDistribution:
 		r = rand.NormFloat64()

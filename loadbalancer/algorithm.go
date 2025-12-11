@@ -3,10 +3,11 @@ package loadbalancer
 import (
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"sort"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/cespare/xxhash/v2"
 	log "github.com/sirupsen/logrus"
@@ -51,14 +52,21 @@ var (
 	defaultAlgorithm = newRoundRobin
 )
 
+var (
+	// https://github.com/cilium/cilium/pull/32542/
+	// randSrc is a source of pseudo-random numbers. It is seeded to the current time in
+	// nanoseconds by default but can be reseeded in tests so they are deterministic.
+	randSrc = rand.NewPCG(uint64(time.Now().UnixNano()), 0)
+	randGen = rand.New(randSrc)
+)
+
 type roundRobin struct {
 	index int64
 }
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
-	rnd := rand.New(NewLockedSource()) // #nosec
 	return &roundRobin{
-		index: int64(rnd.Intn(len(endpoints))),
+		index: randGen.Int64N(int64(len(endpoints))),
 	}
 }
 
@@ -77,9 +85,8 @@ type random struct {
 }
 
 func newRandom(endpoints []string) routing.LBAlgorithm {
-	// #nosec
 	return &random{
-		rnd: rand.New(NewLockedSource()),
+		rnd: randGen,
 	}
 }
 
@@ -89,7 +96,7 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.LBEndpoints[0]
 	}
 
-	choice := r.rnd.Intn(len(ctx.LBEndpoints))
+	choice := r.rnd.IntN(len(ctx.LBEndpoints))
 	return ctx.LBEndpoints[choice]
 }
 
@@ -230,9 +237,8 @@ type powerOfRandomNChoices struct {
 
 // newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
 func newPowerOfRandomNChoices([]string) routing.LBAlgorithm {
-	rnd := rand.New(NewLockedSource()) // #nosec
 	return &powerOfRandomNChoices{
-		rnd:             rnd,
+		rnd:             randGen,
 		numberOfChoices: powerOfRandomNChoicesDefaultN,
 	}
 }
@@ -244,10 +250,10 @@ func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	best := ctx.LBEndpoints[p.rnd.Intn(ne)]
+	best := ctx.LBEndpoints[p.rnd.IntN(ne)]
 
 	for i := 1; i < p.numberOfChoices; i++ {
-		ce := ctx.LBEndpoints[p.rnd.Intn(ne)]
+		ce := ctx.LBEndpoints[p.rnd.IntN(ne)]
 
 		if p.getScore(ce) > p.getScore(best) {
 			best = ce

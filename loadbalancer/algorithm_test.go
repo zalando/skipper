@@ -511,3 +511,43 @@ func stdDeviation(counters map[int]uint64) float64 {
 	stdDev := math.Sqrt(summedDiffs / float64(len(counters)))
 	return (stdDev * 100) / mean
 }
+
+func BenchmarkRandomAlgorithm(b *testing.B) {
+	N := 10
+	eps := make([]string, N)
+	j := 0
+	k := 0
+	for i := range N {
+		j++
+		if j > 255 {
+			k++
+			j = 0
+		}
+		eps[i] = fmt.Sprintf("10.0.%d.%d", k, j)
+	}
+	if k > 255 {
+		b.Fatalf("Failed to benchmark: k > 255, k=%d", k)
+	}
+
+	alg := newRandom(eps)
+
+	lbeps := make([]routing.LBEndpoint, len(eps))
+	for i := range len(eps) {
+		lbe := routing.LBEndpoint{
+			Scheme:  "http",
+			Host:    eps[i],
+			Metrics: nil,
+		}
+		lbeps[i] = lbe
+	}
+
+	lbc := &routing.LBContext{
+		LBEndpoints: lbeps,
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		alg.Apply(lbc)
+	}
+}

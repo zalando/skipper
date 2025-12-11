@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -38,7 +38,6 @@ import (
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	tracingfilter "github.com/zalando/skipper/filters/tracing"
 	skpio "github.com/zalando/skipper/io"
-	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	snet "github.com/zalando/skipper/net"
@@ -48,6 +47,14 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
+)
+
+var (
+	// https://github.com/cilium/cilium/pull/32542/
+	// randSrc is a source of pseudo-random numbers. It is seeded to the current time in
+	// nanoseconds by default but can be reseeded in tests so they are deterministic.
+	randSrc = rand.NewPCG(uint64(time.Now().UnixNano()), 0)
+	randGen = rand.New(randSrc)
 )
 
 const (
@@ -868,7 +875,7 @@ func WithParams(p Params) *Proxy {
 	var healthyEndpointsChooser *healthyEndpoints
 	if p.EnablePassiveHealthCheck {
 		healthyEndpointsChooser = &healthyEndpoints{
-			rnd:                        rand.New(loadbalancer.NewLockedSource()),
+			rnd:                        randGen,
 			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
 		}
 	}
@@ -876,7 +883,7 @@ func WithParams(p Params) *Proxy {
 		routing:  p.Routing,
 		registry: p.EndpointRegistry,
 		fadein: &fadeIn{
-			rnd: rand.New(loadbalancer.NewLockedSource()),
+			rnd: randGen,
 		},
 		heathlyEndpoints:         healthyEndpointsChooser,
 		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
