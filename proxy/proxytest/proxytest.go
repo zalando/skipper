@@ -127,7 +127,11 @@ func (c Config) CreateUnstarted() *TestProxy {
 }
 
 func (p *TestProxy) Start() {
-	p.server.Start()
+	if p.server.TLS != nil {
+		p.server.StartTLS()
+	} else {
+		p.server.Start()
+	}
 	p.URL = p.server.URL
 }
 
