@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"os"
@@ -477,7 +477,7 @@ func (registry *OpenPolicyAgentRegistry) startCustomControlLoopDaemon() {
 // Prevent different opa instances from triggering plugins (f.ex. downloading new bundles) at the same time
 func (registry *OpenPolicyAgentRegistry) controlLoopIntervalWithJitter() time.Duration {
 	if registry.controlLoopMaxJitter > 0 {
-		return registry.controlLoopInterval + time.Duration(rand.Int63n(int64(registry.controlLoopMaxJitter))) - registry.controlLoopMaxJitter/2
+		return registry.controlLoopInterval + time.Duration(rand.Int64N(int64(registry.controlLoopMaxJitter))) - registry.controlLoopMaxJitter/2
 	}
 	return registry.controlLoopInterval
 }

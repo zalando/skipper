@@ -2,7 +2,7 @@ package flowid
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"regexp"
 )
 
@@ -41,7 +41,7 @@ func NewStandardGenerator(l int) (Generator, error) {
 func (g *standardGenerator) Generate() (string, error) {
 	u := make([]byte, g.length)
 	for i := 0; i < g.length; i += 10 {
-		b := rand.Int63() // #nosec
+		b := rand.Int64() // #nosec
 		for e := 0; e < 10 && i+e < g.length; e++ {
 			c := byte(b>>uint(6*e)) & alphabetBitMask // 6 bits only
 			u[i+e] = flowIdAlphabet[c]
