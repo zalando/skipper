@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	gonet "net"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -21,7 +21,7 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/metrics/metricstest"
-	"github.com/zalando/skipper/net"
+	skipnet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -200,7 +200,7 @@ func TestAdmissionControl(t *testing.T) {
 					proxy.Params{
 						CustomHttpRoundTripperWrap: func(rt http.RoundTripper) http.RoundTripper {
 							tr := rt.(*http.Transport)
-							tr.DialContext = func(ctx context.Context, network, addr string) (gonet.Conn, error) {
+							tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 								return backendListener.connect(), nil
 							}
 							return tr
@@ -224,7 +224,7 @@ func TestAdmissionControl(t *testing.T) {
 				client := proxy.Client()
 				tr := client.Transport.(*http.Transport)
 
-				tr.DialContext = func(ctx context.Context, network, addr string) (gonet.Conn, error) {
+				tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 					return proxyListener.connect(), nil
 				}
 
@@ -339,7 +339,7 @@ func TestAdmissionControlChainOnlyBackendErrorPass(t *testing.T) {
 		t.Fatalf("Failed to parse url %s: %v", proxy.URL, err)
 	}
 
-	rt := net.NewTransport(net.Options{})
+	rt := skipnet.NewTransport(skipnet.Options{})
 	defer rt.Close()
 
 	req, err := http.NewRequest("GET", reqURL.String(), nil)
