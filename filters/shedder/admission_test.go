@@ -241,7 +241,7 @@ func TestAdmissionControl(t *testing.T) {
 
 				N := ti.N * ti.windowsize * int(ti.d.Milliseconds())
 
-				for _ = range N {
+				for range N {
 					time.Sleep(time.Millisecond)
 
 					rsp, err := client.Do(req)
