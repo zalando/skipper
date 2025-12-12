@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
@@ -43,6 +44,7 @@ func TestAdmissionControl(t *testing.T) {
 		N                          int     // iterations
 		pBackendErr                float64 // [0,1]
 		pExpectedAdmissionShedding float64 // [0,1]
+		expectedFails              int
 	}{{
 		msg:                        "no error",
 		mode:                       "active",
@@ -55,6 +57,7 @@ func TestAdmissionControl(t *testing.T) {
 		N:                          20,
 		pBackendErr:                0.0,
 		pExpectedAdmissionShedding: 0.0,
+		expectedFails:              0,
 	}, {
 		msg:                        "only errors",
 		mode:                       "active",
@@ -67,90 +70,91 @@ func TestAdmissionControl(t *testing.T) {
 		N:                          20,
 		pBackendErr:                1.0,
 		pExpectedAdmissionShedding: 0.95,
+		expectedFails:              854,
 	}, {
-		msg:                        "smaller error rate, than threshold won't block",
-		mode:                       "active",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.9,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.01,
-		pExpectedAdmissionShedding: 0.0,
+		msg:                  "smaller error rate, than threshold won't block",
+		mode:                 "active",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.9,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.01,
+		expectedFails:        0,
 	}, {
-		msg:                        "tiny error rate and bigger than threshold will block some traffic",
-		mode:                       "active",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.99,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.1,
-		pExpectedAdmissionShedding: 0.1,
+		msg:                  "tiny error rate and bigger than threshold will block some traffic",
+		mode:                 "active",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.99,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.1,
+		expectedFails:        86,
 	}, {
-		msg:                        "small error rate and bigger than threshold will block some traffic",
-		mode:                       "active",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.9,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.2,
-		pExpectedAdmissionShedding: 0.15,
+		msg:                  "small error rate and bigger than threshold will block some traffic",
+		mode:                 "active",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.9,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.2,
+		expectedFails:        99,
 	}, {
-		msg:                        "medium error rate and bigger than threshold will block some traffic",
-		mode:                       "active",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.9,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.5,
-		pExpectedAdmissionShedding: 0.615,
+		msg:                  "medium error rate and bigger than threshold will block some traffic",
+		mode:                 "active",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.9,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.5,
+		expectedFails:        429,
 	}, {
-		msg:                        "large error rate and bigger than threshold will block some traffic",
-		mode:                       "active",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.9,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.8,
-		pExpectedAdmissionShedding: 0.91,
+		msg:                  "large error rate and bigger than threshold will block some traffic",
+		mode:                 "active",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.9,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.8,
+		expectedFails:        698,
 	}, {
-		msg:                        "inactive mode with large error rate and bigger than threshold will pass all traffic",
-		mode:                       "inactive",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.9,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.8,
-		pExpectedAdmissionShedding: 0.0,
+		msg:                  "inactive mode with large error rate and bigger than threshold will pass all traffic",
+		mode:                 "inactive",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.9,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.8,
+		expectedFails:        0,
 	}, {
-		msg:                        "logInactive mode with large error rate and bigger than threshold will pass all traffic",
-		mode:                       "logInactive",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.9,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.8,
-		pExpectedAdmissionShedding: 0.0,
+		msg:                  "logInactive mode with large error rate and bigger than threshold will pass all traffic",
+		mode:                 "logInactive",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.9,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.8,
+		expectedFails:        0,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Parallel()
@@ -233,22 +237,16 @@ func TestAdmissionControl(t *testing.T) {
 					t.Error(err)
 					return
 				}
-				var failBackend, fail, ok, N float64
-				// iterations to make sure we have enough traffic
-				until := time.After(time.Duration(ti.N) * time.Duration(ti.windowsize) * ti.d)
-			work:
-				for {
-					select {
-					case <-until:
-						break work
-					default:
-					}
-					time.Sleep(1 * time.Millisecond)
-					N++
+				var failBackend, fail, ok int
+
+				N := ti.N * ti.windowsize * int(ti.d.Milliseconds())
+
+				for _ = range N {
+					time.Sleep(time.Millisecond)
+
 					rsp, err := client.Do(req)
-					if err != nil {
-						t.Error(err)
-					}
+					require.NoError(t, err, "roundtrip failed")
+
 					switch rsp.StatusCode {
 					case http.StatusInternalServerError:
 						failBackend += 1
@@ -261,21 +259,13 @@ func TestAdmissionControl(t *testing.T) {
 					}
 					rsp.Body.Close()
 				}
+
 				synctest.Wait()
-				t.Logf("ok: %0.2f, fail: %0.2f, failBackend: %0.2f", ok, fail, failBackend)
 
-				epsilon := 0.05 * N // maybe 5% instead of 0.1%
-				expectedFails := (N - failBackend) * ti.pExpectedAdmissionShedding
+				t.Logf("ok: %d, fail: %d, failBackend: %d", ok, fail, failBackend)
 
-				if expectedFails-epsilon > fail || fail > expectedFails+epsilon {
-					t.Errorf("Failed to get expected fails should be in: %0.2f < %0.2f < %0.2f", expectedFails-epsilon, fail, expectedFails+epsilon)
-				}
-
-				// TODO(sszuecs) how to calculate expected oks?
-				// expectedOKs := N - (N-failBackend)*ti.pExpectedAdmissionShedding
-				// if ok < expectedOKs-epsilon || expectedOKs+epsilon < ok {
-				// 	t.Errorf("Failed to get expected ok should be in: %0.2f < %0.2f < %0.2f", expectedOKs-epsilon, ok, expectedOKs+epsilon)
-				// }
+				assert.Equal(t, ti.expectedFails, fail, "Failed to get expected fails")
+				assert.Equal(t, N-ti.expectedFails-failBackend, ok, "Failed to get expected OKs")
 
 			})
 		})
