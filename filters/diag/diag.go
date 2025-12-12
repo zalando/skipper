@@ -53,11 +53,15 @@ const (
 	backendChunks
 )
 
-type random struct {
-	mu   sync.Mutex
-	rand *rand.Rand
-	len  int64
-}
+type (
+	randomSpec struct{}
+
+	random struct {
+		mu   sync.Mutex
+		rand *rand.Rand
+		len  int64
+	}
+)
 
 type (
 	repeatSpec struct {
@@ -108,15 +112,16 @@ type jitter struct {
 	sleep func(time.Duration)
 }
 
-var (
-	// https://github.com/cilium/cilium/pull/32542/
-	// randSrc is a source of pseudo-random numbers. It is seeded to the current time in
-	// nanoseconds by default but can be reseeded in tests so they are deterministic.
-	randSrc = rand.NewPCG(uint64(time.Now().UnixNano()), 0)
-	randGen = rand.New(randSrc)
-)
+func genCharArray(s string) [62]byte {
+	res := [62]byte{}
+	for i := 0; i < len(s); i++ {
+		res[i] = s[i]
+	}
 
-var randomChars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
+	return res
+}
+
+var randomChars = genCharArray("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
 
 func kbps2bpms(kbps float64) float64 {
 	return kbps * 1024 / 1000
@@ -128,7 +133,7 @@ func kbps2bpms(kbps float64) float64 {
 // Eskip example:
 //
 //	r: * -> randomContent(2048) -> <shunt>;
-func NewRandom() filters.Spec { return &random{} }
+func NewRandom() filters.Spec { return &randomSpec{} }
 
 // NewRepeat creates a filter specification whose filter instances can be used
 // to respond to requests with a repeated text. It expects the text and
@@ -225,15 +230,15 @@ func NewUniformResponseLatency() filters.Spec { return &jitter{typ: uniformRespo
 //	r: * -> normalRequestLatency("1s", "120ms") -> "https://www.example.org";
 func NewNormalResponseLatency() filters.Spec { return &jitter{typ: normalResponseDistribution} }
 
-func (r *random) Name() string { return filters.RandomContentName }
+func (r *randomSpec) Name() string { return filters.RandomContentName }
 
-func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (r *randomSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	if l, ok := args[0].(float64); ok {
-		return &random{rand: randGen, len: int64(l)}, nil
+		return &random{rand: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), len: int64(l)}, nil
 	} else {
 		return nil, filters.ErrInvalidFilterParameters
 	}
