@@ -236,7 +236,7 @@ func (r *randomSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	if l, ok := args[0].(float64); ok {
-		return &random{rand: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), len: int64(l)}, nil
+		return &random{rand: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), len: int64(l)}, nil // #nosec
 	} else {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -638,9 +638,10 @@ func (j *jitter) Request(filters.FilterContext) {
 
 	switch j.typ {
 	case uniformRequestDistribution:
+		/* #nosec */
 		r = 2*rand.Float64() - 1 // +/- sizing
 	case normalRequestDistribution:
-		r = rand.NormFloat64()
+		r = rand.NormFloat64() // #nosec
 	default:
 		return
 	}
@@ -653,9 +654,10 @@ func (j *jitter) Response(filters.FilterContext) {
 
 	switch j.typ {
 	case uniformResponseDistribution:
+		/* #nosec */
 		r = 2*rand.Float64() - 1 // +/- sizing
 	case normalResponseDistribution:
-		r = rand.NormFloat64()
+		r = rand.NormFloat64() // #nosec
 	default:
 		return
 	}

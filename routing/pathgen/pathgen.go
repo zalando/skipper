@@ -73,6 +73,7 @@ func applyDefaults(o *PathGeneratorOptions) {
 // option field.
 func New(o PathGeneratorOptions) *PathGenerator {
 	var (
+		// #nosec
 		randSrc = rand.NewPCG(uint64(o.RandSeed), 0)
 		randGen = rand.New(randSrc)
 	)
@@ -80,17 +81,17 @@ func New(o PathGeneratorOptions) *PathGenerator {
 	// options taken as value, free to modify
 	applyDefaults(&o)
 
-	return &PathGenerator{&o, randGen} // #nosec
+	return &PathGenerator{&o, randGen}
 }
 
 // Between takes a random number positioned between [min, max)
 func (pg *PathGenerator) Between(min, max int) int {
-	return min + pg.Rnd.IntN(max-min)
+	return min + pg.Rnd.IntN(max-min) // #nosec
 }
 
 // takes a random byte from the range of available characters
 func (pg *PathGenerator) char() byte {
-	return []byte(pg.options.FilenameChars)[pg.Rnd.IntN(len(pg.options.FilenameChars))]
+	return []byte(pg.options.FilenameChars)[pg.Rnd.IntN(len(pg.options.FilenameChars))] // #nosec
 }
 
 func (pg *PathGenerator) Str(min, max int) string {
@@ -132,7 +133,7 @@ func (pg *PathGenerator) Names() []string {
 
 // tells if using a closing slash for a path, based on the defined chance
 func (pg *PathGenerator) closingSlash() bool {
-	return pg.Rnd.IntN(pg.options.ClosingSlashInEveryN) == 0
+	return pg.Rnd.IntN(pg.options.ClosingSlashInEveryN) == 0 // #nosec
 }
 
 // Next generates a random path.

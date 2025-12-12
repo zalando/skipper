@@ -53,6 +53,7 @@ var (
 	// https://github.com/cilium/cilium/pull/32542/
 	// randSrc is a source of pseudo-random numbers. It is seeded to the current time in
 	// nanoseconds by default but can be reseeded in tests so they are deterministic.
+	// #nosec
 	randSrc = rand.NewPCG(uint64(time.Now().UnixNano()), 0)
 	randGen = rand.New(randSrc)
 )

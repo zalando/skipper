@@ -56,6 +56,7 @@ var (
 	// https://github.com/cilium/cilium/pull/32542/
 	// randSrc is a source of pseudo-random numbers. It is seeded to the current time in
 	// nanoseconds by default but can be reseeded in tests so they are deterministic.
+	// #nosec
 	randSrc = rand.NewPCG(uint64(time.Now().UnixNano()), 0)
 	randGen = rand.New(randSrc)
 )
@@ -66,7 +67,7 @@ type roundRobin struct {
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
 	return &roundRobin{
-		index: randGen.Int64N(int64(len(endpoints))),
+		index: randGen.Int64N(int64(len(endpoints))), // #nosec
 	}
 }
 
@@ -76,7 +77,7 @@ func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.LBEndpoints[0]
 	}
 
-	choice := int(atomic.AddInt64(&r.index, 1) % int64(len(ctx.LBEndpoints)))
+	choice := int(atomic.AddInt64(&r.index, 1) % int64(len(ctx.LBEndpoints))) // #nosec
 	return ctx.LBEndpoints[choice]
 }
 
@@ -96,7 +97,7 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.LBEndpoints[0]
 	}
 
-	choice := r.rnd.IntN(len(ctx.LBEndpoints))
+	choice := r.rnd.IntN(len(ctx.LBEndpoints)) // #nosec
 	return ctx.LBEndpoints[choice]
 }
 
@@ -250,10 +251,10 @@ func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	best := ctx.LBEndpoints[p.rnd.IntN(ne)]
+	best := ctx.LBEndpoints[p.rnd.IntN(ne)] // #nosec
 
 	for i := 1; i < p.numberOfChoices; i++ {
-		ce := ctx.LBEndpoints[p.rnd.IntN(ne)]
+		ce := ctx.LBEndpoints[p.rnd.IntN(ne)] // #nosec
 
 		if p.getScore(ce) > p.getScore(best) {
 			best = ce
