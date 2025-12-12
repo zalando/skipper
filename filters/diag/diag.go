@@ -15,7 +15,6 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/zalando/skipper/filters"
@@ -57,7 +56,6 @@ type (
 	randomSpec struct{}
 
 	random struct {
-		mu   sync.Mutex
 		rand *rand.Rand
 		len  int64
 	}
