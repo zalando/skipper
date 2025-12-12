@@ -30,7 +30,6 @@ func WrapInvalidDefinitionReason(reason string, err error) error {
 
 func HandleValidationError(mtr metrics.Metrics, err error, routeId string) error {
 	if err == nil {
-		mtr.DeleteInvalidRoute(routeId)
 		return nil
 	}
 

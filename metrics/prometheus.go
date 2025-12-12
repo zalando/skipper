@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -74,10 +73,6 @@ type Prometheus struct {
 	customGaugeM               *prometheus.GaugeVec
 	invalidRouteM              *prometheus.GaugeVec
 
-	// Track invalid route metrics for proper cleanup
-	invalidRoutesMu    sync.RWMutex
-	invalidRouteLabels map[string][]prometheus.Labels // routeId -> []labels
-
 	opts     Options
 	registry *prometheus.Registry
 	handler  http.Handler
@@ -88,9 +83,8 @@ func NewPrometheus(opts Options) *Prometheus {
 	opts = applyCompatibilityDefaults(opts)
 
 	p := &Prometheus{
-		registry:           opts.PrometheusRegistry,
-		opts:               opts,
-		invalidRouteLabels: make(map[string][]prometheus.Labels),
+		registry: opts.PrometheusRegistry,
+		opts:     opts,
 	}
 
 	if p.registry == nil {
@@ -537,25 +531,6 @@ func (p *Prometheus) IncErrorsStreaming(routeID string) {
 // SetInvalidRoute satisfies Metrics interface.
 func (p *Prometheus) SetInvalidRoute(routeId, reason string) {
 	p.invalidRouteM.WithLabelValues(routeId, reason).Set(1)
-
-	p.invalidRoutesMu.Lock()
-	defer p.invalidRoutesMu.Unlock()
-
-	labels := prometheus.Labels{"route_id": routeId, "reason": reason}
-	p.invalidRouteLabels[routeId] = append(p.invalidRouteLabels[routeId], labels)
-}
-
-// DeleteInvalidRoute satisfies Metrics interface.
-func (p *Prometheus) DeleteInvalidRoute(routeId string) {
-	p.invalidRoutesMu.Lock()
-	defer p.invalidRoutesMu.Unlock()
-
-	if labels, exists := p.invalidRouteLabels[routeId]; exists {
-		for _, labelSet := range labels {
-			p.invalidRouteM.With(labelSet).Set(0)
-		}
-		delete(p.invalidRouteLabels, routeId)
-	}
 }
 
 func (p *Prometheus) Close() {}
