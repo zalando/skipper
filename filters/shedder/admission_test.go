@@ -1,8 +1,10 @@
 package shedder
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,15 +12,17 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/metrics/metricstest"
-	"github.com/zalando/skipper/net"
+	skipnet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -40,6 +44,7 @@ func TestAdmissionControl(t *testing.T) {
 		N                          int     // iterations
 		pBackendErr                float64 // [0,1]
 		pExpectedAdmissionShedding float64 // [0,1]
+		expectedFails              int
 	}{{
 		msg:                        "no error",
 		mode:                       "active",
@@ -52,6 +57,7 @@ func TestAdmissionControl(t *testing.T) {
 		N:                          20,
 		pBackendErr:                0.0,
 		pExpectedAdmissionShedding: 0.0,
+		expectedFails:              0,
 	}, {
 		msg:                        "only errors",
 		mode:                       "active",
@@ -64,180 +70,204 @@ func TestAdmissionControl(t *testing.T) {
 		N:                          20,
 		pBackendErr:                1.0,
 		pExpectedAdmissionShedding: 0.95,
+		expectedFails:              854,
 	}, {
-		msg:                        "smaller error rate, than threshold won't block",
-		mode:                       "active",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.9,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.01,
-		pExpectedAdmissionShedding: 0.0,
+		msg:                  "smaller error rate, than threshold won't block",
+		mode:                 "active",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.9,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.01,
+		expectedFails:        0,
 	}, {
-		msg:                        "tiny error rate and bigger than threshold will block some traffic",
-		mode:                       "active",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.99,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.1,
-		pExpectedAdmissionShedding: 0.1,
+		msg:                  "tiny error rate and bigger than threshold will block some traffic",
+		mode:                 "active",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.99,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.1,
+		expectedFails:        86,
 	}, {
-		msg:                        "small error rate and bigger than threshold will block some traffic",
-		mode:                       "active",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.9,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.2,
-		pExpectedAdmissionShedding: 0.15,
+		msg:                  "small error rate and bigger than threshold will block some traffic",
+		mode:                 "active",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.9,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.2,
+		expectedFails:        99,
 	}, {
-		msg:                        "medium error rate and bigger than threshold will block some traffic",
-		mode:                       "active",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.9,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.5,
-		pExpectedAdmissionShedding: 0.615,
+		msg:                  "medium error rate and bigger than threshold will block some traffic",
+		mode:                 "active",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.9,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.5,
+		expectedFails:        429,
 	}, {
-		msg:                        "large error rate and bigger than threshold will block some traffic",
-		mode:                       "active",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.9,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.8,
-		pExpectedAdmissionShedding: 0.91,
+		msg:                  "large error rate and bigger than threshold will block some traffic",
+		mode:                 "active",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.9,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.8,
+		expectedFails:        698,
 	}, {
-		msg:                        "inactive mode with large error rate and bigger than threshold will pass all traffic",
-		mode:                       "inactive",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.9,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.8,
-		pExpectedAdmissionShedding: 0.0,
+		msg:                  "inactive mode with large error rate and bigger than threshold will pass all traffic",
+		mode:                 "inactive",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.9,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.8,
+		expectedFails:        0,
 	}, {
-		msg:                        "logInactive mode with large error rate and bigger than threshold will pass all traffic",
-		mode:                       "logInactive",
-		d:                          10 * time.Millisecond,
-		windowsize:                 5,
-		minRequests:                10,
-		successThreshold:           0.9,
-		maxrejectprobability:       0.95,
-		exponent:                   1.0,
-		N:                          20,
-		pBackendErr:                0.8,
-		pExpectedAdmissionShedding: 0.0,
+		msg:                  "logInactive mode with large error rate and bigger than threshold will pass all traffic",
+		mode:                 "logInactive",
+		d:                    10 * time.Millisecond,
+		windowsize:           5,
+		minRequests:          10,
+		successThreshold:     0.9,
+		maxrejectprobability: 0.95,
+		exponent:             1.0,
+		N:                    20,
+		pBackendErr:          0.8,
+		expectedFails:        0,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Parallel()
-			randFunc := randWithSeed()
-			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if randFunc() < ti.pBackendErr {
-					w.WriteHeader(http.StatusInternalServerError)
-				} else {
-					w.WriteHeader(http.StatusOK)
+			synctest.Test(t, func(t *testing.T) {
+				backendListener := fakeNetListen()
+				defer backendListener.Close()
+
+				randFunc := randWithSeed()
+
+				backend := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if randFunc() < ti.pBackendErr {
+						w.WriteHeader(http.StatusInternalServerError)
+					} else {
+						w.WriteHeader(http.StatusOK)
+					}
+				}))
+
+				defer backend.Close()
+
+				backend.Listener.Close()
+				backend.Listener = backendListener
+				backend.Start()
+
+				spec := NewAdmissionControl(Options{
+					testRand: true,
+				}).(*AdmissionControlSpec)
+
+				args := make([]any, 0, 6)
+				args = append(args, "testmetric", ti.mode, ti.d.String(), ti.windowsize, ti.minRequests, ti.successThreshold, ti.maxrejectprobability, ti.exponent)
+
+				f, err := spec.CreateFilter(args)
+				if err != nil {
+					t.Logf("args: %+v", args...)
+					t.Fatalf("error creating filter: %v", err)
+					return
 				}
-			}))
-			defer backend.Close()
+				defer f.(*admissionControl).Close()
 
-			spec := NewAdmissionControl(Options{
-				testRand: true,
-			}).(*AdmissionControlSpec)
+				fr := make(filters.Registry)
+				fr.Register(spec)
+				r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 
-			args := make([]interface{}, 0, 6)
-			args = append(args, "testmetric", ti.mode, ti.d.String(), ti.windowsize, ti.minRequests, ti.successThreshold, ti.maxrejectprobability, ti.exponent)
+				dc := testdataclient.New([]*eskip.Route{r})
+				defer dc.Close()
 
-			f, err := spec.CreateFilter(args)
-			if err != nil {
-				t.Logf("args: %+v", args...)
-				t.Fatalf("error creating filter: %v", err)
-				return
-			}
-			defer f.(*admissionControl).Close()
+				proxy := proxytest.WithParamsAndRoutingOptionsAndWaitUnstarted(fr,
+					proxy.Params{
+						CustomHttpRoundTripperWrap: func(rt http.RoundTripper) http.RoundTripper {
+							tr := rt.(*http.Transport)
+							tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+								return backendListener.connect(), nil
+							}
+							return tr
+						},
+					},
+					routing.Options{
+						DataClients:    []routing.DataClient{dc},
+						PostProcessors: []routing.PostProcessor{spec.PostProcessor()},
+						PreProcessors:  []routing.PreProcessor{spec.PreProcessor()},
+					},
+					0,
+				)
 
-			fr := make(filters.Registry)
-			fr.Register(spec)
-			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
+				proxyListener := fakeNetListen()
+				defer proxyListener.Close()
 
-			dc := testdataclient.New([]*eskip.Route{r})
-			defer dc.Close()
+				proxy.SetListener(proxyListener)
+				proxy.Start()
+				defer proxy.Close()
 
-			proxy := proxytest.WithRoutingOptions(fr, routing.Options{
-				DataClients:    []routing.DataClient{dc},
-				PostProcessors: []routing.PostProcessor{spec.PostProcessor()},
-				PreProcessors:  []routing.PreProcessor{spec.PreProcessor()},
-			})
-			defer proxy.Close()
+				client := proxy.Client()
+				tr := client.Transport.(*http.Transport)
 
-			client := proxy.Client()
-			req, err := http.NewRequest("GET", proxy.URL, nil)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
-			var failBackend, fail, ok, N float64
-			// iterations to make sure we have enough traffic
-			until := time.After(time.Duration(ti.N) * time.Duration(ti.windowsize) * ti.d)
-		work:
-			for {
-				select {
-				case <-until:
-					break work
-				default:
+				tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return proxyListener.connect(), nil
 				}
-				N++
-				rsp, err := client.Do(req)
+
+				req, err := http.NewRequest("GET", proxy.URL, nil)
 				if err != nil {
 					t.Error(err)
+					return
 				}
-				switch rsp.StatusCode {
-				case http.StatusInternalServerError:
-					failBackend += 1
-				case http.StatusServiceUnavailable:
-					fail += 1
-				case http.StatusOK:
-					ok += 1
-				default:
-					t.Logf("Unexpected status code %d %s", rsp.StatusCode, rsp.Status)
+				var failBackend, fail, ok int
+
+				N := ti.N * ti.windowsize * int(ti.d.Milliseconds())
+
+				for range N {
+					time.Sleep(time.Millisecond)
+
+					rsp, err := client.Do(req)
+					require.NoError(t, err, "roundtrip failed")
+
+					switch rsp.StatusCode {
+					case http.StatusInternalServerError:
+						failBackend += 1
+					case http.StatusServiceUnavailable:
+						fail += 1
+					case http.StatusOK:
+						ok += 1
+					default:
+						t.Logf("Unexpected status code %d %s", rsp.StatusCode, rsp.Status)
+					}
+					rsp.Body.Close()
 				}
-				rsp.Body.Close()
-			}
-			t.Logf("ok: %0.2f, fail: %0.2f, failBackend: %0.2f", ok, fail, failBackend)
 
-			epsilon := 0.05 * N // maybe 5% instead of 0.1%
-			expectedFails := (N - failBackend) * ti.pExpectedAdmissionShedding
+				synctest.Wait()
 
-			if expectedFails-epsilon > fail || fail > expectedFails+epsilon {
-				t.Errorf("Failed to get expected fails should be in: %0.2f < %0.2f < %0.2f", expectedFails-epsilon, fail, expectedFails+epsilon)
-			}
+				t.Logf("ok: %d, fail: %d, failBackend: %d", ok, fail, failBackend)
 
-			// TODO(sszuecs) how to calculate expected oks?
-			// expectedOKs := N - (N-failBackend)*ti.pExpectedAdmissionShedding
-			// if ok < expectedOKs-epsilon || expectedOKs+epsilon < ok {
-			// 	t.Errorf("Failed to get expected ok should be in: %0.2f < %0.2f < %0.2f", expectedOKs-epsilon, ok, expectedOKs+epsilon)
-			// }
+				assert.Equal(t, ti.expectedFails, fail, "Failed to get expected fails")
+				assert.Equal(t, N-ti.expectedFails-failBackend, ok, "Failed to get expected OKs")
+
+			})
 		})
 	}
 }
@@ -299,7 +329,7 @@ func TestAdmissionControlChainOnlyBackendErrorPass(t *testing.T) {
 		t.Fatalf("Failed to parse url %s: %v", proxy.URL, err)
 	}
 
-	rt := net.NewTransport(net.Options{})
+	rt := skipnet.NewTransport(skipnet.Options{})
 	defer rt.Close()
 
 	req, err := http.NewRequest("GET", reqURL.String(), nil)
