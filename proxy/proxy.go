@@ -49,15 +49,6 @@ import (
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
 )
 
-var (
-	// https://github.com/cilium/cilium/pull/32542/
-	// randSrc is a source of pseudo-random numbers. It is seeded to the current time in
-	// nanoseconds by default but can be reseeded in tests so they are deterministic.
-	// #nosec
-	randSrc = rand.NewPCG(uint64(time.Now().UnixNano()), 0)
-	randGen = rand.New(randSrc)
-)
-
 const (
 	proxyBufferSize         = 8192
 	unknownRouteID          = "_unknownroute_"
@@ -876,7 +867,7 @@ func WithParams(p Params) *Proxy {
 	var healthyEndpointsChooser *healthyEndpoints
 	if p.EnablePassiveHealthCheck {
 		healthyEndpointsChooser = &healthyEndpoints{
-			rnd:                        randGen,
+			rnd:                        rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), // #nosec
 			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
 		}
 	}
@@ -884,7 +875,7 @@ func WithParams(p Params) *Proxy {
 		routing:  p.Routing,
 		registry: p.EndpointRegistry,
 		fadein: &fadeIn{
-			rnd: randGen,
+			rnd: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), // #nosec
 		},
 		heathlyEndpoints:         healthyEndpointsChooser,
 		roundTripper:             p.CustomHttpRoundTripperWrap(tr),

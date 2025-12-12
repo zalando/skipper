@@ -26,8 +26,7 @@ const (
 )
 
 var (
-	randSrcTest = rand.NewPCG(0, 0)
-	randGenTest = rand.New(randSrcTest)
+	randGenTest = rand.New(rand.NewPCG(0, 0))
 )
 
 func absint(i int) int {
@@ -97,7 +96,7 @@ func initializeEndpoints(endpointAges []float64, algorithmName string, fadeInDur
 		registry.GetMetrics(eps[i]).SetDetected(detectionTimes[i])
 	}
 
-	proxy := &Proxy{registry: registry, fadein: &fadeIn{rnd: randGenTest}, quit: make(chan struct{})}
+	proxy := &Proxy{registry: registry, fadein: &fadeIn{rnd: rand.New(rand.NewPCG(0, 0))}, quit: make(chan struct{})}
 	return route, proxy, eps
 }
 
@@ -129,6 +128,7 @@ func testFadeInMonotony(
 ) {
 	t.Run(name, func(t *testing.T) {
 		t.Parallel()
+		randGen := rand.New(rand.NewPCG(0, 0))
 		fadeInDuration := calculateFadeInDuration(t, algorithmName, endpointAges)
 		route, proxy, eps := initializeEndpoints(endpointAges, algorithmName, fadeInDuration)
 		defer proxy.Close()
@@ -140,7 +140,7 @@ func testFadeInMonotony(
 		// over and over again till fadeIn period is over.
 		func() {
 			for {
-				ep := proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGenTest.IntN(100000))}})
+				ep := proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000))}})
 				stats = append(stats, ep.Host)
 				select {
 				case <-stop:
@@ -264,7 +264,7 @@ func testFadeInLoadBetweenOldAndNewEps(
 	nOld int, nNew int,
 ) {
 	t.Run(name, func(t *testing.T) {
-		t.Parallel()
+		randGen := rand.New(rand.NewPCG(uint64(0), 0))
 		const (
 			numberOfReqs            = 100000
 			acceptableErrorNearZero = 10
@@ -287,7 +287,7 @@ func testFadeInLoadBetweenOldAndNewEps(
 		// Emulate the load balancer loop, sending requests to it with random hash keys
 		// over and over again till fadeIn period is over.
 		for range numberOfReqs {
-			ep := proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGenTest.IntN(100000))}})
+			ep := proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000))}})
 			nReqs[ep.Host]++
 		}
 
@@ -371,6 +371,7 @@ func benchmarkFadeIn(
 	endpointAges ...float64,
 ) {
 	b.Run(name, func(b *testing.B) {
+		randGen := rand.New(rand.NewPCG(uint64(0), 0))
 		route, proxy, _ := initializeEndpoints(endpointAges, algorithmName, defaultFadeInDurationHuge)
 		defer proxy.Close()
 		var wg sync.WaitGroup
@@ -384,7 +385,7 @@ func benchmarkFadeIn(
 				defer wg.Done()
 
 				for j := 0; j < b.N/clients; j++ {
-					_ = proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGenTest.IntN(100000))}})
+					_ = proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000))}})
 				}
 			}(i)
 		}
