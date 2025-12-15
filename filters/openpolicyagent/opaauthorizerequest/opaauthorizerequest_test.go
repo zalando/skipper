@@ -876,7 +876,7 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
 
-			time.Sleep(1 * time.Second) // wait for async decision log to be sent
+			time.Sleep(2 * time.Second) // wait for async decision log to be sent
 			// Wait for all active handlers to complete
 			handlerMutex.Lock()
 			for activeHandlers > 0 {
