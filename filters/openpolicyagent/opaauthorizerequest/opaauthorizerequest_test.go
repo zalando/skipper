@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -727,15 +728,21 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			}))
 			defer clientServer.Close()
 
-			requestCh := make(chan struct{}, 10)
-			var handlerWg sync.WaitGroup
+			var requestCount atomic.Int32
+			var handlerMutex sync.Mutex
+			var activeHandlers int
+			var handlerDone sync.Cond = sync.Cond{L: &handlerMutex}
 			s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				handlerWg.Add(1)
-				defer handlerWg.Done()
-				select {
-				case requestCh <- struct{}{}:
-				default:
-				}
+				handlerMutex.Lock()
+				activeHandlers++
+				handlerMutex.Unlock()
+				defer func() {
+					handlerMutex.Lock()
+					activeHandlers--
+					handlerDone.Signal()
+					handlerMutex.Unlock()
+				}()
+				requestCount.Add(1)
 				if strings.Contains(r.URL.Path, "logs-success") {
 					w.WriteHeader(http.StatusOK)
 				} else if strings.Contains(r.URL.Path, "logs-forbidden") {
@@ -869,9 +876,14 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
 
-			time.Sleep(2 * time.Second) // wait for async decision log to be sent
-			handlerWg.Wait()
-			assert.GreaterOrEqual(t, len(requestCh), 1, "Decision log upload was not attempted")
+			time.Sleep(1 * time.Second) // wait for async decision log to be sent
+			// Wait for all active handlers to complete
+			handlerMutex.Lock()
+			for activeHandlers > 0 {
+				handlerDone.Wait()
+			}
+			handlerMutex.Unlock()
+			assert.GreaterOrEqual(t, int(requestCount.Load()), 1, "Decision log upload was not attempted")
 		})
 	}
 }
