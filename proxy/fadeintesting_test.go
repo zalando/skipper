@@ -87,7 +87,7 @@ type fadeInClient struct {
 
 func randomURLs(t *testing.T, n int) []string {
 	var u []string
-	for i := 0; i < n; i++ {
+	for range n {
 		l, err := net.Listen("tcp", ":0")
 		if err != nil {
 			t.Fatal(err)
