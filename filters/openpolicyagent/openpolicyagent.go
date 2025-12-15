@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	dl "github.com/open-policy-agent/eopa/pkg/plugins/decision_logs"
+	"github.com/open-policy-agent/opa/v1/util"
 	"io"
 	"maps"
 	"math/rand"
@@ -690,7 +692,15 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		return nil, err
 	}
 
-	discoveryPlugin, err := discovery.New(manager, discovery.Factories(map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}}), discovery.Hooks(configHooks))
+	discoveryOpts := map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}, dl.DLPluginName: dl.Factory()}
+
+	var bootConfig map[string]any
+	err = util.Unmarshal(configBytes, &bootConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	discoveryPlugin, err := discovery.New(manager, discovery.Factories(discoveryOpts), discovery.Hooks(configHooks), discovery.BootConfig(bootConfig))
 	if err != nil {
 		return nil, err
 	}
