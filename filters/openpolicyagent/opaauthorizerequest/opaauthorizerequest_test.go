@@ -731,7 +731,7 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			var requestCount atomic.Int32
 			var handlerMutex sync.Mutex
 			var activeHandlers int
-			var handlerDone sync.Cond = sync.Cond{L: &handlerMutex}
+			var handlerDone = sync.Cond{L: &handlerMutex}
 			s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				handlerMutex.Lock()
 				activeHandlers++
