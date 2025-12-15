@@ -33,7 +33,7 @@ too. The harness implements the following setup:
 const (
 	testFadeInDuration = 6000 * time.Millisecond
 	statBucketCount    = 10
-	clientRate         = time.Millisecond
+	clientRate         = 100 * time.Microsecond //1 * time.Millisecond
 	minStats           = 300
 	fadeInTolerance    = 0.3
 )
@@ -259,7 +259,7 @@ func (p *fadeInProxy) addInstances(n int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	for i := 0; i < n; i++ {
+	for range n {
 		client := p.backend.createDataClient()
 		fr := make(filters.Registry)
 		fr.Register(fadein.NewFadeIn())
@@ -415,6 +415,9 @@ func trimFailed(s []stat) []stat {
 }
 
 func checkSuccess(t *testing.T, s []stat) {
+	if len(s) == 0 {
+		t.Fatal("Failed to generate stats.")
+	}
 	var foundAny bool
 	for _, si := range s {
 		foundAny = true
@@ -486,8 +489,9 @@ func checkEndpointFadeIn(t *testing.T, s []stat) {
 	checkSamples(t, s)
 	buckets := statBuckets(s)
 	sizes := bucketSizes(buckets)
+	t.Logf("sizes: %v", sizes)
 	if sizes[0] >= sizes[len(sizes)/2] || sizes[len(sizes)/2] >= sizes[len(sizes)-1] {
-		t.Fatal("Failed to fade-in.")
+		t.Fatalf("Failed to fade-in: %0.2f >= %0.2f || %0.2f >= %0.2f", sizes[0], sizes[len(sizes)/2], sizes[len(sizes)/2], sizes[len(sizes)-1])
 	}
 }
 
