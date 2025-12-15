@@ -25,10 +25,6 @@ const (
 	defaultFadeInDurationHuge = 24 * time.Hour // we need this to be sure we're at the very beginning of fading in
 )
 
-var (
-	randGenTest = rand.New(rand.NewPCG(0, 0))
-)
-
 func absint(i int) int {
 	if i < 0 {
 		return -i
@@ -109,11 +105,13 @@ func calculateFadeInDuration(t *testing.T, algorithmName string, endpointAges []
 	route, proxy, _ := initializeEndpoints(endpointAges, algorithmName, defaultFadeInDuration)
 	defer proxy.Close()
 
+	randGen := rand.New(rand.NewPCG(0, 0))
+
 	t.Log("preemulation start", time.Now())
 	// Preemulate the load balancer loop to find out the approximate amount of RPS
 	begin := time.Now()
 	for range fadeInRequestCount / precalculateRatio {
-		_ = proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGenTest.IntN(100000))}})
+		_ = proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000))}})
 	}
 	preemulationDuration := time.Since(begin)
 
