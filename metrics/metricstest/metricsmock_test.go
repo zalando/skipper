@@ -165,7 +165,7 @@ func TestMockMetrics(t *testing.T) {
 		}
 	})
 
-	t.Run("test-measure-backend-request-header", func(t *testing.T) {
+	t.Run("test-set-invalid-route", func(t *testing.T) {
 		routeID := "my-route"
 		reason := "foo"
 		key := fmt.Sprintf("route.invalid.%s..%s", routeID, reason)
@@ -175,13 +175,6 @@ func TestMockMetrics(t *testing.T) {
 		if f, ok := m.gauges[key]; !ok {
 			t.Fatalf("Failed to find value %q for routeID %q", key, routeID)
 		} else if f != 1 {
-			t.Fatalf("Failed to get the right value after inc: %0.2f", f)
-		}
-
-		m.DeleteInvalidRoute(routeID)
-		if f, ok := m.gauges[key]; !ok {
-			t.Fatalf("Failed to find value %q for routeID %q", key, routeID)
-		} else if f != 0 {
 			t.Fatalf("Failed to get the right value after inc: %0.2f", f)
 		}
 	})

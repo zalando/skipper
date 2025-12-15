@@ -46,13 +46,13 @@ the 'skipper' segment can be optionally overridden by the `-etcd-prefix` startup
 
 The `/v2/keys/skipper/routes` node is a directory that contains the routes as individual child nodes, accessed
 by the path `/v2/keys/skipper/routes/<routeID>`. The value of the route nodes is the route expression without
-the route ID in [eskip format](https://godoc.org/github.com/zalando/skipper/eskip).
+the route ID in [eskip format](https://pkg.go.dev/github.com/zalando/skipper/eskip).
 
 ## Maintaining route configuration in etcd
 
 etcd (v2) allows generic access to its API via the HTTP protocol. It also provides a supporting client tool:
 etcdctl. Following the above described schema, both of them can be used to maintain Skipper routes. In addition,
-Skipper also provides a supporting client tool: [eskip](https://godoc.org/github.com/zalando/skipper/cmd/eskip),
+Skipper also provides a supporting client tool: [eskip](https://pkg.go.dev/github.com/zalando/skipper/cmd/eskip),
 which can provide more convenient access to the routes in etcd.
 
 Getting all routes, a single route, insert or update and delete via HTTP:
@@ -112,4 +112,4 @@ set of routes from a file to etcd, use the reset subcommand:
 eskip reset -etcd-urls http://localhost:2379,http://localhost:4001 example.eskip
 ```
 
-For more information see the [documentation](https://godoc.org/github.com/zalando/skipper/cmd/eskip) or `eskip -help`.
+For more information see the [documentation](https://pkg.go.dev/github.com/zalando/skipper/cmd/eskip) or `eskip -help`.

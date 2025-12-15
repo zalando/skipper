@@ -40,7 +40,7 @@ also be exported in [Prometheus](https://prometheus.io) format.
 ### Route definition
 
 A route consists of an ID, predicates, filters and a backend and is
-most often written in [eskip syntax](https://godoc.org/github.com/zalando/skipper/eskip).
+most often written in [eskip syntax](https://pkg.go.dev/github.com/zalando/skipper/eskip).
 
 Syntax:
 

@@ -75,7 +75,7 @@ func (s *lifoSpec) Name() string { return filters.LifoName }
 // Timeout.
 //
 // The implementation is based on
-// https://godoc.org/github.com/aryszka/jobqueue, which provides more
+// https://pkg.go.dev/github.com/aryszka/jobqueue, which provides more
 // detailed documentation.
 //
 // All parameters are optional and defaults to
@@ -146,7 +146,7 @@ func (*lifoGroupSpec) Name() string { return filters.LifoGroupName }
 // undefined.
 //
 // The implementation is based on
-// https://godoc.org/github.com/aryszka/jobqueue, which provides more
+// https://pkg.go.dev/github.com/aryszka/jobqueue, which provides more
 // detailed documentation.
 //
 // The total maximum number of requests has to be computed by adding

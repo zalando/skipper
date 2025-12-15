@@ -162,7 +162,7 @@ For further details, see the 'eskip' package documentation
 
 Skipper has filter implementations of basic auth and OAuth2. It can be
 integrated with tokeninfo based OAuth2 providers. For details, see:
-https://godoc.org/github.com/zalando/skipper/filters/auth.
+https://pkg.go.dev/github.com/zalando/skipper/filters/auth.
 
 # Data Sources
 
@@ -198,7 +198,7 @@ Skipper provides circuit breakers, configured either globally, based on
 backend hosts or based on individual routes. It supports two types of
 circuit breaker behavior: open on N consecutive failures, or open on N
 failures out of M requests. For details, see:
-https://godoc.org/github.com/zalando/skipper/circuit.
+https://pkg.go.dev/github.com/zalando/skipper/circuit.
 
 # Running Skipper
 

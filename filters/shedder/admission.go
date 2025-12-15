@@ -354,12 +354,13 @@ func (ac *admissionControl) tickWindows(d time.Duration) {
 	defer t.Stop()
 	i := 0
 
-	for range t.C {
+	for {
 		select {
 		case <-ac.quit:
 			return
-		default:
+		case <-t.C:
 		}
+
 		val := ac.counter.Swap(0)
 		ok := ac.successCounter.Swap(0)
 

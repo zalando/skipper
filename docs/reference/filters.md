@@ -5,7 +5,7 @@ The parameters can be strings, regex or float64 / int
 * `string` is a string surrounded by double quotes (`"`)
 * `regex` is a regular expression, surrounded by `/`, e.g. `/^www\.example\.org(:\d+)?$/`
 * `int` / `float64` are usual (decimal) numbers like `401` or `1.23456`
-* `time` is a string in double quotes, parsable by [time.Duration](https://godoc.org/time#ParseDuration))
+* `time` is a string in double quotes, parsable by [time.Duration](https://pkg.go.dev/time#ParseDuration))
 
 Filters are a generic tool and can change HTTP header and body in the request and response path.
 Filter can be chained using the arrow operator `->`.
@@ -658,7 +658,7 @@ Enable adding artificial latency
 
 Parameters:
 
-* latency in milliseconds (int) or in `time` as a string in double quotes, parsable by [time.Duration](https://godoc.org/time#ParseDuration))
+* latency in milliseconds (int) or in `time` as a string in double quotes, parsable by [time.Duration](https://pkg.go.dev/time#ParseDuration))
 
 Example:
 
@@ -883,7 +883,7 @@ status and truncated response body.
 
 Parameters:
 
-* timeout [(duration string)](https://godoc.org/time#ParseDuration)
+* timeout [(duration string)](https://pkg.go.dev/time#ParseDuration)
 
 Example:
 
@@ -900,7 +900,7 @@ between client hang up and read timeout.
 
 Parameters:
 
-* timeout [(duration string)](https://godoc.org/time#ParseDuration)
+* timeout [(duration string)](https://pkg.go.dev/time#ParseDuration)
 
 Example:
 
@@ -921,7 +921,7 @@ something like
 
 Parameters:
 
-* timeout [(duration string)](https://godoc.org/time#ParseDuration)
+* timeout [(duration string)](https://pkg.go.dev/time#ParseDuration)
 
 Example:
 
@@ -2305,11 +2305,11 @@ open state. If all succeed, it goes to closed state again.
 Parameters:
 
 * number of consecutive failures to open (int)
-* timeout (time string, parsable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
+* timeout (time string, parsable by [time.Duration](https://pkg.go.dev/time#ParseDuration)) - optional
 * half-open requests (int) - optional
-* idle-ttl (time string, parsable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
+* idle-ttl (time string, parsable by [time.Duration](https://pkg.go.dev/time#ParseDuration)) - optional
 
-See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper/circuit).
+See also the [circuit breaker docs](https://pkg.go.dev/github.com/zalando/skipper/circuit).
 
 Can be used as [egress](egress.md) feature.
 
@@ -2325,11 +2325,11 @@ Parameters:
 
 * number of consecutive failures to open (int)
 * sliding window (int)
-* timeout (time string, parsable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
+* timeout (time string, parsable by [time.Duration](https://pkg.go.dev/time#ParseDuration)) - optional
 * half-open requests (int) - optional
-* idle-ttl (time string, parsable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
+* idle-ttl (time string, parsable by [time.Duration](https://pkg.go.dev/time#ParseDuration)) - optional
 
-See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper/circuit).
+See also the [circuit breaker docs](https://pkg.go.dev/github.com/zalando/skipper/circuit).
 
 Can be used as [egress](egress.md) feature.
 
@@ -2347,7 +2347,7 @@ backendHealthcheck: Path("/healthcheck")
   -> "https://foo.backend.net";
 ```
 
-See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper/circuit).
+See also the [circuit breaker docs](https://pkg.go.dev/github.com/zalando/skipper/circuit).
 
 Can be used as [egress](egress.md) feature.
 
@@ -2394,7 +2394,7 @@ clientRatelimit(3, "1m", "Authorization")
 clientRatelimit(3, "1m", "X-Foo,Authorization,X-Bar")
 ```
 
-See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+See also the [ratelimit docs](https://pkg.go.dev/github.com/zalando/skipper/ratelimit).
 
 ### ratelimit
 
@@ -2414,7 +2414,7 @@ ratelimit(300, "1h")
 ratelimit(4000, "1m", 503)
 ```
 
-See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+See also the [ratelimit docs](https://pkg.go.dev/github.com/zalando/skipper/ratelimit).
 
 ### clusterClientRatelimit
 
@@ -2444,7 +2444,7 @@ clusterClientRatelimit("groupA", 10, "1h", "Authorization")
 clusterClientRatelimit("groupA", 10, "1h", "X-Forwarded-For,Authorization,User-Agent")
 ```
 
-See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+See also the [ratelimit docs](https://pkg.go.dev/github.com/zalando/skipper/ratelimit).
 
 ### clusterRatelimit
 
@@ -2472,7 +2472,7 @@ clusterRatelimit("groupC", 4000, "1m", 503)
 
 Multiple filter definitions using the same group must use the same number of allowed requests and timeframe values.
 
-See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+See also the [ratelimit docs](https://pkg.go.dev/github.com/zalando/skipper/ratelimit).
 
 ### backendRatelimit
 
@@ -2811,6 +2811,20 @@ unverifiedAuditLog()
 
 ```
 unverifiedAuditLog("azp")
+```
+
+### maskAccessLogQuery
+
+Filter `maskAccessLogQuery` masks values of the provided query parameters in access logs by replacing them with hashes. It accepts query parameter keys as arguments.
+
+Examples:
+
+```
+maskAccessLogQuery("key_1")
+```
+
+```
+maskAccessLogQuery("key_1", "key_2")
 ```
 
 ## Backend

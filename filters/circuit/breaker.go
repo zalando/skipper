@@ -1,7 +1,7 @@
 /*
 Package circuit provides filters to control the circuit breaker settings on the route level.
 
-For detailed documentation of the circuit breakers, see https://godoc.org/github.com/zalando/skipper/circuit.
+For detailed documentation of the circuit breakers, see https://pkg.go.dev/github.com/zalando/skipper/circuit.
 */
 package circuit
 

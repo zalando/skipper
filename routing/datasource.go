@@ -531,9 +531,6 @@ func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalid
 		route, err := processRouteDef(o, cpm, def)
 		if err == nil {
 			routes = append(routes, route)
-			if o.Metrics != nil {
-				o.Metrics.DeleteInvalidRoute(def.Id)
-			}
 		} else {
 			invalidDefs = append(invalidDefs, def)
 			o.Log.Errorf("failed to process route %s: %v", def.Id, err)

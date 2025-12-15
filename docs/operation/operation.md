@@ -192,8 +192,8 @@ default timeout of 2s, which can be changed by the flag
 ## Monitoring
 
 Monitoring is one of the most important things you need to run in
-production and skipper has a [godoc page](https://godoc.org/github.com/zalando/skipper)
-for the [metrics package](https://godoc.org/github.com/zalando/skipper/metrics),
+production and skipper has a [godoc page](https://pkg.go.dev/github.com/zalando/skipper)
+for the [metrics package](https://pkg.go.dev/github.com/zalando/skipper/metrics),
 describing options and most keys you will find in the metrics handler
 endpoint. The default is listening on `:9911/metrics`. You can modify
 the listen port with the `-support-listener` flag. Metrics can exposed
@@ -441,8 +441,8 @@ method and status code can be enabled with `-serve-host-counter` or
 `-serve-route-counter`, even if these flags are disabled.
 
 To change the sampling type of how metrics are handled from
-[uniform](https://godoc.org/github.com/rcrowley/go-metrics#UniformSample)
-to [exponential decay](https://godoc.org/github.com/rcrowley/go-metrics#ExpDecaySample),
+[uniform](https://pkg.go.dev/github.com/rcrowley/go-metrics#UniformSample)
+to [exponential decay](https://pkg.go.dev/github.com/rcrowley/go-metrics#ExpDecaySample),
 you can use the following option, which is better for not so huge
 utilized applications (less than 100 requests per second):
 
@@ -1092,7 +1092,7 @@ Kubernetes API, use the following option:
 
 Skipper allows you to get some runtime insights. You can get the
 current routing table from skipper with in the
-[eskip file format](https://godoc.org/github.com/zalando/skipper/eskip):
+[eskip file format](https://pkg.go.dev/github.com/zalando/skipper/eskip):
 
 ```sh
 curl localhost:9911/routes

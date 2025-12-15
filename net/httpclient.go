@@ -136,9 +136,9 @@ func (c *Client) CloseIdleConnections() {
 // Options are mostly passed to the http.Transport of the same
 // name. Options.Timeout can be used as default for all timeouts, that
 // are not set. You can pass an opentracing.Tracer
-// https://godoc.org/github.com/opentracing/opentracing-go#Tracer,
+// https://pkg.go.dev/github.com/opentracing/opentracing-go#Tracer,
 // which can be nil to get the
-// https://godoc.org/github.com/opentracing/opentracing-go#NoopTracer.
+// https://pkg.go.dev/github.com/opentracing/opentracing-go#NoopTracer.
 type Options struct {
 	// Transport see https://golang.org/pkg/net/http/#Transport
 	// In case Transport is not nil, the Transport arguments are used below.

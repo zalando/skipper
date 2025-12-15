@@ -138,7 +138,7 @@ you need to configure Skipper with the flag `-swarm-redis-remote=http://<routesr
 
 #### Implementation
 
-The implementation use [Redis ring](https://godoc.org/github.com/go-redis/redis#Ring)
+The implementation use [Redis ring](https://pkg.go.dev/github.com/go-redis/redis#Ring)
 to be able to shard via client hashing and spread the load across
 multiple Redis instances to be able to scale out the shared storage.
 
