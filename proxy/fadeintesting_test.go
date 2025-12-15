@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -33,7 +34,7 @@ too. The harness implements the following setup:
 const (
 	testFadeInDuration = 6000 * time.Millisecond
 	statBucketCount    = 10
-	clientRate         = 100 * time.Microsecond //1 * time.Millisecond
+	clientRate         = 100 * time.Microsecond
 	minStats           = 300
 	fadeInTolerance    = 0.3
 )
@@ -489,9 +490,25 @@ func checkEndpointFadeIn(t *testing.T, s []stat) {
 	checkSamples(t, s)
 	buckets := statBuckets(s)
 	sizes := bucketSizes(buckets)
-	t.Logf("sizes: %v", sizes)
-	if sizes[0] >= sizes[len(sizes)/2] || sizes[len(sizes)/2] >= sizes[len(sizes)-1] {
-		t.Fatalf("Failed to fade-in: %0.2f >= %0.2f || %0.2f >= %0.2f", sizes[0], sizes[len(sizes)/2], sizes[len(sizes)/2], sizes[len(sizes)-1])
+	if strings.Contains(t.Name(), "no_endpoints") {
+		sum := 0.0
+		for i := range sizes {
+			sum += sizes[i]
+		}
+		avg := sum / float64(len(sizes))
+		tenPerc := avg * 10 / 100
+		t.Logf("sizes: %v", sizes)
+		t.Logf("avg: %0.2f, tenPerc: %0.2f", avg, tenPerc)
+		for i := range sizes {
+			if (avg-tenPerc) >= sizes[i] || sizes[i] >= (avg+tenPerc) {
+				t.Fatalf("Failed to fade-in no endpoints: %0.2f >= %0.2f || %0.2f >= %0.2f", avg-tenPerc, sizes[i], sizes[i], avg+tenPerc)
+			}
+		}
+	} else {
+		if sizes[0] >= sizes[len(sizes)/2] || sizes[len(sizes)/2] >= sizes[len(sizes)-1] {
+			t.Logf("sizes: %v", sizes)
+			t.Fatalf("Failed to fade-in: %0.2f >= %0.2f || %0.2f >= %0.2f", sizes[0], sizes[len(sizes)/2], sizes[len(sizes)/2], sizes[len(sizes)-1])
+		}
 	}
 }
 
