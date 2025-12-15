@@ -262,6 +262,7 @@ func testFadeInLoadBetweenOldAndNewEps(
 	nOld int, nNew int,
 ) {
 	t.Run(name, func(t *testing.T) {
+		t.Parallel()
 		randGen := rand.New(rand.NewPCG(uint64(0), 0))
 		const (
 			numberOfReqs            = 100000
