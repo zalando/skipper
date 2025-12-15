@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/stretchr/testify/assert"
@@ -559,8 +560,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig),
 			)
 
-			opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()),
-				openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...))
+			opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()), openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...))
 			assert.NoError(t, err)
 
 			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory)
@@ -603,6 +603,270 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			body, err := io.ReadAll(rsp.Body)
 			assert.NoError(t, err)
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
+		})
+	}
+}
+
+func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
+	for _, ti := range []struct {
+		msg               string
+		filterName        string
+		extraeskipBefore  string
+		extraeskipAfter   string
+		regoQuery         string
+		requestPath       string
+		requestMethod     string
+		body              string
+		contextExtensions string
+		expectedBody      string
+		expectedHeaders   http.Header
+		expectedStatus    int
+		backendHeaders    http.Header
+		removeHeaders     http.Header
+		discoveryPath     string
+		discoveryBundle   string
+	}{
+		{
+			msg:               "Allow Requests for log upload success",
+			filterName:        "opaAuthorizeRequest",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/allow",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+			discoveryPath:     "logs-success",
+		},
+		{
+			msg:               "Deny Requests for log upload success",
+			filterName:        "opaAuthorizeRequest",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/not-allow",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusForbidden,
+			expectedBody:      "",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+			discoveryPath:     "logs-success",
+		},
+		{
+			msg:               "Allow Requests for log upload timeout",
+			filterName:        "opaAuthorizeRequest",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/allow",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+			discoveryPath:     "logs-timeout",
+		},
+		{
+			msg:               "Allow Requests for log upload forbidden",
+			filterName:        "opaAuthorizeRequest",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/allow",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+			discoveryPath:     "logs-forbidden",
+		},
+		{
+			msg:               "Allow Requests for log upload path not found",
+			filterName:        "opaAuthorizeRequest",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/allow",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+			discoveryPath:     "logs-notfound",
+		},
+		{
+			msg:               "Allow Requests for log upload throws 5xx",
+			filterName:        "opaAuthorizeRequest",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/allow",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+			discoveryPath:     "logs-5xx",
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			t.Logf("Running test for %v", ti)
+			clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte("Welcome!"))
+				assert.True(t, isHeadersPresent(t, ti.backendHeaders, r.Header), "Enriched request header is absent.")
+				assert.True(t, isHeadersAbsent(t, ti.removeHeaders, r.Header), "Unwanted HTTP Headers present.")
+
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				assert.Equal(t, ti.body, string(body))
+			}))
+			defer clientServer.Close()
+
+			s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.Contains(r.URL.Path, "logs-success") {
+					w.WriteHeader(http.StatusOK)
+				} else if strings.Contains(r.URL.Path, "logs-forbidden") {
+					w.WriteHeader(http.StatusForbidden)
+				} else if strings.Contains(r.URL.Path, "logs-timeout") {
+					time.Sleep(5 * time.Second)
+					w.WriteHeader(http.StatusOK)
+				} else if strings.Contains(r.URL.Path, "logs-5xx") {
+					w.WriteHeader(http.StatusInternalServerError)
+				} else {
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer s3Server.Close()
+
+			opaControlPlane := opasdktest.MustNewServer(
+				opasdktest.MockBundle("/bundles/test", map[string]string{
+					"main.rego": `
+						package envoy.authz
+		
+						default allow = false
+						
+						allow if {
+							input.parsed_path == [ "allow" ]
+							input.parsed_query == {}
+						}
+					`,
+				}),
+				opasdktest.MockBundle("/bundles/discovery", map[string]string{
+					"data.json": `{
+					  "discovery": {
+						"bundles": {
+						  "bundles/test": {
+							"persist": false,
+							"resource": "bundles/test",
+							"service": "test"
+						  }
+				}}
+				}`,
+				}),
+			)
+
+			config := []byte(fmt.Sprintf(`{
+				"services": {
+					"test": {
+						"url": %q
+					}
+				},
+				"discovery": {
+					"name": "discovery",
+					"resource": "/bundles/discovery",
+					"service": "test"
+				},
+				"labels": {
+					"environment": "test"
+				},
+				"decision_logs": {
+						"plugin": "eopa_dl"
+				},
+				"plugins": {
+					"envoy_ext_authz_grpc": {
+						"path": %q,
+						"dry-run": false
+					},
+					"eopa_dl": {
+						"buffer": {
+							"type": "memory",
+							"max_bytes": 50000000
+						},
+						"output": {
+							"type": "s3",
+							"bucket": %q,
+							"endpoint": %q,
+							"force_path": true,
+							"region": "eu-central-1",
+							"timeout": "2s",	
+							"batching": {
+							  "at_bytes": 10000000,
+							  "at_period": "1s"
+							}
+						  }
+					}
+			}
+			}`, opaControlPlane.URL(), ti.regoQuery, ti.discoveryPath, s3Server.URL))
+
+			fr := make(filters.Registry)
+
+			envoyMetaDataConfig := []byte(`{
+				"filter_metadata": {
+					"envoy.filters.http.header_to_metadata": {
+						"policy_type": "ingress"
+					}
+				}
+			}`)
+
+			opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
+			opts = append(opts,
+				openpolicyagent.WithConfigTemplate(config),
+				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig),
+			)
+			opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()),
+				openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...))
+			assert.NoError(t, err)
+
+			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory)
+			fr.Register(ftSpec)
+			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory)
+			fr.Register(ftSpec)
+			fr.Register(builtin.NewSetPath())
+
+			r := eskip.MustParse(fmt.Sprintf(`* -> %s %s("%s", "%s") %s -> "%s"`, ti.extraeskipBefore, ti.filterName, "test", ti.contextExtensions, ti.extraeskipAfter, clientServer.URL))
+
+			proxy := proxytest.New(fr, r...)
+
+			var bodyReader io.Reader
+			if ti.body != "" {
+				bodyReader = strings.NewReader(ti.body)
+			}
+
+			req, err := http.NewRequest(ti.requestMethod, proxy.URL+ti.requestPath, bodyReader)
+			assert.NoError(t, err)
+
+			rsp, err := proxy.Client().Do(req)
+			assert.NoError(t, err)
+
+			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
+
+			assert.True(t, isHeadersPresent(t, ti.expectedHeaders, rsp.Header), "HTTP Headers do not match")
+			defer rsp.Body.Close()
+			body, err := io.ReadAll(rsp.Body)
+			assert.NoError(t, err)
+			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
+
+			time.Sleep(1 * time.Second) // wait for async decision log to be sent
+
+			//Make another call while decision logs are being uploaded to validate no interference.
+			proxy.Client().Timeout = 20 * time.Millisecond
+			rsp, err = proxy.Client().Do(req)
+			assert.NoError(t, err)
+			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
 		})
 	}
 }
