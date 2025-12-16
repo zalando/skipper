@@ -126,7 +126,6 @@ func testFadeInMonotony(
 ) {
 	t.Run(name, func(t *testing.T) {
 		t.Parallel()
-		randGen := rand.New(rand.NewPCG(0, 0))
 		fadeInDuration := calculateFadeInDuration(t, algorithmName, endpointAges)
 		route, proxy, eps := initializeEndpoints(endpointAges, algorithmName, fadeInDuration)
 		defer proxy.Close()
@@ -137,6 +136,7 @@ func testFadeInMonotony(
 		// Emulate the load balancer loop, sending requests to it with random hash keys
 		// over and over again till fadeIn period is over.
 		func() {
+			randGen := rand.New(rand.NewPCG(0, 0))
 			for {
 				ep := proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000))}})
 				stats = append(stats, ep.Host)
