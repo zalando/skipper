@@ -58,7 +58,7 @@ type roundRobin struct {
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
 	return &roundRobin{
-		index: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)).Int64N(int64(len(endpoints))), // #nosec
+		index: rand.Int64N(int64(len(endpoints))), // #nosec
 	}
 }
 
@@ -78,6 +78,7 @@ type random struct {
 }
 
 func newRandom(endpoints []string) routing.LBAlgorithm {
+	// #nosec
 	return &random{
 		rnd: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)),
 	}
@@ -225,16 +226,15 @@ func (ch *consistentHash) chooseConsistentHashEndpoint(ctx *routing.LBContext) i
 }
 
 type powerOfRandomNChoices struct {
-	mu  sync.Mutex
-	rnd *rand.Rand
-
+	mu              sync.Mutex
+	rnd             *rand.Rand
 	numberOfChoices int
 }
 
 // newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
 func newPowerOfRandomNChoices([]string) routing.LBAlgorithm {
 	return &powerOfRandomNChoices{
-		rnd:             rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)),
+		rnd:             rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), // #nosec
 		numberOfChoices: powerOfRandomNChoicesDefaultN,
 	}
 }
