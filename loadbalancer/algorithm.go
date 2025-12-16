@@ -58,7 +58,6 @@ var (
 	// nanoseconds by default but can be reseeded in tests so they are deterministic.
 	// #nosec
 	randSrc = rand.NewPCG(uint64(time.Now().UnixNano()), 0)
-	randGen = rand.New(randSrc)
 )
 
 type roundRobin struct {
@@ -67,7 +66,7 @@ type roundRobin struct {
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
 	return &roundRobin{
-		index: randGen.Int64N(int64(len(endpoints))), // #nosec
+		index: rand.New(randSrc).Int64N(int64(len(endpoints))), // #nosec
 	}
 }
 
@@ -87,7 +86,7 @@ type random struct {
 
 func newRandom(endpoints []string) routing.LBAlgorithm {
 	return &random{
-		rnd: randGen,
+		rnd: rand.New(randSrc),
 	}
 }
 
@@ -239,7 +238,7 @@ type powerOfRandomNChoices struct {
 // newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
 func newPowerOfRandomNChoices([]string) routing.LBAlgorithm {
 	return &powerOfRandomNChoices{
-		rnd:             randGen,
+		rnd:             rand.New(randSrc),
 		numberOfChoices: powerOfRandomNChoicesDefaultN,
 	}
 }
