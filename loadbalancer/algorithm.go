@@ -52,21 +52,13 @@ var (
 	defaultAlgorithm = newRoundRobin
 )
 
-var (
-	// https://github.com/cilium/cilium/pull/32542/
-	// randSrc is a source of pseudo-random numbers. It is seeded to the current time in
-	// nanoseconds by default but can be reseeded in tests so they are deterministic.
-	// #nosec
-	randSrc = rand.NewPCG(uint64(time.Now().UnixNano()), 0)
-)
-
 type roundRobin struct {
 	index int64
 }
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
 	return &roundRobin{
-		index: rand.New(randSrc).Int64N(int64(len(endpoints))), // #nosec
+		index: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)).Int64N(int64(len(endpoints))), // #nosec
 	}
 }
 
@@ -86,7 +78,7 @@ type random struct {
 
 func newRandom(endpoints []string) routing.LBAlgorithm {
 	return &random{
-		rnd: rand.New(randSrc),
+		rnd: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)),
 	}
 }
 
@@ -238,7 +230,7 @@ type powerOfRandomNChoices struct {
 // newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
 func newPowerOfRandomNChoices([]string) routing.LBAlgorithm {
 	return &powerOfRandomNChoices{
-		rnd:             rand.New(randSrc),
+		rnd:             rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)),
 		numberOfChoices: powerOfRandomNChoicesDefaultN,
 	}
 }
