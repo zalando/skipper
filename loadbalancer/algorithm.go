@@ -73,6 +73,7 @@ func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 }
 
 type random struct {
+	mu  sync.Mutex
 	rnd *rand.Rand
 }
 
@@ -88,7 +89,9 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.LBEndpoints[0]
 	}
 
+	r.mu.Lock()
 	choice := r.rnd.IntN(len(ctx.LBEndpoints)) // #nosec
+	r.mu.Unlock()
 	return ctx.LBEndpoints[choice]
 }
 
@@ -222,8 +225,9 @@ func (ch *consistentHash) chooseConsistentHashEndpoint(ctx *routing.LBContext) i
 }
 
 type powerOfRandomNChoices struct {
-	mu              sync.Mutex
-	rnd             *rand.Rand
+	mu  sync.Mutex
+	rnd *rand.Rand
+
 	numberOfChoices int
 }
 

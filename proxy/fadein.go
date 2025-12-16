@@ -3,12 +3,14 @@ package proxy
 import (
 	"math"
 	"math/rand/v2"
+	"sync"
 	"time"
 
 	"github.com/zalando/skipper/routing"
 )
 
 type fadeIn struct {
+	mu  sync.Mutex
 	rnd *rand.Rand
 }
 
@@ -27,7 +29,9 @@ func (f *fadeIn) filterFadeIn(endpoints []routing.LBEndpoint, rt *routing.Route)
 	}
 
 	now := time.Now()
+	f.mu.Lock()
 	threshold := f.rnd.Float64()
+	f.mu.Unlock()
 
 	filtered := make([]routing.LBEndpoint, 0, len(endpoints))
 	for _, e := range endpoints {
