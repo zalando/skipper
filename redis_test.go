@@ -186,8 +186,10 @@ spec:
 	epsilon := 0.2
 	// sec * 1 because 1 is the number of requests allowed per second via clusterRatelimit("foo", 1, "1s")
 	expected := float64(sec*1) / float64(sec*rate)
-	if !assert.InEpsilon(t, expected, successRate, epsilon, fmt.Sprintf("Test should have a success rate between %0.2f < %0.2f < %0.2f", expected-epsilon, successRate, expected+epsilon)) {
-		t.Fatal("FAIL")
+	// https://github.com/stretchr/testify/issues/1839
+	// if !assert.InEpsilon(t, expected, successRate, epsilon, fmt.Sprintf("Test should have a success rate between %0.2f < %0.2f < %0.2f", expected-epsilon, successRate, expected+epsilon)) {
+	if expected-epsilon < successRate && successRate < expected+epsilon {
+		t.Fatalf("Test should have a success rate between %0.2f < %0.2f < %0.2f", expected-epsilon, successRate, expected+epsilon)
 	}
 
 	// reqCount should be between 49 & 51 since we run 10 per second for 5 seconds
@@ -195,7 +197,6 @@ spec:
 	reqCount := va.TotalRequests()
 	t.Logf("Total requests: %d", reqCount)
 	assert.InEpsilon(t, uint64(rate*sec), va.TotalRequests(), epsilon, fmt.Sprintf("Test should run %d requests between: %d and %d", uint64(rate*sec), reqCount-uint64(epsilon), reqCount+uint64(epsilon)))
-
 	epsilon = 1
 	countOK, _ := va.CountStatus(http.StatusOK)
 	t.Logf("Number of succeeded requests: %d", countOK)
