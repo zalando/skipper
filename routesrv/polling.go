@@ -50,7 +50,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 	defer ticker.Stop()
 	p.setGaugeToCurrentTime("polling_started_timestamp")
 
-	var lastRoutesById map[string]string
+	var lastRoutesByID map[string]string
 	for {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
 
@@ -92,9 +92,9 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			span.SetTag("routes.hash", routesHash)
 
 			if updated && log.IsLevelEnabled(log.DebugLevel) {
-				routesById := mapRoutes(routes)
-				logChanges(routesById, lastRoutesById)
-				lastRoutesById = routesById
+				routesByID := mapRoutes(routes)
+				logChanges(routesByID, lastRoutesByID)
+				lastRoutesByID = routesByID
 			}
 		}
 
@@ -138,34 +138,34 @@ func (p *poller) setGaugeToCurrentTime(name string) {
 }
 
 func mapRoutes(routes []*eskip.Route) map[string]string {
-	byId := make(map[string]string)
+	byID := make(map[string]string)
 	for _, r := range routes {
-		byId[r.Id] = r.String()
+		byID[r.Id] = r.String()
 	}
-	return byId
+	return byID
 }
 
-func logChanges(routesById map[string]string, lastRoutesById map[string]string) {
+func logChanges(routesByID map[string]string, lastRoutesByID map[string]string) {
 	logf := func(op string, id string, format string, args ...any) {
 		level := log.GetLevel()
 		fields := log.Fields{"op": op, "id": id}
 		if level == log.TraceLevel {
-			fields["route"] = routesById[id]
+			fields["route"] = routesByID[id]
 		}
 		log.WithFields(fields).Logf(level, format, args...)
 	}
 
-	inserted := notIn(routesById, lastRoutesById)
+	inserted := notIn(routesByID, lastRoutesByID)
 	for i, id := range inserted {
 		logf("inserted", id, "Inserted route %d of %d", i+1, len(inserted))
 	}
 
-	deleted := notIn(lastRoutesById, routesById)
+	deleted := notIn(lastRoutesByID, routesByID)
 	for i, id := range deleted {
 		logf("deleted", id, "Deleted route %d of %d", i+1, len(deleted))
 	}
 
-	updated := valueMismatch(routesById, lastRoutesById)
+	updated := valueMismatch(routesByID, lastRoutesByID)
 	for i, id := range updated {
 		logf("updated", id, "Updated route %d of %d", i+1, len(updated))
 	}

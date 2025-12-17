@@ -50,7 +50,7 @@ func getRedisAddresses(opts *skipper.Options, kdc *kubernetes.Client, m metrics.
 			Endpoints: make([]RedisEndpoint, len(a)),
 		}
 		port := strconv.Itoa(opts.KubernetesRedisServicePort)
-		for i := 0; i < len(a); i++ {
+		for i := range a {
 			result.Endpoints[i].Address = net.JoinHostPort(a[i], port)
 		}
 
