@@ -188,7 +188,7 @@ spec:
 	expected := float64(sec*1) / float64(sec*rate)
 	// https://github.com/stretchr/testify/issues/1839
 	// if !assert.InEpsilon(t, expected, successRate, epsilon, fmt.Sprintf("Test should have a success rate between %0.2f < %0.2f < %0.2f", expected-epsilon, successRate, expected+epsilon)) {
-	if expected-epsilon < successRate && successRate < expected+epsilon {
+	if expected-epsilon >= successRate && successRate >= expected+epsilon {
 		t.Fatalf("Test should have a success rate between %0.2f < %0.2f < %0.2f", expected-epsilon, successRate, expected+epsilon)
 	}
 
