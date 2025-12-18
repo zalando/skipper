@@ -1,7 +1,7 @@
 package traffic
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 
 	"github.com/zalando/skipper/predicates"

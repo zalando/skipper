@@ -69,7 +69,7 @@ independent traffic controlled route sets, which uses session stickiness:
 package traffic
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 
 	"github.com/zalando/skipper/predicates"

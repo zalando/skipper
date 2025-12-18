@@ -3,10 +3,11 @@ package loadbalancer
 import (
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"sort"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/cespare/xxhash/v2"
 	log "github.com/sirupsen/logrus"
@@ -56,9 +57,8 @@ type roundRobin struct {
 }
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
-	rnd := rand.New(NewLockedSource()) // #nosec
 	return &roundRobin{
-		index: int64(rnd.Intn(len(endpoints))),
+		index: rand.Int64N(int64(len(endpoints))), // #nosec
 	}
 }
 
@@ -68,18 +68,19 @@ func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.LBEndpoints[0]
 	}
 
-	choice := int(atomic.AddInt64(&r.index, 1) % int64(len(ctx.LBEndpoints)))
+	choice := int(atomic.AddInt64(&r.index, 1) % int64(len(ctx.LBEndpoints))) // #nosec
 	return ctx.LBEndpoints[choice]
 }
 
 type random struct {
+	mu  sync.Mutex
 	rnd *rand.Rand
 }
 
 func newRandom(endpoints []string) routing.LBAlgorithm {
 	// #nosec
 	return &random{
-		rnd: rand.New(NewLockedSource()),
+		rnd: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)),
 	}
 }
 
@@ -89,7 +90,9 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.LBEndpoints[0]
 	}
 
-	choice := r.rnd.Intn(len(ctx.LBEndpoints))
+	r.mu.Lock()
+	choice := r.rnd.IntN(len(ctx.LBEndpoints)) // #nosec
+	r.mu.Unlock()
 	return ctx.LBEndpoints[choice]
 }
 
@@ -230,9 +233,8 @@ type powerOfRandomNChoices struct {
 
 // newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
 func newPowerOfRandomNChoices([]string) routing.LBAlgorithm {
-	rnd := rand.New(NewLockedSource()) // #nosec
 	return &powerOfRandomNChoices{
-		rnd:             rnd,
+		rnd:             rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), // #nosec
 		numberOfChoices: powerOfRandomNChoicesDefaultN,
 	}
 }
@@ -244,10 +246,10 @@ func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	best := ctx.LBEndpoints[p.rnd.Intn(ne)]
+	best := ctx.LBEndpoints[p.rnd.IntN(ne)] // #nosec
 
 	for i := 1; i < p.numberOfChoices; i++ {
-		ce := ctx.LBEndpoints[p.rnd.Intn(ne)]
+		ce := ctx.LBEndpoints[p.rnd.IntN(ne)] // #nosec
 
 		if p.getScore(ce) > p.getScore(best) {
 			best = ce

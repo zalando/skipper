@@ -1,7 +1,7 @@
 package diag
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	"github.com/zalando/skipper/filters"
@@ -119,5 +119,5 @@ func (f *histFilter) sample() time.Duration {
 	min := f.boundaries[i]
 	max := f.boundaries[i+1]
 
-	return min + time.Duration(rand.Int63n(int64(max-min))) // #nosec
+	return min + time.Duration(rand.Int64N(int64(max-min))) // #nosec
 }

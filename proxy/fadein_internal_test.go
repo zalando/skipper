@@ -2,7 +2,7 @@ package proxy
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"strings"
@@ -92,7 +92,7 @@ func initializeEndpoints(endpointAges []float64, algorithmName string, fadeInDur
 		registry.GetMetrics(eps[i]).SetDetected(detectionTimes[i])
 	}
 
-	proxy := &Proxy{registry: registry, fadein: &fadeIn{rnd: rand.New(loadbalancer.NewLockedSource())}, quit: make(chan struct{})}
+	proxy := &Proxy{registry: registry, fadein: &fadeIn{rnd: rand.New(rand.NewPCG(0, 0))}, quit: make(chan struct{})}
 	return route, proxy, eps
 }
 
@@ -104,13 +104,14 @@ func calculateFadeInDuration(t *testing.T, algorithmName string, endpointAges []
 
 	route, proxy, _ := initializeEndpoints(endpointAges, algorithmName, defaultFadeInDuration)
 	defer proxy.Close()
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	randGen := rand.New(rand.NewPCG(0, 0))
 
 	t.Log("preemulation start", time.Now())
 	// Preemulate the load balancer loop to find out the approximate amount of RPS
 	begin := time.Now()
 	for range fadeInRequestCount / precalculateRatio {
-		_ = proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(rnd.Intn(100000))}})
+		_ = proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000))}})
 	}
 	preemulationDuration := time.Since(begin)
 
@@ -135,9 +136,9 @@ func testFadeInMonotony(
 		// Emulate the load balancer loop, sending requests to it with random hash keys
 		// over and over again till fadeIn period is over.
 		func() {
-			rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+			randGen := rand.New(rand.NewPCG(0, 0))
 			for {
-				ep := proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(rnd.Intn(100000))}})
+				ep := proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000))}})
 				stats = append(stats, ep.Host)
 				select {
 				case <-stop:
@@ -262,6 +263,7 @@ func testFadeInLoadBetweenOldAndNewEps(
 ) {
 	t.Run(name, func(t *testing.T) {
 		t.Parallel()
+		randGen := rand.New(rand.NewPCG(uint64(0), 0))
 		const (
 			numberOfReqs            = 100000
 			acceptableErrorNearZero = 10
@@ -278,14 +280,13 @@ func testFadeInLoadBetweenOldAndNewEps(
 
 		route, proxy, eps := initializeEndpoints(endpointAges, algorithmName, defaultFadeInDurationHuge)
 		defer proxy.Close()
-		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 		nReqs := map[string]int{}
 
 		t.Log("test start", time.Now())
 		// Emulate the load balancer loop, sending requests to it with random hash keys
 		// over and over again till fadeIn period is over.
 		for range numberOfReqs {
-			ep := proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(rnd.Intn(100000))}})
+			ep := proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000))}})
 			nReqs[ep.Host]++
 		}
 
@@ -369,6 +370,7 @@ func benchmarkFadeIn(
 	endpointAges ...float64,
 ) {
 	b.Run(name, func(b *testing.B) {
+		randGen := rand.New(rand.NewPCG(uint64(0), 0))
 		route, proxy, _ := initializeEndpoints(endpointAges, algorithmName, defaultFadeInDurationHuge)
 		defer proxy.Close()
 		var wg sync.WaitGroup
@@ -381,9 +383,8 @@ func benchmarkFadeIn(
 			go func(i int) {
 				defer wg.Done()
 
-				rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 				for j := 0; j < b.N/clients; j++ {
-					_ = proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(rnd.Intn(100000))}})
+					_ = proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000))}})
 				}
 			}(i)
 		}
