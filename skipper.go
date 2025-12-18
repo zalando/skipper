@@ -964,6 +964,7 @@ type Options struct {
 	SwarmRedisEndpointsRemoteURL  string
 	SwarmRedisConnMetricsInterval time.Duration
 	SwarmRedisUpdateInterval      time.Duration
+	SwarmRedisHeartbeatFrequency  time.Duration
 	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
@@ -1844,6 +1845,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				MaxIdleConns:        o.SwarmRedisMaxIdleConns,
 				ConnMetricsInterval: o.SwarmRedisConnMetricsInterval,
 				UpdateInterval:      o.SwarmRedisUpdateInterval,
+				HeartbeatFrequency:  o.SwarmRedisHeartbeatFrequency,
 				Tracer:              tracer,
 				Log:                 log.New(),
 			}

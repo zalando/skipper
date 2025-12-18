@@ -4,6 +4,7 @@ package validation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -28,16 +29,12 @@ const (
 // returned listener encounters an unrecoverable error, or the process shuts down.
 func StartValidation(address, certFile, keyFile string, enableAdvancedValidation bool, filterRegistry filters.Registry, predicateSpecs []routing.PredicateSpec, mtr metrics.Metrics) error {
 	if certFile == "" || keyFile == "" {
-		err := errors.New("validation webhook requires TLS: cert file or key file not provided")
-		log.Fatal(err)
-		return err
+		return errors.New("validation webhook requires TLS: cert file or key file not provided")
 	}
-
-	handler := newValidationHandler(enableAdvancedValidation, filterRegistry, predicateSpecs, mtr)
 
 	server := &http.Server{
 		Addr:              address,
-		Handler:           handler,
+		Handler:           newValidationHandler(enableAdvancedValidation, filterRegistry, predicateSpecs, mtr),
 		ReadTimeout:       readTimeout,
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
@@ -58,8 +55,7 @@ func StartValidation(address, certFile, keyFile string, enableAdvancedValidation
 	err := server.ListenAndServeTLS(certFile, keyFile)
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("Failed to listen: %v", err)
-		return err
+		return fmt.Errorf("failed to listen: %w", err)
 	}
 
 	return nil
