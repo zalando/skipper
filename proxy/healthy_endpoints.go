@@ -1,7 +1,8 @@
 package proxy
 
 import (
-	"math/rand"
+	"math/rand/v2"
+	"sync"
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/metrics"
@@ -9,7 +10,9 @@ import (
 )
 
 type healthyEndpoints struct {
-	rnd                        *rand.Rand
+	mu  sync.Mutex
+	rnd *rand.Rand
+
 	maxUnhealthyEndpointsRatio float64
 }
 
@@ -20,16 +23,18 @@ func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []rout
 
 	span := ot.SpanFromContext(ctx.request.Context())
 
-	p := h.rnd.Float64()
+	h.mu.Lock()
+	random := h.rnd.Float64()
+	h.mu.Unlock()
 
 	unhealthyEndpointsCount := 0
 	maxUnhealthyEndpointsCount := float64(len(endpoints)) * h.maxUnhealthyEndpointsRatio
 	filtered := make([]routing.LBEndpoint, 0, len(endpoints))
 	for _, e := range endpoints {
 		dropProbability := e.Metrics.HealthCheckDropProbability()
-		if p < dropProbability {
+		if random < dropProbability {
 			ctx.Logger().Debugf("Dropping endpoint %q due to passive health check: p=%0.2f, dropProbability=%0.2f",
-				e.Host, p, dropProbability)
+				e.Host, random, dropProbability)
 			metrics.IncCounter("passive-health-check.endpoints.dropped")
 			unhealthyEndpointsCount++
 		} else {

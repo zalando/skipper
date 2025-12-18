@@ -12,10 +12,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/zalando/skipper/filters"
@@ -53,11 +52,14 @@ const (
 	backendChunks
 )
 
-type random struct {
-	mu   sync.Mutex
-	rand *rand.Rand
-	len  int64
-}
+type (
+	randomSpec struct{}
+
+	random struct {
+		rand *rand.Rand
+		len  int64
+	}
+)
 
 type (
 	repeatSpec struct {
@@ -108,7 +110,16 @@ type jitter struct {
 	sleep func(time.Duration)
 }
 
-var randomChars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
+func genCharArray(s string) [62]byte {
+	res := [62]byte{}
+	for i := 0; i < len(s); i++ {
+		res[i] = s[i]
+	}
+
+	return res
+}
+
+var randomChars = genCharArray("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
 
 func kbps2bpms(kbps float64) float64 {
 	return kbps * 1024 / 1000
@@ -120,7 +131,7 @@ func kbps2bpms(kbps float64) float64 {
 // Eskip example:
 //
 //	r: * -> randomContent(2048) -> <shunt>;
-func NewRandom() filters.Spec { return &random{} }
+func NewRandom() filters.Spec { return &randomSpec{} }
 
 // NewRepeat creates a filter specification whose filter instances can be used
 // to respond to requests with a repeated text. It expects the text and
@@ -217,25 +228,23 @@ func NewUniformResponseLatency() filters.Spec { return &jitter{typ: uniformRespo
 //	r: * -> normalRequestLatency("1s", "120ms") -> "https://www.example.org";
 func NewNormalResponseLatency() filters.Spec { return &jitter{typ: normalResponseDistribution} }
 
-func (r *random) Name() string { return filters.RandomContentName }
+func (r *randomSpec) Name() string { return filters.RandomContentName }
 
-func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (r *randomSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	if l, ok := args[0].(float64); ok {
-		return &random{rand: rand.New(rand.NewSource(time.Now().UnixNano())), len: int64(l)}, nil // #nosec
+		return &random{rand: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), len: int64(l)}, nil // #nosec
 	} else {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 }
 
 func (r *random) Read(p []byte) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	for i := 0; i < len(p); i++ {
-		p[i] = randomChars[r.rand.Intn(len(randomChars))]
+		p[i] = randomChars[r.rand.IntN(len(randomChars))]
 	}
 	return len(p), nil
 }
@@ -632,7 +641,7 @@ func (j *jitter) Request(filters.FilterContext) {
 		/* #nosec */
 		r = 2*rand.Float64() - 1 // +/- sizing
 	case normalRequestDistribution:
-		r = rand.NormFloat64()
+		r = rand.NormFloat64() // #nosec
 	default:
 		return
 	}
@@ -648,7 +657,7 @@ func (j *jitter) Response(filters.FilterContext) {
 		/* #nosec */
 		r = 2*rand.Float64() - 1 // +/- sizing
 	case normalResponseDistribution:
-		r = rand.NormFloat64()
+		r = rand.NormFloat64() // #nosec
 	default:
 		return
 	}

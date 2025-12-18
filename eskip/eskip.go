@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"math/rand"
+	"math/rand/v2"
 	"net/url"
 	"regexp"
 	"strings"
@@ -769,7 +769,7 @@ func GenerateIfNeeded(existingId string) string {
 	sb.WriteString("route")
 
 	for i := 0; i < randomIdLength; i++ {
-		ai := rand.Intn(len(alphabet))
+		ai := rand.IntN(len(alphabet)) // #nosec
 		sb.WriteByte(alphabet[ai])
 	}
 

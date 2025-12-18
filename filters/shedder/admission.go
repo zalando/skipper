@@ -198,7 +198,7 @@ type admissionControl struct {
 }
 
 func randWithSeed() func() float64 {
-	return rand.New(rand.NewPCG(2, 3)).Float64
+	return rand.New(rand.NewPCG(2, 3)).Float64 // #nosec
 }
 
 func NewAdmissionControl(o Options) filters.Spec {

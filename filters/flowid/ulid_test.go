@@ -38,6 +38,7 @@ func TestInvalidFlowIDs(t *testing.T) {
 		"01B6Y80KHY4XS20161302R3VCU",
 	} {
 		t.Run(fmt.Sprintf("%v", test), func(t *testing.T) {
+			t.Parallel()
 			if g.IsValid(test) {
 				t.Errorf("invalid input was considered valid %q", test)
 			}

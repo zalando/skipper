@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -38,7 +38,6 @@ import (
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	tracingfilter "github.com/zalando/skipper/filters/tracing"
 	skpio "github.com/zalando/skipper/io"
-	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	snet "github.com/zalando/skipper/net"
@@ -446,7 +445,7 @@ type Proxy struct {
 	routing                  *routing.Routing
 	registry                 *routing.EndpointRegistry
 	fadein                   *fadeIn
-	heathlyEndpoints         *healthyEndpoints
+	healthyEndpoints         *healthyEndpoints
 	roundTripper             http.RoundTripper
 	priorityRoutes           []PriorityRoute
 	flags                    Flags
@@ -608,7 +607,7 @@ func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	rt := ctx.route
 	endpoints := rt.LBEndpoints
 	endpoints = p.fadein.filterFadeIn(endpoints, rt)
-	endpoints = p.heathlyEndpoints.filterHealthyEndpoints(ctx, endpoints, p.metrics)
+	endpoints = p.healthyEndpoints.filterHealthyEndpoints(ctx, endpoints, p.metrics)
 
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
@@ -868,7 +867,7 @@ func WithParams(p Params) *Proxy {
 	var healthyEndpointsChooser *healthyEndpoints
 	if p.EnablePassiveHealthCheck {
 		healthyEndpointsChooser = &healthyEndpoints{
-			rnd:                        rand.New(loadbalancer.NewLockedSource()),
+			rnd:                        rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), // #nosec
 			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
 		}
 	}
@@ -876,9 +875,9 @@ func WithParams(p Params) *Proxy {
 		routing:  p.Routing,
 		registry: p.EndpointRegistry,
 		fadein: &fadeIn{
-			rnd: rand.New(loadbalancer.NewLockedSource()),
+			rnd: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), // #nosec
 		},
-		heathlyEndpoints:         healthyEndpointsChooser,
+		healthyEndpoints:         healthyEndpointsChooser,
 		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
 		priorityRoutes:           p.PriorityRoutes,
 		flags:                    p.Flags,

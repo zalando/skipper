@@ -70,13 +70,13 @@ func benchmarkRegexp(b *testing.B, routesCount, concurrency int) {
 		if pg.Rnd.Float64() < pathRegexpRate {
 			r.PathRegexps = append(
 				r.PathRegexps,
-				pathRegexps[pg.Rnd.Intn(len(pathRegexps))],
+				pathRegexps[pg.Rnd.IntN(len(pathRegexps))],
 			)
 		} else {
 			r.Predicates = append(r.Predicates, &eskip.Predicate{
 				Name: "Path",
 				Args: []interface{}{
-					paths[pg.Rnd.Intn(len(paths))],
+					paths[pg.Rnd.IntN(len(paths))],
 				},
 			})
 		}
@@ -84,7 +84,7 @@ func benchmarkRegexp(b *testing.B, routesCount, concurrency int) {
 		if pg.Rnd.Float64() < hostRegexpRate {
 			r.HostRegexps = append(
 				r.HostRegexps,
-				hosts[pg.Rnd.Intn(len(hosts))],
+				hosts[pg.Rnd.IntN(len(hosts))],
 			)
 		}
 	}
@@ -105,7 +105,7 @@ func benchmarkRegexp(b *testing.B, routesCount, concurrency int) {
 					return
 				}
 
-				rsp, err := http.Get(p.URL + paths[pg.Rnd.Intn(len(paths))])
+				rsp, err := http.Get(p.URL + paths[pg.Rnd.IntN(len(paths))])
 				if err != nil {
 					b.Error(err)
 					wg.Done()
