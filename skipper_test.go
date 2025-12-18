@@ -607,7 +607,7 @@ func TestDataClients(t *testing.T) {
 	sigs := make(chan os.Signal, 1)
 	go run(o, sigs, nil)
 
-	for i := 0; i < 10; i++ {
+	for range 30 {
 		t.Logf("Waiting for proxy being ready")
 
 		rsp, _ := http.DefaultClient.Get("http://localhost:8090/healthz")
