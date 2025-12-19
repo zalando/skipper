@@ -861,3 +861,40 @@ func TestESkipBytesHandlerGzipServedForDefaultClient(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, routes, 3)
 }
+
+func TestESkipBytesHandlerWithNoUpdate(t *testing.T) {
+	defer tl.Reset()
+	ks, handler := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServer(t, ks)
+
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Fatalf("routes not initialized: %v", err)
+	}
+	w1 := getRoutes(rs)
+	lastModified := w1.Header().Get("Last-Modified")
+	header := map[string]string{"If-Modified-Since": lastModified}
+
+	// Last-Modified has a second precision so we need to wait a bit for it to change.
+	// Move clock forward instead of using time.Sleep that makes test flaky.
+	routesrv.SetNow(rs, func() time.Time { return time.Now().Add(2 * time.Second) })
+
+	// should not update the routes
+	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml")))
+	if err := tl.WaitForN(routesrv.LogRoutesNoChange, 2, waitTimeout); err != nil {
+		t.Fatalf("routes updated: %v", err)
+	}
+
+	w2 := getRoutesWithRequestHeadersSetting(rs, header)
+
+	if len(w2.Body.String()) != 0 {
+		t.Errorf("expected empty routes list")
+	}
+	if w2.Code != http.StatusNotModified {
+		t.Errorf("expected 304 status code, got %d", w2.Code)
+	}
+}
