@@ -165,6 +165,7 @@ spec:
 		SuppressRouteUpdateLogs:        false,
 		SupportListener:                skipper.FindAddress(t),
 		SwarmRedisUpdateInterval:       time.Second,
+		SwarmRedisHeartbeatFrequency:   time.Second,
 	}
 
 	runResult := make(chan error)
@@ -330,6 +331,7 @@ spec:
 		SuppressRouteUpdateLogs:         false,
 		SupportListener:                 skipper.FindAddress(t),
 		SwarmRedisUpdateInterval:        time.Second,
+		SwarmRedisHeartbeatFrequency:    time.Second,
 	}
 
 	runResult := make(chan error)

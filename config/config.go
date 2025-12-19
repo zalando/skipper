@@ -298,6 +298,8 @@ type Config struct {
 	SwarmRedisMinConns           int           `yaml:"swarm-redis-min-conns"`
 	SwarmRedisMaxConns           int           `yaml:"swarm-redis-max-conns"`
 	SwarmRedisEndpointsRemoteURL string        `yaml:"swarm-redis-remote"`
+	SwarmRedisUpdateInterval     time.Duration `yaml:"swarm-redis-update-interval"`
+	SwarmRedisHeartbeatFrequency time.Duration `yaml:"swarm-redis-heartbeat-frequency"`
 	// swim based
 	SwarmKubernetesNamespace          string        `yaml:"swarm-namespace"`
 	SwarmKubernetesLabelSelectorKey   string        `yaml:"swarm-label-selector-key"`
@@ -634,6 +636,8 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.SwarmRedisMinConns, "swarm-redis-min-conns", net.DefaultMinConns, "set min number of connections to redis")
 	flag.IntVar(&cfg.SwarmRedisMaxConns, "swarm-redis-max-conns", net.DefaultMaxConns, "set max number of connections to redis")
 	flag.StringVar(&cfg.SwarmRedisEndpointsRemoteURL, "swarm-redis-remote", "", "Remote URL to pull redis endpoints from.")
+	flag.DurationVar(&cfg.SwarmRedisUpdateInterval, "swarm-redis-update-interval", net.DefaultUpdateInterval, "set update interval to update redis addresses")
+	flag.DurationVar(&cfg.SwarmRedisHeartbeatFrequency, "swarm-redis-heartbeat-frequency", net.DefaultHeartbeatFrequency, "set redis heartbeat frequency")
 	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, "Kubernetes labelselector value to find swarm peer instances")
@@ -1024,6 +1028,8 @@ func (c *Config) ToOptions() skipper.Options {
 		SwarmRedisMinIdleConns:       c.SwarmRedisMinConns,
 		SwarmRedisMaxIdleConns:       c.SwarmRedisMaxConns,
 		SwarmRedisEndpointsRemoteURL: c.SwarmRedisEndpointsRemoteURL,
+		SwarmRedisUpdateInterval:     c.SwarmRedisUpdateInterval,
+		SwarmRedisHeartbeatFrequency: c.SwarmRedisHeartbeatFrequency,
 		// swim based
 		SwarmKubernetesNamespace:          c.SwarmKubernetesNamespace,
 		SwarmKubernetesLabelSelectorKey:   c.SwarmKubernetesLabelSelectorKey,

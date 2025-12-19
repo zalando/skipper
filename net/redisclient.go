@@ -117,7 +117,8 @@ const (
 	DefaultMaxConns = 100
 
 	defaultConnMetricsInterval = 60 * time.Second
-	defaultUpdateInterval      = 10 * time.Second
+	DefaultUpdateInterval      = 10 * time.Second
+	DefaultHeartbeatFrequency  = 500 * time.Millisecond // https://github.com/redis/go-redis/blob/452eb3d15f9ccdb8e4ed3876cafc88c3d35e0e13/ring.go#L167C28-L167C50
 )
 
 // https://arxiv.org/pdf/1406.2294.pdf
@@ -234,6 +235,9 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		},
 	}
 	if ro != nil {
+		if ro.HeartbeatFrequency != 0 {
+			ringOptions.HeartbeatFrequency = ro.HeartbeatFrequency
+		}
 		switch ro.HashAlgorithm {
 		case "rendezvous":
 			ringOptions.NewConsistentHash = NewRendezvous
@@ -251,7 +255,7 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 
 		if ro.AddrUpdater != nil {
 			address, err := ro.AddrUpdater()
-			for i := 0; i < retryCount; i++ {
+			for range retryCount {
 				if err == nil {
 					break
 				}
@@ -282,7 +286,7 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 
 		if ro.AddrUpdater != nil {
 			if ro.UpdateInterval == 0 {
-				ro.UpdateInterval = defaultUpdateInterval
+				ro.UpdateInterval = DefaultUpdateInterval
 			}
 			go r.startUpdater(context.Background())
 		}
