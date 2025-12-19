@@ -412,6 +412,11 @@ func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs []string) {
 	r.ring.SetAddrs(createAddressMap(addrs))
 }
 
+func (r *RedisRingClient) Del(ctx context.Context, key string) error {
+	res := r.ring.Del(ctx, key)
+	return res.Err()
+}
+
 func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {
 	res := r.ring.Get(ctx, key)
 	return res.Val(), res.Err()
