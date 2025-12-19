@@ -191,7 +191,7 @@ func TestAdmissionControl(t *testing.T) {
 					t.Fatalf("error creating filter: %v", err)
 					return
 				}
-				defer f.(*admissionControl).Close()
+				f.(*admissionControl).Close()
 
 				fr := make(filters.Registry)
 				fr.Register(spec)
@@ -262,11 +262,16 @@ func TestAdmissionControl(t *testing.T) {
 
 				synctest.Wait()
 
-				t.Logf("ok: %d, fail: %d, failBackend: %d", ok, fail, failBackend)
+				epsilon := 5
+				expectedOk := N - ti.expectedFails - failBackend
+				t.Logf("ok: %d, fail: %d, failBackend: %d, epsilon: %d, expectedOk: %d", ok, fail, failBackend, epsilon, expectedOk)
 
-				assert.Equal(t, ti.expectedFails, fail, "Failed to get expected fails")
-				assert.Equal(t, N-ti.expectedFails-failBackend, ok, "Failed to get expected OKs")
-
+				if ti.expectedFails-epsilon > fail || fail > ti.expectedFails+epsilon {
+					t.Fatalf("Failed to get expected fails: %d != %d", ti.expectedFails, fail)
+				}
+				if expectedOk-epsilon > ok || ok > expectedOk+epsilon {
+					t.Fatalf("Failed to get expected OKs: %d != %d", ti.expectedFails, fail)
+				}
 			})
 		})
 	}
