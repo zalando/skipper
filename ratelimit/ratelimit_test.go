@@ -629,10 +629,10 @@ func TestRatelimitImpl(t *testing.T) {
 	}
 
 	if rl.Allow(context.Background(), "") == true {
-		t.Error("After 5 allow we should get a deny")
+		t.Error("After 5 allows we should get a deny")
 	}
 	if rl.RetryAfter("") == 0 {
-		t.Error("After 5 allow we should get a non zero value")
+		t.Error("After 5 allows we should get a non zero value")
 	}
 	if d := rl.Delta(""); d == 0 {
 		t.Errorf("There was no delta found %v, but should", d)
