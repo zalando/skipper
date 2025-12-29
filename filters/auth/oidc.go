@@ -1104,7 +1104,7 @@ func (f *tokenOidcFilter) resolveDistributedClaimAzure(url *url.URL, oauth2Token
 
 	err = json.Unmarshal(body, &target)
 	if err != nil {
-		return nil, fmt.Errorf("unabled to decode response: %w", err)
+		return nil, fmt.Errorf("unable to decode response: %w", err)
 	}
 	for _, v := range target.Value {
 		if v.OnPremisesSamAccountName != "" {
