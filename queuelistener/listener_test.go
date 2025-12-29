@@ -577,7 +577,7 @@ func TestQueue(t *testing.T) {
 		<-done
 	})
 
-	t.Run("when dropping or timeouting a connection, it is closed", func(t *testing.T) {
+	t.Run("when dropping or timing-out a connection, it is closed", func(t *testing.T) {
 		t.Run("drop", func(t *testing.T) {
 			tl := &testListener{conns: make(chan *testConnection, 1)}
 			l, err := listenWith(tl, Options{
