@@ -15,7 +15,7 @@ jobs:
     if: ${{ github.actor != 'dependabot[bot]' }}
 
     runs-on: ubuntu-latest
-    # Adding this block will overridw default values to None if not specified in the block
+    # Adding this block will override default values to None if not specified in the block
     # https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
     permissions:
       contents: read
