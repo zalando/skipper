@@ -1285,7 +1285,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 	requestStopWatch.Start()
 
-	// not every of these branches could endup in a response to the client
+	// not every of these branches could end up in a response to the client
 	if ctx.deprecatedShunted() {
 		ctx.Logger().Debugf("deprecated shunting detected in route: %s", ctx.route.Id)
 		return &proxyError{handled: true}
