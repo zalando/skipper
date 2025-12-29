@@ -1,4 +1,4 @@
-// Package metricstest provides test infrastructure to test pacakges
+// Package metricstest provides test infrastructure to test packages
 // that depend on metrics package.
 package metricstest
 
