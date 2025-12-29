@@ -3534,7 +3534,7 @@ Traffic fade-in has the potential to skew the traffic to your backend pods in ca
 fade-in duration. The image below shows an example of a rolling restart for a four-pod deployment (A, B, C, D)
 into (E, F, G, H), and the traffic share of each pod over time. While the ramp-up of the new pods is ongoing,
 the remaining old pods will receive a largely increased traffic share (especially the last one, D in this
-example), as well as an over-propotional traffic share for the first pod in the rollout (E).
+example), as well as an over-proportional traffic share for the first pod in the rollout (E).
 
 To make rolling restarts safe, you need to slow them down by setting `spec.minReadySeconds` on the pod spec
 of your deployment or stackset, according to your fadeIn duration.
