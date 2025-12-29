@@ -1220,7 +1220,7 @@ individual clients and 10 maximum hits. Make sure you monitor Go
 metrics. Ratelimit filter `clusterClientRatelimit` implementation
 using the Redis ring based solution, adds 2 additional roundtrips to
 redis per hit. Make sure you monitor redis closely, because skipper
-will fallback to allow traffic if redis cannot be reached.
+will fall back to allow traffic if redis cannot be reached.
 
 ### Slow Backends
 

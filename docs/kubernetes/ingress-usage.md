@@ -482,7 +482,7 @@ Compress responses (see details about [selecting responses to compress](../refer
 
     compress() // compress all valid MIME types
     compress("text/html") // only compress HTML files
-    compress(11, "text/html") // control the level of compression, 1 = fastest, 11 = best compression (fallback to 9 for gzip), 0 = no compression
+    compress(11, "text/html") // control the level of compression, 1 = fastest, 11 = best compression (fall back to 9 for gzip), 0 = no compression
 
 ### Set the Path
 

@@ -1355,14 +1355,14 @@ func listen(o *Options, address string, mtr metrics.Metrics) (net.Listener, erro
 		if err != nil {
 			memoryLimitBytes, err = os.ReadFile(memoryLimitFileV1)
 			if err != nil {
-				log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
+				log.Errorf("Failed to read memory limits, fall back to defaults: %v", err)
 			}
 		}
 		if err == nil {
 			memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
 			memoryLimit, err = strconv.ParseInt(memoryLimitString, 10, 64)
 			if err != nil {
-				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
+				log.Errorf("Failed to convert memory limits, fall back to defaults: %v", err)
 			}
 
 			// 4GB, temporarily, as a tested magic number until a better mechanism is in place:

@@ -329,7 +329,7 @@ func backendWeights(m *definitions.Metadata, logger *logger) map[string]float64 
 	return backendWeights
 }
 
-// parse pathmode from annotation or fallback to global default
+// parse pathmode from annotation or fall back to global default
 func pathMode(m *definitions.Metadata, globalDefault PathMode, logger *logger) PathMode {
 	pathMode := globalDefault
 
