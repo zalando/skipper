@@ -106,7 +106,7 @@ that support latency, bandwidth throttling, random content and more.
 - [Support for different Opentracing providers](https://opensource.zalando.com/skipper/tutorials/development/#opentracing)
 including jaeger, lightstep and instana
 - [Ratelimits support](https://opensource.zalando.com/skipper/tutorials/ratelimit/)
-with cluster ratelimits as an pending solution, which enables you to stop login attacks easily
+with cluster ratelimits as a pending solution, which enables you to stop login attacks easily
 - Connects to endpoints directly, instead of using Kubernetes services
 - Retries requests, if the request can be safely retried, which is only the case if the error
 happens on the TCP/IP connection establishment or a backend whose requests are defined as

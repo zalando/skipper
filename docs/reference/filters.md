@@ -3505,7 +3505,7 @@ Some filters influence how load balancing will be done
 When this filter is set, and the route has a load balanced backend using [supported algorithm](backends.md#load-balancer-backend),
 then the newly added endpoints will receive
 the traffic in a gradually increasing way, starting from their detection for the specified duration, after which
-they receive equal amount traffic as the previously existing routes. The detection time of an load balanced
+they receive equal amount traffic as the previously existing routes. The detection time of a load balanced
 backend endpoint is preserved over multiple generations of the route configuration (over route changes). This
 filter can be used to saturate the load of autoscaling applications that require a warm-up time and therefore a
 smooth ramp-up. The fade-in feature can be used together with the roundRobin, random  or consistentHash LB algorithms.

@@ -37,7 +37,7 @@ func (k Kind) String() string {
 	}
 }
 
-// ParseMetricsKind parses an string and returns the correct Metrics kind.
+// ParseMetricsKind parses a string and returns the correct Metrics kind.
 func ParseMetricsKind(t string) Kind {
 	t = strings.ToLower(t)
 	switch t {
@@ -53,7 +53,7 @@ func ParseMetricsKind(t string) Kind {
 }
 
 // Metrics is the generic interface that all the required backends
-// should implement to be an skipper metrics compatible backend.
+// should implement to be a skipper metrics compatible backend.
 type Metrics interface {
 	// Implements the `filter.Metrics` interface.
 	MeasureSince(key string, start time.Time)
