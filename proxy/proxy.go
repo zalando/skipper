@@ -1265,7 +1265,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			return perr
 		}
 	}
-	// every time the context is used for a request the context executionCounter is incremented
+	// every time the context is used for a request, the context executionCounter is incremented
 	// a context executionCounter equal to zero represents a root context.
 	ctx.executionCounter++
 	lookupStart := time.Now()
