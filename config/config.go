@@ -489,7 +489,7 @@ func NewConfig() *Config {
 
 	flag.BoolVar(&cfg.NormalizeHost, "normalize-host", false, "converts request host to lowercase and removes port and trailing dot if any")
 	flag.BoolVar(&cfg.ValidateQuery, "validate-query", true, "Validates the HTTP Query of a request and if invalid responds with status code 400")
-	flag.BoolVar(&cfg.ValidateQueryLog, "validate-query-log", true, "Enable looging for validate query logs")
+	flag.BoolVar(&cfg.ValidateQueryLog, "validate-query-log", true, "Enable logging for validate query logs")
 
 	flag.Var(&cfg.RefusePayload, "refuse-payload", "refuse requests that match configured value. Can be set multiple times")
 
