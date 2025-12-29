@@ -97,7 +97,7 @@ type endpointSlice struct {
 	Ports       []*endpointSlicePort      `json:"ports"` // contains all ports like 9999/9911
 }
 
-// ToResourceID returns the same string for a group endpointlisces created for the same svc
+// ToResourceID returns the same string for a group endpointslices created for the same svc
 func (eps *endpointSlice) ToResourceID() definitions.ResourceID {
 	svcName := eps.Meta.Labels[endpointSliceServiceNameLabel]
 	namespace := eps.Meta.Namespace
