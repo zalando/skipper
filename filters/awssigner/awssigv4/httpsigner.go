@@ -144,7 +144,7 @@ func (s *httpSigner) Build() (signedRequest, error) {
 			query[k] = urlValues[k]
 		}
 	}
-	//this is not valid way to extract host as skipper never recieves aws host in req.URL. We should set it explicitly
+	//this is not valid way to extract host as skipper never receives aws host in req.URL. We should set it explicitly
 	/*host := req.URL.Host
 	if len(req.Host) > 0 {
 		host = req.Host
