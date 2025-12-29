@@ -64,7 +64,7 @@ func (d *incomingData) log(l logging.Logger, suppress bool) {
 // whole current set of routes, and continues polling for the subsequent updates. When a
 // communication error occurs, it re-requests the whole valid set, and continues polling.
 // Currently, the routes with the same id coming from different sources are merged in an
-// undeterministic way, but this may change in the future.
+// nondeterministic way, but this may change in the future.
 func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <-chan struct{}) {
 	initial := true
 	var ticker *time.Ticker
