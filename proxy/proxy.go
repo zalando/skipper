@@ -89,8 +89,8 @@ const (
 
 	// PreserveHost indicates whether the outgoing request to the
 	// backend should use by default the 'Host' header of the incoming
-	// request, or the host part of the backend address, in case filters
-	// don't change it.
+	// request, or the host part of the backend address, unless filters
+	// change it.
 	PreserveHost
 
 	// Debug indicates that the current proxy instance will be used as a
