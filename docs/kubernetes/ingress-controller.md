@@ -786,7 +786,7 @@ What does it mean for you?
   APIs with a changed RBAC. See the guide below.
 
 
-If you are in case 4., you have to apply a change in your RBAC, please
+If upgrading from Ingress v1beta1 on a Kubernetes cluster that supports Ingress v1, you have to apply a change in your RBAC, please
 check the diff or the full rendered file.
 
 Diff view (same for deployment and daemonset):
