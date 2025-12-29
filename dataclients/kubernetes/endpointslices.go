@@ -123,7 +123,7 @@ type EndpointSliceEndpoints struct {
 type endpointsliceCondition struct {
 	Ready       *bool `json:"ready"`       // ready endpoint -> put into endpoints unless terminating
 	Serving     *bool `json:"serving"`     // serving endpoint
-	Terminating *bool `json:"terminating"` // termiating pod -> drop out of endpoints
+	Terminating *bool `json:"terminating"` // terminating pod -> drop out of endpoints
 }
 
 type endpointSlicePort struct {
