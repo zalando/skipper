@@ -191,7 +191,7 @@ connections from the network `10.2.0.0/16`, on this specific scenario.
 You can specify multiple east-west range domains and predicates:
 
 ```sh
-skippper \
+skipper \
   -kubernetes-east-west-range-domains="ingress.cluster.local,another.cluster.local"
   -kubernetes-east-west-range-predicates='ClientIP("10.2.0.0/16") && SourceLastFrom("10.2.0.0/16")'
 ```
