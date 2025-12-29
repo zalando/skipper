@@ -176,7 +176,7 @@ func SchemeHost(input string) (string, string, error) {
 		return "", "", fmt.Errorf(`parse %q: missing host`, input)
 	}
 
-	// endpoint address cannot contain path, the rest is not case sensitive
+	// endpoint address cannot contain path, the rest is not case-sensitive
 	s, h := strings.ToLower(u.Scheme), strings.ToLower(u.Host)
 
 	hh, p, err := net.SplitHostPort(h)
