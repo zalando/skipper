@@ -187,7 +187,7 @@ func newSpanExporter(ctx context.Context, o *Options) (trace.SpanExporter, error
 }
 
 // withBatcher registers the exporter with the TracerProvider using
-// environment variables possibly overriden by the provided options.
+// environment variables possibly overridden by the provided options.
 // Reads environment variables:
 //
 //	OTEL_BSP_MAX_QUEUE_SIZE
@@ -212,7 +212,7 @@ func withBatcher(spanExporter trace.SpanExporter, o *Options) trace.TracerProvid
 }
 
 // withResource configures the resource for the TracerProvider using
-// environment variables possibly overriden by the provided options.
+// environment variables possibly overridden by the provided options.
 // Reads environment variable:
 //
 //	OTEL_RESOURCE_ATTRIBUTES
@@ -234,7 +234,7 @@ func withResource(o *Options) (trace.TracerProviderOption, error) {
 }
 
 // textMapPropagator creates a composite TextMapPropagator using
-// environment variable possibly overriden by the provided options.
+// environment variable possibly overridden by the provided options.
 // Reads environment variable:
 //
 //	OTEL_PROPAGATORS
