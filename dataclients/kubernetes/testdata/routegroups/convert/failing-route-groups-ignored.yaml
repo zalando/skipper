@@ -25,12 +25,12 @@ spec:
   hosts:
   - v2.example.org
   backends:
-  - name: non-existent
+  - name: nonexistent
     type: service
-    serviceName: non-existent
+    serviceName: nonexistent
     servicePort: 80
   defaultBackends:
-  - backendName: non-existent
+  - backendName: nonexistent
   routes:
   - path: /app
 ---
