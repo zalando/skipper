@@ -360,7 +360,7 @@ spec:
 
 	countLimited, ok := va.CountStatus(http.StatusTooManyRequests)
 	if !ok || countLimited < countOK {
-		t.Fatalf("count TooMany should be higher than OKs: %d < %d: %v", countLimited, countOK, ok)
+		t.Fatalf("count TooMany should be more than OKs: %d < %d: %v", countLimited, countOK, ok)
 	}
 
 	sigs <- syscall.SIGTERM
