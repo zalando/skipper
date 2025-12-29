@@ -81,7 +81,7 @@ func Test_newClusterRateLimiter(t *testing.T) {
 			gotT := fmt.Sprintf("%T", got)
 			wantT := fmt.Sprintf("%T", tt.want)
 			if gotT != wantT {
-				t.Errorf("Failed to get clusterRatlimiter want %v, got %v", tt.want, got)
+				t.Errorf("Failed to get clusterRatelimiter want %v, got %v", tt.want, got)
 			}
 		})
 	}
