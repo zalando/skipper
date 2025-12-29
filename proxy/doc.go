@@ -124,7 +124,7 @@ When configured, skipper can use circuit breakers for the backend
 requests. It asks the registry for a matching circuit breaker for
 every request, and if there is any, checks if it is closed before
 sending out the backend request. On connection errors and responses
-with a status code higher than 499, it reports a failure to the
+with a status code above 499, it reports a failure to the
 current breaker; otherwise, it reports a success.
 
 For details, see: https://pkg.go.dev/github.com/zalando/skipper/circuit.
