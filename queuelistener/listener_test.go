@@ -1212,7 +1212,7 @@ func TestQueue1(t *testing.T) {
 					defaultInactiveMemoryLimitBytes / defaultInactiveConnectionBytes,
 			},
 			{
-				name:            "test concurreny is ok",
+				name:            "test concurrency is ok",
 				memoryLimit:     10,
 				bytesPerRequest: 5,
 				allow:           10/5 + 10*(10/5), // concurrency + queue size
