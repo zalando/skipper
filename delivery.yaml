@@ -23,7 +23,7 @@ pipeline:
   commands:
   - desc: Setup BuildKit
     cmd: |
-      # create a Buildkit builder with CDP specific configuration (https://cloud.docs.zalando.net/howtos/cdp-multiarch/)
+      # create a BuildKit builder with CDP specific configuration (https://cloud.docs.zalando.net/howtos/cdp-multiarch/)
       docker buildx create --config /etc/cdp-buildkitd.toml --driver-opt network=host --bootstrap --use
   - desc: build-push
     cmd: |
