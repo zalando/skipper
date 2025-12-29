@@ -237,7 +237,7 @@ func TestPHC(t *testing.T) {
 			}
 
 			t.Run("consistentHash", func(t *testing.T) {
-				consistantHashCustomEndpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
+				consistentHashCustomEndpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
 					PassiveHealthCheckEnabled:     true,
 					StatsResetPeriod:              1 * time.Second,
 					MinRequests:                   1, // with 2 test case fails on github actions
@@ -245,7 +245,7 @@ func TestPHC(t *testing.T) {
 					MinHealthCheckDropProbability: 0.01,
 				})
 				mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <consistentHash, %s>`,
-					servicesString), consistantHashCustomEndpointRegistry)
+					servicesString), consistentHashCustomEndpointRegistry)
 				failedReqs := sendGetRequests(t, ps)
 				assert.InDelta(t, 0, failedReqs, 0.2*float64(nRequests))
 				mockMetrics.WithCounters(func(counters map[string]int64) {
@@ -255,7 +255,7 @@ func TestPHC(t *testing.T) {
 			})
 
 			t.Run("consistent hash with balance factor", func(t *testing.T) {
-				consistantHashCustomEndpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
+				consistentHashCustomEndpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
 					PassiveHealthCheckEnabled:     true,
 					StatsResetPeriod:              1 * time.Second,
 					MinRequests:                   1, // with 2 test case fails on github actions
@@ -263,7 +263,7 @@ func TestPHC(t *testing.T) {
 					MinHealthCheckDropProbability: 0.01,
 				})
 				mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, %s>`,
-					servicesString), consistantHashCustomEndpointRegistry)
+					servicesString), consistentHashCustomEndpointRegistry)
 				failedReqs := sendGetRequests(t, ps)
 				assert.InDelta(t, 0, failedReqs, 0.2*float64(nRequests))
 				mockMetrics.WithCounters(func(counters map[string]int64) {
