@@ -363,7 +363,7 @@ zalando.org/skipper-routes: |
 ```
 
 Keep in mind that you need a valid backend definition to backends
-which are available, otherwise Skipper would not accept the entire
+which are available; otherwise, Skipper would not accept the entire
 route definition from the ingress object for safety reasons.
 
 ### CORS example

@@ -427,7 +427,7 @@ func (f Flags) patchPath() bool { return f&PatchPath != 0 }
 // PriorityRoute are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
 type PriorityRoute interface {
-	// If the request is matched, returns a route, otherwise nil.
+	// If the request is matched, returns a route; otherwise, nil.
 	// Additionally it may return a parameter map used by the filters
 	// in the route.
 	Match(*http.Request) (*routing.Route, map[string]string)
