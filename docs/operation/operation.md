@@ -908,7 +908,7 @@ open an issue or pull request in our [repository](https://github.com/zalando/ski
 
 Skipper supports [OpenTelemetry](https://opentelemetry.io/) tracing using [standard environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) and the `-open-telemetry` flag.
 
-To enable and configure OpenTelemtry using environment variables set `-open-telemetry` to an empty YAML object:
+To enable and configure OpenTelemetry using environment variables set `-open-telemetry` to an empty YAML object:
 
 ```sh
 OTEL_TRACES_EXPORTER="otlp" \
