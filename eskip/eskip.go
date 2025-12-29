@@ -201,7 +201,7 @@ func (df *DefaultFilters) Do(routes []*Route) []*Route {
 	return nextRoutes
 }
 
-// BackendType indicates whether a route is a network backend, a shunt or a loopback.
+// BackendType indicates whether a route is a network backend, a shunt, or a loopback.
 type BackendType int
 
 const (
