@@ -176,7 +176,7 @@ root skipper package.
 
 Note, that the naming of predicates and filters follows the following
 convention: both predicates and filters are written in camel case, and
-predicates start with upper case, while filters start with lowercase.
+predicates start with uppercase, while filters start with lowercase.
 
 # Backend
 
