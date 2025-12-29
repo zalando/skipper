@@ -2212,7 +2212,7 @@ This filter reads the body in memory. This is needed to generate signature as pe
 
 
 #### Overwriting io.ReadCloser
-This filter resets `read` and `close` implementations of body to default. So in case a filter before this filter has some custom implementations of thse methods, they would be overwritten.
+This filter resets `read` and `close` implementations of body to default. So in case a filter before this filter has some custom implementations of these methods, they would be overwritten.
 
 
 

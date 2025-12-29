@@ -46,6 +46,6 @@ An example of route with awsSigv4 filter is
 This filter reads the body in memory. This is needed to generate signature as per Signature V4 specs. Special considerations need to be taken when operating the skipper with concurrent requests.
 
 # Overwriting io.ReadCloser
-This filter resets `read` and `close` implementations of body to default. So if a filter before this filter has some custom implementations of thse methods, they would be overwritten.
+This filter resets `read` and `close` implementations of body to default. So if a filter before this filter has some custom implementations of these methods, they would be overwritten.
 */
 package awssigv4
