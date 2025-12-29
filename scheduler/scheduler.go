@@ -328,7 +328,7 @@ func (fq *FifoQueue) Config() Config {
 	return fq.config
 }
 
-// Reconfigure updates the connfiguration of the FifoQueue. It will
+// Reconfigure updates the configuration of the FifoQueue. It will
 // reset the current state.
 func (fq *FifoQueue) Reconfigure(c Config) {
 	fq.config = c
