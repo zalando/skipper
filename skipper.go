@@ -666,7 +666,7 @@ type Options struct {
 	// multiple keys, the order must match the one given in CertPathTLS
 	KeyPathTLS string
 
-	// TLSClientAuth sets the policy the server will follow for
+	// TLSClientAuth sets the policy that the server will follow for
 	// TLS Client Authentication, see [tls.ClientAuthType]
 	TLSClientAuth tls.ClientAuthType
 

@@ -96,7 +96,7 @@ const (
 	// Debug indicates that the current proxy instance will be used as a
 	// debug proxy. Debug proxies don't forward the request to the
 	// route backends, but they execute all filters, and return a
-	// JSON document with the changes the filters make to the request
+	// JSON document with the changes that the filters make to the request
 	// and with the approximate changes they would make to the
 	// response.
 	Debug
