@@ -941,7 +941,7 @@ func TestBodyExtraction(t *testing.T) {
 			bodyInPolicy:   `{ "we`,
 		},
 		{
-			msg:            "Read body exhausing max bytes",
+			msg:            "Read body exhausting max bytes",
 			body:           `{ "welcome": "world" }`,
 			maxBodySize:    5,
 			readBodyBuffer: 5,
@@ -982,7 +982,7 @@ func TestBodyExtraction(t *testing.T) {
 	}
 }
 
-func TestBodyExtractionExhausingTotalBytes(t *testing.T) {
+func TestBodyExtractionExhaustingTotalBytes(t *testing.T) {
 
 	_, config := mockControlPlaneWithResourceBundle()
 
