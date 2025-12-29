@@ -2622,7 +2622,7 @@ Examples:
 // allow each unique Authorization header once in five seconds
 clusterLeakyBucketRatelimit("auth-${request.header.Authorization}", 1, "5s", 2, 1)
 
-// allow 60 requests per hour (each subsequent request allowed not earlied than after 1h/60 = 1m) for all clients
+// allow 60 requests per hour (each subsequent request allowed not earlier than after 1h/60 = 1m) for all clients
 clusterLeakyBucketRatelimit("hourly", 60, "1h", 1, 1)
 
 // allow 10 requests per minute for each unique PHPSESSID cookie with bursts of up to 5 requests
