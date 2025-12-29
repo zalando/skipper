@@ -547,7 +547,7 @@ type Options struct {
 	// If set, the total response handling time take by skipper will be
 	// collected. It measures the duration taken by skipper to process the
 	// response, from after the backend round trip is finished, excluding
-	// the filters processing and until the before the response is served.
+	// the filters processing and until before the response is served.
 	EnableProxyResponseMetrics bool
 
 	// If set, detailed response time metrics will be collected
