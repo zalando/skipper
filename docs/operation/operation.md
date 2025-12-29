@@ -696,7 +696,7 @@ by the default, and exposed among the timers via the following keys:
 - skipper.swarm.redis.query.retryafter.success.<group>: successful allow requests to the rate limiter, grouped
   by the rate limiter group name when used
 - skipper.swarm.redis.query.retryafter.failure.<group>: failed allow requests to the rate limiter, ungrouped,
-  where the redis communication faileds, grouped by the rate limiter group name when used
+  where the redis communication failed, grouped by the rate limiter group name when used
 
 See more details about rate limiting at [Rate limiting](../reference/filters.md#clusterclientratelimit).
 
