@@ -1060,7 +1060,7 @@ func TestHeaderMatchCaseInsensitive(t *testing.T) {
 
 	r, _ := m.match(&http.Request{URL: &url.URL{}, Header: http.Header{"Some-Header": []string{"some-value"}}})
 	if r == nil {
-		t.Error("failed to match header, case insensitive")
+		t.Error("failed to match header, case-insensitive")
 	}
 }
 
