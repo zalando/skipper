@@ -43,7 +43,7 @@ type redirect struct {
 // Name: "redirect".
 //
 // This filter is deprecated, use RedirectTo instead.
-// This *DEPRECATED* filter can not be used with filters from scheduler package.
+// This *DEPRECATED* filter cannot be used with filters from scheduler package.
 func NewRedirect() filters.Spec { return &redirect{typ: redDeprecated} }
 
 // NewRedirectTo returns a new filter Spec, whose instances create an HTTP redirect

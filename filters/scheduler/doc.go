@@ -31,6 +31,6 @@
 // Bounded schedulers will respond to requests with server status error
 // codes in case of overrun. The scheduler returns HTTP status code:
 //
-//   - 502, if it can not get a request from data structure fast enough
+//   - 502, if it cannot get a request from data structure fast enough
 //   - 503, if the data structure is full and reached its boundary
 package scheduler

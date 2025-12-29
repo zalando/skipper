@@ -126,7 +126,7 @@ reliable and secure. Employees cannot download private keys and certificates are
 by a public CA. Many mTLS setups rely on insecure CA handling and are hard to debug in case of
  failure.
 - We are happy to receive issues and pull requests in our repository, but if you need a feature
-which can not be implemented upstream, you are also free to use skipper as a library and
+which cannot be implemented upstream, you are also free to use skipper as a library and
 create internal features to do whatever you want.
 
 With Skipper you do not need to choose to go all-in and you are able to add features as soon
@@ -391,7 +391,7 @@ exposing the TCP port 9999 on each worker nodes, which has a running
 skipper-ingress instance, a backend application running with 2
 replicas that serves some html on TCP port 9090, and we expose a
 cluster service on TCP port 80. Besides skipper-ingress, deployment
-and service can not be reached from outside the cluster. Now we expose
+and service cannot be reached from outside the cluster. Now we expose
 the application with Ingress to the external network:
 
 ```yaml

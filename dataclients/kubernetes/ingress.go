@@ -278,7 +278,7 @@ func annotationFilter(m *definitions.Metadata, logger *logger) []*eskip.Filter {
 		if err == nil {
 			return annotationFilters
 		}
-		logger.Errorf("Can not parse annotation filters: %v", err)
+		logger.Errorf("Cannot parse annotation filters: %v", err)
 	}
 	return nil
 }

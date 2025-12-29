@@ -184,7 +184,7 @@ func (c *clusterLimitRedis) allow(ctx context.Context, clearText string) (bool, 
 	return true, nil
 }
 
-// Close can not decide to teardown redis ring, because it is not the
+// Close cannot decide to teardown redis ring, because it is not the
 // owner of it.
 func (c *clusterLimitRedis) Close() {}
 

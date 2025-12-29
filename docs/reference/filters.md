@@ -330,7 +330,7 @@ PathSubtree("/") && Method("OPTIONS")
 ### encodeRequestHeader
 
 The filter has 2 arguments, the header name and the encoding.
-If the encoding can not be changed we set the header value to empty string.
+If the encoding cannot be changed we set the header value to empty string.
 Supported encodings are listed in https://pkg.go.dev/golang.org/x/text/encoding/charmap .
 
 Example:
@@ -341,7 +341,7 @@ encodeRequestHeader("X-Foo", "Windows1252")
 ### encodeResponseHeader
 
 The filter has 2 arguments, the header name and the encoding.
-If the encoding can not be changed we set the header value to empty string.
+If the encoding cannot be changed we set the header value to empty string.
 Supported encodings are listed in https://pkg.go.dev/golang.org/x/text/encoding/charmap .
 
 Example:
@@ -2523,7 +2523,7 @@ bar: Path("/bar")
 ```
 Configures rate limit of 40 requests per second for each `backend1` and `backend2`
 for the `/foo` requests and 80 requests per second for the `/bar` requests by using different group name per path.
-The total request rate each backend receives can not exceed `40+80=120` requests per second.
+The total request rate each backend receives cannot exceed `40+80=120` requests per second.
 
 ```
 foo: Path("/baz")

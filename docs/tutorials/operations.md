@@ -52,7 +52,7 @@ as regular expression, which is not what most people would expect, nor
 want. Skipper defaults in Kubernetes to use the [PathRegexp predicate](../reference/predicates.md#pathregexp)
 for routing, because of the spec. We believe the better default is the
 path prefix mode, that uses [PathSubtree predicate](../reference/predicates.md#pathsubtree),
-instead. Path prefix search is much more scalable and can not lead to
+instead. Path prefix search is much more scalable and cannot lead to
 unexpected results by not so experienced regular expressions users.
 Since Kubernetes v1.18, [Ingress v1 path definition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#httpingresspath-v1-networking-k8s-io)
 supports all path matching modes that are common in skipper:
@@ -233,7 +233,7 @@ repository](https://github.com/zalando-incubator/kubernetes-on-aws/tree/beta/clu
 ### Recommendations
 
 We recommend to run a loadbalancer in front of Skipper to terminate
-TLS, such that cluster users can not access your keys and
+TLS, such that cluster users cannot access your keys and
 certificates. While skipper supports SNI, hardware and cloud
 loadbalancers often have hardware support to terminate TLS. It's
 cheaper for you to offload TLS to these devices and trust your compute
