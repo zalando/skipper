@@ -62,7 +62,7 @@ func NewWithGenerator(g Generator) *flowIdSpec {
 	return &flowIdSpec{generator: g}
 }
 
-// Request will inspect the current Request for the presence of an X-Flow-Id header which will be kept in case the
+// Request will inspect the current Request for the presence of an X-Flow-Id header which will be kept if the
 // "reuse" flag has been set. In any other case it will set the same header with the value returned from the
 // defined Flow ID Generator
 func (f *flowId) Request(fc filters.FilterContext) {

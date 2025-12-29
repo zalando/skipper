@@ -2386,7 +2386,7 @@ Parameters:
 
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
-* optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string)
+* optional parameter to set the same client by header, if the provided string contains `,`, it will combine all these headers (string)
 
 ```
 clientRatelimit(3, "1m")
@@ -2436,7 +2436,7 @@ Parameters:
 * rate limit group (string)
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
-* optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string)
+* optional parameter to set the same client by header, if the provided string contains `,`, it will combine all these headers (string)
 
 ```
 clusterClientRatelimit("groupA", 10, "1h")

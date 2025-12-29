@@ -87,7 +87,7 @@ type FilterContext interface {
 	StateBag() map[string]interface{}
 
 	// Gives filters access to the backend url specified in the route or an empty
-	// value in case it's a shunt, loopback. In case of dynamic backend is empty.
+	// value if it's a shunt, loopback. In case of dynamic backend is empty.
 	BackendUrl() string
 
 	// Returns the host that will be set for the outgoing proxy request as the

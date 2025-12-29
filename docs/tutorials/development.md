@@ -142,8 +142,8 @@ Find a detailed example at [how to develop a filter](../reference/development.md
 Sometimes your filter needs to cleanup resources on shutdown. In Go
 functions that do this have often the name `Close()`.
 There is the `filters.FilterCloser` interface and if you comply with
-it, the routing.Route will make sure your filters are closed in case
-of `routing.Routing` was closed.
+it, the routing.Route will make sure your filters are closed if
+`routing.Routing` was closed.
 
 ```go
 type myFilter struct{}
@@ -184,7 +184,7 @@ In this case you need to comply with the following proxy interface:
 // errorHandlerFilter is an opt-in for filters to get called
 // Response(ctx) in case of errors.
 type errorHandlerFilter interface {
-	// HandleErrorResponse returns true in case a filter wants to get called
+	// HandleErrorResponse returns true if a filter wants to get called
 	HandleErrorResponse() bool
 }
 ```
