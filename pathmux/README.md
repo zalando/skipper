@@ -29,7 +29,7 @@ Pathmux is 'go get compatible'. The master head is always stable (at least by in
 
 ### Documentation
 
-You can find detailed package documentation [here](https://pkg.go.dev/github.com/zalando/pathmux).
+See the [pathmux package documentation](https://pkg.go.dev/github.com/zalando/pathmux).
 
 ### Working with the Code
 
