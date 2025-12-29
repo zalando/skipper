@@ -254,7 +254,7 @@ func TestMatchBetween(t *testing.T) {
 			true,
 		},
 		{
-			"time equals to begin value",
+			"time is equal to begin value",
 			[]interface{}{"2016-01-01T12:00:00Z", "2016-02-01T12:00:00Z"},
 			func() time.Time {
 				return time.Date(2016, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -262,7 +262,7 @@ func TestMatchBetween(t *testing.T) {
 			true,
 		},
 		{
-			"time equals to end value",
+			"time is equal to end value",
 			[]interface{}{"2016-01-01T12:00:00Z", "2016-02-01T12:00:00Z"},
 			func() time.Time {
 				return time.Date(2016, 2, 1, 12, 0, 0, 0, time.UTC)
@@ -360,7 +360,7 @@ func TestMatchBefore(t *testing.T) {
 			true,
 		},
 		{
-			"time equals to boundary value",
+			"time is equal to boundary value",
 			[]interface{}{"2016-01-01T12:00:00Z"},
 			func() time.Time {
 				return time.Date(2016, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -428,7 +428,7 @@ func TestMatchAfter(t *testing.T) {
 			false,
 		},
 		{
-			"time equals to boundary value",
+			"time is equal to boundary value",
 			[]interface{}{"2016-01-01T12:00:00Z"},
 			func() time.Time {
 				return time.Date(2016, 1, 1, 12, 0, 0, 0, time.UTC)
