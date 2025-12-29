@@ -702,7 +702,7 @@ filters](../reference/filters.md#rate-limit) section and in our
 #### Client Ratelimits
 
 The example shows 20 calls per hour per client, based on
-X-Forwarded-For header or IP in case there is no X-Forwarded-For header
+X-Forwarded-For header or IP when there is no X-Forwarded-For header
 set, are allowed to each Skipper instance for the given ingress.
 
 ```yaml

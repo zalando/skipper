@@ -2042,7 +2042,7 @@ opaAuthorizeRequest("my-app-id", "com.mydomain.xxx.myprop: myvalue")
 
 *Data Flows*
 
-The data flow in case the policy allows the request looks like this
+The data flow when the policy allows the request looks like this
 
 ```ascii
              ┌──────────────────┐               ┌────────────────────┐
@@ -2068,7 +2068,7 @@ The data flow in case the policy allows the request looks like this
 
 In Step (2) the http request is transformed into an input object following the [Envoy structure](https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/auth/v3/external_auth.proto#service-auth-v3-checkrequest) that is also used by the OPA Envoy plugin. In (3) the decision of the policy is evaluated. If it is equivalent to an "allow", the remaining steps are executed as without the filter.
 
-The data flow in case the policy disallows the request looks like this
+The data flow when the policy disallows the request looks like this
 
 ```ascii
              ┌──────────────────┐               ┌────────────────────┐
@@ -2212,7 +2212,7 @@ This filter reads the body in memory. This is needed to generate signature as pe
 
 
 #### Overwriting io.ReadCloser
-This filter resets `read` and `close` implementations of body to default. So in case a filter before this filter has some custom implementations of these methods, they would be overwritten.
+This filter resets `read` and `close` implementations of body to default. So when a filter before this filter has some custom implementations of these methods, they would be overwritten.
 
 
 
@@ -3475,7 +3475,7 @@ In particular, [template placeholders](#template-placeholders) referencing the r
 This filter works like [tracingTagFromResponse](#tracingtagfromresponse)
 but only for responses having status code from the specified range.
 
-Example: set error tag to true in case response status code is `>= 500` and `<= 599`:
+Example: set error tag to true when response status code is `>= 500` and `<= 599`:
 
 ```
 tracingTagFromResponseIfStatus("error", "true", 500, 599)

@@ -558,7 +558,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.EnableAdvancedValidation, "enable-advanced-validation", false, "enables advanced validation logic for Kubernetes resources")
 
 	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", "file storing the encryption key of the OID Connect token. Enables OIDC filters")
-	flag.DurationVar(&cfg.OIDCCookieValidity, "oidc-cookie-validity", time.Hour, "sets the cookie expiry time to +1h for OIDC filters, in case no 'exp' claim is found in the JWT token")
+	flag.DurationVar(&cfg.OIDCCookieValidity, "oidc-cookie-validity", time.Hour, "sets the cookie expiry time to +1h for OIDC filters, when no 'exp' claim is found in the JWT token")
 	flag.DurationVar(&cfg.OidcDistributedClaimsTimeout, "oidc-distributed-claims-timeout", 2*time.Second, "sets the default OIDC distributed claims request timeout duration to 2000ms")
 	flag.IntVar(&cfg.OIDCCookieRemoveSubdomains, "oidc-cookie-remove-subdomains", 1, "sets the number of subdomains to remove from the callback request hostname to obtain token cookie domain")
 	flag.Var(cfg.CredentialPaths, "credentials-paths", "directories or files to watch for credentials to use by bearerinjector filter")

@@ -66,7 +66,7 @@ proxy itself. This can be used to shortcut, for example have a default
 that replies with 404 or use skipper as a backend serving static
 content in demos.
 
-Route Example proxying to `"https://www.zalando.de/"` in case Host
+Route Example proxying to `"https://www.zalando.de/"` when Host
 header is set to `"zalando"` and rest will be served HTTP status code
 `404` with the body `"no matching route"`:
 

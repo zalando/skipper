@@ -131,7 +131,7 @@ func ParseCIDRs(cidrs []string) (nets IPNets, err error) {
 	return nets, nil
 }
 
-// ParseIPCIDRs returns a valid IPSet in case there is no parsing
+// ParseIPCIDRs returns a valid IPSet when there is no parsing
 // error.
 func ParseIPCIDRs(cidrs []string) (*netipx.IPSet, error) {
 	var b netipx.IPSetBuilder

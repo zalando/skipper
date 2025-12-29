@@ -158,7 +158,7 @@ API to bypass kube-proxy created iptables to remove overhead like
 conntrack entries for iptables DNAT. Skipper can also reuse
 connections to Pods, such that you have no overhead in establishing
 connections all the time. To prevent errors on node failures, Skipper
-also does automatic retries to another endpoint in case it gets a
+also does automatic retries to another endpoint when it gets a
 connection refused or TLS handshake error to the endpoint.  Other
 reasons are future support of features like session affinity,
 different load balancer algorithms or distributed loadbalancing also
