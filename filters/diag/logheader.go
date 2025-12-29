@@ -15,7 +15,7 @@ type logHeader struct {
 // NewLogHeader creates a filter specification for the 'logHeader()' filter.
 func NewLogHeader() filters.Spec { return logHeader{} }
 
-// Name returns the logHeader filtern name.
+// Name returns the logHeader filter name.
 func (logHeader) Name() string {
 	return filters.LogHeaderName
 }
