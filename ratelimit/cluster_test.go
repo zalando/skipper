@@ -77,7 +77,7 @@ func Test_newClusterRateLimiter(t *testing.T) {
 			got := newClusterRateLimiter(tt.settings, tt.swarm, tt.ring, tt.group)
 			defer got.Close()
 
-			// internals in swim are created and won't be equal with reflect.Deepequal
+			// internals in swim are created and won't be equal according to reflect.Deepequal
 			gotT := fmt.Sprintf("%T", got)
 			wantT := fmt.Sprintf("%T", tt.want)
 			if gotT != wantT {
