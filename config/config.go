@@ -1166,7 +1166,7 @@ func (c *Config) getMinTLSVersion() uint16 {
 	if v, ok := tlsVersionTable[c.TLSMinVersion]; ok {
 		return v
 	}
-	log.Infof("No valid minimal TLS version confiured (set to '%s'), fallback to default: %s", c.TLSMinVersion, defaultMinTLSVersion)
+	log.Infof("No valid minimal TLS version configured (set to '%s'), fallback to default: %s", c.TLSMinVersion, defaultMinTLSVersion)
 	return tlsVersionTable[defaultMinTLSVersion]
 }
 
