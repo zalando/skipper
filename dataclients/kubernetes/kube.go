@@ -255,7 +255,7 @@ type Options struct {
 	// available options: roundRobin, consistentHash, random, powerOfRandomNChoices
 	DefaultLoadBalancerAlgorithm string
 
-	// ForwardBackendURL allows to use <forward> backend via kubernetes, for example routgroup backend `type: forward`.
+	// ForwardBackendURL allows to use <forward> backend via kubernetes, for example routegroup backend `type: forward`.
 	ForwardBackendURL string
 }
 
