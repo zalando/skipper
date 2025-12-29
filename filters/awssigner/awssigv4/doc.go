@@ -22,7 +22,7 @@ An example of route with awsSigv4 filter is
 			with pre-signed requests preventing headers from being added to the request's query string.
 
 		- DisableURIPathEscaping
-			Disables the automatic escaping of the URI path of the request for the siganture's canonical string's path. For services that do not need additional
+			Disables the automatic escaping of the URI path of the request for the signature's canonical string's path. For services that do not need additional
 			escaping then use this to disable the signer escaping the path. S3 is an example of a service that does not need additional escaping.
 			http://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
 

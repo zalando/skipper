@@ -354,7 +354,7 @@ type SignerOptions struct {
 	DisableHeaderHoisting bool
 
 	// Disables the automatic escaping of the URI path of the request for the
-	// siganture's canonical string's path. For services that do not need additional
+	// signature's canonical string's path. For services that do not need additional
 	// escaping then use this to disable the signer escaping the path.
 	//
 	// S3 is an example of a service that does not need additional escaping.
