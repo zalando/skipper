@@ -227,7 +227,7 @@ load balancer virtual IP.
 
 ## RouteSRV
 
-In kubernetes skipper-ingress fetches ingress/routegroup configurations every **3s**, with high number of skipper pods *~100* we faced issues with kube-apiserver. At which we introduced RouteSRV, which will serve as a layer between kube-apiserver and skipper ingress, so it will give us more flexiability in scaling skipper-ingress without affecting k8s-apiserver
+In kubernetes skipper-ingress fetches ingress/routegroup configurations every **3s**, with high number of skipper pods *~100* we faced issues with kube-apiserver. At which we introduced RouteSRV, which will serve as a layer between kube-apiserver and skipper ingress, so it will give us more flexibility in scaling skipper-ingress without affecting k8s-apiserver
 
 ### Kubernetes dataclient as routes source
 
