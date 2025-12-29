@@ -1157,8 +1157,8 @@ The parameters of `-passive-health-check` option are:
 
 + `period=<duration>` - the duration of stats reset period
 + `min-requests=<int>` - the minimum number of requests per `period` per backend endpoint required to activate PHC for this endpoint
-+ `min-drop-probabilty=[0.0 <= p < max-drop-probability)` - the minimum possible probability of unhealthy endpoint being not considered while choosing the endpoint for the given request. The same value is in fact used as minimal failed requests ratio for PHC to be enabled for this endpoint
-+ `max-drop-probabilty=(min-drop-probability < p <= 1.0]` - the maximum possible probability of unhealthy endpoint being not considered
++ `min-drop-probability=[0.0 <= p < max-drop-probability)` - the minimum possible probability of unhealthy endpoint being not considered while choosing the endpoint for the given request. The same value is in fact used as minimal failed requests ratio for PHC to be enabled for this endpoint
++ `max-drop-probability=(min-drop-probability < p <= 1.0]` - the maximum possible probability of unhealthy endpoint being not considered
 while choosing the endpoint for the given request
 + `max-unhealthy-endpoints-ratio=[0.0 <= r <= 1.0]` - the maximum ratio of unhealthy endpoints for PHC to try to mitigate ongoing requests
 
