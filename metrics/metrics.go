@@ -14,7 +14,7 @@ const (
 	defaultMetricsPath = "/metrics"
 )
 
-// Kind is the type a metrics expose backend can be.
+// Kind is the type that a metrics expose backend can be.
 type Kind int
 
 const (
