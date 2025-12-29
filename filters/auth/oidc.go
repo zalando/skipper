@@ -536,7 +536,7 @@ func mergerCookies(cookies []*http.Cookie) *http.Cookie {
 	cookie := *(cookies[0])
 	cookie.Name = cookie.Name[:len(cookie.Name)-1]
 	cookie.Value = ""
-	// potentially shuffeled
+	// potentially shuffled
 	sort.Slice(cookies, func(i, j int) bool {
 		return cookies[i].Name < cookies[j].Name
 	})
