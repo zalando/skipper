@@ -78,7 +78,7 @@ func setupProxy(t *testing.T, doc string) (*metricstest.MockMetrics, *httptest.S
 	return m, setupProxyWithCustomProxyParams(t, doc, proxyParams)
 }
 
-func setupProxyWithCustomEndpointRegisty(t *testing.T, doc string, endpointRegistry *routing.EndpointRegistry) (*metricstest.MockMetrics, *httptest.Server) {
+func setupProxyWithCustomEndpointRegistry(t *testing.T, doc string, endpointRegistry *routing.EndpointRegistry) (*metricstest.MockMetrics, *httptest.Server) {
 	t.Helper()
 	m := &metricstest.MockMetrics{}
 	proxyParams := Params{
@@ -244,7 +244,7 @@ func TestPHC(t *testing.T) {
 					MaxHealthCheckDropProbability: 0.95,
 					MinHealthCheckDropProbability: 0.01,
 				})
-				mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <consistentHash, %s>`,
+				mockMetrics, ps := setupProxyWithCustomEndpointRegistry(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <consistentHash, %s>`,
 					servicesString), consistentHashCustomEndpointRegistry)
 				failedReqs := sendGetRequests(t, ps)
 				assert.InDelta(t, 0, failedReqs, 0.2*float64(nRequests))
@@ -262,7 +262,7 @@ func TestPHC(t *testing.T) {
 					MaxHealthCheckDropProbability: 0.95,
 					MinHealthCheckDropProbability: 0.01,
 				})
-				mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, %s>`,
+				mockMetrics, ps := setupProxyWithCustomEndpointRegistry(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, %s>`,
 					servicesString), consistentHashCustomEndpointRegistry)
 				failedReqs := sendGetRequests(t, ps)
 				assert.InDelta(t, 0, failedReqs, 0.2*float64(nRequests))
