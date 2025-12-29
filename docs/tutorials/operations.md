@@ -67,8 +67,8 @@ section](../operation/operation.md#monitoring).
 The settings shown above support system and application metrics to
 carefully monitor Skipper and your backend applications. Backend
 application metrics get error rates and latency buckets based on host
-headers. The chosen options are a good setup to safely run all
-workloads from small to high traffic.
+headers. The chosen options should safely run all workloads from small
+to high traffic.
 
 The option `-max-audit-body=0`, won't log the HTTP body, if you would
 do audit logging, to have a safe default.
