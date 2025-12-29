@@ -1515,7 +1515,7 @@ func findKubernetesDataclient(dataClients []routing.DataClient) *kubernetes.Clie
 func getKubernetesRedisAddrUpdater(opts *Options, kdc *kubernetes.Client, loaded bool) func() ([]string, error) {
 	if loaded {
 		// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
-		// has polled the data once or kdc.GetEndpointAdresses should be blocking
+		// has polled the data once or kdc.GetEndpointAddresses should be blocking
 		// call to kubernetes API
 		return func() ([]string, error) {
 			a := kdc.GetEndpointAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
