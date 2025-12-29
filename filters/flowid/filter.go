@@ -37,7 +37,7 @@ type flowId struct {
 
 // NewFlowId creates a new standard generator with the defined length and returns a Flow ID.
 //
-// Deprecated: For backward compatibility this exported function is still available but will removed in upcoming
+// Deprecated: For backward compatibility this exported function is still available but will be removed in upcoming
 // releases. Use the new Generator interface and respective implementations
 func NewFlowId(l int) (string, error) {
 	g, err := NewStandardGenerator(l)
