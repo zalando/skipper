@@ -18,7 +18,7 @@ Cloud load balancers scale well and can be updated frequently, but do not
 provide many features. Skipper has advanced resiliency and deployment
 features, which you can use to enhance your environment. For example,
 ratelimiters, circuitbreakers, blue-green deployments, shadow traffic
-and [more](ingress-usage.md).
+and more -- see [Skipper Ingress Usage](ingress-usage.md).
 
 ### Comparison with other Ingress Controllers
 
