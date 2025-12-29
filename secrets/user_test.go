@@ -43,12 +43,12 @@ func TestCreateNonce(t *testing.T) {
 
 	b, err := enc.CreateNonce()
 	if err != nil {
-		t.Fatalf("Failed to create create nonce: %v", err)
+		t.Fatalf("Failed to create nonce: %v", err)
 	}
 
 	b1, err := enc.CreateNonce()
 	if err != nil {
-		t.Fatalf("Failed to create create nonce: %v", err)
+		t.Fatalf("Failed to create nonce: %v", err)
 	}
 
 	if reflect.DeepEqual(b, b1) {
