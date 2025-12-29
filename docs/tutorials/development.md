@@ -291,7 +291,7 @@ and ask for further guidance in our [community channels](https://github.com/zala
 ## Core
 
 Non trivial changes, proposals and enhancements to the core of skipper
-should be discussed first in a Github issue, such that we can think
+should be discussed first in a GitHub issue, such that we can think
 about how this fits best in the project and how to achieve the most
 useful result. Feel also free to reach out to our [community
 channels](https://github.com/zalando/skipper#community) and discuss

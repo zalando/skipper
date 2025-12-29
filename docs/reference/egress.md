@@ -1,7 +1,7 @@
 # Egress Proxy
 
 **Disclaimer**: Egress features are probably not feature
-complete. Please create [Github Issues](https://github.com/zalando/skipper/issues)
+complete. Please create [GitHub Issues](https://github.com/zalando/skipper/issues)
 to show your ideas about this topic.
 
 The picture below shows an authentication use case with Bearer token

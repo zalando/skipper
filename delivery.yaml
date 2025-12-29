@@ -81,7 +81,7 @@ pipeline:
         echo -e "### Changes\n" >$tf
         git log -1 --pretty=%B | grep -v -F 'Signed-off-by:' | grep -v -F 'Co-authored-by:' >>$tf
         echo -e "\n### Multiarch Docker image\n" >>$tf
-        echo -e "Multiarch Docker image is available in Github's docker registry:\n" >>$tf
+        echo -e "Multiarch Docker image is available in GitHub's docker registry:\n" >>$tf
         echo -e '```' >>$tf
         echo -e "docker run -it ghcr.io/zalando/skipper:${RELEASE_VERSION} skipper --help" >>$tf
         echo -e '```' >>$tf
