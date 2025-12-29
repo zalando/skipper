@@ -46,7 +46,7 @@ googleWildcardMatch:
         -> setPath("/search")
         -> setQuery("q", "godoc skipper")
         -> "https://www.google.com";
-yandexWildacardIfCookie:
+yandexWildcardIfCookie:
         * && Cookie("yandex", "true")
         -> setPath("/search/")
         -> setQuery("text", "godoc skipper")
