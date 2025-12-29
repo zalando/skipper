@@ -1207,7 +1207,7 @@ func TestQueue1(t *testing.T) {
 		},
 		/*
 			{
-				name:        "test fallback to defaults if memoryLimit is not set",
+				name:        "test falling back to defaults if memoryLimit is not set",
 				allow:       defaultActiveMemoryLimitBytes / defaultActiveConnectionBytes +
 					defaultInactiveMemoryLimitBytes / defaultInactiveConnectionBytes,
 			},
