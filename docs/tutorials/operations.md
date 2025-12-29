@@ -48,7 +48,7 @@ better HTTP path routing than the default Kubernetes Ingress spec
 supports.
 
 The former Kubernetes Ingress v1beta1 spec defined a path
-as regular expression, which is not what most people would expect, nor
+as regular expression, which is neither what most people would expect, nor
 want. Skipper defaults in Kubernetes to use the [PathRegexp predicate](../reference/predicates.md#pathregexp)
 for routing, because of the spec. We believe the better default is the
 path prefix mode, that uses [PathSubtree predicate](../reference/predicates.md#pathsubtree),
