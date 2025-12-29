@@ -186,7 +186,7 @@ type Options struct {
 
 	// KubernetesHealthcheck, when Kubernetes ingress is set, indicates
 	// whether an automatic healthcheck route should be generated. The
-	// generated route will report healthyness when the Kubernetes API
+	// generated route will report healthiness when the Kubernetes API
 	// calls are successful. The healthcheck endpoint is accessible from
 	// internal IPs, with the path /kube-system/healthz.
 	KubernetesHealthcheck bool
