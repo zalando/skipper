@@ -136,7 +136,7 @@ func (f *awsSigV4Filter) Request(ctx filters.FilterContext) {
 
 	hashedBody, body, err := hashRequest(ctx, req.Body)
 	if err != nil {
-		logger.Log(log.ErrorLevel, fmt.Sprintf("error occured while hashing the body %s", err.Error()))
+		logger.Log(log.ErrorLevel, fmt.Sprintf("error occurred while hashing the body %s", err.Error()))
 		return
 	}
 	creds := internal.Credentials{
