@@ -9,7 +9,7 @@ const endpointSliceServiceNameLabel = "kubernetes.io/service-name"
 // There are [1..N] Kubernetes endpointslices created for a single Kubernetes service.
 // Kubernetes endpointslices of a given service can have duplicates with different states.
 // Therefore Kubernetes endpointslices need to be de-duplicated before usage.
-// The business object skipperEndpointSlice is a de-duplicated endpoint list that concats all endpointslices of a given service into one slice of skipperEndpointSlice.
+// The business object skipperEndpointSlice is a de-duplicated endpoint list that concatenates all endpointslices of a given service into one slice of skipperEndpointSlice.
 type skipperEndpointSlice struct {
 	Meta      *definitions.Metadata
 	Endpoints []*skipperEndpoint
