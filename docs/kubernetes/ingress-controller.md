@@ -782,7 +782,7 @@ What does it mean for you?
   does not support ingress v1, then you can't update skipper to
   `>=0.14.0`, before you upgrade your Kubernetes cluster.
 4. If you use Ingress v1beta1 and run Kubernetes cluster version that
-  support ingress v1, then you need to allow skipper to access the new
+  supports ingress v1, then you need to allow skipper to access the new
   APIs with a changed RBAC. See the guide below.
 
 
