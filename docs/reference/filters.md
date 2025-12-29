@@ -2180,7 +2180,7 @@ This filter signs request using [AWS Sig V4](https://docs.aws.amazon.com/AmazonS
 - `x-amz-time` header must contain the time in RFC3339 format which this filter can use to generate signature and `X-Amz-Date` header on signed request. This time stamp is considered as the time stamp of generated signature.
 - `x-amz-session` must contain valid AWS session token ([see](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_use-resources.html#using-temp-creds-sdk)) to be set as `X-Amz-Security-Token` in signed request when `DisableSessionToken` parameter defined on route is set to false.
 
-Filter removes these headers after reading the values. Once the signature is generated, it is appended to existing Authorization header or if there is no exisiting Authorization header, added as new and forwarded to AWS service.
+Filter removes these headers after reading the values. Once the signature is generated, it is appended to existing Authorization header or if there is no Authorization header, added as new and forwarded to AWS service.
 
 awsSigv4 filter can be defined on a route as `awsSigv4("<service>, "<region>", <DisableHeaderHoisting>, <DisableURIPathEscaping>, <DisableSessionToken>)`
 
