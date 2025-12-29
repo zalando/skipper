@@ -593,7 +593,7 @@ func TestQueue(t *testing.T) {
 
 			conn := <-tl.conns
 			if err := waitFor(func() bool { return conn.isClosed() }); err != nil {
-				t.Error("failed to close timeouted connection", err)
+				t.Error("failed to close timed-out connection", err)
 			}
 		})
 
@@ -616,7 +616,7 @@ func TestQueue(t *testing.T) {
 				select {
 				case <-time.After(3 * time.Millisecond):
 				case <-to:
-					t.Error("failed to close timeouted connection")
+					t.Error("failed to close timed-out connection")
 					return
 				}
 			}
