@@ -264,7 +264,7 @@ These metrics are exposed in /metrics, the example json structure looks like thi
 The proxy metrics can also be fetched in more detail, i.e., splits the proxy total metrics to get the proxy request metrics and proxy response metrics. The Proxy Request Metrics provides the duration / time taken from the start of ServeHTTP till the backend round trip. The Proxy Response Metrics provides the duration / time taken from after the backend round trip till the response is served.
 
     -proxy-request-metrics
-        enbales the collection proxy request metrics
+        enables the collection proxy request metrics
     -proxy-response-metrics
         enables the collection proxy response metrics
 
