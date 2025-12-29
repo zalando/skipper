@@ -623,7 +623,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.ExpectContinueTimeoutBackend, "expect-continue-timeout-backend", 30*time.Second, "sets the HTTP expect continue timeout for backend connections")
 	flag.IntVar(&cfg.MaxIdleConnsBackend, "max-idle-connection-backend", 0, "sets the maximum idle connections for all backend connections")
 	flag.BoolVar(&cfg.DisableHTTPKeepalives, "disable-http-keepalives", false, "forces backend to always create a new connection")
-	flag.BoolVar(&cfg.KubernetesEnableTLS, "kubernetes-enable-tls", false, "enable using kubnernetes resources to terminate tls")
+	flag.BoolVar(&cfg.KubernetesEnableTLS, "kubernetes-enable-tls", false, "enable using kubernetes resources to terminate tls")
 
 	// Swarm:
 	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, "enable swarm communication between nodes in a skipper fleet")
