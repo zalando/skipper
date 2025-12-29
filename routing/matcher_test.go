@@ -89,7 +89,7 @@ var (
 	testMatcher4 *matcher
 
 	// flag indicating if the test routes and matcher were already initialized
-	benchmarkMatchersInitialzed bool
+	benchmarkMatchersInitialized bool
 
 	// a matcher with a generic set of routes
 	testMatcherGeneric *matcher
@@ -216,7 +216,7 @@ func generateRequests(paths []string) ([]*http.Request, error) {
 func initRandomPaths() {
 	const count = benchmarkingCountPhase4
 
-	if benchmarkMatchersInitialzed {
+	if benchmarkMatchersInitialized {
 		return
 	}
 
@@ -266,7 +266,7 @@ func initRandomPaths() {
 	testMatcher3 = mkmatcher(randomPaths[0:benchmarkingCountPhase3], randomRoutes[0:benchmarkingCountPhase3])
 	testMatcher4 = mkmatcher(randomPaths[0:benchmarkingCountPhase4], randomRoutes[0:benchmarkingCountPhase4])
 
-	benchmarkMatchersInitialzed = true
+	benchmarkMatchersInitialized = true
 }
 
 func initBenchmark(b *testing.B, init func()) {
