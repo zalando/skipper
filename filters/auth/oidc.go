@@ -325,7 +325,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		for _, header := range strings.Split(sargs[paramUpstrHeaders], " ") {
 			k, v, found := strings.Cut(header, ":")
 			if !found || k == "" || v == "" {
-				return nil, fmt.Errorf("%w: malformatted filter for upstream headers %s", filters.ErrInvalidFilterParameters, header)
+				return nil, fmt.Errorf("%w: malformed filter for upstream headers %s", filters.ErrInvalidFilterParameters, header)
 			}
 			f.upstreamHeaders[k] = v
 		}
