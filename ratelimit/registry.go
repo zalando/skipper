@@ -98,7 +98,7 @@ func (r *Registry) Get(s Settings) *Ratelimit {
 }
 
 // Check returns Settings used and the retry-after duration in case of
-// request is ratelimitted. Otherwise, return the Settings and 0. It is
+// request is ratelimited. Otherwise, return the Settings and 0. It is
 // only used in the global ratelimit facility.
 func (r *Registry) Check(req *http.Request) (Settings, int) {
 	if r == nil {
