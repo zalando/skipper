@@ -59,7 +59,7 @@ func (d *incomingData) log(l logging.Logger, suppress bool) {
 	}
 }
 
-// continuously receives route definitions from a data client on the the output channel.
+// continuously receives route definitions from a data client on the output channel.
 // The function does not return unless quit is closed. When started, it request for the
 // whole current set of routes, and continues polling for the subsequent updates. When a
 // communication error occurs, it re-requests the whole valid set, and continues polling.

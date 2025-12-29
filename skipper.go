@@ -269,7 +269,7 @@ type Options struct {
 	// *DEPRECATED* KubernetesEastWestDomain sets the cluster internal domain used to create additional routes in skipper, defaults to skipper.cluster.local
 	KubernetesEastWestDomain string
 
-	// KubernetesEastWestRangeDomains set the the cluster internal domains for
+	// KubernetesEastWestRangeDomains set the cluster internal domains for
 	// east west traffic. Identified routes to such domains will include
 	// the KubernetesEastWestRangePredicates.
 	KubernetesEastWestRangeDomains []string
@@ -828,7 +828,7 @@ type Options struct {
 	// revoked during a logout.
 	OAuth2RevokeTokenURL string
 
-	// OAuthTokeninfoURL sets the the URL to be queried for
+	// OAuthTokeninfoURL sets the URL to be queried for
 	// information for all auth.NewOAuthTokeninfo*() filters.
 	OAuthTokeninfoURL string
 

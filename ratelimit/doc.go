@@ -12,7 +12,7 @@ bucket. This means all requests are counted the same.
 
 # Lookuper Type - HeaderLookuper
 
-This lookuper will use the content of the the specified header to
+This lookuper will use the content of the specified header to
 calculate rate limiting.
 
 # Lookuper Type - XForwardedForLookuper

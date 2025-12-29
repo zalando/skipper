@@ -62,7 +62,7 @@ func ExampleClient_FailNext() {
 		log.Fatal(err, dc == nil)
 	}
 
-	// set the the next two requests to fail:
+	// set the next two requests to fail:
 	dc.FailNext()
 	dc.FailNext()
 

@@ -199,7 +199,7 @@ type Options struct {
 	// used for east west traffic, defaults to "skipper.cluster.local"
 	KubernetesEastWestDomain string
 
-	// KubernetesEastWestRangeDomains set the the cluster internal domains for
+	// KubernetesEastWestRangeDomains set the cluster internal domains for
 	// east west traffic. Identified routes to such domains will include
 	// the KubernetesEastWestRangePredicates.
 	KubernetesEastWestRangeDomains []string
