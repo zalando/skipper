@@ -130,7 +130,7 @@ Host(/header\.example\.org$/)
 
 ## HostAny
 
-Evaluates to true if request host exactly equals to any of the configured hostnames.
+Evaluates to true if request host exactly equals any of the configured hostnames.
 
 Parameters:
 
@@ -381,7 +381,7 @@ JWTPayloadAnyKVRegexp("iss", "^https://")
 ### HeaderSHA256
 
 Matches if SHA-256 hash of the header value (known as [pre-shared key](https://en.wikipedia.org/wiki/Pre-shared_key) or secret)
-equals to any of the configured hash values.
+equals any of the configured hash values.
 Several hash values could be used to match multiple secrets e.g. during secret rotation.
 
 Hash values only hide secrets from parties that have access to the source of Skipper routes.

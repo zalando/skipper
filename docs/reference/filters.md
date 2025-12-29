@@ -2557,7 +2557,7 @@ If a template placeholder can't be resolved then request is allowed and does not
 
 Leak rate (divided by increment) defines a maximum average allowed request rate.
 The rate is configured by two parameters for convenience and consistency with other filters but is actually a single number,
-e.g. the rate of 2 per second equals to the rate of 20 per 10 seconds or 120 per minute.
+e.g. the rate of 2 per second equals the rate of 20 per 10 seconds or 120 per minute.
 
 Capacity defines the maximum request burst size or an allowed jitter.
 
