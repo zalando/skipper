@@ -96,7 +96,7 @@ type Options struct {
 	// that have to return 200 before skipper becomes ready
 	StatusChecks []string
 
-	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the inernalIPS range for healthcheck purposes
+	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the internalIPS range for healthcheck purposes
 	WhitelistedHealthCheckCIDR []string
 
 	// Network address that skipper should listen on.
