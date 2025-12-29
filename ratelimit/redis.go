@@ -102,7 +102,7 @@ func (c *clusterLimitRedis) commonTags() opentracing.Tags {
 }
 
 // Allow returns true if the request calculated across the cluster of
-// skippers should be allowed else false. It will share it's own data
+// skippers should be allowed else false. It will share its own data
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
 //
