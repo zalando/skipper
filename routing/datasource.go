@@ -163,7 +163,7 @@ func mergeDefs(defsByClient map[DataClient]routeDefs) mergedDefs {
 	return mergedDefs{routes: all, clients: clients}
 }
 
-// receives the initial set of the route definitiosn and their
+// receives the initial set of the route definitions and their
 // updates from multiple data clients, merges them by route id
 // and sends the merged route definitions to the output channel.
 //
