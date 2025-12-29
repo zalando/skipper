@@ -46,7 +46,7 @@ curl -s http://localhost:9999/foo
 
 It can be helpful to run Skipper in a debug session locally that enables one to inspect variables and do other debugging activities in order to analyze filter and token states.
 
-For *Visual Studion Code* users, a simple setup could be to create following *launch configuration* that compiles Skipper, runs it in a *Delve* debug session, and then opens the default web browser creating the request. By setting a breakpoint, you can inspect the state of the filter or application. This setup is especially useful when inspecting *oauth* flows and tokens as it allows stepping through the states.
+For *Visual Studio Code* users, a simple setup could be to create following *launch configuration* that compiles Skipper, runs it in a *Delve* debug session, and then opens the default web browser creating the request. By setting a breakpoint, you can inspect the state of the filter or application. This setup is especially useful when inspecting *oauth* flows and tokens as it allows stepping through the states.
 
 <details>
 <summary>Example `.vscode/launch.json` file</summary>
