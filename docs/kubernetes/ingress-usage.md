@@ -478,7 +478,7 @@ Add a HTTP header in the response path of your clients.
 
 ### Enable compression
 
-Compress responses with accepted encoding (more details [here](../reference/filters.md#compress)).
+Compress responses (see details about [selecting responses to compress](../reference/filters.md#compress)).
 
     compress() // compress all valid MIME types
     compress("text/html") // only compress HTML files
