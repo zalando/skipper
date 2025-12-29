@@ -141,7 +141,7 @@ Find a detailed example at [how to develop a filter](../reference/development.md
 
 Sometimes your filter needs to cleanup resources on shutdown. In Go
 functions that do this have often the name `Close()`.
-There is the `filters.FilterCloser` interface that if you comply with
+There is the `filters.FilterCloser` interface and if you comply with
 it, the routing.Route will make sure your filters are closed in case
 of `routing.Routing` was closed.
 
