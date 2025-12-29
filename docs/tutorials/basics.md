@@ -405,7 +405,7 @@ For skipper operators the number of routes can be interesting for
 statistics and the timestamp to detect skipper instances that have not
 updated its routing table.
 
-If there is more than 1024 routes used, then the paging the results is
+If there are more than 1024 routes used, then the paging the results is
 possible with the `offset` and `limit` query parameters:
 
 ```
