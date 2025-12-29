@@ -1593,7 +1593,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		o.MetricsFlavours = append(o.MetricsFlavours, "prometheus")
 	}
 
-	metricsKind := metrics.UnkownKind
+	metricsKind := metrics.UnknownKind
 	for _, s := range o.MetricsFlavours {
 		switch s {
 		case "codahale":
@@ -1604,7 +1604,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	// set default if unset
-	if metricsKind == metrics.UnkownKind {
+	if metricsKind == metrics.UnknownKind {
 		metricsKind = metrics.CodaHaleKind
 	}
 

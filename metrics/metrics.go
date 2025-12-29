@@ -18,7 +18,7 @@ const (
 type Kind int
 
 const (
-	UnkownKind   Kind = 0
+	UnknownKind  Kind = 0
 	CodaHaleKind Kind = 1 << iota
 	PrometheusKind
 	AllKind = CodaHaleKind | PrometheusKind
@@ -48,7 +48,7 @@ func ParseMetricsKind(t string) Kind {
 	case "all":
 		return AllKind
 	default:
-		return UnkownKind
+		return UnknownKind
 	}
 }
 
