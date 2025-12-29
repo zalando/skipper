@@ -456,7 +456,7 @@ see also [redirect-handling](../tutorials/common-use-cases.md#redirect-handling)
 
 ### redirectToLower
 
-Same as [redirectTo](#redirectto), but replaces all strings to lower case.
+Same as [redirectTo](#redirectto), but replaces all strings to lowercase.
 
 ## HTTP Query
 ### stripQuery
