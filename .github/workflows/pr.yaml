@@ -41,7 +41,10 @@ jobs:
           check-latest: true
       - run: go version
       - run: make deps
-      - run: make check-fmt
+      - run: |
+          : Check format
+          make fmt
+          git diff --exit-code
       - run: make vet
       - run: make staticcheck
       - run: make shortcheck
