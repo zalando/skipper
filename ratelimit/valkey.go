@@ -15,44 +15,44 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// clusterLimitRedis stores all data required for the cluster ratelimit.
-type clusterLimitRedis struct {
+// clusterLimitValkey stores all data required for the cluster ratelimit.
+type clusterLimitValkey struct {
 	failClosed bool
 	typ        string
 	group      string
 	maxHits    int64
 	window     time.Duration
-	ringClient *net.RedisRingClient
+	ringClient *net.ValkeyRingClient
 	metrics    metrics.Metrics
 	sometimes  rate.Sometimes
 }
 
 const (
-	redisMetricsPrefix                    = "swarm.redis."
-	redisAllowMetricsFormat               = redisMetricsPrefix + "query.allow.%s"
-	redisRetryAfterMetricsFormat          = redisMetricsPrefix + "query.retryafter.%s"
-	redisAllowMetricsFormatWithGroup      = redisMetricsPrefix + "query.allow.%s.%s"
-	redisRetryAfterMetricsFormatWithGroup = redisMetricsPrefix + "query.retryafter.%s.%s"
+	valkeyMetricsPrefix                    = "swarm.valkey."
+	valkeyAllowMetricsFormat               = valkeyMetricsPrefix + "query.allow.%s"
+	valkeyRetryAfterMetricsFormat          = valkeyMetricsPrefix + "query.retryafter.%s"
+	valkeyAllowMetricsFormatWithGroup      = valkeyMetricsPrefix + "query.allow.%s.%s"
+	valkeyRetryAfterMetricsFormatWithGroup = valkeyMetricsPrefix + "query.retryafter.%s.%s"
 
-	redisAllowSpanName       = "redis_allow"
-	redisOldestScoreSpanName = "redis_oldest_score"
+	valkeyAllowSpanName       = "valkey_allow"
+	valkeyOldestScoreSpanName = "valkey_oldest_score"
 
-	redisErrorTag                    = "redis.error"
-	redisErrorFailedToDetermineAllow = "failedToDetermineAllow"
-	redisErrorFailedZRange           = "failedZRange"
-	redisErrorFailedToEvaluate       = "failedToEvaluate"
-	redisErrorFailedToConvert        = "failedToConvert"
+	valkeyErrorTag                    = "valkey.error"
+	valkeyErrorFailedToDetermineAllow = "failedToDetermineAllow"
+	valkeyErrorFailedZRange           = "failedZRange"
+	valkeyErrorFailedToEvaluate       = "failedToEvaluate"
+	valkeyErrorFailedToConvert        = "failedToConvert"
 )
 
-// newClusterRateLimiterRedis creates a new clusterLimitRedis for given
+// newClusterRateLimiterValkey creates a new clusterLimitValkey for given
 // Settings. Group is used to identify the ratelimit instance, is used
 // in log messages and has to be the same in all skipper instances.
-func newClusterRateLimiterRedis(s Settings, r *net.RedisRingClient, group string) *clusterLimitRedis {
+func newClusterRateLimiterValkey(s Settings, r *net.ValkeyRingClient, group string) *clusterLimitValkey {
 	if r == nil {
 		return nil
 	}
 
-	rl := &clusterLimitRedis{
+	rl := &clusterLimitValkey{
 		failClosed: s.FailClosed,
 		typ:        s.Type.String(),
 		group:      group,
@@ -66,11 +66,11 @@ func newClusterRateLimiterRedis(s Settings, r *net.RedisRingClient, group string
 	return rl
 }
 
-func (c *clusterLimitRedis) prefixKey(clearText string) string {
+func (c *clusterLimitValkey) prefixKey(clearText string) string {
 	return fmt.Sprintf(swarmKeyFormat, c.group, clearText)
 }
 
-func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool, start time.Time) {
+func (c *clusterLimitValkey) measureQuery(format, groupFormat string, fail *bool, start time.Time) {
 	result := "success"
 	if fail != nil && *fail {
 		result = "failure"
@@ -86,7 +86,7 @@ func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool,
 	c.metrics.MeasureSince(key, start)
 }
 
-func (c *clusterLimitRedis) commonTags() opentracing.Tags {
+func (c *clusterLimitValkey) commonTags() opentracing.Tags {
 	return opentracing.Tags{
 		string(ext.Component): "skipper",
 		string(ext.SpanKind):  "client",
@@ -110,13 +110,13 @@ func (c *clusterLimitRedis) commonTags() opentracing.Tags {
 // roundtrip.
 //
 // Uses provided context for creating an OpenTracing span.
-func (c *clusterLimitRedis) Allow(ctx context.Context, clearText string) bool {
-	c.metrics.IncCounter(redisMetricsPrefix + "total")
+func (c *clusterLimitValkey) Allow(ctx context.Context, clearText string) bool {
+	c.metrics.IncCounter(valkeyMetricsPrefix + "total")
 	now := time.Now()
 
 	var span opentracing.Span
 	if parentSpan := parentSpan(ctx); parentSpan != nil {
-		span = c.ringClient.StartSpan(redisAllowSpanName, opentracing.ChildOf(parentSpan.Context()), c.commonTags())
+		span = c.ringClient.StartSpan(valkeyAllowSpanName, opentracing.ChildOf(parentSpan.Context()), c.commonTags())
 		defer span.Finish()
 	}
 
@@ -125,40 +125,42 @@ func (c *clusterLimitRedis) Allow(ctx context.Context, clearText string) bool {
 	if failed {
 		allow = !c.failClosed
 		msgFmt := "Failed to determine if operation is allowed: %v"
-		redisSetError(span, fmt.Sprintf(msgFmt, err), redisErrorFailedToDetermineAllow)
+		valkeySetError(span, fmt.Sprintf(msgFmt, err), valkeyErrorFailedToDetermineAllow)
 		c.logError(msgFmt, err)
 	}
 	if span != nil {
 		span.SetTag("allowed", allow)
 	}
 
-	c.measureQuery(redisAllowMetricsFormat, redisAllowMetricsFormatWithGroup, &failed, now)
+	c.measureQuery(valkeyAllowMetricsFormat, valkeyAllowMetricsFormatWithGroup, &failed, now)
 
 	if allow {
-		c.metrics.IncCounter(redisMetricsPrefix + "allows")
+		c.metrics.IncCounter(valkeyMetricsPrefix + "allows")
 	} else {
-		c.metrics.IncCounter(redisMetricsPrefix + "forbids")
+		c.metrics.IncCounter(valkeyMetricsPrefix + "forbids")
 	}
 	return allow
 }
 
-func (c *clusterLimitRedis) allow(ctx context.Context, clearText string) (bool, error) {
+func (c *clusterLimitValkey) allow(ctx context.Context, clearText string) (bool, error) {
 	s := getHashedKey(clearText)
 	key := c.prefixKey(s)
 
 	now := time.Now()
 	nowNanos := now.UnixNano()
-	clearBefore := now.Add(-c.window).UnixNano()
+	clearBefore := fmt.Sprintf("%d", now.Add(-c.window).UnixNano())
 
 	// drop all elements of the set which occurred before one interval ago.
-	_, err := c.ringClient.ZRemRangeByScore(ctx, key, 0.0, float64(clearBefore))
+	_, err := c.ringClient.ZRemRangeByScore(ctx, key, "0.0", clearBefore)
 	if err != nil {
+		println("ZRemRangeByScore")
 		return false, err
 	}
 
 	// get cardinality
 	count, err := c.ringClient.ZCard(ctx, key)
 	if err != nil {
+		println("ZCard")
 		return false, err
 	}
 
@@ -167,26 +169,29 @@ func (c *clusterLimitRedis) allow(ctx context.Context, clearText string) (bool, 
 		return false, nil
 	}
 
-	_, err = c.ringClient.ZAdd(ctx, key, nowNanos, float64(nowNanos))
+	_, err = c.ringClient.ZAdd(ctx, key, fmt.Sprintf("%d", nowNanos), float64(nowNanos))
 	if err != nil {
+		println("ZAdd")
 		return false, err
 	}
 
 	_, err = c.ringClient.Expire(ctx, key, c.window+time.Second)
 	if err != nil {
+		println("Expire")
 		return false, err
 	}
 
 	return true, nil
 }
 
-// Close cannot decide to teardown redis ring, because it is not the
+// Close cannot decide to teardown valkey ring, because it is not the
 // owner of it.
-func (c *clusterLimitRedis) Close() {}
+func (c *clusterLimitValkey) Close() {}
 
-func (c *clusterLimitRedis) deltaFrom(ctx context.Context, clearText string, from time.Time) (time.Duration, error) {
+func (c *clusterLimitValkey) deltaFrom(ctx context.Context, clearText string, from time.Time) (time.Duration, error) {
 	oldest, err := c.oldest(ctx, clearText)
 	if err != nil {
+		println("Failed c.oldest in deltaFrom")
 		return 0, err
 	}
 
@@ -196,7 +201,7 @@ func (c *clusterLimitRedis) deltaFrom(ctx context.Context, clearText string, fro
 
 // Delta returns the time.Duration until the next call is allowed,
 // negative means immediate calls are allowed
-func (c *clusterLimitRedis) Delta(clearText string) time.Duration {
+func (c *clusterLimitValkey) Delta(clearText string) time.Duration {
 	now := time.Now()
 	d, err := c.deltaFrom(context.Background(), clearText, now)
 	if err != nil {
@@ -210,49 +215,42 @@ func (c *clusterLimitRedis) Delta(clearText string) time.Duration {
 	return d
 }
 
-func redisSetError(span opentracing.Span, msg string, tagValue string) {
-	setError(span, "redis", msg, tagValue)
+func valkeySetError(span opentracing.Span, msg string, tagValue string) {
+	setError(span, "valkey", msg, tagValue)
 }
 
-func (c *clusterLimitRedis) logError(format string, err error) {
+func (c *clusterLimitValkey) logError(format string, err error) {
 	c.sometimes.Do(func() {
 		log.Errorf(format, err)
 	})
 }
 
-func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.Time, error) {
+func (c *clusterLimitValkey) oldest(ctx context.Context, clearText string) (time.Time, error) {
 	s := getHashedKey(clearText)
 	key := c.prefixKey(s)
 	now := time.Now()
 
 	var span opentracing.Span
 	if parentSpan := parentSpan(ctx); parentSpan != nil {
-		span = c.ringClient.StartSpan(redisOldestScoreSpanName, opentracing.ChildOf(parentSpan.Context()), c.commonTags())
+		span = c.ringClient.StartSpan(valkeyOldestScoreSpanName, opentracing.ChildOf(parentSpan.Context()), c.commonTags())
 		defer span.Finish()
 	}
 
-	res, err := c.ringClient.ZRangeByScoreWithScoresFirst(ctx, key, 0.0, float64(now.UnixNano()), 0, 1)
-
+	res, err := c.ringClient.ZRangeByScoreWithScoresFirst(ctx, key, "0.0", fmt.Sprintf("%d", now.UnixNano()), 0, 1)
 	if err != nil {
-		redisSetError(span, fmt.Sprintf("Failed to execute ZRangeByScoreWithScoresFirst: %v", err), redisErrorFailedZRange)
+		valkeySetError(span, fmt.Sprintf("Failed to execute ZRangeByScoreWithScoresFirst: %v", err), valkeyErrorFailedZRange)
 		return time.Time{}, err
 	}
 
-	if res == nil {
+	if len(res) == 0 {
 		return time.Time{}, nil
 	}
 
-	s, ok := res.(string)
-	if !ok {
-		msg := "failed to evaluate redis data"
-		redisSetError(span, msg, redisErrorFailedToEvaluate)
-		return time.Time{}, errors.New(msg)
-	}
-
-	oldest, err := strconv.ParseInt(s, 10, 64)
+	oldest, err := strconv.ParseInt(res, 10, 64)
 	if err != nil {
-		redisSetError(span, fmt.Sprintf("failed to convert value to int64: %v", err), redisErrorFailedToConvert)
-		return time.Time{}, fmt.Errorf("failed to convert value to int64: %w", err)
+		msg := "failed to convert valkey msg to int64"
+		valkeySetError(span, msg, valkeyErrorFailedToConvert)
+		return time.Time{}, errors.New(msg)
 	}
 
 	return time.Unix(0, oldest), nil
@@ -263,8 +261,8 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.
 // Performance considerations:
 //
 // It will use ZRANGEBYSCORE with offset 0 and count 1 to get the
-// oldest item stored in redis.
-func (c *clusterLimitRedis) Oldest(clearText string) time.Time {
+// oldest item stored in valkey.
+func (c *clusterLimitValkey) Oldest(clearText string) time.Time {
 	t, err := c.oldest(context.Background(), clearText)
 	if err != nil {
 		c.logError("Failed to get the oldest known request time: %v", err)
@@ -275,7 +273,7 @@ func (c *clusterLimitRedis) Oldest(clearText string) time.Time {
 }
 
 // Resize is noop to implement the limiter interface
-func (*clusterLimitRedis) Resize(string, int) {}
+func (*clusterLimitValkey) Resize(string, int) {}
 
 // RetryAfterContext returns seconds until next call is allowed similar to
 // Delta(), but returns at least one 1 in all cases. That is being
@@ -285,13 +283,13 @@ func (*clusterLimitRedis) Resize(string, int) {}
 // and RetryAfter() (or Allow and RetryAfterContext accordingly).
 //
 // Uses context for creating an OpenTracing span.
-func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, clearText string) int {
+func (c *clusterLimitValkey) RetryAfterContext(ctx context.Context, clearText string) int {
 	// If less than 1s to wait -> so set to 1
 	const minWait = 1
 
 	now := time.Now()
 	var queryFailure bool
-	defer c.measureQuery(redisRetryAfterMetricsFormat, redisRetryAfterMetricsFormatWithGroup, &queryFailure, now)
+	defer c.measureQuery(valkeyRetryAfterMetricsFormat, valkeyRetryAfterMetricsFormatWithGroup, &queryFailure, now)
 
 	retr, err := c.deltaFrom(ctx, clearText, now)
 	if err != nil {
@@ -309,6 +307,6 @@ func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, clearText str
 }
 
 // RetryAfter is like RetryAfterContext, but not using a context.
-func (c *clusterLimitRedis) RetryAfter(clearText string) int {
+func (c *clusterLimitValkey) RetryAfter(clearText string) int {
 	return c.RetryAfterContext(context.Background(), clearText)
 }

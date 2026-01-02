@@ -81,7 +81,7 @@ func TestFailureMode(t *testing.T) {
 			t.Parallel()
 			fr := builtin.MakeRegistry()
 
-			reg := ratelimit.NewSwarmRegistry(nil, &snet.RedisOptions{Addrs: []string{"fails.test:6379"}}, ratelimit.Settings{})
+			reg := ratelimit.NewRedisSwarmRegistry(nil, &snet.RedisOptions{Addrs: []string{"fails.test:6379"}}, ratelimit.Settings{})
 			defer reg.Close()
 
 			provider := fratelimit.NewRatelimitProvider(reg)

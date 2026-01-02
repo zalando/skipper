@@ -84,7 +84,7 @@ func TestBackendRatelimitRoundRobin(t *testing.T) {
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 
-	ratelimitRegistry := ratelimit.NewSwarmRegistry(nil, &snet.RedisOptions{Addrs: []string{redisAddr}})
+	ratelimitRegistry := ratelimit.NewRedisSwarmRegistry(nil, &snet.RedisOptions{Addrs: []string{redisAddr}})
 	defer ratelimitRegistry.Close()
 
 	backends := newCountingBackends(nBackends)
@@ -186,7 +186,7 @@ func TestBackendRatelimitScenarios(t *testing.T) {
 			filterRegistry := builtin.MakeRegistry()
 			filterRegistry.Register(ratelimitfilters.NewBackendRatelimit())
 
-			ratelimitRegistry := ratelimit.NewSwarmRegistry(nil, &snet.RedisOptions{Addrs: []string{redisAddr}})
+			ratelimitRegistry := ratelimit.NewRedisSwarmRegistry(nil, &snet.RedisOptions{Addrs: []string{redisAddr}})
 			defer ratelimitRegistry.Close()
 
 			backends := newCountingBackends(ti.backends)

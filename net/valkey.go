@@ -11,9 +11,9 @@ import (
 	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/opentracing/opentracing-go"
 	"github.com/valkey-io/valkey-go"
-
 	"github.com/valkey-io/valkey-go/valkeyhook"
 	"github.com/valkey-io/valkey-go/valkeyotel"
+
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 )
