@@ -189,7 +189,7 @@ func (w rendezvousVnodes) Get(key string) string {
 func NewRendezvousVnodes(shards []string) redis.ConsistentHash {
 	vshards := make([]string, vnodePerShard*len(shards))
 	table := make(map[string]string)
-	for i := 0; i < vnodePerShard; i++ {
+	for i := range vnodePerShard {
 		for j, shard := range shards {
 			vshard := fmt.Sprintf("%s%d", shard, i) // suffix
 			table[vshard] = shard
