@@ -857,7 +857,7 @@ func TestOIDCSetup(t *testing.T) {
 		expected:           200,
 		expectCookieDomain: "foo.skipper.test",
 	}, {
-		msg:                "do not remove subdomains if fewer then 2 levels remain",
+		msg:                "do not remove subdomains if fewer than 2 levels remain",
 		hostname:           "bar.foo.skipper.test",
 		filter:             `oauthOidcAnyClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "", "", "", "3")`,
 		expected:           200,
