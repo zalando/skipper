@@ -568,9 +568,9 @@ Examples:
     logHeader("request") // log all request headers
     logBody("response", 1024) // log up to 1024 Bytes of the response body
 
-### Flow Id to trace request flows
+### Flow ID to trace request flows
 
-To trace request flows Skipper can generate a unique Flow Id for every
+To trace request flows Skipper can generate a unique Flow ID for every
 HTTP request that it receives. You can then find the trace of the
 request in all your access logs.  Skipper sets the X-Flow-Id header to
 a unique value. Read more about this in our

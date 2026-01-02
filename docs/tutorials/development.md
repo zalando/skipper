@@ -67,7 +67,7 @@ For *Visual Studion Code* users, a simple setup could be to create following *la
                 "-inline-routes=PathSubtree(\"/\") -> inlineContent(\"Hello World\") -> <shunt>",
                // example OIDC setup, using https://developer.microsoft.com/en-us/microsoft-365/dev-program
                //  "-oidc-secrets-file=${workspaceFolder}/.vscode/launch.json",
-               //  "-inline-routes=* -> oauthOidcAnyClaims(\"https://login.microsoftonline.com/<tenant Id>/v2.0\",\"<application id>\",\"<client secret>\",\"http://localhost:9999/authcallback\", \"profile\", \"\", \"\", \"x-auth-email:claims.email x-groups:claims.groups\") -> inlineContent(\"restricted access\") -> <shunt>",
+               //  "-inline-routes=* -> oauthOidcAnyClaims(\"https://login.microsoftonline.com/<tenant id>/v2.0\",\"<application id>\",\"<client secret>\",\"http://localhost:9999/authcallback\", \"profile\", \"\", \"\", \"x-auth-email:claims.email x-groups:claims.groups\") -> inlineContent(\"restricted access\") -> <shunt>",
             ],
             "serverReadyAction": {
                 "pattern": "route settings applied",

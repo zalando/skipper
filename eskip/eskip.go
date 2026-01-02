@@ -287,7 +287,7 @@ func (f *Filter) String() string {
 
 // A Route object represents a parsed, in-memory route definition.
 type Route struct {
-	// Id of the route definition.
+	// ID of the route definition.
 	// E.g. route1: ...
 	Id string
 
