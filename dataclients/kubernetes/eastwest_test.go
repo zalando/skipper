@@ -20,7 +20,7 @@ func TestCreateEastWestRouteIng(t *testing.T) {
 		want *eskip.Route
 	}{
 		{
-			name: "return nil if the route Id is prefixed with 'kubeew'",
+			name: "return nil if route.Id is prefixed with 'kubeew'",
 			args: args{
 				eastWestDomain: "yyy",
 				hostname:       "serviceA",
@@ -56,7 +56,7 @@ func TestCreateEastWestRouteIng(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "return the route with modified route Id and HostRegexp",
+			name: "return the route with modified route.Id and HostRegexp",
 			args: args{
 				eastWestDomain: "cluster.local",
 				hostname:       "serviceA",
