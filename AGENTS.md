@@ -9,7 +9,7 @@ The routing package fetch eskip.Routes by the dataclients, run routing.PreProces
 Routes consists of predicates, filters and backend.
 Predicates match requests to select the best matching route.
 Filters can process the http.Request and the http.Response.
-Backend is the thing skipper should proxy to for example:
+Backend is the thing to which skipper should proxy, for example:
 - network: URL to proxy to
 - shunt: respond from proxy to client
 - loopback: evaluate again the routing tree
