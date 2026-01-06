@@ -64,7 +64,7 @@ curl -X PUT -d 'value=* -> status(200) -> inlineContent("Hello, world!") -> <shu
 curl -X DELETE http://localhost:2379/v2/keys/skipper/routes/hello
 ```
 
-Getting all route IDs, a route expression stored with an ID, insert or update and delete with etcdctl:
+Getting all route IDs, a route expression stored with an ID, insert or update, and delete with etcdctl:
 
 ```
 etcdctl --endpoints http://localhost:2379,http://localhost:4001 ls /skipper/routes

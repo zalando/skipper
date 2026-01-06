@@ -36,7 +36,7 @@ type (
 	}
 
 	postProcessor struct {
-		endpointRegisty *routing.EndpointRegistry
+		endpointRegistry *routing.EndpointRegistry
 		// "http://10.2.1.53:1234": {t0 60s t0-10s}
 		detected map[string]detectedFadeIn
 	}
@@ -163,8 +163,8 @@ type PostProcessorOptions struct {
 // behavior.
 func NewPostProcessor(options PostProcessorOptions) routing.PostProcessor {
 	return &postProcessor{
-		endpointRegisty: options.EndpointRegistry,
-		detected:        make(map[string]detectedFadeIn),
+		endpointRegistry: options.EndpointRegistry,
+		detected:         make(map[string]detectedFadeIn),
 	}
 }
 
@@ -202,8 +202,8 @@ func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
 				detected = now
 			}
 
-			if p.endpointRegisty != nil {
-				metrics := p.endpointRegisty.GetMetrics(ep.Host)
+			if p.endpointRegistry != nil {
+				metrics := p.endpointRegistry.GetMetrics(ep.Host)
 				if endpointsCreated[key].After(metrics.DetectedTime()) {
 					metrics.SetDetected(endpointsCreated[key])
 				}

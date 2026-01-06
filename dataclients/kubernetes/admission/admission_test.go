@@ -124,12 +124,12 @@ func TestRouteGroupAdmitter(t *testing.T) {
 			message:   "parse failed after token status, position 6: syntax error\\nparse failed after token Method, position 6: syntax error",
 		},
 		{
-			name:      "invalid routgroup multiple filters per json/yaml array item",
+			name:      "invalid routegroup multiple filters per json/yaml array item",
 			inputFile: "rg-with-multiple-filters.json",
 			message:   `single filter expected at \"status(201) -> inlineContent(\\\"hi\\\")\"\nsingle filter expected at \" \"`,
 		},
 		{
-			name:      "invalid routgroup multiple predicates per json/yaml array item",
+			name:      "invalid routegroup multiple predicates per json/yaml array item",
 			inputFile: "rg-with-multiple-predicates.json",
 			message:   `single predicate expected at \"Method(\\\"GET\\\") && Path(\\\"/\\\")\"\nsingle predicate expected at \" \"`,
 		},

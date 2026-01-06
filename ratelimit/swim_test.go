@@ -282,7 +282,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 		expected: 30.0,
 		epsilon:  0.1,
 	}, {
-		name: "one has swarmValue the other not, one has a ok rate",
+		name: "one has swarmValue the other not, one has an ok rate",
 		swarmValues: map[string]interface{}{
 			"n1": now - int64(61*time.Minute),
 		},
@@ -301,7 +301,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 		expected: 9.84,
 		epsilon:  0.1,
 	}, {
-		name: "both have swarmValues, one has a ok rate the other not, together ok",
+		name: "both have swarmValues, one has an ok rate the other not, together ok",
 		swarmValues: map[string]interface{}{
 			"n1": now - int64(65*time.Minute),
 			"n2": now - int64(59*time.Minute),
@@ -309,7 +309,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 		expected: (60 * 5 / 65.0) + (60 * 5 / 59.0),
 		epsilon:  0.1,
 	}, {
-		name: "both have swarmValues, one has a ok rate the other not, together they are not ok",
+		name: "both have swarmValues, one has an ok rate the other not, together they are not ok",
 		swarmValues: map[string]interface{}{
 			"n1": now - int64(65*time.Minute),
 			"n2": now - int64(40*time.Minute),

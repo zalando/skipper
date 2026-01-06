@@ -11,13 +11,13 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func checkRatelimitted(t *testing.T, rl *Ratelimit, client string) {
+func checkRatelimited(t *testing.T, rl *Ratelimit, client string) {
 	if rl.Allow(context.Background(), client) {
 		t.Errorf("request is allowed for %s, but expected to be rate limited", client)
 	}
 }
 
-func checkNotRatelimitted(t *testing.T, rl *Ratelimit, client string) {
+func checkNotRatelimited(t *testing.T, rl *Ratelimit, client string) {
 	if !rl.Allow(context.Background(), client) {
 		t.Errorf("request is rate limited for %s, but expected to be allowed", client)
 	}
@@ -38,31 +38,31 @@ func TestServiceRatelimit(t *testing.T) {
 	}
 
 	t.Run("no nil dereference ratelimitter", func(t *testing.T) {
-		checkNotRatelimitted(t, nil, client1)
+		checkNotRatelimited(t, nil, client1)
 	})
 
 	t.Run("new service ratelimitter", func(t *testing.T) {
 		rl := newRatelimit(s, nil, nil)
-		checkNotRatelimitted(t, rl, client1)
+		checkNotRatelimited(t, rl, client1)
 	})
 
-	t.Run("does not rate limit unless we have enough calls, all clients are ratelimitted", func(t *testing.T) {
+	t.Run("does not rate limit unless we have enough calls, all clients are ratelimited", func(t *testing.T) {
 		rl := newRatelimit(s, nil, nil)
 		for i := 0; i < s.MaxHits; i++ {
-			checkNotRatelimitted(t, rl, client1)
+			checkNotRatelimited(t, rl, client1)
 		}
 
-		checkRatelimitted(t, rl, client1)
-		checkRatelimitted(t, rl, client2)
+		checkRatelimited(t, rl, client1)
+		checkRatelimited(t, rl, client2)
 	})
 
 	t.Run("does not rate limit if TimeWindow is over", func(t *testing.T) {
 		rl := newRatelimit(s, nil, nil)
 		for i := 0; i < s.MaxHits-1; i++ {
-			checkNotRatelimitted(t, rl, client1)
+			checkNotRatelimited(t, rl, client1)
 		}
 		waitClean()
-		checkNotRatelimitted(t, rl, client1)
+		checkNotRatelimited(t, rl, client1)
 	})
 }
 
@@ -84,7 +84,7 @@ func TestLocalRatelimit(t *testing.T) {
 		rl := newRatelimit(s, nil, nil)
 		defer rl.Close()
 
-		checkNotRatelimitted(t, rl, client1)
+		checkNotRatelimited(t, rl, client1)
 	})
 
 	t.Run("does not rate limit unless we have enough calls", func(t *testing.T) {
@@ -92,11 +92,11 @@ func TestLocalRatelimit(t *testing.T) {
 		defer rl.Close()
 
 		for i := 0; i < s.MaxHits; i++ {
-			checkNotRatelimitted(t, rl, client1)
+			checkNotRatelimited(t, rl, client1)
 		}
 
-		checkRatelimitted(t, rl, client1)
-		checkNotRatelimitted(t, rl, client2)
+		checkRatelimited(t, rl, client1)
+		checkNotRatelimited(t, rl, client2)
 	})
 
 	t.Run("does not rate limit if TimeWindow is over", func(t *testing.T) {
@@ -104,10 +104,10 @@ func TestLocalRatelimit(t *testing.T) {
 		defer rl.Close()
 
 		for i := 0; i < s.MaxHits-1; i++ {
-			checkNotRatelimitted(t, rl, client1)
+			checkNotRatelimited(t, rl, client1)
 		}
 		waitClean()
-		checkNotRatelimitted(t, rl, client1)
+		checkNotRatelimited(t, rl, client1)
 	})
 
 	t.Run("max hits 0", func(t *testing.T) {
@@ -116,7 +116,7 @@ func TestLocalRatelimit(t *testing.T) {
 		rl := newRatelimit(s, nil, nil)
 		defer rl.Close()
 
-		checkRatelimitted(t, rl, client1)
+		checkRatelimited(t, rl, client1)
 	})
 }
 
@@ -132,15 +132,15 @@ func TestDisableRatelimit(t *testing.T) {
 
 	t.Run("new disabled ratelimitter", func(t *testing.T) {
 		rl := newRatelimit(s, nil, nil)
-		checkNotRatelimitted(t, rl, client1)
+		checkNotRatelimited(t, rl, client1)
 	})
 
 	t.Run("disable ratelimitter should never rate limit", func(t *testing.T) {
 		rl := newRatelimit(s, nil, nil)
 		for i := 0; i < s.MaxHits; i++ {
-			checkNotRatelimitted(t, rl, client1)
+			checkNotRatelimited(t, rl, client1)
 		}
-		checkNotRatelimitted(t, rl, client1)
+		checkNotRatelimited(t, rl, client1)
 	})
 }
 
@@ -629,10 +629,10 @@ func TestRatelimitImpl(t *testing.T) {
 	}
 
 	if rl.Allow(context.Background(), "") == true {
-		t.Error("After 5 allow we should get a deny")
+		t.Error("After 5 allows we should get a deny")
 	}
 	if rl.RetryAfter("") == 0 {
-		t.Error("After 5 allow we should get a non zero value")
+		t.Error("After 5 allows we should get a non zero value")
 	}
 	if d := rl.Delta(""); d == 0 {
 		t.Errorf("There was no delta found %v, but should", d)

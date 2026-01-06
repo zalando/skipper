@@ -241,7 +241,7 @@ func testClientMetrics(t *testing.T, testCase clientMetricsTest) {
 					assert.Conditionf(t,
 						func() bool {
 							return v > previousLatencySum
-						}, "current client latency sum is not higher than the previous recorded one (%f to %f)",
+						}, "current client latency sum is not above the previous recorded one (%f to %f)",
 						previousLatencySum, v)
 				}
 			})

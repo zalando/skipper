@@ -2,7 +2,7 @@
 Package ratelimit implements rate limiting functionality for the proxy.
 
 It provides per process rate limiting. It can be
-configured globally, or based on routes. Rate limiting can be lookuped
+configured globally, or based on routes. Rate limiting can be looked up
 based on HTTP headers for example X-Forwarded-For or Authorization.
 
 # Lookuper Type - SameBucketLookuper
@@ -12,7 +12,7 @@ bucket. This means all requests are counted the same.
 
 # Lookuper Type - HeaderLookuper
 
-This lookuper will use the content of the the specified header to
+This lookuper will use the content of the specified header to
 calculate rate limiting.
 
 # Lookuper Type - XForwardedForLookuper

@@ -257,7 +257,7 @@ func TestTransport(t *testing.T) {
 			wantErr:     false,
 		},
 		{
-			name: "With hooks, should have request header and respose changed",
+			name: "With hooks, should have request header and response changed",
 			options: Options{
 				BeforeSend: func(req *http.Request) {
 					if req != nil {

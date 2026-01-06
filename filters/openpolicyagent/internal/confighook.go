@@ -1,4 +1,4 @@
-// Package internal provides intenal only code to be able to use quasi
+// Package internal provides internal only code to be able to use quasi
 // standard OPA plugins and config.
 package internal
 

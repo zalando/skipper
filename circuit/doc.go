@@ -22,7 +22,7 @@ fails, the breaker goes back to open state. If all succeed, it goes to closed st
 The "rate breaker" works similar to the "consecutive breaker", but instead of considering N consecutive failures
 for going open, it maintains a sliding window of the last M events, both successes and failures, and opens only
 when the number of failures reaches N within the window. This way the sliding window is not time based and
-allows the same breaker characteristics for low and high rate traffic.
+allows the same breaker characteristics for high and low rate traffic.
 
 # Usage
 

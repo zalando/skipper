@@ -8,7 +8,7 @@ of those logs can be correlated.
 
 # How It Works
 
-Skipper generates a unique Flow Id for every HTTP request that it receives. The Flow ID is then passed to your
+Skipper generates a unique Flow ID for every HTTP request that it receives. The Flow ID is then passed to your
 upstream application as an HTTP header called X-Flow-Id.
 
 The filter takes 1 optional string parameter that, when set to "reuse", will make the filter check for the presence

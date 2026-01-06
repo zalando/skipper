@@ -14,11 +14,11 @@ const (
 	defaultMetricsPath = "/metrics"
 )
 
-// Kind is the type a metrics expose backend can be.
+// Kind is the type that a metrics expose backend can be.
 type Kind int
 
 const (
-	UnkownKind   Kind = 0
+	UnknownKind  Kind = 0
 	CodaHaleKind Kind = 1 << iota
 	PrometheusKind
 	AllKind = CodaHaleKind | PrometheusKind
@@ -37,7 +37,7 @@ func (k Kind) String() string {
 	}
 }
 
-// ParseMetricsKind parses an string and returns the correct Metrics kind.
+// ParseMetricsKind parses a string and returns the correct Metrics kind.
 func ParseMetricsKind(t string) Kind {
 	t = strings.ToLower(t)
 	switch t {
@@ -48,12 +48,12 @@ func ParseMetricsKind(t string) Kind {
 	case "all":
 		return AllKind
 	default:
-		return UnkownKind
+		return UnknownKind
 	}
 }
 
 // Metrics is the generic interface that all the required backends
-// should implement to be an skipper metrics compatible backend.
+// should implement to be a skipper metrics compatible backend.
 type Metrics interface {
 	// Implements the `filter.Metrics` interface.
 	MeasureSince(key string, start time.Time)
@@ -143,7 +143,7 @@ type Options struct {
 	// If set, the total response handling time take by skipper will be
 	// collected. It measures the duration taken by skipper to process the
 	// response, from after the backend round trip is finished, excluding
-	// the filters processing and until the before the response is served.
+	// the filters processing and until before the response is served.
 	EnableProxyResponseMetrics bool
 
 	// If set, detailed response time metrics will be collected

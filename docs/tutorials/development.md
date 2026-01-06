@@ -46,7 +46,7 @@ curl -s http://localhost:9999/foo
 
 It can be helpful to run Skipper in a debug session locally that enables one to inspect variables and do other debugging activities in order to analyze filter and token states.
 
-For *Visual Studion Code* users, a simple setup could be to create following *launch configuration* that compiles Skipper, runs it in a *Delve* debug session, and then opens the default web browser creating the request. By setting a breakpoint, you can inspect the state of the filter or application. This setup is especially useful when inspecting *oauth* flows and tokens as it allows stepping through the states.
+For *Visual Studio Code* users, a simple setup could be to create following *launch configuration* that compiles Skipper, runs it in a *Delve* debug session, and then opens the default web browser creating the request. By setting a breakpoint, you can inspect the state of the filter or application. This setup is especially useful when inspecting *oauth* flows and tokens as it allows stepping through the states.
 
 <details>
 <summary>Example `.vscode/launch.json` file</summary>
@@ -67,7 +67,7 @@ For *Visual Studion Code* users, a simple setup could be to create following *la
                 "-inline-routes=PathSubtree(\"/\") -> inlineContent(\"Hello World\") -> <shunt>",
                // example OIDC setup, using https://developer.microsoft.com/en-us/microsoft-365/dev-program
                //  "-oidc-secrets-file=${workspaceFolder}/.vscode/launch.json",
-               //  "-inline-routes=* -> oauthOidcAnyClaims(\"https://login.microsoftonline.com/<tenant Id>/v2.0\",\"<application id>\",\"<client secret>\",\"http://localhost:9999/authcallback\", \"profile\", \"\", \"\", \"x-auth-email:claims.email x-groups:claims.groups\") -> inlineContent(\"restricted access\") -> <shunt>",
+               //  "-inline-routes=* -> oauthOidcAnyClaims(\"https://login.microsoftonline.com/<tenant id>/v2.0\",\"<application id>\",\"<client secret>\",\"http://localhost:9999/authcallback\", \"profile\", \"\", \"\", \"x-auth-email:claims.email x-groups:claims.groups\") -> inlineContent(\"restricted access\") -> <shunt>",
             ],
             "serverReadyAction": {
                 "pattern": "route settings applied",
@@ -141,9 +141,9 @@ Find a detailed example at [how to develop a filter](../reference/development.md
 
 Sometimes your filter needs to cleanup resources on shutdown. In Go
 functions that do this have often the name `Close()`.
-There is the `filters.FilterCloser` interface that if you comply with
-it, the routing.Route will make sure your filters are closed in case
-of `routing.Routing` was closed.
+There is the `filters.FilterCloser` interface and if you comply with
+it, the routing.Route will make sure your filters are closed if
+`routing.Routing` was closed.
 
 ```go
 type myFilter struct{}
@@ -184,7 +184,7 @@ In this case you need to comply with the following proxy interface:
 // errorHandlerFilter is an opt-in for filters to get called
 // Response(ctx) in case of errors.
 type errorHandlerFilter interface {
-	// HandleErrorResponse returns true in case a filter wants to get called
+	// HandleErrorResponse returns true if a filter wants to get called
 	HandleErrorResponse() bool
 }
 ```
@@ -291,7 +291,7 @@ and ask for further guidance in our [community channels](https://github.com/zala
 ## Core
 
 Non trivial changes, proposals and enhancements to the core of skipper
-should be discussed first in a Github issue, such that we can think
+should be discussed first in a GitHub issue, such that we can think
 about how this fits best in the project and how to achieve the most
 useful result. Feel also free to reach out to our [community
 channels](https://github.com/zalando/skipper#community) and discuss

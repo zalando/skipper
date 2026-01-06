@@ -99,7 +99,7 @@ func TestMatchArgs(t *testing.T) {
 		[]string{"value"},
 		true,
 	}, {
-		"does not find non existing params",
+		"does not find nonexistent params",
 		[]interface{}{"keyNot"},
 		"key",
 		[]string{"value"},
@@ -123,7 +123,7 @@ func TestMatchArgs(t *testing.T) {
 		[]string{"value", "regexp"},
 		true,
 	}, {
-		"does not match non existing params",
+		"does not match nonexistent params",
 		[]interface{}{"key", "^regexp$"},
 		"key",
 		[]string{"value", "value2"},

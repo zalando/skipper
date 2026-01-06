@@ -195,7 +195,7 @@ func TestRedirectLower(t *testing.T) {
 		"http://redirect.example.org/PAth",
 		"http://redirect.example.org/path?foo=1&bar=2",
 	}, {
-		"schema, host, path with lower case",
+		"schema, host, path with lowercase",
 		http.StatusFound,
 		"http://redirect.example.org/path",
 		"http://redirect.example.org/path?foo=1&bar=2",

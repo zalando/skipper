@@ -428,7 +428,7 @@ Open Policy Agent is integrated as a Go library so no extra setup is needed to r
 
 ### Configuration File
 
-As an example the following initial config can be used
+As an example, the following initial config can be used
 
 ```yaml
 services:

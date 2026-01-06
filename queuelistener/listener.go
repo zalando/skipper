@@ -40,10 +40,12 @@ type connection struct {
 // Options are used to initialize the queue listener.
 type Options struct {
 
-	// Network sets the name of the network. Same as for net.Listen().
+	// Network sets the name of the network. Compatible with the `network` argument
+	// to net.Listen().
 	Network string
 
-	// Address sets the listener address, e.g. :9090. Same as for net.Listen().
+	// Address sets the listener address, e.g. :9090. Compatible with the `address`
+	// argument to net.Listen().
 	Address string
 
 	// MaxConcurrency sets the maximum accepted connections.

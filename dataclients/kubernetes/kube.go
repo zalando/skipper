@@ -199,7 +199,7 @@ type Options struct {
 	// used for east west traffic, defaults to "skipper.cluster.local"
 	KubernetesEastWestDomain string
 
-	// KubernetesEastWestRangeDomains set the the cluster internal domains for
+	// KubernetesEastWestRangeDomains set the cluster internal domains for
 	// east west traffic. Identified routes to such domains will include
 	// the KubernetesEastWestRangePredicates.
 	KubernetesEastWestRangeDomains []string
@@ -255,7 +255,7 @@ type Options struct {
 	// available options: roundRobin, consistentHash, random, powerOfRandomNChoices
 	DefaultLoadBalancerAlgorithm string
 
-	// ForwardBackendURL allows to use <forward> backend via kubernetes, for example routgroup backend `type: forward`.
+	// ForwardBackendURL allows to use <forward> backend via kubernetes, for example routegroup backend `type: forward`.
 	ForwardBackendURL string
 }
 

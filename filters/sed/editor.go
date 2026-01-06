@@ -270,7 +270,7 @@ func (e *editor) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// Closes closes the undelrying reader if it implements io.Closer.
+// Closes closes the underlying reader if it implements io.Closer.
 func (e *editor) Close() error {
 	e.closed = true
 	if c, ok := e.input.(io.Closer); ok {

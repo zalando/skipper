@@ -66,7 +66,7 @@ proxy itself. This can be used to shortcut, for example have a default
 that replies with 404 or use skipper as a backend serving static
 content in demos.
 
-Route Example proxying to `"https://www.zalando.de/"` in case Host
+Route Example proxying to `"https://www.zalando.de/"` when Host
 header is set to `"zalando"` and rest will be served HTTP status code
 `404` with the body `"no matching route"`:
 
@@ -124,7 +124,7 @@ specific matching requests.
 
 Example:
 
-- Route `r0` is a route with loopback backend that will be matched for requests with paths that start with `/api`. The route will modify the http request removing /api in the path of the incoming request. In the second step of the routing the modified request will be matched by route `r1`.
+- Route `r0` is a route with loopback backend that will be matched for requests with paths that start with `/api`. The route will modify the http request removing /api in the path of the incoming request. In the second step of the routing, the modified request will be matched by route `r1`.
 - Route `r1` is a default route with a network backend to call `"https://www.zalando.de/"`
 
 ```

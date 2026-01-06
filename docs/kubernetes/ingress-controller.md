@@ -18,7 +18,7 @@ Cloud load balancers scale well and can be updated frequently, but do not
 provide many features. Skipper has advanced resiliency and deployment
 features, which you can use to enhance your environment. For example,
 ratelimiters, circuitbreakers, blue-green deployments, shadow traffic
-and [more](ingress-usage.md).
+and more -- see [Skipper Ingress Usage](ingress-usage.md).
 
 ### Comparison with other Ingress Controllers
 
@@ -106,7 +106,7 @@ that support latency, bandwidth throttling, random content and more.
 - [Support for different Opentracing providers](https://opensource.zalando.com/skipper/tutorials/development/#opentracing)
 including jaeger, lightstep and instana
 - [Ratelimits support](https://opensource.zalando.com/skipper/tutorials/ratelimit/)
-with cluster ratelimits as an pending solution, which enables you to stop login attacks easily
+with cluster ratelimits as a pending solution, which enables you to stop login attacks easily
 - Connects to endpoints directly, instead of using Kubernetes services
 - Retries requests, if the request can be safely retried, which is only the case if the error
 happens on the TCP/IP connection establishment or a backend whose requests are defined as
@@ -126,7 +126,7 @@ reliable and secure. Employees cannot download private keys and certificates are
 by a public CA. Many mTLS setups rely on insecure CA handling and are hard to debug in case of
  failure.
 - We are happy to receive issues and pull requests in our repository, but if you need a feature
-which can not be implemented upstream, you are also free to use skipper as a library and
+which cannot be implemented upstream, you are also free to use skipper as a library and
 create internal features to do whatever you want.
 
 With Skipper you do not need to choose to go all-in and you are able to add features as soon
@@ -158,7 +158,7 @@ API to bypass kube-proxy created iptables to remove overhead like
 conntrack entries for iptables DNAT. Skipper can also reuse
 connections to Pods, such that you have no overhead in establishing
 connections all the time. To prevent errors on node failures, Skipper
-also does automatic retries to another endpoint in case it gets a
+also does automatic retries to another endpoint when it gets a
 connection refused or TLS handshake error to the endpoint.  Other
 reasons are future support of features like session affinity,
 different load balancer algorithms or distributed loadbalancing also
@@ -227,7 +227,7 @@ load balancer virtual IP.
 
 ## RouteSRV
 
-In kubernetes skipper-ingress fetches ingress/routegroup configurations every **3s**, with high number of skipper pods *~100* we faced issues with kube-apiserver. At which we introduced RouteSRV, which will serve as a layer between kube-apiserver and skipper ingress, so it will give us more flexiability in scaling skipper-ingress without affecting k8s-apiserver
+In kubernetes skipper-ingress fetches ingress/routegroup configurations every **3s**, with high number of skipper pods *~100* we faced issues with kube-apiserver. At which we introduced RouteSRV, which will serve as a layer between kube-apiserver and skipper ingress, so it will give us more flexibility in scaling skipper-ingress without affecting k8s-apiserver
 
 ### Kubernetes dataclient as routes source
 
@@ -391,7 +391,7 @@ exposing the TCP port 9999 on each worker nodes, which has a running
 skipper-ingress instance, a backend application running with 2
 replicas that serves some html on TCP port 9090, and we expose a
 cluster service on TCP port 80. Besides skipper-ingress, deployment
-and service can not be reached from outside the cluster. Now we expose
+and service cannot be reached from outside the cluster. Now we expose
 the application with Ingress to the external network:
 
 ```yaml
@@ -614,7 +614,7 @@ Additionally you have to add `-swarm-redis-urls` to skipper
 
 Running skipper with `hostNetwork` in kubernetes will not be able to
 resolve redis hostnames as shown in the example, if skipper does not
-have `dnsPolicy: ClusterFirstWithHostNet` in it's Pod spec, see also
+have `dnsPolicy: ClusterFirstWithHostNet` in its Pod spec, see also
 [DNS policy in the official Kubernetes documentation](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy).
 
 This setup is considered experimental and should be carefully tested
@@ -742,11 +742,11 @@ What does it mean for you?
   does not support ingress v1, then you can't update skipper to
   `>=0.14.0`, before you upgrade your Kubernetes cluster.
 4. If you use Ingress v1beta1 and run Kubernetes cluster version that
-  support ingress v1, then you need to allow skipper to access the new
+  supports ingress v1, then you need to allow skipper to access the new
   APIs with a changed RBAC. See the guide below.
 
 
-If you are in case 4., you have to apply a change in your RBAC, please
+If upgrading from Ingress v1beta1 on a Kubernetes cluster that supports Ingress v1, you have to apply a change in your RBAC, please
 check the diff or the full rendered file.
 
 Diff view (same for deployment and daemonset):

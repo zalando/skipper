@@ -28,7 +28,7 @@ func TestPatch(t *testing.T) {
 		parsed:   "/foo/bar",
 		expected: "/foo%2Fbar",
 	}, {
-		title:    "reserved, lower case",
+		title:    "reserved, lowercase",
 		raw:      "/foo%2fbar",
 		parsed:   "/foo/bar",
 		expected: "/foo%2fbar",

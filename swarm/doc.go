@@ -7,7 +7,7 @@ data, from which derives the decision to use such protocol. As an
 example the implementation of the filter clusterRatelimit uses
 the swarm data exchange to have a global state of current requests.
 
-A swarm instance needs to find some of it's peers before joining the
+A swarm instance needs to find some of its peers before joining the
 cluster. Current implementations to find peers are swarmKubernetes to
 find skipper instances running in a Kubernetes cluster and swarmFake
 for testing.

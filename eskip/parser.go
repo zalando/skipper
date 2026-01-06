@@ -232,7 +232,7 @@ func eskipTokname(c int) string {
 	return __yyfmt__.Sprintf("tok-%v", c)
 }
 
-func eskipStatname(s int) string {
+func eskipStatename(s int) string {
 	if s >= 0 && s < len(eskipStatenames) {
 		if eskipStatenames[s] != "" {
 			return eskipStatenames[s]
@@ -374,7 +374,7 @@ ret1:
 eskipstack:
 	/* put a state and value onto the stack */
 	if eskipDebug >= 4 {
-		__yyfmt__.Printf("char %v in %v\n", eskipTokname(eskiptoken), eskipStatname(eskipstate))
+		__yyfmt__.Printf("char %v in %v\n", eskipTokname(eskiptoken), eskipStatename(eskipstate))
 	}
 
 	eskipp++
@@ -444,7 +444,7 @@ eskipdefault:
 			eskiplex.Error(eskipErrorMessage(eskipstate, eskiptoken))
 			Nerrs++
 			if eskipDebug >= 1 {
-				__yyfmt__.Printf("%s", eskipStatname(eskipstate))
+				__yyfmt__.Printf("%s", eskipStatename(eskipstate))
 				__yyfmt__.Printf(" saw %s\n", eskipTokname(eskiptoken))
 			}
 			fallthrough
@@ -486,7 +486,7 @@ eskipdefault:
 
 	/* reduction by production eskipn */
 	if eskipDebug >= 2 {
-		__yyfmt__.Printf("reduce %v in:\n\t%v\n", eskipn, eskipStatname(eskipstate))
+		__yyfmt__.Printf("reduce %v in:\n\t%v\n", eskipn, eskipStatename(eskipstate))
 	}
 
 	eskipnt := eskipn

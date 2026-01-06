@@ -2,7 +2,7 @@
 Package methods implements a custom predicate to match routes
 based on the http method in request
 
-# It supports multiple http methods, with case insensitive input
+# It supports multiple http methods, with case-insensitive input
 
 Examples:
 

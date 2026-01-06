@@ -17,7 +17,7 @@ spec:
           service:
             name: bar
             port:
-              name: dontexist
+              name: nonexistent
 ---
 apiVersion: v1
 kind: Service

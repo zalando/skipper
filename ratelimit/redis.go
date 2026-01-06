@@ -102,7 +102,7 @@ func (c *clusterLimitRedis) commonTags() opentracing.Tags {
 }
 
 // Allow returns true if the request calculated across the cluster of
-// skippers should be allowed else false. It will share it's own data
+// skippers should be allowed else false. It will share its own data
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
 //
@@ -184,7 +184,7 @@ func (c *clusterLimitRedis) allow(ctx context.Context, clearText string) (bool, 
 	return true, nil
 }
 
-// Close can not decide to teardown redis ring, because it is not the
+// Close cannot decide to teardown redis ring, because it is not the
 // owner of it.
 func (c *clusterLimitRedis) Close() {}
 

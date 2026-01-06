@@ -90,7 +90,7 @@ The active set of routes from the last successful update are used until
 the next successful update happens.
 
 Currently, the routes with the same id coming from different sources are
-merged in an nondeterministic way, but this behavior may change in the
+merged in a nondeterministic way, but this behavior may change in the
 future.
 
 For a full description of the route definitions, see the documentation

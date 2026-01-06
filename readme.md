@@ -289,8 +289,7 @@ recommend to use plugins, but you can extend skipper and
 User or developer questions can be asked in our [public Google Group](https://groups.google.com/forum/#!forum/skipper-router)
 
 We have a slack channel #skipper in gophers.slack.com. Get an [invite](https://invite.slack.golangbridge.org).
-If for some reason this link doesn't work, you can find more information about
-the gophers communities [here](https://github.com/gobridge/about-us/blob/master/README.md#onlineoffline-communities).
+If for some reason this link doesn't work, you can read the [information about the gophers communities](https://github.com/gobridge/about-us/blob/master/README.md#onlineoffline-communities).
 
 The preferred communication channel is the slack channel, because the google group is a manual process to add members.
 Feel also free to [create an issue](https://github.com/zalando/skipper/issues/new/choose), if you dislike chat and post your questions there.

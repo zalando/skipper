@@ -22,7 +22,7 @@ production with more than 200.000 routing table entries.
 Skipper has Filters to change http data and Predicates to change the
 matching rules, both can combined and chained. You can set these in
 ingress.yaml files to build resiliency patterns like load shedding, ratelimit or
-circuitbreaker. You can also use them to build more highlevel
+circuitbreaker. You can also use them to build more high-level
 deployment patterns, for example feature toggles, shadow traffic or
 blue-green deployments.
 

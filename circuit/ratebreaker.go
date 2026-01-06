@@ -10,7 +10,7 @@ import (
 
 // TODO:
 // in case of the rate breaker, there are unnecessary synchronization steps due to the 3rd party gobreaker. If
-// the sliding window was part of the implementation of the individual breakers, this additional syncrhonization
+// the sliding window was part of the implementation of the individual breakers, this additional synchronization
 // would not be required.
 
 type rateBreaker struct {

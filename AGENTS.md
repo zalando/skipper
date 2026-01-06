@@ -2,14 +2,14 @@
 
 ## Project overview
 
-Skipper is a http proxy library written in Go. The project layout is library first and has some main packages in sub-diretories of the ./cmd folder.
+Skipper is a http proxy library written in Go. The project layout is library first and has some main packages in sub-directories of the ./cmd folder.
 Eskip is the syntax used by routing specifications.
 Dataclients fetch routing information and create a list of eskip.Routes.
 The routing package fetch eskip.Routes by the dataclients, run routing.PreProcessors on all eskip.Routes, converts eskip.Routes to routing.Routes, run routing.PostProcessors on routing.Routes and replace the current routing tree.
 Routes consists of predicates, filters and backend.
 Predicates match requests to select the best matching route.
 Filters can process the http.Request and the http.Response.
-Backend is the thing skipper should proxy to for example:
+Backend is the thing to which skipper should proxy, for example:
 - network: URL to proxy to
 - shunt: respond from proxy to client
 - loopback: evaluate again the routing tree

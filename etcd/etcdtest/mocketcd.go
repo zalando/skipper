@@ -115,7 +115,7 @@ func StartProjectRoot(projectRoot string) error {
 	case <-time.After(6 * time.Second):
 		bout, _ := io.ReadAll(stdout)
 		berr, _ := io.ReadAll(stderr)
-		log.Panicf("ETCD timedout: Failed to start etcd\netcd log output\nSTDOUT: %s\nSTDERR: %s", string(bout), string(berr))
+		log.Panicf("ETCD timeout: Failed to start etcd\netcd log output\nSTDOUT: %s\nSTDERR: %s", string(bout), string(berr))
 		return fmt.Errorf("etcd timeout")
 	}
 }

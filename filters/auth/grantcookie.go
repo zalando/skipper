@@ -154,7 +154,7 @@ func (ce *EncryptedCookieEncoder) createCookie(host string, t *oauth2.Token) (*h
 	b64 := base64.StdEncoding.EncodeToString(eb)
 
 	// The cookie expiry date must not be the same as the access token
-	// expiry. Otherwise the browser deletes the cookie as soon as the
+	// expiry. Otherwise, the browser deletes the cookie as soon as the
 	// access token expires, but _before_ the refresh token has expired.
 	// Since we don't know the actual refresh token expiry, set it to
 	// 30 days as a good compromise.

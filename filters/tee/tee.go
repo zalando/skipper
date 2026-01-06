@@ -44,8 +44,8 @@ type teeSpec struct {
 
 // Options for tee filter.
 type Options struct {
-	// NoFollow specifies whether tee should follow redirects or not.
-	// If NoFollow is true, it won't follow, otherwise it will.
+	// NoFollow specifies whether or not tee should follow redirects.
+	// If NoFollow is true, it won't follow; otherwise, it will.
 	NoFollow bool
 
 	// Timeout specifies a time limit for requests made by tee filter.

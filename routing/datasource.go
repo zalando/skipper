@@ -59,12 +59,12 @@ func (d *incomingData) log(l logging.Logger, suppress bool) {
 	}
 }
 
-// continuously receives route definitions from a data client on the the output channel.
+// continuously receives route definitions from a data client on the output channel.
 // The function does not return unless quit is closed. When started, it request for the
 // whole current set of routes, and continues polling for the subsequent updates. When a
 // communication error occurs, it re-requests the whole valid set, and continues polling.
 // Currently, the routes with the same id coming from different sources are merged in an
-// undeterministic way, but this may change in the future.
+// nondeterministic way, but this may change in the future.
 func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <-chan struct{}) {
 	initial := true
 	var ticker *time.Ticker
@@ -163,7 +163,7 @@ func mergeDefs(defsByClient map[DataClient]routeDefs) mergedDefs {
 	return mergedDefs{routes: all, clients: clients}
 }
 
-// receives the initial set of the route definitiosn and their
+// receives the initial set of the route definitions and their
 // updates from multiple data clients, merges them by route id
 // and sends the merged route definitions to the output channel.
 //

@@ -21,7 +21,7 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 	redisAddr, done := redistest.NewTestRedisWithPassword(t, redisPassword)
 	defer done()
 
-	clusterClientlimit := Settings{
+	clusterClientLimit := Settings{
 		Type:       ClusterClientRatelimit,
 		Lookuper:   NewHeaderLookuper("X-Test"),
 		MaxHits:    5,
@@ -40,7 +40,7 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 	}{
 		{
 			name:       "correct password",
-			settings:   clusterClientlimit,
+			settings:   clusterClientLimit,
 			args:       "clientAuth",
 			addrs:      []string{redisAddr},
 			password:   redisPassword,
@@ -49,7 +49,7 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 		},
 		{
 			name:       "wrong password, fail open",
-			settings:   clusterClientlimit,
+			settings:   clusterClientLimit,
 			args:       "clientAuth",
 			addrs:      []string{redisAddr},
 			password:   "wrong",
@@ -58,7 +58,7 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 		},
 		{
 			name:       "no password, fail open",
-			settings:   clusterClientlimit,
+			settings:   clusterClientLimit,
 			args:       "clientAuth",
 			addrs:      []string{redisAddr},
 			password:   "",
@@ -96,7 +96,7 @@ func Benchmark_clusterLimitRedis_Allow(b *testing.B) {
 		benchmarkName := fmt.Sprintf("ratelimit with group name of %d symbols", 1<<i)
 		b.Run(benchmarkName, func(b *testing.B) {
 			groupName := strings.Repeat("a", 1<<i)
-			clusterClientlimit := Settings{
+			clusterClientLimit := Settings{
 				Type:       ClusterClientRatelimit,
 				Lookuper:   NewHeaderLookuper("X-Test"),
 				MaxHits:    10,
@@ -107,9 +107,9 @@ func Benchmark_clusterLimitRedis_Allow(b *testing.B) {
 			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
 			defer ringClient.Close()
 			c := newClusterRateLimiterRedis(
-				clusterClientlimit,
+				clusterClientLimit,
 				ringClient,
-				clusterClientlimit.Group,
+				clusterClientLimit.Group,
 			)
 
 			b.ResetTimer()
@@ -131,7 +131,7 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 		TimeWindow: time.Second,
 		Group:      "A",
 	}
-	clusterClientlimit := Settings{
+	clusterClientLimit := Settings{
 		Type:       ClusterClientRatelimit,
 		Lookuper:   NewHeaderLookuper("X-Test"),
 		MaxHits:    10,
@@ -155,7 +155,7 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 		},
 		{
 			name:       "simple test clusterClientRatelimit",
-			settings:   clusterClientlimit,
+			settings:   clusterClientLimit,
 			args:       "clientB",
 			iterations: 1,
 			want:       []bool{true},
@@ -169,7 +169,7 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 		},
 		{
 			name:       "simple test clusterClientRatelimit",
-			settings:   clusterClientlimit,
+			settings:   clusterClientLimit,
 			args:       "clientB",
 			iterations: 12,
 			want:       append(repeat(true, 9), repeat(false, 3)...),
@@ -205,7 +205,7 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 		TimeWindow: time.Second,
 		Group:      "A",
 	}
-	clusterClientlimit := Settings{
+	clusterClientLimit := Settings{
 		Type:       ClusterClientRatelimit,
 		Lookuper:   NewHeaderLookuper("X-Test"),
 		MaxHits:    10,
@@ -229,7 +229,7 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 		},
 		{
 			name:       "simple test clusterClientRatelimit",
-			settings:   clusterClientlimit,
+			settings:   clusterClientLimit,
 			args:       "clientB",
 			iterations: 1,
 			want:       200 * time.Millisecond,
@@ -268,7 +268,7 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 		TimeWindow: time.Second,
 		Group:      "A",
 	}
-	clusterClientlimit := Settings{
+	clusterClientLimit := Settings{
 		Type:       ClusterClientRatelimit,
 		Lookuper:   NewHeaderLookuper("X-Test"),
 		MaxHits:    10,
@@ -292,9 +292,9 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 		},
 		{
 			name:       "simple test clusterClientRatelimit",
-			settings:   clusterClientlimit,
+			settings:   clusterClientLimit,
 			args:       "clientB",
-			iterations: clusterClientlimit.MaxHits,
+			iterations: clusterClientLimit.MaxHits,
 			want:       100 * time.Millisecond,
 		},
 	}
@@ -332,7 +332,7 @@ func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 		TimeWindow: 10 * time.Second,
 		Group:      "A",
 	}
-	clusterClientlimit := Settings{
+	clusterClientLimit := Settings{
 		Type:       ClusterClientRatelimit,
 		Lookuper:   NewHeaderLookuper("X-Test"),
 		MaxHits:    10,
@@ -356,9 +356,9 @@ func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 		},
 		{
 			name:       "simple test clusterClientRatelimit",
-			settings:   clusterClientlimit,
+			settings:   clusterClientLimit,
 			args:       "clientB",
-			iterations: clusterClientlimit.MaxHits,
+			iterations: clusterClientLimit.MaxHits,
 			want:       5,
 		},
 	}

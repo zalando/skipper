@@ -48,11 +48,11 @@ better HTTP path routing than the default Kubernetes Ingress spec
 supports.
 
 The former Kubernetes Ingress v1beta1 spec defined a path
-as regular expression, which is not what most people would expect, nor
+as regular expression, which is neither what most people would expect, nor
 want. Skipper defaults in Kubernetes to use the [PathRegexp predicate](../reference/predicates.md#pathregexp)
 for routing, because of the spec. We believe the better default is the
 path prefix mode, that uses [PathSubtree predicate](../reference/predicates.md#pathsubtree),
-instead. Path prefix search is much more scalable and can not lead to
+instead. Path prefix search is much more scalable and cannot lead to
 unexpected results by not so experienced regular expressions users.
 Since Kubernetes v1.18, [Ingress v1 path definition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#httpingresspath-v1-networking-k8s-io)
 supports all path matching modes that are common in skipper:
@@ -67,8 +67,8 @@ section](../operation/operation.md#monitoring).
 The settings shown above support system and application metrics to
 carefully monitor Skipper and your backend applications. Backend
 application metrics get error rates and latency buckets based on host
-headers. The chosen options are a good setup to safely run all
-workloads from small to high traffic.
+headers. The chosen options should safely run all workloads from small
+to high traffic.
 
 The option `-max-audit-body=0`, won't log the HTTP body, if you would
 do audit logging, to have a safe default.
@@ -191,7 +191,7 @@ connections from the network `10.2.0.0/16`, on this specific scenario.
 You can specify multiple east-west range domains and predicates:
 
 ```sh
-skippper \
+skipper \
   -kubernetes-east-west-range-domains="ingress.cluster.local,another.cluster.local"
   -kubernetes-east-west-range-predicates='ClientIP("10.2.0.0/16") && SourceLastFrom("10.2.0.0/16")'
 ```
@@ -233,7 +233,7 @@ repository](https://github.com/zalando-incubator/kubernetes-on-aws/tree/beta/clu
 ### Recommendations
 
 We recommend to run a loadbalancer in front of Skipper to terminate
-TLS, such that cluster users can not access your keys and
+TLS, such that cluster users cannot access your keys and
 certificates. While skipper supports SNI, hardware and cloud
 loadbalancers often have hardware support to terminate TLS. It's
 cheaper for you to offload TLS to these devices and trust your compute

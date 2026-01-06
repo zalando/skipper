@@ -255,7 +255,7 @@ Route creation steps:
    `[]routing.PreProcessor`. [PreProcessors](https://pkg.go.dev/github.com/zalando/skipper/routing#PreProcessor) are able to add, remove,
    modify all `[]*eskip.Route`.
 3. After that `[]*eskip.Route` are converted to `[]*routing.Route`.
-4. `[]routing.PostProcessor` are executed. [PostProcessors](https://pkg.go.dev/github.com/zalando/skipper/routing#PostProcessor) are a ble to
+4. `[]routing.PostProcessor` are executed. [PostProcessors](https://pkg.go.dev/github.com/zalando/skipper/routing#PostProcessor) are able to
    add, remove, modify all `[]*routing.Route`.
 5. Last the active routing table is swapped. Now all incoming requests
    are handled by the new routing table
@@ -405,7 +405,7 @@ For skipper operators the number of routes can be interesting for
 statistics and the timestamp to detect skipper instances that have not
 updated its routing table.
 
-If there is more than 1024 routes used, then the paging the results is
+If there are more than 1024 routes used, then paging the results is
 possible with the `offset` and `limit` query parameters:
 
 ```

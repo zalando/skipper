@@ -16,7 +16,7 @@ list happens only in the Kubernetes Ingress mode of Skipper.
 
 ### Specifying allowed external names via command line flags
 
-For compatibility reasons, the validation needs to be enabled with an explitic toggle:
+For compatibility reasons, the validation needs to be enabled with an explicit toggle:
 
 ```sh
 skipper -kubernetes \
@@ -27,7 +27,7 @@ skipper -kubernetes \
 
 ### Specifying allowed external names via a config file
 
-For compatibility reasons, the validation needs to be enabled with an explitic toggle:
+For compatibility reasons, the validation needs to be enabled with an explicit toggle:
 
 ```yaml
 kubernetes-only-allowed-external-names: true

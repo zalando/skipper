@@ -160,7 +160,7 @@ func (pg *PathGenerator) closingSlash() bool {
 func (pg *PathGenerator) Next() string {
 	names := pg.Names()
 
-	// appending an empty filename in case a closing slash needs to be
+	// appending an empty filename if a closing slash needs to be
 	// added
 	if pg.closingSlash() || len(names) == 0 {
 		names = append(names, "")

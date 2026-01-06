@@ -66,7 +66,7 @@ func main() {
 	ureq.Header.Set("Connection", "upgrade")
 	uresp, err := tr.RoundTrip(ureq)
 	if err != nil {
-		logrus.Errorf("Failed to do ugrade roundtrip: %v", err)
+		logrus.Errorf("Failed to do upgrade roundtrip: %v", err)
 	} else {
 
 		defer uresp.Body.Close()

@@ -53,7 +53,7 @@ func TestCreate(t *testing.T) {
 
 func TestPredicateName(t *testing.T) {
 	if name := New().Name(); name != predicates.CronName {
-		t.Errorf("predicate name does not match expecetation: %s", name)
+		t.Errorf("predicate name does not match expectation: %s", name)
 	}
 }
 

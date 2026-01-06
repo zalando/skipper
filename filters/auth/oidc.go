@@ -325,7 +325,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		for _, header := range strings.Split(sargs[paramUpstrHeaders], " ") {
 			k, v, found := strings.Cut(header, ":")
 			if !found || k == "" || v == "" {
-				return nil, fmt.Errorf("%w: malformatted filter for upstream headers %s", filters.ErrInvalidFilterParameters, header)
+				return nil, fmt.Errorf("%w: malformed filter for upstream headers %s", filters.ErrInvalidFilterParameters, header)
 			}
 			f.upstreamHeaders[k] = v
 		}
@@ -536,7 +536,7 @@ func mergerCookies(cookies []*http.Cookie) *http.Cookie {
 	cookie := *(cookies[0])
 	cookie.Name = cookie.Name[:len(cookie.Name)-1]
 	cookie.Value = ""
-	// potentially shuffeled
+	// potentially shuffled
 	sort.Slice(cookies, func(i, j int) bool {
 		return cookies[i].Name < cookies[j].Name
 	})
@@ -1104,7 +1104,7 @@ func (f *tokenOidcFilter) resolveDistributedClaimAzure(url *url.URL, oauth2Token
 
 	err = json.Unmarshal(body, &target)
 	if err != nil {
-		return nil, fmt.Errorf("unabled to decode response: %w", err)
+		return nil, fmt.Errorf("unable to decode response: %w", err)
 	}
 	for _, v := range target.Value {
 		if v.OnPremisesSamAccountName != "" {

@@ -66,7 +66,7 @@ type knownEntryPoint struct {
 }
 
 // newKnownEntryPoint returns a new knownEntryPoint that knows all
-// initial peers and itself. If it can not get a list of peers it will
+// initial peers and itself. If it cannot get a list of peers it will
 // fail fast.
 func newKnownEntryPoint(o Options) (*knownEntryPoint, func()) {
 	nic, cleanupF := NewNodeInfoClient(o)

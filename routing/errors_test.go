@@ -69,7 +69,7 @@ func TestValidationErrors(t *testing.T) {
 				t.Fatal("Failed to get metric key with prefix \"route.invalid\"")
 			}
 			if mVal != 1 {
-				t.Fatalf("Faile to get metric value 1 for key %q, got %0.2f", mKey, mVal)
+				t.Fatalf("Failed to get metric value 1 for key %q, got %0.2f", mKey, mVal)
 			}
 
 		})

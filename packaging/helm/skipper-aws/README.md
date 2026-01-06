@@ -1,6 +1,6 @@
 # Helm chart
 
-## Pre-requisites
+## Prerequisites
 
 ### IAM Policies
 

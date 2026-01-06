@@ -146,7 +146,7 @@ func (p *poller) process(routes []*eskip.Route) []*eskip.Route {
 		routes = cloner.Do(routes)
 	}
 
-	// sort the routes, otherwise it will lead to different etag values for the same route list for different orders
+	// sort the routes; otherwise, it will lead to different etag values for the same route list for different orders
 	sort.SliceStable(routes, func(i, j int) bool {
 		return routes[i].Id < routes[j].Id
 	})

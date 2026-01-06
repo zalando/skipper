@@ -13,7 +13,7 @@ func TestEncryptDecrypt(t *testing.T) {
 	tr := secrettest.NewTestRegistry()
 	enc, err := tr.GetEncrypter(10*time.Minute, "TestEncryptDecrypt")
 	if err != nil {
-		t.Fatalf("Failed to create test Encrpyter: %v", err)
+		t.Fatalf("Failed to create test Encrypter: %v", err)
 	}
 
 	b := []byte(s)
@@ -38,17 +38,17 @@ func TestCreateNonce(t *testing.T) {
 	tr := secrettest.NewTestRegistry()
 	enc, err := tr.GetEncrypter(10*time.Minute, "TestCreateNonce")
 	if err != nil {
-		t.Fatalf("Failed to create test Encrpyter: %v", err)
+		t.Fatalf("Failed to create test Encrypter: %v", err)
 	}
 
 	b, err := enc.CreateNonce()
 	if err != nil {
-		t.Fatalf("Failed to create create nonce: %v", err)
+		t.Fatalf("Failed to create nonce: %v", err)
 	}
 
 	b1, err := enc.CreateNonce()
 	if err != nil {
-		t.Fatalf("Failed to create create nonce: %v", err)
+		t.Fatalf("Failed to create nonce: %v", err)
 	}
 
 	if reflect.DeepEqual(b, b1) {

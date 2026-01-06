@@ -15,7 +15,7 @@ jobs:
     if: ${{ github.actor != 'dependabot[bot]' }}
 
     runs-on: ubuntu-latest
-    # Adding this block will overridw default values to None if not specified in the block
+    # Adding this block will override default values to None if not specified in the block
     # https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
     permissions:
       contents: read
@@ -31,7 +31,7 @@ jobs:
           go-version: '^1.23'
           check-latest: true
 
-      - name: Login to Github Container Registry
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
         with:
           registry: ${{ env.REGISTRY }}

@@ -131,7 +131,7 @@ func ParseCIDRs(cidrs []string) (nets IPNets, err error) {
 	return nets, nil
 }
 
-// ParseIPCIDRs returns a valid IPSet in case there is no parsing
+// ParseIPCIDRs returns a valid IPSet when there is no parsing
 // error.
 func ParseIPCIDRs(cidrs []string) (*netipx.IPSet, error) {
 	var b netipx.IPSetBuilder
@@ -176,7 +176,7 @@ func SchemeHost(input string) (string, string, error) {
 		return "", "", fmt.Errorf(`parse %q: missing host`, input)
 	}
 
-	// endpoint address cannot contain path, the rest is not case sensitive
+	// endpoint address cannot contain path, the rest is not case-sensitive
 	s, h := strings.ToLower(u.Scheme), strings.ToLower(u.Host)
 
 	hh, p, err := net.SplitHostPort(h)

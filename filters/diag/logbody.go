@@ -17,7 +17,7 @@ type logBody struct {
 // NewLogBody creates a filter specification for the 'logBody()' filter.
 func NewLogBody() filters.Spec { return logBody{} }
 
-// Name returns the logBody filtern name.
+// Name returns the logBody filter name.
 func (logBody) Name() string {
 	return filters.LogBodyName
 }

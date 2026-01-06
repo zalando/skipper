@@ -78,7 +78,7 @@ func setupProxy(t *testing.T, doc string) (*metricstest.MockMetrics, *httptest.S
 	return m, setupProxyWithCustomProxyParams(t, doc, proxyParams)
 }
 
-func setupProxyWithCustomEndpointRegisty(t *testing.T, doc string, endpointRegistry *routing.EndpointRegistry) (*metricstest.MockMetrics, *httptest.Server) {
+func setupProxyWithCustomEndpointRegistry(t *testing.T, doc string, endpointRegistry *routing.EndpointRegistry) (*metricstest.MockMetrics, *httptest.Server) {
 	t.Helper()
 	m := &metricstest.MockMetrics{}
 	proxyParams := Params{
@@ -237,15 +237,15 @@ func TestPHC(t *testing.T) {
 			}
 
 			t.Run("consistentHash", func(t *testing.T) {
-				consistantHashCustomEndpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
+				consistentHashCustomEndpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
 					PassiveHealthCheckEnabled:     true,
 					StatsResetPeriod:              1 * time.Second,
 					MinRequests:                   1, // with 2 test case fails on github actions
 					MaxHealthCheckDropProbability: 0.95,
 					MinHealthCheckDropProbability: 0.01,
 				})
-				mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <consistentHash, %s>`,
-					servicesString), consistantHashCustomEndpointRegistry)
+				mockMetrics, ps := setupProxyWithCustomEndpointRegistry(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <consistentHash, %s>`,
+					servicesString), consistentHashCustomEndpointRegistry)
 				failedReqs := sendGetRequests(t, ps)
 				assert.InDelta(t, 0, failedReqs, 0.2*float64(nRequests))
 				mockMetrics.WithCounters(func(counters map[string]int64) {
@@ -255,15 +255,15 @@ func TestPHC(t *testing.T) {
 			})
 
 			t.Run("consistent hash with balance factor", func(t *testing.T) {
-				consistantHashCustomEndpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
+				consistentHashCustomEndpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
 					PassiveHealthCheckEnabled:     true,
 					StatsResetPeriod:              1 * time.Second,
 					MinRequests:                   1, // with 2 test case fails on github actions
 					MaxHealthCheckDropProbability: 0.95,
 					MinHealthCheckDropProbability: 0.01,
 				})
-				mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, %s>`,
-					servicesString), consistantHashCustomEndpointRegistry)
+				mockMetrics, ps := setupProxyWithCustomEndpointRegistry(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, %s>`,
+					servicesString), consistentHashCustomEndpointRegistry)
 				failedReqs := sendGetRequests(t, ps)
 				assert.InDelta(t, 0, failedReqs, 0.2*float64(nRequests))
 				mockMetrics.WithCounters(func(counters map[string]int64) {
