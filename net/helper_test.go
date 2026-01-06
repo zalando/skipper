@@ -2,8 +2,6 @@ package net
 
 import (
 	"sync"
-
-	"github.com/sirupsen/logrus"
 )
 
 type addressUpdater struct {
@@ -22,7 +20,6 @@ type addressUpdater struct {
 // 6: [foo bar baz]
 // ...
 func (u *addressUpdater) update() ([]string, error) {
-	logrus.Info("addressUpdater.update")
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
