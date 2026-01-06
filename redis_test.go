@@ -93,7 +93,7 @@ spec:
 	apiServer3 := createApiserver(t, kubeSpec+redisSpec3)
 
 	// create skipper as LB to kube-apiservers
-	fr := createFilterRegistry(fscheduler.NewFifo(), flog.NewEnableAccessLog())
+	fr := createFilterRegistry(fscheduler.NewFifo(), flog.NewDisableAccessLog())
 	metrics := &metricstest.MockMetrics{}
 	reg := scheduler.RegistryWith(scheduler.Options{
 		Metrics:                metrics,
@@ -101,7 +101,7 @@ spec:
 	})
 	defer reg.Close()
 
-	docApiserver := fmt.Sprintf(`r1: * -> enableAccessLog(4,5) -> fifo(100,100,"3s") -> <roundRobin, "%s", "%s", "%s">;`,
+	docApiserver := fmt.Sprintf(`r1: * -> disableAccessLog() -> fifo(100,100,"3s") -> <roundRobin, "%s", "%s", "%s">;`,
 		apiServer1.URL, apiServer2.URL, apiServer3.URL)
 
 	dc, err := testdataclient.NewDoc(docApiserver)
@@ -270,7 +270,7 @@ spec:
 	apiServer3 := createApiserver(t, kubeSpec+redisSpec3)
 
 	// create skipper as LB to kube-apiservers
-	fr := createFilterRegistry(fscheduler.NewFifo(), flog.NewEnableAccessLog())
+	fr := createFilterRegistry(fscheduler.NewFifo(), flog.NewDisableAccessLog())
 	metrics := &metricstest.MockMetrics{}
 	reg := scheduler.RegistryWith(scheduler.Options{
 		Metrics:                metrics,
@@ -278,7 +278,7 @@ spec:
 	})
 	defer reg.Close()
 
-	docApiserver := fmt.Sprintf(`r1: * -> enableAccessLog(4,5) -> fifo(100,100,"3s") -> <roundRobin, "%s", "%s", "%s">;`,
+	docApiserver := fmt.Sprintf(`r1: * -> disableAccessLog() -> fifo(100,100,"3s") -> <roundRobin, "%s", "%s", "%s">;`,
 		apiServer1.URL, apiServer2.URL, apiServer3.URL)
 
 	dc, err := testdataclient.NewDoc(docApiserver)

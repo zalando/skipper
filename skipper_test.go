@@ -257,6 +257,7 @@ func TestOptionsTLSConfigInvalidPaths(t *testing.T) {
 func TestHTTPSServer(t *testing.T) {
 	// TODO: figure why sometimes cannot connect
 	if !testListener() {
+		t.Log("Failed to get testListener skip test TestHTTPSServer")
 		t.Skip()
 	}
 
@@ -320,6 +321,7 @@ func TestHTTPSServer(t *testing.T) {
 func TestHTTPServer(t *testing.T) {
 	// TODO: figure why sometimes cannot connect
 	if !testListener() {
+		t.Log("Failed to get testListener skip test TestHTTPServer")
 		t.Skip()
 	}
 
@@ -509,7 +511,7 @@ func createRoutesFile(route string) (string, error) {
 func TestDataClients(t *testing.T) {
 	// routesfile
 	routesFileStatus := 201
-	routeStringFmt := `r%d: Path("/routes-file") -> status(%d) -> inlineContent("Got it") -> <shunt>;`
+	routeStringFmt := `r%d: Path("/routes-file") -> disableAccessLog() -> status(%d) -> inlineContent("Got it") -> <shunt>;`
 	filePath, err := createRoutesFile(fmt.Sprintf(routeStringFmt, routesFileStatus, routesFileStatus))
 	if err != nil {
 		t.Fatalf("Failed to create routes file: %v", err)
@@ -566,7 +568,7 @@ func TestDataClients(t *testing.T) {
 
 	fr := createFilterRegistry(
 		fscheduler.NewFifo(),
-		flog.NewEnableAccessLog(),
+		flog.NewDisableAccessLog(),
 		builtin.NewStatus(),
 		builtin.NewInlineContent(),
 	)
