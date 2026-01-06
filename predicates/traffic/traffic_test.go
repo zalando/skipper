@@ -154,16 +154,16 @@ func TestTrafficPredicateInRoutes(t *testing.T) {
 		expectedR3 float64
 	}{{
 		msg:        "no Traffic 100% match r1",
-		routes:     `r1: * -> status(201) -> <shunt>`,
+		routes:     `r1: * -> disableAccessLog() -> status(201) -> <shunt>`,
 		expectedR1: 1,
 	}, {
 		msg:        "2 routes with 1 Traffic with 80% match r1",
-		routes:     `r1: Traffic(0.8) -> status(201) -> <shunt>; r2: * -> status(202) -> <shunt>`,
+		routes:     `r1: Traffic(0.8) -> disableAccessLog() -> status(201) -> <shunt>; r2: * -> disableAccessLog() -> status(202) -> <shunt>`,
 		expectedR1: 0.8,
 		expectedR2: 0.2,
 	}, {
 		msg:        "3 routes with 2 Traffic predicates with 50% match r1, 25% match the other",
-		routes:     `r1: Traffic(0.5) && True() -> status(201) -> <shunt>; r2: Traffic(0.5) -> status(202) -> <shunt>; r3: * -> status(203) -> <shunt>`,
+		routes:     `r1: Traffic(0.5) && True() -> disableAccessLog() -> status(201) -> <shunt>; r2: Traffic(0.5) -> disableAccessLog() -> status(202) -> <shunt>; r3: * -> disableAccessLog() -> status(203) -> <shunt>`,
 		expectedR1: 0.5,
 		expectedR2: 0.25,
 		expectedR3: 0.25,
@@ -202,7 +202,7 @@ func TestTrafficPredicateInRoutes(t *testing.T) {
 			r1 := 0.0
 			r2 := 0.0
 			r3 := 0.0
-			for i := 0; i < N; i++ {
+			for range N {
 				n := req(p.URL)
 				switch n {
 				case 201:

@@ -67,7 +67,7 @@ func doN(t *testing.T, client *proxytest.TestClient, request func() *http.Reques
 	var g errgroup.Group
 	g.SetLimit(runtime.NumCPU())
 
-	for i := 0; i < n; i++ {
+	for range n {
 		g.Go(func() error {
 			rsp, err := client.Do(request())
 			if err != nil {
@@ -154,9 +154,9 @@ func TestTrafficSegmentSplit(t *testing.T) {
 			},
 		},
 		Routes: eskip.MustParse(`
-			r50: Path("/test") && TrafficSegment(0.0, 0.5) -> status(200) -> inlineContent("") -> <shunt>;
-			r30: Path("/test") && TrafficSegment(0.5, 0.8) -> status(201) -> inlineContent("") -> <shunt>;
-			r20: Path("/test") && TrafficSegment(0.8, 1.0) -> status(202) -> inlineContent("") -> <shunt>;
+			r50: Path("/test") && TrafficSegment(0.0, 0.5) -> disableAccessLog() -> status(200) -> inlineContent("") -> <shunt>;
+			r30: Path("/test") && TrafficSegment(0.5, 0.8) -> disableAccessLog() -> status(201) -> inlineContent("") -> <shunt>;
+			r20: Path("/test") && TrafficSegment(0.8, 1.0) -> disableAccessLog() -> status(202) -> inlineContent("") -> <shunt>;
 		`),
 	}.Create()
 	defer p.Close()
@@ -179,9 +179,9 @@ func TestTrafficSegmentRouteWeight(t *testing.T) {
 			},
 		},
 		Routes: eskip.MustParse(`
-			segment90: Path("/test") && TrafficSegment(0.0, 0.9) -> status(200) -> inlineContent("") -> <shunt>;
-			segment10: Path("/test") && TrafficSegment(0.9, 1.0) -> status(200) -> inlineContent("") -> <shunt>;
-			cookie:    Path("/test") && Header("X-Foo", "bar")   -> status(201) -> inlineContent("") -> <shunt>;
+			segment90: Path("/test") && TrafficSegment(0.0, 0.9) -> disableAccessLog() -> status(200) -> inlineContent("") -> <shunt>;
+			segment10: Path("/test") && TrafficSegment(0.9, 1.0) -> disableAccessLog() -> status(200) -> inlineContent("") -> <shunt>;
+			cookie:    Path("/test") && Header("X-Foo", "bar")   -> disableAccessLog() -> status(201) -> inlineContent("") -> <shunt>;
 		`),
 	}.Create()
 	defer p.Close()
@@ -215,8 +215,8 @@ func TestTrafficSegmentTeeLoopback(t *testing.T) {
 		},
 		Routes: eskip.MustParse(fmt.Sprintf(`
 			r0: * -> status(200) -> inlineContent("") -> <shunt>;
-			r1: Path("/test") && TrafficSegment(0.0, 0.5) -> teeLoopback("a-loop") -> status(201) -> inlineContent("") -> <shunt>;
-			r2: Path("/test") && Tee("a-loop") && True() -> "%s";
+			r1: Path("/test") && TrafficSegment(0.0, 0.5) -> disableAccessLog() -> teeLoopback("a-loop") -> status(201) -> inlineContent("") -> <shunt>;
+			r2: Path("/test") && Tee("a-loop") && True()  -> disableAccessLog() -> "%s";
 		`, loopBackend.URL)),
 	}.Create()
 	defer p.Close()
@@ -246,9 +246,9 @@ func TestTrafficSegmentLoopbackBackend(t *testing.T) {
 			},
 		},
 		Routes: eskip.MustParse(`
-			r0: * -> status(200) -> inlineContent("") -> <shunt>;
-			r1: Path("/test") && TrafficSegment(0.0, 0.5) -> setPath("a-loop") -> <loopback>;
-			r2: Path("/a-loop") -> status(201) -> inlineContent("") -> <shunt>;
+			r0: * -> status(200) -> disableAccessLog() -> inlineContent("") -> <shunt>;
+			r1: Path("/test") && TrafficSegment(0.0, 0.5) -> disableAccessLog() -> setPath("a-loop") -> <loopback>;
+			r2: Path("/a-loop") -> disableAccessLog() -> status(201) -> inlineContent("") -> <shunt>;
 		`),
 	}.Create()
 	defer p.Close()
