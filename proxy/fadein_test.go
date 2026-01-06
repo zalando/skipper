@@ -80,7 +80,7 @@ single proxy, without sync
 				restart some/all detected through created time -> no fade-in
 
 single proxy, with sync
-	no endpoitns, with/without fade-in, with/without created time
+	no endpoints, with/without fade-in, with/without created time
 		start single/multiple -> no fade-in
 	single endpoint
 		with fade-in

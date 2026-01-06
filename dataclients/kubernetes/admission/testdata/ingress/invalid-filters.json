@@ -8,7 +8,7 @@
                 "name": "ing1",
                 "namespace": "ing1",
                 "annotations": {
-                    "zalando.org/skipper-filter": "this-is-invalid(10) -> inlineContent(\"This should't work\")"
+                    "zalando.org/skipper-filter": "this-is-invalid(10) -> inlineContent(\"This shouldn't work\")"
                 }
             },
             "spec": {

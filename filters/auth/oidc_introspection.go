@@ -74,7 +74,7 @@ func (spec *oidcIntrospectionSpec) CreateFilter(args []interface{}) (filters.Fil
 		for _, arg := range sargs {
 			path, queries, found := strings.Cut(arg, ":")
 			if !found || path == "" {
-				return nil, fmt.Errorf("%v: malformatted filter arg %s", filters.ErrInvalidFilterParameters, arg)
+				return nil, fmt.Errorf("%v: malformed filter arg %s", filters.ErrInvalidFilterParameters, arg)
 			}
 			pq := pathQuery{path: path}
 			for _, query := range splitQueries(queries) {

@@ -43,22 +43,22 @@ func ofType(t typ) spec {
 	return spec{typ: t}
 }
 
-// New creates a filter specficiation for the sed() filter.
+// New creates a filter specification for the sed() filter.
 func New() filters.Spec {
 	return ofType(simple)
 }
 
-// NewDelimited creates a filter specficiation for the sedDelim() filter.
+// NewDelimited creates a filter specification for the sedDelim() filter.
 func NewDelimited() filters.Spec {
 	return ofType(delimited)
 }
 
-// NewRequest creates a filter specficiation for the sedRequest() filter.
+// NewRequest creates a filter specification for the sedRequest() filter.
 func NewRequest() filters.Spec {
 	return ofType(simpleRequest)
 }
 
-// NewDelimitedRequest creates a filter specficiation for the sedRequestDelim() filter.
+// NewDelimitedRequest creates a filter specification for the sedRequestDelim() filter.
 func NewDelimitedRequest() filters.Spec {
 	return ofType(delimitedRequest)
 }

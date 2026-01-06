@@ -14,7 +14,7 @@ import (
 	"github.com/zalando/skipper/routing/testdataclient"
 )
 
-func TestEncodeRequestHeaderNameUknown(t *testing.T) {
+func TestEncodeRequestHeaderNameUnknown(t *testing.T) {
 	spec := encodeHeaderSpec{typ: -5}
 	if spec.Name() != "unknown" {
 		t.Fatalf("Failed to get unknown filter type, got: %q", spec.Name())

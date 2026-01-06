@@ -328,11 +328,11 @@ func TestFifoWithBody(t *testing.T) {
 				close(rspCH)
 				close(errCH)
 			}()
-			waithCH := make(chan struct{})
+			waitCH := make(chan struct{})
 			go func() {
 				rsp, err := ts.Client().Get(ts.URL + "/1")
 				t.Logf("rsp1: %s", rsp.Status)
-				close(waithCH)
+				close(waitCH)
 				if err != nil {
 					errCH <- err
 				} else {
@@ -340,7 +340,7 @@ func TestFifoWithBody(t *testing.T) {
 				}
 			}()
 
-			<-waithCH
+			<-waitCH
 			rsp2, err2 := ts.Client().Get(ts.URL + "/2")
 			t.Logf("rsp2: %s", rsp.Status)
 			if tt.wantErr {

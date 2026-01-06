@@ -121,9 +121,9 @@ func TestTrafficSegmentMatch(t *testing.T) {
 func TestTrafficSegmentMinEqualsMax(t *testing.T) {
 	for _, minMax := range []float64{
 		0.0,
-		1.0 / 10.0, // can not be represented exactly as float64
+		1.0 / 10.0, // cannot be represented exactly as float64
 		0.5,
-		2.0 / 3.0, // can not be represented exactly as float64
+		2.0 / 3.0, // cannot be represented exactly as float64
 		1.0,
 	} {
 		t.Run(fmt.Sprintf("minMax=%v", minMax), func(t *testing.T) {

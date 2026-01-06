@@ -353,7 +353,7 @@ func Test_NewConfigWithArgs(t *testing.T) {
 		},
 		{
 			name:    "test non-existing config file throw an error",
-			args:    []string{"skipper", "-config-file=non-existent.yaml"},
+			args:    []string{"skipper", "-config-file=nonexistent.yaml"},
 			wantErr: true,
 		},
 		{

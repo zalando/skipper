@@ -310,7 +310,7 @@ func (c *clusterClient) clusterHasRouteGroups() (bool, error) {
 	return false, nil
 }
 
-func (c *clusterClient) ingressClassMissmatch(m *definitions.Metadata) bool {
+func (c *clusterClient) ingressClassMismatch(m *definitions.Metadata) bool {
 	// No Metadata is the same as no annotations for us
 	if m != nil {
 		cls, ok := m.Annotations[ingressClassKey]
@@ -327,7 +327,7 @@ func (c *clusterClient) filterIngressesV1ByClass(items []*definitions.IngressV1I
 
 	for _, ing := range items {
 		// v1beta1 style
-		if c.ingressClassMissmatch(ing.Metadata) {
+		if c.ingressClassMismatch(ing.Metadata) {
 			continue
 		}
 

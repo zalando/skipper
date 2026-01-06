@@ -184,7 +184,7 @@ func TestNewLIFO(t *testing.T) {
 			wantKey:   "mykey",
 			wantErr:   false,
 			wantConfig: scheduler.Config{
-				MaxConcurrency: defaultMaxConcurreny,
+				MaxConcurrency: defaultMaxConcurrency,
 				MaxQueueSize:   0,
 				Timeout:        defaultTimeout,
 			},
@@ -203,7 +203,7 @@ func TestNewLIFO(t *testing.T) {
 			wantKey:   "mygroup",
 			wantErr:   false,
 			wantConfig: scheduler.Config{
-				MaxConcurrency: defaultMaxConcurreny,
+				MaxConcurrency: defaultMaxConcurrency,
 				MaxQueueSize:   defaultMaxQueueSize,
 				Timeout:        defaultTimeout,
 			},
@@ -221,7 +221,7 @@ func TestNewLIFO(t *testing.T) {
 			wantKey:   "mykey",
 			wantErr:   true,
 			wantConfig: scheduler.Config{
-				MaxConcurrency: defaultMaxConcurreny,
+				MaxConcurrency: defaultMaxConcurrency,
 				MaxQueueSize:   0,
 				Timeout:        defaultTimeout,
 			},
@@ -240,7 +240,7 @@ func TestNewLIFO(t *testing.T) {
 			wantKey:   "mygroup",
 			wantErr:   true,
 			wantConfig: scheduler.Config{
-				MaxConcurrency: defaultMaxConcurreny,
+				MaxConcurrency: defaultMaxConcurrency,
 				MaxQueueSize:   0,
 				Timeout:        defaultTimeout,
 			},
@@ -259,7 +259,7 @@ func TestNewLIFO(t *testing.T) {
 			wantKey:   "mygroup",
 			wantErr:   true,
 			wantConfig: scheduler.Config{
-				MaxConcurrency: defaultMaxConcurreny,
+				MaxConcurrency: defaultMaxConcurrency,
 				MaxQueueSize:   0,
 				Timeout:        defaultTimeout,
 			},
@@ -278,7 +278,7 @@ func TestNewLIFO(t *testing.T) {
 			wantKey:   "mygroup",
 			wantErr:   true,
 			wantConfig: scheduler.Config{
-				MaxConcurrency: defaultMaxConcurreny,
+				MaxConcurrency: defaultMaxConcurrency,
 				MaxQueueSize:   0,
 				Timeout:        defaultTimeout,
 			},

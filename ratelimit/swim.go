@@ -80,7 +80,7 @@ func newClusterRateLimiterSwim(s Settings, sw Swarmer, group string) *clusterLim
 }
 
 // Allow returns true if the request with context calculated across the cluster of
-// skippers should be allowed else false. It will share it's own data
+// skippers should be allowed else false. It will share its own data
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
 func (c *clusterLimitSwim) Allow(ctx context.Context, clearText string) bool {

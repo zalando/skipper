@@ -1090,7 +1090,7 @@ func (m *bufferedBodyReader) Read(p []byte) (int, error) {
 	return m.input.Read(p)
 }
 
-// Close closes the undelrying reader if it implements io.Closer.
+// Close closes the underlying reader if it implements io.Closer.
 func (m *bufferedBodyReader) Close() error {
 	var err error
 	m.once.Do(func() {

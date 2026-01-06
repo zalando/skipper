@@ -186,7 +186,7 @@ func (m *matcher) Close() error {
    1) major optimization: use registry pattern and have only one body
    wrapped for concatenating readers and run all f() in a loop, so
    streaming does not happen for all but once for all
-   readers. Important if one write is between two readers we can not
+   readers. Important if one write is between two readers we cannot
    do this, so we need to detect this case.
 
    3) in case we ErrBlock, then we break the loop or cancel the

@@ -577,7 +577,7 @@ func TestQueue(t *testing.T) {
 		<-done
 	})
 
-	t.Run("when dropping or timeouting a connection, it is closed", func(t *testing.T) {
+	t.Run("when dropping or timing-out a connection, it is closed", func(t *testing.T) {
 		t.Run("drop", func(t *testing.T) {
 			tl := &testListener{conns: make(chan *testConnection, 1)}
 			l, err := listenWith(tl, Options{
@@ -593,7 +593,7 @@ func TestQueue(t *testing.T) {
 
 			conn := <-tl.conns
 			if err := waitFor(func() bool { return conn.isClosed() }); err != nil {
-				t.Error("failed to close timeouted connection", err)
+				t.Error("failed to close timed-out connection", err)
 			}
 		})
 
@@ -616,7 +616,7 @@ func TestQueue(t *testing.T) {
 				select {
 				case <-time.After(3 * time.Millisecond):
 				case <-to:
-					t.Error("failed to close timeouted connection")
+					t.Error("failed to close timed-out connection")
 					return
 				}
 			}
@@ -1207,12 +1207,12 @@ func TestQueue1(t *testing.T) {
 		},
 		/*
 			{
-				name:        "test fallback to defaults if memoryLimit is not set",
+				name:        "test falling back to defaults if memoryLimit is not set",
 				allow:       defaultActiveMemoryLimitBytes / defaultActiveConnectionBytes +
 					defaultInactiveMemoryLimitBytes / defaultInactiveConnectionBytes,
 			},
 			{
-				name:            "test concurreny is ok",
+				name:            "test concurrency is ok",
 				memoryLimit:     10,
 				bytesPerRequest: 5,
 				allow:           10/5 + 10*(10/5), // concurrency + queue size

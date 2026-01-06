@@ -28,7 +28,7 @@ func defaultWrite(a cmdArgs) (aa cmdArgs, err error) {
 	return
 }
 
-// selects a default medium for in or out, in case it's needed and not specified
+// selects a default medium for in or out, when it's needed and not specified
 func addDefaultMedia(cmd command, a cmdArgs) (cmdArgs, error) {
 	return commandToDefaultMediums[cmd](a)
 }

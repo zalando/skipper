@@ -12,7 +12,7 @@ import (
 )
 
 func TestOpenFails(t *testing.T) {
-	_, err := Open("notexisting.eskip")
+	_, err := Open("nonexistent.eskip")
 	if err == nil {
 		t.Error("failed to fail")
 	}

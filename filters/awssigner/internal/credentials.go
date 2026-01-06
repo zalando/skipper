@@ -22,7 +22,7 @@ type Credentials struct {
 	// CanExpire states if the AWS credentials can expire or not.
 	CanExpire bool
 
-	// Expires is the time the AWS credentials will expire at. Should be ignored if CanExpire is false.
+	// Expires is the time when the AWS credentials will expire. Should be ignored if CanExpire is false.
 	Expires time.Time
 }
 

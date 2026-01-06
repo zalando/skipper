@@ -176,7 +176,7 @@ root skipper package.
 
 Note, that the naming of predicates and filters follows the following
 convention: both predicates and filters are written in camel case, and
-predicates start with upper case, while filters start with lower case.
+predicates start with uppercase, while filters start with lowercase.
 
 # Backend
 
@@ -245,7 +245,7 @@ without the matcher and backend part of a full route expression.
 
 Parsing a routing table or a route expression happens with the
 eskip.Parse function. In case of grammar error, it returns an error with
-the approximate position of the invalid syntax element, otherwise it
+the approximate position of the invalid syntax element; otherwise, it
 returns a list of structured, in-memory route definitions.
 
 The eskip parser does not validate the routes against all semantic rules,
