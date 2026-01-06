@@ -7,12 +7,11 @@ import (
 	"time"
 
 	xxhash "github.com/cespare/xxhash/v2"
-	"github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/logging"
-	"github.com/zalando/skipper/metrics"
-
 	"github.com/opentracing/opentracing-go"
 	"github.com/valkey-io/valkey-go"
+
+	"github.com/zalando/skipper/logging"
+	"github.com/zalando/skipper/metrics"
 )
 
 const ringSize = 10000
@@ -207,7 +206,6 @@ func (vr *valkeyRing) ShardForKey(key string) valkey.Client {
 // PingAll TODO(sszuecs): is slow if we need to use it anywhere else than tests we have to optimize it
 func (vr *valkeyRing) PingAll(ctx context.Context) map[string]valkey.ValkeyResult {
 	res := make(map[string]valkey.ValkeyResult)
-	logrus.Infof("vr.clientMap: %d", len(vr.clientMap))
 	vr.mu.RLock()
 	for k, cli := range vr.clientMap {
 		res[k] = cli.Do(ctx, cli.B().Ping().Build())
@@ -486,7 +484,6 @@ func (vrc *ValkeyRingClient) SetWithExpire(ctx context.Context, key string, valu
 
 func (vrc *ValkeyRingClient) ZAdd(ctx context.Context, key, val string, score float64) (int64, error) {
 	res := vrc.ring.ZAdd(ctx, key, val, score)
-	logrus.Infof("ZADD(%v, %v, %v) res: %+v", key, val, score, res)
 	return res.ToInt64()
 }
 
@@ -506,23 +503,24 @@ func (vrc *ValkeyRingClient) ZRemRangeByScore(ctx context.Context, key, min, max
 }
 
 // TODO(sszuecs): check required return values
-func (vrc *ValkeyRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, key, min, max string, offset, count int64) (any, error) {
+func (vrc *ValkeyRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, key, min, max string, offset, count int64) ([]valkey.ValkeyMessage, error) {
 	res := vrc.ring.ZRangeByScoreWithScoresFirst(ctx, key, min, max, offset, count)
-	ary, err := res.ToArray()
+	a, err := res.ToArray()
 	if err != nil {
 		return nil, err
 	}
-	if len(ary) == 0 {
+	if len(a) == 0 {
 		return nil, nil
 	}
-	return ary, nil
+	return a, nil
 }
 
 // TODO(sszuecs): check required return values
-func (vrc *ValkeyRingClient) RunScript(ctx context.Context, script *valkey.Lua, keys []string, args ...string) any {
+func (vrc *ValkeyRingClient) RunScript(ctx context.Context, script *valkey.Lua, keys []string, args ...string) (valkey.ValkeyMessage, error) {
 	res := vrc.ring.RunScript(ctx, script, keys, args...)
 	// res.AsFloat64() res.AsFloatSlice() res.String() res.ToInt64()
-	return res
+
+	return res.ToMessage()
 }
 
 func difference(a, b []string) []string {

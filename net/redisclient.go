@@ -11,16 +11,15 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/redis/go-redis/v9/maintnotifications"
-	"github.com/zalando/skipper/logging"
-	"github.com/zalando/skipper/metrics"
 
 	xxhash "github.com/cespare/xxhash/v2"
+	"github.com/dchest/siphash"
+	jump "github.com/dgryski/go-jump"
+	mpchash "github.com/dgryski/go-mpchash"
 	rendezvous "github.com/dgryski/go-rendezvous"
 
-	jump "github.com/dgryski/go-jump"
-
-	"github.com/dchest/siphash"
-	mpchash "github.com/dgryski/go-mpchash"
+	"github.com/zalando/skipper/logging"
+	"github.com/zalando/skipper/metrics"
 )
 
 // RedisOptions is used to configure the redis.Ring
