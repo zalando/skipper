@@ -19,17 +19,14 @@ type options struct {
 }
 
 func NewTestValkey(t testing.TB) (address string, done func()) {
-	t.Helper()
 	return newTestValkeyWithOptions(t, options{})
 }
 
 func NewTestValkeyWithPassword(t testing.TB, password string) (address string, done func()) {
-	t.Helper()
 	return newTestValkeyWithOptions(t, options{password: password})
 }
 
 func newTestValkeyWithOptions(t testing.TB, opts options) (address string, done func()) {
-	t.Helper()
 	var args []string
 	if opts.password != "" {
 		args = append(args, "--requirepass", opts.password)
