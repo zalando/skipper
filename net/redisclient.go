@@ -335,7 +335,7 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 
 		addrs, err := r.options.AddrUpdater()
 		if err != nil {
-			r.log.Errorf("Failed to start redis updater: %v", err)
+			r.log.Errorf("Failed to run redis updater: %v", err)
 			continue
 		}
 		if !hasAll(addrs, old) {
