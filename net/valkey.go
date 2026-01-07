@@ -49,9 +49,8 @@ type ValkeyOptions struct {
 	// ConnLifetime connections will close after passing lifetime, see https://pkg.go.dev/github.com/valkey-io/valkey-go#ClientOption
 	ConnLifetime time.Duration
 
-	// ConnMetricsInterval defines the frequency of updating the valkey
-	// connection related metrics. Defaults to 60 seconds.
-	ConnMetricsInterval time.Duration
+	// Metrics collector
+	Metrics metrics.Metrics
 	// MetricsPrefix is the prefix for valkey ring client metrics,
 	// defaults to "swarm.valkey." if not set
 	MetricsPrefix string
@@ -152,6 +151,10 @@ func (vr *valkeyRing) Len() int {
 }
 
 func (vr *valkeyRing) SetAddr(addr []string) error {
+	if len(addr) == 0 {
+		return nil
+	}
+
 	current := make([]string, 0, len(vr.clientMap))
 
 	vr.mu.RLock()
@@ -273,7 +276,6 @@ func (vr *valkeyRing) ZRangeByScoreWithScoresFirst(ctx context.Context, key, min
 }
 
 func (vr *valkeyRing) RunScript(ctx context.Context, script *valkey.Lua, keys []string, args ...string) valkey.ValkeyResult {
-
 	cli := vr.ShardForKey(strings.Join(keys, ""))
 	return script.Exec(ctx, cli, keys, args)
 }
@@ -287,8 +289,8 @@ type ValkeyRingClient struct {
 	ring          *valkeyRing
 	log           logging.Logger
 	metrics       metrics.Metrics
-	metricsPrefix string             // TODO(sszuecs): do we need this?
-	options       *ValkeyOptions     // TODO(sszuecs): do we need this?
+	metricsPrefix string
+	options       *ValkeyOptions
 	tracer        opentracing.Tracer // likely we need an OTel.Tracer..
 	quit          chan struct{}
 	once          sync.Once
@@ -325,13 +327,16 @@ func NewValkeyRingClient(opt *ValkeyOptions) (*ValkeyRingClient, error) {
 		return nil, err
 	}
 
-	mtr := metrics.Default // TODO(sszuecs): use opt.MetricsPrefix
+	if opt.Metrics == nil {
+		opt.Metrics = metrics.Default
+	}
+
 	quitCH := make(chan struct{})
 
 	vrc := &ValkeyRingClient{
 		ring:          valkeyRingClient,
 		log:           opt.Log,
-		metrics:       mtr,
+		metrics:       opt.Metrics,
 		metricsPrefix: opt.MetricsPrefix,
 		options:       opt,
 		tracer:        opt.Tracer,
@@ -399,44 +404,7 @@ func (vrc *ValkeyRingClient) StartSpan(operationName string, opts ...opentracing
 }
 
 func (vrc *ValkeyRingClient) SetAddrs(ctx context.Context, addrs []string) {
-	if len(addrs) == 0 {
-		return
-	}
-
-	terminateCli := make(map[string]struct{})
-	vrc.ring.mu.RLock()
-	for addr := range vrc.ring.clientMap {
-		terminateCli[addr] = struct{}{}
-	}
-	vrc.ring.mu.RUnlock()
-
-	newMap := make(map[string]valkey.Client)
-	for _, addr := range addrs {
-		vrc.ring.mu.RLock()
-		cl, ok := vrc.ring.clientMap[addr]
-		vrc.ring.mu.RUnlock()
-
-		if !ok {
-			cli, err := createValkeyClient(addr, vrc.options)
-			if err != nil {
-				vrc.log.Errorf("Failed to create valkey client: %v", err)
-				continue
-			}
-			newMap[addr] = cli
-		} else {
-			delete(terminateCli, addr)
-			newMap[addr] = cl
-		}
-	}
-
-	vrc.ring.mu.Lock()
-	oldCliMap := vrc.ring.clientMap
-	vrc.ring.clientMap = newMap
-	vrc.ring.mu.Unlock()
-
-	for addr := range terminateCli {
-		oldCliMap[addr].Close()
-	}
+	vrc.ring.SetAddr(addrs)
 }
 
 func (vrc *ValkeyRingClient) RingAvailable(ctx context.Context) bool {
@@ -515,11 +483,8 @@ func (vrc *ValkeyRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, k
 	return a, nil
 }
 
-// TODO(sszuecs): check required return values
 func (vrc *ValkeyRingClient) RunScript(ctx context.Context, script *valkey.Lua, keys []string, args ...string) (valkey.ValkeyMessage, error) {
 	res := vrc.ring.RunScript(ctx, script, keys, args...)
-	// res.AsFloat64() res.AsFloatSlice() res.String() res.ToInt64()
-
 	return res.ToMessage()
 }
 

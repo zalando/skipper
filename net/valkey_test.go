@@ -3,10 +3,12 @@ package net
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/net/valkeytest"
 	"github.com/zalando/skipper/tracing/tracers/basic"
 )
@@ -112,14 +114,6 @@ func TestValkeyClient(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "With AddrUpdater",
-			options: &ValkeyOptions{
-				AddrUpdater:    updater.update,
-				UpdateInterval: 10 * time.Millisecond,
-			},
-			wantErr: false,
-		},
-		{
 			name: "With tracer",
 			options: &ValkeyOptions{
 				Addrs:  []string{valkeyAddr},
@@ -128,10 +122,13 @@ func TestValkeyClient(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "With metrics",
+			name: "With metrics and AddrUpdater",
 			options: &ValkeyOptions{
-				Addrs:               []string{valkeyAddr},
-				ConnMetricsInterval: 10 * time.Millisecond,
+				Addrs:          []string{valkeyAddr},
+				AddrUpdater:    updater.update,
+				UpdateInterval: 100 * time.Millisecond,
+				Metrics:        &metricstest.MockMetrics{},
+				MetricsPrefix:  "skipper.valkey.",
 			},
 			wantErr: false,
 		},
@@ -195,11 +192,25 @@ func TestValkeyClient(t *testing.T) {
 				span.Finish()
 			}
 
-			// TODO(sszuecs): possible?
-			// if tt.options.ConnMetricsInterval != defaultConnMetricsInterval {
-			// 	cli.StartMetricsCollection()
-			// 	time.Sleep(tt.options.ConnMetricsInterval)
-			// }
+			if tt.options.Metrics != nil {
+				if mock, ok := cli.metrics.(*metricstest.MockMetrics); ok {
+					mock.WithGauges(func(m map[string]float64) {
+						key := tt.options.MetricsPrefix + "shards"
+						if v, ok := m[key]; !ok {
+							t.Fatalf("Failed to get metric %q", key)
+						} else {
+							for k, v := range m {
+								t.Logf("metric %s: %v", k, v)
+							}
+							i := int(v)
+							if i != 2 {
+								t.Fatalf("Failed to get 2 shards, got: %d", i)
+							}
+						}
+					})
+				}
+
+			}
 		})
 	}
 }
@@ -1180,4 +1191,39 @@ func TestValkeyClientFailingAddrUpdater(t *testing.T) {
 			t.Error("Unexpected available ring")
 		}
 	})
+}
+
+func BenchmarkShardForKey(b *testing.B) {
+	valkeyAddr1, done1 := valkeytest.NewTestValkey(b)
+	defer done1()
+	valkeyAddr2, done2 := valkeytest.NewTestValkey(b)
+	defer done2()
+
+	options := &ValkeyOptions{
+		Addrs: []string{valkeyAddr1, valkeyAddr2},
+	}
+	r, err := NewValkeyRingClient(options)
+	if err != nil {
+		b.Fatalf("Failed to create valkey ring client: %v", err)
+	}
+	defer r.Close()
+
+	N := 50
+	data := make([]byte, N)
+	chars := []byte("abcdefghijklmnopqrstuvwxyz")
+	for i := range N {
+		data[i] = chars[rand.Int()%len(chars)]
+	}
+	s := string(data)
+	_ = s
+
+	b.ResetTimer()
+
+	for b.Loop() {
+		r.ring.ShardForKey("A") // 25ns
+		//r.ring.ShardForKey(s) // 48ns
+
+		// cli := r.ring.ShardForKey("A")
+		// cli.Do(context.Background(), cli.B().Get().Key("k").Build()) // 66368 ns/op, 235 B/op
+	}
 }
