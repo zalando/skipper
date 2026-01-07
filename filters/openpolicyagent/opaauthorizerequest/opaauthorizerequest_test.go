@@ -1,11 +1,13 @@
 package opaauthorizerequest
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -609,114 +611,68 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 	for _, ti := range []struct {
-		msg               string
-		filterName        string
-		extraeskipBefore  string
-		extraeskipAfter   string
-		regoQuery         string
-		requestPath       string
-		requestMethod     string
-		body              string
-		contextExtensions string
-		expectedBody      string
-		expectedHeaders   http.Header
-		expectedStatus    int
-		backendHeaders    http.Header
-		removeHeaders     http.Header
-		discoveryPath     string
-		discoveryBundle   string
+		msg             string
+		requestPath     string
+		requestMethod   string
+		body            string
+		expectedBody    string
+		expectedStatus  int
+		discoveryPath   string
+		discoveryBundle string
 	}{
 		{
-			msg:               "Allow Requests for log upload success",
-			filterName:        "opaAuthorizeRequest",
-			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/allow",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			discoveryPath:     "logs-success",
+			msg:            "Allow Requests for log upload success",
+			requestPath:    "/allow",
+			requestMethod:  "GET",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "Welcome!",
+			discoveryPath:  "logs-success",
 		},
 		{
-			msg:               "Deny Requests for log upload success",
-			filterName:        "opaAuthorizeRequest",
-			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/not-allow",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusForbidden,
-			expectedBody:      "",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			discoveryPath:     "logs-success",
+			msg:            "Deny Requests for log upload success",
+			requestPath:    "/not-allow",
+			requestMethod:  "GET",
+			expectedStatus: http.StatusForbidden,
+			expectedBody:   "",
+			discoveryPath:  "logs-success",
 		},
 		{
-			msg:               "Allow Requests for log upload timeout",
-			filterName:        "opaAuthorizeRequest",
-			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/allow",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			discoveryPath:     "logs-timeout",
+			msg:            "Allow Requests for log upload timeout",
+			requestPath:    "/allow",
+			requestMethod:  "GET",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "Welcome!",
+			discoveryPath:  "logs-timeout",
 		},
 		{
-			msg:               "Allow Requests for log upload forbidden",
-			filterName:        "opaAuthorizeRequest",
-			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/allow",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			discoveryPath:     "logs-forbidden",
+			msg:            "Allow Requests for log upload forbidden",
+			requestPath:    "/allow",
+			requestMethod:  "GET",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "Welcome!",
+			discoveryPath:  "logs-forbidden",
 		},
 		{
-			msg:               "Allow Requests for log upload path not found",
-			filterName:        "opaAuthorizeRequest",
-			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/allow",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			discoveryPath:     "logs-notfound",
+			msg:            "Allow Requests for log upload path not found",
+			requestPath:    "/allow",
+			requestMethod:  "GET",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "Welcome!",
+			discoveryPath:  "logs-notfound",
 		},
 		{
-			msg:               "Allow Requests for log upload throws 5xx",
-			filterName:        "opaAuthorizeRequest",
-			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/allow",
-			requestMethod:     "GET",
-			contextExtensions: "",
-			expectedStatus:    http.StatusOK,
-			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
-			backendHeaders:    make(http.Header),
-			removeHeaders:     make(http.Header),
-			discoveryPath:     "logs-5xx",
+			msg:            "Allow Requests for log upload throws 5xx",
+			requestPath:    "/allow",
+			requestMethod:  "GET",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "Welcome!",
+			discoveryPath:  "logs-5xx",
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Logf("Running test for %v", ti)
 			clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte("Welcome!"))
-				assert.True(t, isHeadersPresent(t, ti.backendHeaders, r.Header), "Enriched request header is absent.")
-				assert.True(t, isHeadersAbsent(t, ti.removeHeaders, r.Header), "Unwanted HTTP Headers present.")
 
 				body, err := io.ReadAll(r.Body)
 				if err != nil {
@@ -726,7 +682,15 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			}))
 			defer clientServer.Close()
 
+			s3Caps := &s3Captures{}
 			s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Capture request details
+				body, _ := io.ReadAll(r.Body)
+				s3Caps.mu.Lock()
+				s3Caps.requests = append(s3Caps.requests, r)
+				s3Caps.bodies = append(s3Caps.bodies, body)
+				s3Caps.mu.Unlock()
+
 				if strings.Contains(r.URL.Path, "logs-success") {
 					w.WriteHeader(http.StatusOK)
 				} else if strings.Contains(r.URL.Path, "logs-forbidden") {
@@ -788,7 +752,7 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 				},
 				"plugins": {
 					"envoy_ext_authz_grpc": {
-						"path": %q,
+						"path": "envoy/authz/allow",
 						"dry-run": false
 					},
 					"eopa_dl": {
@@ -810,7 +774,7 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 						  }
 					}
 			}
-			}`, opaControlPlane.URL(), ti.regoQuery, ti.discoveryPath, s3Server.URL))
+			}`, opaControlPlane.URL(), ti.discoveryPath, s3Server.URL))
 
 			fr := make(filters.Registry)
 
@@ -837,7 +801,7 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			fr.Register(ftSpec)
 			fr.Register(builtin.NewSetPath())
 
-			r := eskip.MustParse(fmt.Sprintf(`* -> %s %s("%s", "%s") %s -> "%s"`, ti.extraeskipBefore, ti.filterName, "test", ti.contextExtensions, ti.extraeskipAfter, clientServer.URL))
+			r := eskip.MustParse(fmt.Sprintf(`* -> %s("%s") -> "%s"`, "opaAuthorizeRequest", "test", clientServer.URL))
 
 			proxy := proxytest.New(fr, r...)
 
@@ -854,7 +818,6 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 
 			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
 
-			assert.True(t, isHeadersPresent(t, ti.expectedHeaders, rsp.Header), "HTTP Headers do not match")
 			defer rsp.Body.Close()
 			body, err := io.ReadAll(rsp.Body)
 			assert.NoError(t, err)
@@ -867,6 +830,12 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			rsp, err = proxy.Client().Do(req)
 			assert.NoError(t, err)
 			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
+
+			// verify decision log upload
+			s3Caps.mu.Lock()
+			defer s3Caps.mu.Unlock()
+			assert.Greater(t, len(s3Caps.bodies), 0, "Expected S3 to be called for log upload")
+			assertDecisionLogJSON(t, s3Caps.bodies[0])
 		})
 	}
 }
@@ -1064,4 +1033,22 @@ func isHeadersAbsent(t *testing.T, unwantedHeaders http.Header, headers http.Hea
 		}
 	}
 	return true
+}
+
+type s3Captures struct {
+	mu       sync.Mutex
+	requests []*http.Request
+	bodies   [][]byte
+}
+
+func assertDecisionLogJSON(t *testing.T, body []byte) {
+	t.Helper()
+
+	var decisionLog map[string]interface{}
+	err := json.Unmarshal(body, &decisionLog)
+	assert.NoError(t, err, "Expected valid JSON in decision log")
+
+	assert.NotNil(t, decisionLog["decision_id"])
+	assert.NotNil(t, decisionLog["input"])
+	assert.NotNil(t, decisionLog["result"])
 }
