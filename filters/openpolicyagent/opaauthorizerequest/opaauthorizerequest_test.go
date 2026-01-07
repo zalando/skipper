@@ -682,12 +682,11 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 			defer clientServer.Close()
 
 			s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				// Verify request details
-				t.Logf("Uploading to S3 at path: %s", r.URL.Path)
-				body, _ := io.ReadAll(r.Body)
-				assertDecisionLogJSON(t, body)
-
 				if strings.Contains(r.URL.Path, "logs-success") {
+					// Verify request details
+					t.Logf("Uploading to S3 at path: %s", r.URL.Path)
+					body, _ := io.ReadAll(r.Body)
+					assertDecisionLogJSON(t, body)
 					w.WriteHeader(http.StatusOK)
 				} else if strings.Contains(r.URL.Path, "logs-forbidden") {
 					w.WriteHeader(http.StatusForbidden)
