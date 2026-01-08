@@ -2,11 +2,14 @@ package net
 
 import (
 	"sync"
+	"testing"
+
+	"github.com/zalando/skipper/net/valkeytest"
 )
 
 type addressUpdater struct {
-	addrs []string
 	mu    sync.Mutex
+	addrs []string
 	n     int
 }
 
@@ -33,4 +36,50 @@ func (u *addressUpdater) calls() int {
 	defer u.mu.Unlock()
 
 	return u.n
+}
+
+func TestAddressUpdater(t *testing.T) {
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
+	defer done()
+	valkeyAddr2, done2 := valkeytest.NewTestValkey(t)
+	defer done2()
+
+	updater := &addressUpdater{addrs: []string{valkeyAddr, valkeyAddr2}}
+
+	if n := updater.calls(); n != 0 {
+		t.Fatalf("Failed to get result from calls() want 0, got: %d", n)
+	}
+
+	addr, err := updater.update()
+	if err != nil {
+		t.Fatalf("Failed to update: %v", err)
+	}
+	if n := len(addr); n != 1 {
+		t.Fatalf("Failed to get addr len of 1: %d", n)
+	}
+	if n := updater.calls(); n != 1 {
+		t.Fatalf("Failed to get result from calls() want 1, got: %d", n)
+	}
+
+	addr, err = updater.update()
+	if err != nil {
+		t.Fatalf("Failed to update: %v", err)
+	}
+	if n := len(addr); n != 2 {
+		t.Fatalf("Failed to get addr len of 2: %d", n)
+	}
+	if n := updater.calls(); n != 2 {
+		t.Fatalf("Failed to get result from calls() want 2, got: %d", n)
+	}
+
+	addr, err = updater.update()
+	if err != nil {
+		t.Fatalf("Failed to update: %v", err)
+	}
+	if n := len(addr); n != 1 {
+		t.Fatalf("Failed to get addr len of 1: %d", n)
+	}
+	if n := updater.calls(); n != 3 {
+		t.Fatalf("Failed to get result from calls() want 3, got: %d", n)
+	}
 }
