@@ -12,6 +12,8 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/valkey-io/valkey-go"
 
+	"github.com/valkey-io/valkey-go/valkeyhook"
+	"github.com/valkey-io/valkey-go/valkeyotel"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 )
@@ -47,6 +49,13 @@ type ValkeyOptions struct {
 	// ConnLifetime connections will close after passing lifetime, see https://pkg.go.dev/github.com/valkey-io/valkey-go#ClientOption
 	ConnLifetime time.Duration
 
+	// Hook see https://pkg.go.dev/github.com/valkey-io/valkey-go/valkeyhook
+	Hook valkeyhook.Hook
+
+	// EnableOTel enables OpenTelemetry adapter, see https://pkg.go.dev/github.com/valkey-io/valkey-go/valkeyotel
+	EnableOTel bool
+	// OTelOptions
+	OTelOptions []valkeyotel.Option
 	// Metrics collector
 	Metrics metrics.Metrics
 	// MetricsPrefix is the prefix for valkey ring client metrics,
@@ -56,15 +65,10 @@ type ValkeyOptions struct {
 	Tracer opentracing.Tracer
 	// Log is the logger that is used
 	Log logging.Logger
-
-	// HashAlgorithm is one of rendezvous, rendezvousVnodes, jump, mpchash, defaults to rendezvous
-	HashAlgorithm string
 }
 
 func createValkeyClient(addr string, opt *ValkeyOptions) (valkey.Client, error) {
-	// TODO(sszuecs): OTel: use valkeyotel.NewClient instead
-	// TODO(sszuecs): do we need a hook? https://github.com/valkey-io/valkey-go/tree/v1.0.69/valkeyhook
-	cli, err := valkey.NewClient(valkey.ClientOption{
+	clientOptions := valkey.ClientOption{
 		Username:    opt.Username,
 		Password:    opt.Password,
 		InitAddress: []string{addr},
@@ -82,8 +86,21 @@ func createValkeyClient(addr string, opt *ValkeyOptions) (valkey.Client, error) 
 		// BlockingPoolMinSize: 0,
 		// BlockingPoolSize:    0,
 		// BlockingPipeline:    0,
-	})
+	}
+	var (
+		cli valkey.Client
+		err error
+	)
 
+	if opt.EnableOTel {
+		valkeyotel.NewClient(clientOptions, opt.OTelOptions...)
+	} else {
+		cli, err = valkey.NewClient(clientOptions)
+	}
+
+	if opt.Hook != nil {
+		cli = valkeyhook.WithHook(cli, opt.Hook)
+	}
 	return cli, err
 }
 
