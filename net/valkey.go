@@ -139,13 +139,6 @@ func newValkeyRing(opt *ValkeyOptions) (*valkeyRing, error) {
 	return ring, nil
 }
 
-func computeShardSize(i int) int {
-	if i == 0 {
-		return ringSize
-	}
-	return int(math.Ceil(float64(ringSize) / float64(i)))
-}
-
 func (vr *valkeyRing) updateShards(addr []string) {
 	if len(addr) == 0 {
 		return
@@ -513,6 +506,13 @@ func (vrc *ValkeyRingClient) RunScript(ctx context.Context, script *valkey.Lua, 
 
 func NewScript(src string) *valkey.Lua {
 	return valkey.NewLuaScript(src)
+}
+
+func computeShardSize(i int) int {
+	if i == 0 {
+		return ringSize
+	}
+	return int(math.Ceil(float64(ringSize) / float64(i)))
 }
 
 func difference(a, b []string) []string {
