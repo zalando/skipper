@@ -206,11 +206,12 @@ func (vr *valkeyRing) SetAddr(addr []string) error {
 	return nil
 }
 
-func (vr *valkeyRing) ShardForKey(key string) valkey.Client {
+// shardForKey does the lookup for valkey most operations to find the valkey ring shard
+func (vr *valkeyRing) shardForKey(key string) valkey.Client {
 	return vr.shards[xxhash.Sum64String(key)%ringSize]
 }
 
-// PingAll TODO(sszuecs): is slow if we need to use it anywhere else than tests we have to optimize it
+// PingAll pings all known shards
 func (vr *valkeyRing) PingAll(ctx context.Context) map[string]valkey.ValkeyResult {
 	res := make(map[string]valkey.ValkeyResult)
 	vr.mu.RLock()
@@ -221,6 +222,7 @@ func (vr *valkeyRing) PingAll(ctx context.Context) map[string]valkey.ValkeyResul
 	return res
 }
 
+// Ping pings given shard by address:port
 func (vr *valkeyRing) Ping(ctx context.Context, s string) error {
 	vr.mu.RLock()
 	shard, ok := vr.clientMap[s]
@@ -233,21 +235,21 @@ func (vr *valkeyRing) Ping(ctx context.Context, s string) error {
 }
 
 func (vr *valkeyRing) Expire(ctx context.Context, key string, expire time.Duration) valkey.ValkeyResult {
-	shard := vr.ShardForKey(key)
+	shard := vr.shardForKey(key)
 	return shard.Do(ctx, shard.B().Expire().Key(key).Seconds(int64(expire.Seconds())).Build())
 }
 
 func (vr *valkeyRing) Get(ctx context.Context, key string) valkey.ValkeyResult {
-	shard := vr.ShardForKey(key)
+	shard := vr.shardForKey(key)
 	return shard.Do(ctx, shard.B().Get().Key(key).Build())
 }
 
 func (vr *valkeyRing) Set(ctx context.Context, key, val string) valkey.ValkeyResult {
-	shard := vr.ShardForKey(key)
+	shard := vr.shardForKey(key)
 	return shard.Do(ctx, shard.B().Set().Key(key).Value(val).Build())
 }
 func (vr *valkeyRing) SetWithExpire(ctx context.Context, key, val string, expire time.Duration) []valkey.ValkeyResult {
-	shard := vr.ShardForKey(key)
+	shard := vr.shardForKey(key)
 	return shard.DoMulti(ctx,
 		shard.B().Set().Key(key).Value(val).Build(),
 		shard.B().Expire().Key(key).Seconds(int64(expire.Seconds())).Build(),
@@ -255,32 +257,32 @@ func (vr *valkeyRing) SetWithExpire(ctx context.Context, key, val string, expire
 }
 
 func (vr *valkeyRing) ZAdd(ctx context.Context, key, val string, score float64) valkey.ValkeyResult {
-	shard := vr.ShardForKey(key)
+	shard := vr.shardForKey(key)
 	return shard.Do(ctx, shard.B().Zadd().Key(key).ScoreMember().ScoreMember(score, val).Build())
 }
 
 func (vr *valkeyRing) ZCard(ctx context.Context, key string) valkey.ValkeyResult {
-	shard := vr.ShardForKey(key)
+	shard := vr.shardForKey(key)
 	return shard.Do(ctx, shard.B().Zcard().Key(key).Build())
 }
 
 func (vr *valkeyRing) ZRem(ctx context.Context, key string, members ...string) valkey.ValkeyResult {
-	shard := vr.ShardForKey(key)
+	shard := vr.shardForKey(key)
 	return shard.Do(ctx, shard.B().Zrem().Key(key).Member(members...).Build())
 }
 
 func (vr *valkeyRing) ZRemRangeByScore(ctx context.Context, key, min, max string) valkey.ValkeyResult {
-	shard := vr.ShardForKey(key)
+	shard := vr.shardForKey(key)
 	return shard.Do(ctx, shard.B().Zremrangebyscore().Key(key).Min(min).Max(max).Build())
 }
 
 func (vr *valkeyRing) ZRangeByScoreWithScoresFirst(ctx context.Context, key, min, max string, offset, count int64) valkey.ValkeyResult {
-	shard := vr.ShardForKey(key)
+	shard := vr.shardForKey(key)
 	return shard.Do(ctx, shard.B().Zrangebyscore().Key(key).Min(min).Max(max).Withscores().Limit(offset, count).Build())
 }
 
 func (vr *valkeyRing) RunScript(ctx context.Context, script *valkey.Lua, keys []string, args ...string) valkey.ValkeyResult {
-	shard := vr.ShardForKey(strings.Join(keys, ""))
+	shard := vr.shardForKey(strings.Join(keys, ""))
 	return script.Exec(ctx, shard, keys, args)
 }
 
