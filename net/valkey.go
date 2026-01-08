@@ -108,7 +108,7 @@ type valkeyRing struct {
 	opt *ValkeyOptions
 
 	// maps int to client for sharding, trades memory for concurrent access
-	// most operation only have to use this without locks
+	// most operations only have to use this lock-free structure
 	shards       [ringSize]valkey.Client
 	activeShards int
 
