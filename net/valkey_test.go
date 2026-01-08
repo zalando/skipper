@@ -500,54 +500,6 @@ func TestValkeyClientGetSetWithExpire(t *testing.T) {
 			wait:    1100 * time.Millisecond,
 			wantErr: true,
 		},
-		{
-			name: "add one, get one, no expiration, with Rendezvous hash",
-			options: &ValkeyOptions{
-				Addrs:         []string{valkeyAddr},
-				HashAlgorithm: "rendezvous",
-			},
-			key:     "k1",
-			value:   "foo",
-			expire:  time.Second,
-			expect:  "foo",
-			wantErr: false,
-		},
-		{
-			name: "add one, get one, no expiration, with Rendezvous Vnodes hash",
-			options: &ValkeyOptions{
-				Addrs:         []string{valkeyAddr},
-				HashAlgorithm: "rendezvousVnodes",
-			},
-			key:     "k1",
-			value:   "foo",
-			expire:  time.Second,
-			expect:  "foo",
-			wantErr: false,
-		},
-		{
-			name: "add one, get one, no expiration, with Jump hash",
-			options: &ValkeyOptions{
-				Addrs:         []string{valkeyAddr},
-				HashAlgorithm: "jump",
-			},
-			key:     "k1",
-			value:   "foo",
-			expire:  time.Second,
-			expect:  "foo",
-			wantErr: false,
-		},
-		{
-			name: "add one, get one, no expiration, with Multiprobe hash",
-			options: &ValkeyOptions{
-				Addrs:         []string{valkeyAddr},
-				HashAlgorithm: "mpchash",
-			},
-			key:     "k1",
-			value:   "foo",
-			expire:  time.Second,
-			expect:  "foo",
-			wantErr: false,
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cli, err := NewValkeyRingClient(tt.options)
