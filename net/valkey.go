@@ -2,6 +2,7 @@ package net
 
 import (
 	"context"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -15,10 +16,6 @@ import (
 )
 
 const ringSize = 10000
-
-func NewScript(sourcs string) *valkey.Lua {
-	return valkey.NewLuaScript(sourcs)
-}
 
 // ValkeyOptions is used to configure the ValkeyRing
 //
@@ -86,10 +83,6 @@ func createValkeyClient(addr string, opt *ValkeyOptions) (valkey.Client, error) 
 		// BlockingPipeline:    0,
 	})
 
-	// TODO(sszuecs): do we want to have a similar interface as go-redis?
-	// compat := valkeycompat.NewAdapter(client)
-	// return compat,err
-
 	return cli, err
 }
 
@@ -99,8 +92,9 @@ type valkeyRing struct {
 	// maps int to addr for sharding, trades memory for concurrent access
 	// worst case: 1 string full ipv6 addr, "[]", ":" and 5 digits port size: 39+2+1+5 = 47 byte, so 47*10000 = 470kB
 	// TODO(sszuecs): maybe we can use [ringSize]valkey.Client as optimization
-	// TODO(sszuecs): check how others are doing this (IIRC valkey-go code has something like this called "ring" for cluster mode).
 	shards [ringSize]string
+	//shards [ringSize]valkey.Client
+	activeShards int
 
 	mu        sync.RWMutex
 	clientMap map[string]valkey.Client // map["10.5.1.43:6379"]valkey.Client
@@ -125,14 +119,7 @@ func newValkeyRing(opt *ValkeyOptions) (*valkeyRing, error) {
 		return ring, nil
 	}
 
-	cur := -1
-	shardSize := computeShardSize(len(opt.Addrs))
-	for i := range ringSize {
-		if i%shardSize == 0 {
-			cur++
-		}
-		ring.shards[i] = opt.Addrs[cur]
-	}
+	ring.updateShards(opt.Addrs)
 
 	return ring, nil
 }
@@ -141,13 +128,29 @@ func computeShardSize(i int) int {
 	if i == 0 {
 		return ringSize
 	}
-	return ringSize / i
+	return int(math.Ceil(float64(ringSize) / float64(i)))
+}
+
+func (vr *valkeyRing) updateShards(addr []string) {
+	if len(addr) == 0 {
+		return
+	}
+	cur := -1
+	shardSize := computeShardSize(len(addr))
+	vr.opt.Log.Infof("updateShards(%v), shardSize: %d", addr, shardSize)
+	for i := range ringSize {
+		if i%shardSize == 0 { // 0, 5000
+			cur++
+		}
+
+		vr.shards[i] = addr[cur]
+	}
+	vr.activeShards = cur + 1
+	vr.opt.Log.Infof("active shards: %d", vr.activeShards)
 }
 
 func (vr *valkeyRing) Len() int {
-	vr.mu.RLock()
-	defer vr.mu.RUnlock()
-	return len(vr.clientMap)
+	return vr.activeShards
 }
 
 func (vr *valkeyRing) SetAddr(addr []string) error {
@@ -163,15 +166,15 @@ func (vr *valkeyRing) SetAddr(addr []string) error {
 	}
 	vr.mu.RUnlock()
 
+	// set operations
 	intersection := intersect(addr, current)
 	if len(addr) == len(intersection) && len(current) == len(intersection) {
 		return nil
 	}
-
 	newAddr := difference(addr, intersection)
 	oldAddr := difference(current, intersection)
 
-	// create new clients for newAddr
+	// create new clients
 	for _, addr := range newAddr {
 		cli, err := createValkeyClient(addr, vr.opt)
 		if err != nil {
@@ -182,16 +185,23 @@ func (vr *valkeyRing) SetAddr(addr []string) error {
 		vr.mu.Unlock()
 	}
 
-	// close old clients
+	// close old clients and update current shards
+	vr.mu.Lock()
 	for _, addr := range oldAddr {
-		vr.mu.Lock()
 		cli, ok := vr.clientMap[addr]
 		delete(vr.clientMap, addr)
-		vr.mu.Unlock()
 		if ok {
 			cli.Close()
 		}
 	}
+	// we need to update current shards on delete with the same lock
+	curAddr := make([]string, 0, len(vr.clientMap))
+	for k := range vr.clientMap {
+		curAddr = append(curAddr, k)
+	}
+	vr.updateShards(curAddr)
+	vr.mu.Unlock()
+
 	return nil
 }
 
@@ -210,74 +220,74 @@ func (vr *valkeyRing) ShardForKey(key string) valkey.Client {
 func (vr *valkeyRing) PingAll(ctx context.Context) map[string]valkey.ValkeyResult {
 	res := make(map[string]valkey.ValkeyResult)
 	vr.mu.RLock()
-	for k, cli := range vr.clientMap {
-		res[k] = cli.Do(ctx, cli.B().Ping().Build())
+	for k, shard := range vr.clientMap {
+		res[k] = shard.Do(ctx, shard.B().Ping().Build())
 	}
 	vr.mu.RUnlock()
 	return res
 }
 
-func (vr *valkeyRing) Ping(ctx context.Context, shard string) error {
+func (vr *valkeyRing) Ping(ctx context.Context, s string) error {
 	vr.mu.RLock()
-	cli, ok := vr.clientMap[shard]
+	shard, ok := vr.clientMap[s]
 	vr.mu.RUnlock()
 	if !ok {
 		return nil
 	}
-	res := cli.Do(ctx, cli.B().Ping().Build())
+	res := shard.Do(ctx, shard.B().Ping().Build())
 	return res.Error()
 }
 
 func (vr *valkeyRing) Expire(ctx context.Context, key string, expire time.Duration) valkey.ValkeyResult {
-	cli := vr.ShardForKey(key)
-	return cli.Do(ctx, cli.B().Expire().Key(key).Seconds(int64(expire.Seconds())).Build())
+	shard := vr.ShardForKey(key)
+	return shard.Do(ctx, shard.B().Expire().Key(key).Seconds(int64(expire.Seconds())).Build())
 }
 
 func (vr *valkeyRing) Get(ctx context.Context, key string) valkey.ValkeyResult {
-	cli := vr.ShardForKey(key)
-	return cli.Do(ctx, cli.B().Get().Key(key).Build())
+	shard := vr.ShardForKey(key)
+	return shard.Do(ctx, shard.B().Get().Key(key).Build())
 }
 
 func (vr *valkeyRing) Set(ctx context.Context, key, val string) valkey.ValkeyResult {
-	cli := vr.ShardForKey(key)
-	return cli.Do(ctx, cli.B().Set().Key(key).Value(val).Build())
+	shard := vr.ShardForKey(key)
+	return shard.Do(ctx, shard.B().Set().Key(key).Value(val).Build())
 }
 func (vr *valkeyRing) SetWithExpire(ctx context.Context, key, val string, expire time.Duration) []valkey.ValkeyResult {
-	cli := vr.ShardForKey(key)
-	return cli.DoMulti(ctx,
-		cli.B().Set().Key(key).Value(val).Build(),
-		cli.B().Expire().Key(key).Seconds(int64(expire.Seconds())).Build(),
+	shard := vr.ShardForKey(key)
+	return shard.DoMulti(ctx,
+		shard.B().Set().Key(key).Value(val).Build(),
+		shard.B().Expire().Key(key).Seconds(int64(expire.Seconds())).Build(),
 	)
 }
 
 func (vr *valkeyRing) ZAdd(ctx context.Context, key, val string, score float64) valkey.ValkeyResult {
-	cli := vr.ShardForKey(key)
-	return cli.Do(ctx, cli.B().Zadd().Key(key).ScoreMember().ScoreMember(score, val).Build())
+	shard := vr.ShardForKey(key)
+	return shard.Do(ctx, shard.B().Zadd().Key(key).ScoreMember().ScoreMember(score, val).Build())
 }
 
 func (vr *valkeyRing) ZCard(ctx context.Context, key string) valkey.ValkeyResult {
-	cli := vr.ShardForKey(key)
-	return cli.Do(ctx, cli.B().Zcard().Key(key).Build())
+	shard := vr.ShardForKey(key)
+	return shard.Do(ctx, shard.B().Zcard().Key(key).Build())
 }
 
 func (vr *valkeyRing) ZRem(ctx context.Context, key string, members ...string) valkey.ValkeyResult {
-	cli := vr.ShardForKey(key)
-	return cli.Do(ctx, cli.B().Zrem().Key(key).Member(members...).Build())
+	shard := vr.ShardForKey(key)
+	return shard.Do(ctx, shard.B().Zrem().Key(key).Member(members...).Build())
 }
 
 func (vr *valkeyRing) ZRemRangeByScore(ctx context.Context, key, min, max string) valkey.ValkeyResult {
-	cli := vr.ShardForKey(key)
-	return cli.Do(ctx, cli.B().Zremrangebyscore().Key(key).Min(min).Max(max).Build())
+	shard := vr.ShardForKey(key)
+	return shard.Do(ctx, shard.B().Zremrangebyscore().Key(key).Min(min).Max(max).Build())
 }
 
 func (vr *valkeyRing) ZRangeByScoreWithScoresFirst(ctx context.Context, key, min, max string, offset, count int64) valkey.ValkeyResult {
-	cli := vr.ShardForKey(key)
-	return cli.Do(ctx, cli.B().Zrangebyscore().Key(key).Min(min).Max(max).Withscores().Limit(offset, count).Build())
+	shard := vr.ShardForKey(key)
+	return shard.Do(ctx, shard.B().Zrangebyscore().Key(key).Min(min).Max(max).Withscores().Limit(offset, count).Build())
 }
 
 func (vr *valkeyRing) RunScript(ctx context.Context, script *valkey.Lua, keys []string, args ...string) valkey.ValkeyResult {
-	cli := vr.ShardForKey(strings.Join(keys, ""))
-	return script.Exec(ctx, cli, keys, args)
+	shard := vr.ShardForKey(strings.Join(keys, ""))
+	return script.Exec(ctx, shard, keys, args)
 }
 
 // ValkeyRingClient is a wrapper aroung valkey.Client that does access valkey shard by
@@ -316,7 +326,7 @@ func NewValkeyRingClient(opt *ValkeyOptions) (*ValkeyRingClient, error) {
 			address, err = opt.AddrUpdater()
 		}
 		if err != nil {
-			opt.Log.Errorf("Failed at valkey client startup %v", err)
+			opt.Log.Errorf("Failed start valkey client: %v", err)
 		} else {
 			opt.Addrs = address
 		}
@@ -355,6 +365,7 @@ func NewValkeyRingClient(opt *ValkeyOptions) (*ValkeyRingClient, error) {
 }
 
 func (vrc *ValkeyRingClient) Close() error {
+	vrc.log.Info("vrc.Close()")
 	if vrc.closed {
 		return nil
 	}
@@ -408,7 +419,7 @@ func (vrc *ValkeyRingClient) SetAddrs(ctx context.Context, addrs []string) {
 }
 
 func (vrc *ValkeyRingClient) RingAvailable(ctx context.Context) bool {
-	return len(vrc.ring.clientMap) > 0 && vrc.PingAll(ctx) == nil
+	return vrc.ring.activeShards > 0 && vrc.PingAll(ctx) == nil
 }
 
 func (vrc *ValkeyRingClient) PingAll(ctx context.Context) error {
@@ -486,6 +497,10 @@ func (vrc *ValkeyRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, k
 func (vrc *ValkeyRingClient) RunScript(ctx context.Context, script *valkey.Lua, keys []string, args ...string) (valkey.ValkeyMessage, error) {
 	res := vrc.ring.RunScript(ctx, script, keys, args...)
 	return res.ToMessage()
+}
+
+func NewScript(src string) *valkey.Lua {
+	return valkey.NewLuaScript(src)
 }
 
 func difference(a, b []string) []string {

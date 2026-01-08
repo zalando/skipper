@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -86,6 +87,153 @@ func TestValkey_hasAll(t *testing.T) {
 		})
 	}
 }
+func TestValkeyScript(t *testing.T) {
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
+	defer done()
+	cli, err := NewValkeyRingClient(&ValkeyOptions{
+		Addrs:         []string{valkeyAddr},
+		Metrics:       &metricstest.MockMetrics{},
+		MetricsPrefix: "skipper.valkey.",
+	})
+	if err != nil {
+		t.Fatalf("Failed to create valkey ring client: %v", err)
+	}
+	defer func() {
+		t.Logf("closing ring client")
+		cli.Close()
+	}()
+
+	src := "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}"
+	l := NewScript(src)
+	msg, err := cli.RunScript(context.Background(), l, []string{"k1", "k2"}, "arg1", "arg2")
+	if err != nil {
+		t.Fatalf("Failed to run script %q: %v", src, err)
+	}
+
+	a, err := msg.ToArray()
+	if err != nil {
+		t.Fatalf("Failed to get result: %v", err)
+	}
+	res := make([]string, 0, 4)
+	for _, msg := range a {
+		s, err := msg.ToString()
+		if err != nil {
+			t.Fatalf("Failed ToString: %v", err)
+		}
+		res = append(res, s)
+	}
+	if got := strings.Join(res, "|"); got != "k1|k2|arg1|arg2" {
+		t.Fatalf(`Failed to get expected result "k1|k2|arg1|arg2", got: %q`, got)
+	}
+
+}
+
+func TestValkeyPing(t *testing.T) {
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
+	defer done()
+	vrc, err := NewValkeyRingClient(&ValkeyOptions{
+		Addrs:         []string{valkeyAddr},
+		Metrics:       &metricstest.MockMetrics{},
+		MetricsPrefix: "skipper.valkey.",
+	})
+	if err != nil {
+		t.Fatalf("Failed to create valkey ring client: %v", err)
+	}
+	defer func() {
+		vrc.Close()
+	}()
+
+	err = vrc.Ping(context.Background(), valkeyAddr)
+	if err != nil {
+		t.Fatalf("Failed to ping %q: %v", valkeyAddr, err)
+	}
+}
+
+func TestValkeyClientSetAddr(t *testing.T) {
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
+	defer done()
+	valkeyAddr2, done2 := valkeytest.NewTestValkey(t)
+	defer done2()
+	vrc, err := NewValkeyRingClient(&ValkeyOptions{
+		Addrs: []string{valkeyAddr, valkeyAddr2},
+	})
+	if err != nil {
+		t.Fatalf("Failed to create valkey ring client: %v", err)
+	}
+	defer func() {
+		t.Logf("closing ring client")
+		vrc.Close()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	if n := vrc.ring.Len(); n != 2 {
+		t.Fatalf("Failed to get number of shards: %d != %d", n, 2)
+	}
+
+	// call path that check it has nothing todo
+	err = vrc.ring.SetAddr([]string{valkeyAddr, valkeyAddr2})
+	if err != nil {
+		t.Fatalf("Failed to ring.SetAddr with the same addresses: %v", err)
+	}
+	if n := vrc.ring.Len(); n != 2 {
+		t.Fatalf("Failed to get number of shards: %d != %d", n, 2)
+	}
+
+	vrc.SetAddrs(context.Background(), []string{valkeyAddr})
+	time.Sleep(100 * time.Millisecond)
+	if n := vrc.ring.Len(); n != 1 {
+		t.Fatalf("Failed to get number of shards: %d != %d", n, 1)
+	}
+
+	vrc.SetAddrs(context.Background(), []string{valkeyAddr, valkeyAddr2})
+	if n := vrc.ring.Len(); n != 2 {
+		t.Fatalf("Failed to get number of shards: %d != %d", n, 2)
+	}
+}
+
+func TestValkeyClientAddDeleteInstance(t *testing.T) {
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
+	defer done()
+	valkeyAddr2, done2 := valkeytest.NewTestValkey(t)
+	defer done2()
+	valkeyAddr3, done3 := valkeytest.NewTestValkey(t)
+	defer done3()
+
+	t.Log("#####################################")
+	updater := &addressUpdater{addrs: []string{valkeyAddr, valkeyAddr2, valkeyAddr3}}
+	cli, err := NewValkeyRingClient(&ValkeyOptions{
+		Addrs:          []string{valkeyAddr, valkeyAddr2},
+		AddrUpdater:    updater.update,
+		UpdateInterval: 100 * time.Millisecond,
+		Metrics:        &metricstest.MockMetrics{},
+		MetricsPrefix:  "skipper.valkey.",
+	})
+	if err != nil {
+		t.Fatalf("Failed to create valkey ring client: %v", err)
+	}
+	defer func() {
+		t.Logf("closing ring client")
+		cli.Close()
+	}()
+
+	// initial wait for startUpdater to run once
+	time.Sleep(cli.options.UpdateInterval + 50*time.Millisecond)
+
+	for range 5 {
+		updater.update()
+		time.Sleep(cli.options.UpdateInterval)
+
+		mock := cli.metrics.(*metricstest.MockMetrics)
+		mock.WithGauges(func(m map[string]float64) {
+			key := cli.metricsPrefix + "shards"
+			if _, ok := m[key]; ok {
+				for k, v := range m {
+					t.Logf("metric %s: %v", k, v)
+				}
+			}
+		})
+	}
+}
 
 func TestValkeyClient(t *testing.T) {
 	tracer, err := basic.InitTracer([]string{"recorder=in-memory"})
@@ -146,15 +294,67 @@ func TestValkeyClient(t *testing.T) {
 					t.Error("Failed to close valkey ring client")
 				}
 			}()
-			defer cli.Close()
+			defer func() {
+				t.Logf("closing ring client")
+				cli.Close()
+			}()
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			if !cli.RingAvailable(ctx) {
+				t.Logf("ring is not available")
 				if tt.options.AddrUpdater != nil {
 					t.Log("Inittially we have no connected valkey client, ring not available")
 				} else {
 					t.Fatalf("Failed to have a connected valkey client, ring not available")
+				}
+			} else {
+				t.Logf("ring is available")
+			}
+
+			if tt.options.Tracer != nil {
+				span := cli.StartSpan("test")
+				span.Finish()
+			}
+
+			if tt.options.Metrics != nil {
+				updater.update()
+				updater.update()
+				time.Sleep(2 * cli.options.UpdateInterval)
+
+				if mock, ok := cli.metrics.(*metricstest.MockMetrics); ok {
+					mock.WithGauges(func(m map[string]float64) {
+						key := tt.options.MetricsPrefix + "shards"
+						if v, ok := m[key]; !ok {
+							t.Fatalf("Failed to get metric %q", key)
+						} else {
+							for k, v := range m {
+								t.Logf("metric %s: %v", k, v)
+							}
+							i := int(v)
+							if i != 2 {
+								t.Fatalf("Failed to get 2 shards, got: %d", i)
+							}
+						}
+					})
+
+					for range 15 {
+						a, err := updater.update()
+						if err != nil {
+							t.Fatalf("Failed to update list: %v", err)
+						}
+						t.Logf("updated: %v", a)
+						time.Sleep(cli.options.UpdateInterval)
+
+						mock.WithGauges(func(m map[string]float64) {
+							key := tt.options.MetricsPrefix + "shards"
+							if _, ok := m[key]; ok {
+								for k, v := range m {
+									t.Logf("metric %s: %v", k, v)
+								}
+							}
+						})
+					}
 				}
 			}
 
@@ -185,31 +385,6 @@ func TestValkeyClient(t *testing.T) {
 				if !cli.closed {
 					t.Error("Failed to close")
 				}
-			}
-
-			if tt.options.Tracer != nil {
-				span := cli.StartSpan("test")
-				span.Finish()
-			}
-
-			if tt.options.Metrics != nil {
-				if mock, ok := cli.metrics.(*metricstest.MockMetrics); ok {
-					mock.WithGauges(func(m map[string]float64) {
-						key := tt.options.MetricsPrefix + "shards"
-						if v, ok := m[key]; !ok {
-							t.Fatalf("Failed to get metric %q", key)
-						} else {
-							for k, v := range m {
-								t.Logf("metric %s: %v", k, v)
-							}
-							i := int(v)
-							if i != 2 {
-								t.Fatalf("Failed to get 2 shards, got: %d", i)
-							}
-						}
-					})
-				}
-
 			}
 		})
 	}
@@ -1107,7 +1282,7 @@ func TestValkeyClientZRangeByScoreWithScoresFirst(t *testing.T) {
 	}
 }
 
-func TestValkeyClientSetAddr(t *testing.T) {
+func TestValkeyClientCommandsOnSetAddrUpdate(t *testing.T) {
 	valkeyAddr1, done1 := valkeytest.NewTestValkey(t)
 	defer done1()
 	valkeyAddr2, done2 := valkeytest.NewTestValkey(t)
@@ -1129,13 +1304,24 @@ func TestValkeyClientSetAddr(t *testing.T) {
 			vals: []string{"bar1", "bar2", "bar3", "bar4", "bar5"},
 		},
 		{
-			name: "with valkey change",
+			name: "with valkey add",
 			options: &ValkeyOptions{
 				Addrs: []string{valkeyAddr1},
 			},
 			valkeyUpdate: []string{
 				valkeyAddr1,
 				valkeyAddr2,
+			},
+			keys: []string{"foo1", "foo2", "foo3", "foo4", "foo5"},
+			vals: []string{"bar1", "bar2", "bar3", "bar4", "bar5"},
+		},
+		{
+			name: "with valkey del",
+			options: &ValkeyOptions{
+				Addrs: []string{valkeyAddr1, valkeyAddr2},
+			},
+			valkeyUpdate: []string{
+				valkeyAddr1,
 			},
 			keys: []string{"foo1", "foo2", "foo3", "foo4", "foo5"},
 			vals: []string{"bar1", "bar2", "bar3", "bar4", "bar5"},
