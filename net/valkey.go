@@ -2,6 +2,7 @@ package net
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"sync"
@@ -89,13 +90,12 @@ func createValkeyClient(addr string, opt *ValkeyOptions) (valkey.Client, error) 
 type valkeyRing struct {
 	opt *ValkeyOptions
 
-	// maps int to addr for sharding, trades memory for concurrent access
-	// worst case: 1 string full ipv6 addr, "[]", ":" and 5 digits port size: 39+2+1+5 = 47 byte, so 47*10000 = 470kB
-	// TODO(sszuecs): maybe we can use [ringSize]valkey.Client as optimization
-	shards [ringSize]string
-	//shards [ringSize]valkey.Client
+	// maps int to client for sharding, trades memory for concurrent access
+	// most operation only have to use this without locks
+	shards       [ringSize]valkey.Client
 	activeShards int
 
+	// clientMap is used for Ping operations and to simplify update shards
 	mu        sync.RWMutex
 	clientMap map[string]valkey.Client // map["10.5.1.43:6379"]valkey.Client
 }
@@ -110,9 +110,7 @@ func newValkeyRing(opt *ValkeyOptions) (*valkeyRing, error) {
 		if err != nil {
 			return nil, err
 		}
-		ring.mu.Lock()
 		ring.clientMap[ep] = cl
-		ring.mu.Unlock()
 	}
 
 	if len(opt.Addrs) == 0 {
@@ -137,16 +135,19 @@ func (vr *valkeyRing) updateShards(addr []string) {
 	}
 	cur := -1
 	shardSize := computeShardSize(len(addr))
-	vr.opt.Log.Infof("updateShards(%v), shardSize: %d", addr, shardSize)
+	clients := make([]valkey.Client, 0, len(addr))
+
+	for _, cl := range vr.clientMap {
+		clients = append(clients, cl)
+	}
+
 	for i := range ringSize {
-		if i%shardSize == 0 { // 0, 5000
+		if i%shardSize == 0 {
 			cur++
 		}
-
-		vr.shards[i] = addr[cur]
+		vr.shards[i] = clients[cur]
 	}
 	vr.activeShards = cur + 1
-	vr.opt.Log.Infof("active shards: %d", vr.activeShards)
 }
 
 func (vr *valkeyRing) Len() int {
@@ -178,7 +179,7 @@ func (vr *valkeyRing) SetAddr(addr []string) error {
 	for _, addr := range newAddr {
 		cli, err := createValkeyClient(addr, vr.opt)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create valkey client on SetAddr: %w", err)
 		}
 		vr.mu.Lock()
 		vr.clientMap[addr] = cli
@@ -206,14 +207,7 @@ func (vr *valkeyRing) SetAddr(addr []string) error {
 }
 
 func (vr *valkeyRing) ShardForKey(key string) valkey.Client {
-	i := xxhash.Sum64String(key)
-	shard := vr.shards[i%ringSize]
-
-	vr.mu.RLock()
-	cli := vr.clientMap[shard]
-	vr.mu.RUnlock()
-
-	return cli
+	return vr.shards[xxhash.Sum64String(key)%ringSize]
 }
 
 // PingAll TODO(sszuecs): is slow if we need to use it anywhere else than tests we have to optimize it
@@ -365,7 +359,6 @@ func NewValkeyRingClient(opt *ValkeyOptions) (*ValkeyRingClient, error) {
 }
 
 func (vrc *ValkeyRingClient) Close() error {
-	vrc.log.Info("vrc.Close()")
 	if vrc.closed {
 		return nil
 	}
