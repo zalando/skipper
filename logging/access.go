@@ -5,6 +5,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -74,7 +75,15 @@ func stripPort(address string) string {
 func remoteHost(r *http.Request) string {
 	ff := r.Header.Get("X-Forwarded-For")
 	if ff != "" {
-		return ff
+		result := make([]string, 0)
+		for s := range strings.SplitSeq(ff, ", ") {
+			addr, err := netip.ParseAddr(stripPort(s))
+			if err != nil {
+				continue // ignore bogus entries from XFF
+			}
+			result = append(result, addr.String())
+		}
+		return strings.Join(result, ", ")
 	}
 	return stripPort(r.RemoteAddr)
 }
@@ -133,7 +142,7 @@ func hash(val string) uint64 {
 	return xxhash.Sum64String(val)
 }
 
-// Logs an access event in Apache combined log format (with a minor customization with the duration).
+// LogAccess logs an access event in Apache combined log format (with a minor customization with the duration).
 // Additional allows to provide extra data that may be also logged, depending on the specific log format.
 func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 	if accessLog == nil || entry == nil {
