@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/acme/autocert"
 	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -253,6 +254,14 @@ type Config struct {
 	// TLS Config
 	KubernetesEnableTLS bool `yaml:"kubernetes-enable-tls"`
 
+	// Letsencrypt
+	EnableLetsencrypt       bool      `yaml:"enable-letsencrypt"`
+	LetsencryptCache        string    `yaml:"letsencrypt-cache"`
+	LetsencryptEmail        string    `yaml:"letsencrypt-email"`
+	LetsencryptDomains      *listFlag `yaml:"letsencrypt-domains"`
+	LetsencryptDirectoryURL string    `yaml:"letsencrypt-directory-url"`
+	LetsencryptUserAgent    string    `yaml:"letsencrypt-user-agent"`
+
 	// API Monitoring
 	ApiUsageMonitoringEnable                       bool   `yaml:"enable-api-usage-monitoring"`
 	ApiUsageMonitoringRealmKeys                    string `yaml:"api-usage-monitoring-realm-keys"`
@@ -363,6 +372,7 @@ func NewConfig() *Config {
 	cfg.LuaModules = commaListFlag()
 	cfg.LuaSources = commaListFlag()
 	cfg.Oauth2GrantTokeninfoKeys = commaListFlag()
+	cfg.LetsencryptDomains = commaListFlag()
 
 	flag := flag.NewFlagSet("", flag.ExitOnError)
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
@@ -589,6 +599,14 @@ func NewConfig() *Config {
 
 	// Exclude insecure cipher suites
 	flag.BoolVar(&cfg.ExcludeInsecureCipherSuites, "exclude-insecure-cipher-suites", false, "excludes insecure cipher suites")
+
+	// Letsencrypt
+	flag.BoolVar(&cfg.EnableLetsencrypt, "enable-letsencrypt", false, "enables letsencrypt autocert handling on the proxy")
+	flag.StringVar(&cfg.LetsencryptCache, "letsencrypt-cache", "", "Configure the autocert cert cache <inmemory|remote|directory>")
+	flag.StringVar(&cfg.LetsencryptEmail, "letsencrypt-email", "", "Sets letsencrypt email address such that you can be reached by letsencrypt if something goes wrong")
+	flag.Var(cfg.LetsencryptDomains, "letsencrypt-domains", "An allow list of domains for autocert handling")
+	flag.StringVar(&cfg.LetsencryptDirectoryURL, "letsencrypt-directory-url", "", "Sets directory URL for testing")
+	flag.StringVar(&cfg.LetsencryptUserAgent, "letsencrypt-user-agent", "", "Sets httpclient useragent that calls letsencrypt that enables letsencrypt to limit you if something goes wrong")
 
 	// API Monitoring:
 	flag.BoolVar(&cfg.ApiUsageMonitoringEnable, "enable-api-usage-monitoring", false, "enables the apiUsageMonitoring filter")
@@ -1149,7 +1167,33 @@ func (c *Config) ToOptions() skipper.Options {
 		})
 	}
 
+	if c.EnableLetsencrypt {
+		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
+			return net.NewLetsencrypt(
+				c.getLetsencryptCache(),
+				c.LetsencryptEmail,
+				c.LetsencryptDirectoryURL,
+				c.LetsencryptUserAgent,
+				c.LetsencryptDomains.values,
+			).Handler(handler)
+		})
+
+	}
+
 	return options
+}
+
+func (c *Config) getLetsencryptCache() autocert.Cache {
+	switch c.LetsencryptCache {
+	case "directory":
+		return autocert.DirCache(os.TempDir())
+	case "remote":
+		return &net.RemoteCache{
+			Client: &net.RedisRingClient{},
+		}
+	default:
+		return &net.InmemoryCache{}
+	}
 }
 
 func (c *Config) getMinTLSVersion() uint16 {
