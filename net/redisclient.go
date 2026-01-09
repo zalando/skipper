@@ -11,16 +11,15 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/redis/go-redis/v9/maintnotifications"
-	"github.com/zalando/skipper/logging"
-	"github.com/zalando/skipper/metrics"
 
 	xxhash "github.com/cespare/xxhash/v2"
+	"github.com/dchest/siphash"
+	jump "github.com/dgryski/go-jump"
+	mpchash "github.com/dgryski/go-mpchash"
 	rendezvous "github.com/dgryski/go-rendezvous"
 
-	jump "github.com/dgryski/go-jump"
-
-	"github.com/dchest/siphash"
-	mpchash "github.com/dgryski/go-mpchash"
+	"github.com/zalando/skipper/logging"
+	"github.com/zalando/skipper/metrics"
 )
 
 // RedisOptions is used to configure the redis.Ring
@@ -189,7 +188,7 @@ func (w rendezvousVnodes) Get(key string) string {
 func NewRendezvousVnodes(shards []string) redis.ConsistentHash {
 	vshards := make([]string, vnodePerShard*len(shards))
 	table := make(map[string]string)
-	for i := 0; i < vnodePerShard; i++ {
+	for i := range vnodePerShard {
 		for j, shard := range shards {
 			vshard := fmt.Sprintf("%s%d", shard, i) // suffix
 			table[vshard] = shard
@@ -335,7 +334,7 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 
 		addrs, err := r.options.AddrUpdater()
 		if err != nil {
-			r.log.Errorf("Failed to start redis updater: %v", err)
+			r.log.Errorf("Failed to run redis updater: %v", err)
 			continue
 		}
 		if !hasAll(addrs, old) {
