@@ -1,14 +1,18 @@
 package auth
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/secrets"
 )
@@ -160,5 +164,49 @@ func Test_bearerInjectorFilter_Request(t *testing.T) {
 			}
 			rsp.Body.Close()
 		})
+	}
+}
+
+func captureLog(t *testing.T, level log.Level) *bytes.Buffer {
+	oldOut := log.StandardLogger().Out
+	var out bytes.Buffer
+	log.SetOutput(&out)
+
+	oldLevel := log.GetLevel()
+	log.SetLevel(level)
+
+	t.Cleanup(func() {
+		log.SetOutput(oldOut)
+		log.SetLevel(oldLevel)
+	})
+	return &out
+}
+
+func Test_bearerInjectorFilter_LogsErrorOnMissingSecret(t *testing.T) {
+	out := captureLog(t, log.ErrorLevel)
+
+	secretsReader := &testSecretsReader{
+		name:   "existing-secret",
+		secret: "token",
+	}
+
+	f := newBearerInjectorFilter("nonexistent-secret", secretsReader)
+
+	ctx := &filtertest.Context{
+		FRequest: &http.Request{
+			Header: http.Header{},
+		},
+	}
+
+	f.Request(ctx)
+
+	logOutput := out.String()
+	if !strings.Contains(logOutput, "nonexistent-secret") || !strings.Contains(logOutput, "not found for bearerinjector filter") {
+		t.Errorf("expected log message about missing secret, got: %s", logOutput)
+	}
+
+	// Verify no header was set
+	if ctx.FRequest.Header.Get(authHeaderName) != "" {
+		t.Error("expected no Authorization header to be set when secret is missing")
 	}
 }

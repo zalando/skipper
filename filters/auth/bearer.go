@@ -1,6 +1,7 @@
 package auth
 
 import (
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/secrets"
 )
@@ -52,6 +53,7 @@ func newBearerInjectorFilter(s string, sr secrets.SecretsReader) *bearerInjector
 func (f *bearerInjectorFilter) Request(ctx filters.FilterContext) {
 	b, ok := f.secretsReader.GetSecret(f.secretName)
 	if !ok {
+		log.Errorf("Secret %q not found for bearerinjector filter", f.secretName)
 		return
 	}
 	ctx.Request().Header.Set(authHeaderName, authHeaderPrefix+string(b))
