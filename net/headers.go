@@ -76,3 +76,17 @@ func (h *ForwardedHeadersHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	}
 	h.Handler.ServeHTTP(w, r)
 }
+
+type ContentLengthHeadersHandler struct {
+	Max     int64
+	Handler http.Handler
+}
+
+func (h *ContentLengthHeadersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if h.Max != 0 && r.ContentLength > h.Max {
+		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	h.Handler.ServeHTTP(w, r)
+}

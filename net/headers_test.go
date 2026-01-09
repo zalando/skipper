@@ -1,8 +1,11 @@
 package net
 
 import (
+	"bytes"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -203,4 +206,80 @@ func TestForwardedHeadersHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestContentLengthHeaderHandler(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		bodySize      int
+		max           int64
+		want          int
+		wantDelegated bool
+	}{
+		{
+			name:          "test GET",
+			max:           10,
+			want:          http.StatusOK,
+			wantDelegated: true,
+		},
+		{
+			name:          "test POST",
+			bodySize:      10,
+			max:           1000,
+			want:          http.StatusOK,
+			wantDelegated: true,
+		},
+		{
+			name:          "test POST max",
+			bodySize:      10,
+			max:           10,
+			want:          http.StatusOK,
+			wantDelegated: true,
+		},
+		{
+			name:          "test POST too large",
+			bodySize:      100,
+			max:           10,
+			want:          http.StatusRequestEntityTooLarge,
+			wantDelegated: false,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", "http://example.com/foo", nil)
+			if err != nil {
+				t.Fatalf("Failed to creae GET request: %v", err)
+			}
+			if tt.bodySize != 0 {
+				req, err = http.NewRequest("POST", "http://example.com/foo", bytes.NewBufferString(strings.Repeat("A", tt.bodySize)))
+				if err != nil {
+					t.Fatalf("Failed to creae POST request: %v", err)
+				}
+			}
+
+			delegated := false
+			h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				delegated = true
+				if !tt.wantDelegated {
+					t.Fatalf("Failed to stop request delegation")
+				}
+			})
+
+			ch := ContentLengthHeadersHandler{
+				Max:     tt.max,
+				Handler: h,
+			}
+
+			recorder := httptest.NewRecorder()
+
+			ch.ServeHTTP(recorder, req)
+
+			if delegated != tt.wantDelegated {
+				t.Fatalf("Failed to get delegation as expected: %v != %v", delegated, tt.wantDelegated)
+			}
+
+			if recorder.Code != tt.want {
+				t.Fatalf("Failed to get status code as expected: %v != %v", recorder.Code, tt.want)
+			}
+		})
+	}
+
 }

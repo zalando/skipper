@@ -156,6 +156,7 @@ type Config struct {
 
 	ValidateQuery    bool      `yaml:"validate-query"`
 	ValidateQueryLog bool      `yaml:"validate-query-log"`
+	MaxContentLength int64     `yaml:"max-content-length"`
 	RefusePayload    multiFlag `yaml:"refuse-payload"`
 
 	// Kubernetes:
@@ -490,6 +491,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.NormalizeHost, "normalize-host", false, "converts request host to lowercase and removes port and trailing dot if any")
 	flag.BoolVar(&cfg.ValidateQuery, "validate-query", true, "Validates the HTTP Query of a request and if invalid responds with status code 400")
 	flag.BoolVar(&cfg.ValidateQueryLog, "validate-query-log", true, "Enable logging for validate query logs")
+	flag.Int64Var(&cfg.MaxContentLength, "max-content-length", 0, "Limit the maximum Content-Length value")
 
 	flag.Var(&cfg.RefusePayload, "refuse-payload", "refuse requests that match configured value. Can be set multiple times")
 
@@ -1144,6 +1146,15 @@ func (c *Config) ToOptions() skipper.Options {
 	if c.ValidateQueryLog {
 		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
 			return &net.ValidateQueryLogHandler{
+				Handler: handler,
+			}
+		})
+	}
+
+	if c.MaxContentLength != 0 {
+		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
+			return &net.ContentLengthHeadersHandler{
+				Max:     c.MaxContentLength,
 				Handler: handler,
 			}
 		})
