@@ -2185,7 +2185,7 @@ Filter removes these headers after reading the values. Once the signature is gen
 awsSigv4 filter can be defined on a route as `awsSigv4("<service>, "<region>", <DisableHeaderHoisting>, <DisableURIPathEscaping>, <DisableSessionToken>)`
 
 An example of route with awsSigv4 filter is
-	`editorRoute: * -> awsSigv4("dynamodb" , "us-east-1", false, false, false) -> "https://dynamodb.us-east-1.amazonaws.com";`
+	`editorRoute: * -> awsSigv4("dynamodb" , "us-east-1", "false", "false", "false") -> "https://dynamodb.us-east-1.amazonaws.com";`
 
 This filter expects:
 
