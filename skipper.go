@@ -58,6 +58,7 @@ import (
 	"github.com/zalando/skipper/predicates/host"
 	"github.com/zalando/skipper/predicates/interval"
 	"github.com/zalando/skipper/predicates/methods"
+	skpotel "github.com/zalando/skipper/predicates/otel"
 	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/predicates/source"
@@ -2095,6 +2096,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		forwarded.NewForwardedProto(),
 		host.NewAny(),
 		content.NewContentLengthBetween(),
+		skpotel.NewBaggage(),
 	)
 
 	// provide default value for wrapper if not defined
