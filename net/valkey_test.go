@@ -8,9 +8,11 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/valkey-io/valkey-go"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/net/valkeytest"
 	"github.com/zalando/skipper/tracing/tracers/basic"
+	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
 func TestValkeyContainer(t *testing.T) {
@@ -86,6 +88,121 @@ func TestValkey_hasAll(t *testing.T) {
 		})
 	}
 }
+
+type hook struct {
+	beforeDo, beforeDoMulti, beforeDoCache, beforeDoMultiCache, beforeReceive, beforeDoStream, beforeDoMultiStream bool
+	afterDo, afterDoMulti, afterDoCache, afterDoMultiCache, afterReceive, afterDoStream, afterDoMultiStream        bool
+}
+
+func (h *hook) Do(client valkey.Client, ctx context.Context, cmd valkey.Completed) (resp valkey.ValkeyResult) {
+	h.beforeDo = true
+	resp = client.Do(ctx, cmd)
+	h.afterDo = true
+	return
+}
+
+func (h *hook) DoMulti(client valkey.Client, ctx context.Context, multi ...valkey.Completed) (resps []valkey.ValkeyResult) {
+	h.beforeDoMulti = true
+	resps = client.DoMulti(ctx, multi...)
+	h.afterDoMulti = true
+	return
+}
+
+func (h *hook) DoCache(client valkey.Client, ctx context.Context, cmd valkey.Cacheable, ttl time.Duration) (resp valkey.ValkeyResult) {
+	h.beforeDoCache = true
+	resp = client.DoCache(ctx, cmd, ttl)
+	h.afterDoCache = true
+	return
+}
+
+func (h *hook) DoMultiCache(client valkey.Client, ctx context.Context, multi ...valkey.CacheableTTL) (resps []valkey.ValkeyResult) {
+	h.beforeDoMultiCache = true
+	resps = client.DoMultiCache(ctx, multi...)
+	h.afterDoMultiCache = true
+	return
+}
+
+func (h *hook) Receive(client valkey.Client, ctx context.Context, subscribe valkey.Completed, fn func(msg valkey.PubSubMessage)) (err error) {
+	h.beforeReceive = true
+	err = client.Receive(ctx, subscribe, fn)
+	h.afterReceive = true
+	return
+}
+
+func (h *hook) DoStream(client valkey.Client, ctx context.Context, cmd valkey.Completed) valkey.ValkeyResultStream {
+	h.beforeDoStream = true
+	res := client.DoStream(ctx, cmd)
+	h.afterDoStream = true
+	return res
+}
+
+func (h *hook) DoMultiStream(client valkey.Client, ctx context.Context, multi ...valkey.Completed) valkey.MultiValkeyResultStream {
+	h.beforeDoMultiStream = true
+	res := client.DoMultiStream(ctx, multi...)
+	h.afterDoMultiStream = true
+	return res
+
+}
+
+func TestValkeyHook(t *testing.T) {
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
+	defer done()
+	hooks := &hook{}
+	cli, err := NewValkeyRingClient(&ValkeyOptions{
+		Addrs:         []string{valkeyAddr},
+		Metrics:       &metricstest.MockMetrics{},
+		MetricsPrefix: "skipper.valkey.",
+		Hook:          hooks,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create valkey ring client: %v", err)
+	}
+	defer func() {
+		t.Logf("closing ring client")
+		cli.Close()
+	}()
+
+	ctx := context.Background()
+	cli.ring.Set(ctx, "k", "v")
+
+	if !hooks.beforeDo || !hooks.afterDo {
+		t.Fatalf("Failed to execute hook before %v, after %v", hooks.beforeDo, hooks.afterDo)
+	}
+}
+
+func TestValkeyOpentracing(t *testing.T) {
+	mockTracer := tracingtest.NewTracer()
+
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
+	defer done()
+	cli, err := NewValkeyRingClient(&ValkeyOptions{
+		Addrs:  []string{valkeyAddr},
+		Tracer: mockTracer,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create valkey ring client: %v", err)
+	}
+	defer func() {
+		t.Logf("closing ring client")
+		cli.Close()
+	}()
+
+	spanName := "valkey-span"
+	span := cli.StartSpan(spanName)
+	ctx := context.Background()
+	cli.ring.Set(ctx, "k", "v")
+	span.Finish()
+
+	foundSpan := mockTracer.FindSpan(spanName)
+	if foundSpan != nil {
+		if foundSpan.OperationName != spanName {
+			t.Fatalf("Did not find span: %s", spanName)
+		} else {
+			t.Logf("Found span %s", spanName)
+		}
+	}
+}
+
 func TestValkeyScript(t *testing.T) {
 	valkeyAddr, done := valkeytest.NewTestValkey(t)
 	defer done()

@@ -86,6 +86,7 @@ func createValkeyClient(addr string, opt *ValkeyOptions) (valkey.Client, error) 
 		// BlockingPoolMinSize: 0,
 		// BlockingPoolSize:    0,
 		// BlockingPipeline:    0,
+
 	}
 	var (
 		cli valkey.Client
@@ -113,7 +114,7 @@ type valkeyRing struct {
 	activeShards int
 
 	// clientMap is used for Ping operations and to simplify update shards
-	mu        sync.RWMutex
+	mu        sync.Mutex
 	clientMap map[string]valkey.Client // map["10.5.1.43:6379"]valkey.Client
 }
 
@@ -139,6 +140,7 @@ func newValkeyRing(opt *ValkeyOptions) (*valkeyRing, error) {
 	return ring, nil
 }
 
+// updateShards needs to be called with holding lock vr.mu
 func (vr *valkeyRing) updateShards(addr []string) {
 	if len(addr) == 0 {
 		return
@@ -169,13 +171,13 @@ func (vr *valkeyRing) SetAddr(addr []string) error {
 		return nil
 	}
 
+	vr.mu.Lock()
+	defer vr.mu.Unlock()
 	current := make([]string, 0, len(vr.clientMap))
 
-	vr.mu.RLock()
 	for k := range vr.clientMap {
 		current = append(current, k)
 	}
-	vr.mu.RUnlock()
 
 	// set operations
 	intersection := intersect(addr, current)
@@ -191,13 +193,10 @@ func (vr *valkeyRing) SetAddr(addr []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to create valkey client on SetAddr: %w", err)
 		}
-		vr.mu.Lock()
 		vr.clientMap[addr] = cli
-		vr.mu.Unlock()
 	}
 
 	// close old clients and update current shards
-	vr.mu.Lock()
 	for _, addr := range oldAddr {
 		cli, ok := vr.clientMap[addr]
 		delete(vr.clientMap, addr)
@@ -211,7 +210,6 @@ func (vr *valkeyRing) SetAddr(addr []string) error {
 		curAddr = append(curAddr, k)
 	}
 	vr.updateShards(curAddr)
-	vr.mu.Unlock()
 
 	return nil
 }
@@ -224,21 +222,21 @@ func (vr *valkeyRing) shardForKey(key string) valkey.Client {
 // PingAll pings all known shards
 func (vr *valkeyRing) PingAll(ctx context.Context) map[string]valkey.ValkeyResult {
 	res := make(map[string]valkey.ValkeyResult)
-	vr.mu.RLock()
+	vr.mu.Lock()
 	for k, shard := range vr.clientMap {
 		res[k] = shard.Do(ctx, shard.B().Ping().Build())
 	}
-	vr.mu.RUnlock()
+	vr.mu.Unlock()
 	return res
 }
 
 // Ping pings given shard by address:port
 func (vr *valkeyRing) Ping(ctx context.Context, s string) error {
-	vr.mu.RLock()
+	vr.mu.Lock()
 	shard, ok := vr.clientMap[s]
-	vr.mu.RUnlock()
+	vr.mu.Unlock()
 	if !ok {
-		return nil
+		return fmt.Errorf("failed to find client for shard: %q", s)
 	}
 	res := shard.Do(ctx, shard.B().Ping().Build())
 	return res.Error()
@@ -317,12 +315,23 @@ func NewValkeyRingClient(opt *ValkeyOptions) (*ValkeyRingClient, error) {
 	const backOffTime = 2 * time.Second
 	const retryCount = 5
 
+	// defaults
+	if opt.Tracer == nil {
+		opt.Tracer = &opentracing.NoopTracer{}
+	}
 	if opt.Log == nil {
 		opt.Log = &logging.DefaultLog{}
+	}
+	if opt.Metrics == nil {
+		opt.Metrics = metrics.Default
 	}
 
 	// initially run address updater and pass opt.Addrs on success
 	if opt.AddrUpdater != nil {
+		if opt.UpdateInterval == 0 {
+			opt.UpdateInterval = DefaultUpdateInterval
+		}
+
 		address, err := opt.AddrUpdater()
 		for range retryCount {
 			if err == nil {
@@ -343,10 +352,6 @@ func NewValkeyRingClient(opt *ValkeyOptions) (*ValkeyRingClient, error) {
 		return nil, err
 	}
 
-	if opt.Metrics == nil {
-		opt.Metrics = metrics.Default
-	}
-
 	quitCH := make(chan struct{})
 
 	vrc := &ValkeyRingClient{
@@ -361,9 +366,6 @@ func NewValkeyRingClient(opt *ValkeyOptions) (*ValkeyRingClient, error) {
 	}
 
 	if opt.AddrUpdater != nil {
-		if opt.UpdateInterval == 0 {
-			opt.UpdateInterval = DefaultUpdateInterval
-		}
 		go vrc.startUpdater(context.Background())
 	}
 
