@@ -443,9 +443,9 @@ func (vrc *ValkeyRingClient) Ping(ctx context.Context, shard string) error {
 	return vrc.ring.Ping(ctx, shard)
 }
 
-func (vrc *ValkeyRingClient) Expire(ctx context.Context, key string, d time.Duration) (bool, error) {
+func (vrc *ValkeyRingClient) Expire(ctx context.Context, key string, d time.Duration) (int64, error) {
 	res := vrc.ring.Expire(ctx, key, d)
-	return res.ToBool()
+	return res.ToInt64()
 }
 
 func (vrc *ValkeyRingClient) Get(ctx context.Context, key string) (string, error) {
@@ -488,17 +488,24 @@ func (vrc *ValkeyRingClient) ZRemRangeByScore(ctx context.Context, key, min, max
 	return res.ToInt64()
 }
 
-// TODO(sszuecs): check required return values
-func (vrc *ValkeyRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, key, min, max string, offset, count int64) ([]valkey.ValkeyMessage, error) {
+// ZRangeByScoreWithScoresFirst returns the first value as string, count should be set to 1
+func (vrc *ValkeyRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, key, min, max string, offset, count int64) (string, error) {
 	res := vrc.ring.ZRangeByScoreWithScoresFirst(ctx, key, min, max, offset, count)
 	a, err := res.ToArray()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	if len(a) == 0 {
-		return nil, nil
+		return "", nil
 	}
-	return a, nil
+	msg, err := a[0].ToArray()
+	if err != nil {
+		return "", err
+	}
+	if len(msg) == 0 {
+		return "", nil
+	}
+	return msg[0].ToString()
 }
 
 func (vrc *ValkeyRingClient) RunScript(ctx context.Context, script *valkey.Lua, keys []string, args ...string) (valkey.ValkeyMessage, error) {

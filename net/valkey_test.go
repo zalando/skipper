@@ -1174,6 +1174,7 @@ func TestValkeyClientZRangeByScoreWithScoresFirst(t *testing.T) {
 			},
 			min:      "1.0",
 			max:      "7.0",
+			count:    1,
 			expected: "10",
 			wantErr:  false,
 		},
@@ -1192,6 +1193,25 @@ func TestValkeyClientZRangeByScoreWithScoresFirst(t *testing.T) {
 				},
 			},
 			min:     "6.0",
+			max:     "7.0",
+			count:   1,
+			wantErr: false,
+		},
+		{
+			name: "one key, have one value, get none by count=0",
+			options: &ValkeyOptions{
+				Addrs: []string{valkeyAddr},
+			},
+			key: "k1",
+			h: map[string][]valScore{
+				"k1": {
+					{
+						val:   "10",
+						score: 5.0,
+					},
+				},
+			},
+			min:     "1.0",
 			max:     "7.0",
 			wantErr: false,
 		},
@@ -1264,7 +1284,7 @@ func TestValkeyClientZRangeByScoreWithScoresFirst(t *testing.T) {
 			min:      "1.0",
 			max:      "5.0",
 			offset:   1,
-			count:    10,
+			count:    1,
 			expected: "2",
 			wantErr:  false,
 		},
@@ -1291,7 +1311,7 @@ func TestValkeyClientZRangeByScoreWithScoresFirst(t *testing.T) {
 			min:      "0.0",
 			max:      "5.0",
 			offset:   0,
-			count:    10,
+			count:    1,
 			expected: "1",
 			wantErr:  false,
 		},
@@ -1307,34 +1327,29 @@ func TestValkeyClientZRangeByScoreWithScoresFirst(t *testing.T) {
 
 			for k, a := range tt.h {
 				for _, v := range a {
+					t.Logf("cli.ZAdd(ctx, %q, %q, %0.2f)", k, v.val, v.score)
 					res, err := cli.ZAdd(ctx, k, v.val, v.score)
 					if err != nil && !tt.wantErr {
 						t.Fatalf("Failed to do ZAdd error = %v, wantErr %v", err, tt.wantErr)
 					}
 					t.Logf("ZADD res: %d", res)
 					if tt.wantErr {
+						t.Log("want err, skip rest")
 						return
 					}
 				}
 			}
 
+			t.Logf("ZRangeByScoreWithScoresFirst(ctx, %q, %q, %q, %d, %d)", tt.key, tt.min, tt.max, tt.offset, tt.count)
 			res, err := cli.ZRangeByScoreWithScoresFirst(ctx, tt.key, tt.min, tt.max, tt.offset, tt.count)
 			if err != nil && !tt.wantErr {
 				t.Errorf("Failed to do ZRangeByScoreWithScoresFirst error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			// TODO(sszuecs): whatever we expect to be reutrned by the CMD above
-			_ = res // no build error
-			// if tt.expected == "" {
-			// 	if res != nil {
-			// 		t.Errorf("Expected nil got: '%v'", res)
-			// 	}
-			// } else {
-			// 	diff := cmp.Diff(res, tt.expected)
-			// 	if diff != "" {
-			// 		t.Error(diff)
-			// 	}
-			// }
+			t.Logf("result: %q", res)
+			if res != tt.expected {
+				t.Errorf("Failed to get expected result %q, got: %q", tt.expected, res)
+			}
 
 			// cleanup
 			for k, a := range tt.h {
