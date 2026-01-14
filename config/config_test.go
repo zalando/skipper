@@ -151,6 +151,8 @@ func defaultConfig(with func(*Config)) *Config {
 		SwarmRedisReadTimeout:                   25 * time.Millisecond,
 		SwarmRedisWriteTimeout:                  25 * time.Millisecond,
 		SwarmRedisPoolTimeout:                   25 * time.Millisecond,
+		SwarmRedisUpdateInterval:                10 * time.Second,
+		SwarmRedisHeartbeatFrequency:            500 * time.Millisecond,
 		SwarmRedisMinConns:                      100,
 		SwarmRedisMaxConns:                      100,
 		SwarmKubernetesNamespace:                "kube-system",
@@ -351,7 +353,7 @@ func Test_NewConfigWithArgs(t *testing.T) {
 		},
 		{
 			name:    "test non-existing config file throw an error",
-			args:    []string{"skipper", "-config-file=non-existent.yaml"},
+			args:    []string{"skipper", "-config-file=nonexistent.yaml"},
 			wantErr: true,
 		},
 		{

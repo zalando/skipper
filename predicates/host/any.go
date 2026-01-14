@@ -17,7 +17,7 @@ type anyPredicate struct {
 // NewAny creates a predicate specification, whose instances match request host.
 //
 // The HostAny predicate requires one or more string hostnames and matches if request host
-// exactly equals to any of the hostnames.
+// exactly equals any of the hostnames.
 func NewAny() routing.PredicateSpec { return &anySpec{} }
 
 func (*anySpec) Name() string {

@@ -46,7 +46,7 @@ googleWildcardMatch:
         -> setPath("/search")
         -> setQuery("q", "godoc skipper")
         -> "https://www.google.com";
-yandexWildacardIfCookie:
+yandexWildcardIfCookie:
         * && Cookie("yandex", "true")
         -> setPath("/search/")
         -> setQuery("text", "godoc skipper")
@@ -62,7 +62,7 @@ baiduPathMatch, googleWildcardMatch and yandexWildcardIfCookie.
     * sets a Basic Authorization header and
     * sends the modified request to https://target-to.auth-with.basic-auth.enterprise.com
 * baiduPathMatch:
-    * used in case the request patch matches /baidu
+    * used when the request patch matches /baidu
     * it will set the Host header to the proxy request
     * it will set the path from /baidu to /s
     * it will set the querystring to "ws=godoc skipper" and

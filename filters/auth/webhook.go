@@ -55,7 +55,7 @@ func (*webhookSpec) Name() string {
 
 // CreateFilter creates an auth filter. The first argument is an URL
 // string. The second, optional, argument is a comma separated list of
-// headers to forward from from webhook response.
+// headers to forward from webhook response.
 //
 //	s.CreateFilter("https://my-auth-service.example.org/auth")
 //	s.CreateFilter("https://my-auth-service.example.org/auth", "X-Auth-User,X-Auth-User-Roles")

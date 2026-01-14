@@ -69,7 +69,7 @@ func NewLocalRatelimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.LocalRatelimit, provider: provider, filterName: ratelimit.LocalRatelimitName}
 }
 
-// NewClientRatelimit creates a instance based client rate limit.  If
+// NewClientRatelimit creates an instance based client rate limit.  If
 // you have 5 instances with 20 req/s, then it would allow 100 req/s
 // to the backend from the same client. A third argument can be used to
 // set which HTTP header of the request should be used to find the

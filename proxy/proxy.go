@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -38,7 +38,6 @@ import (
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	tracingfilter "github.com/zalando/skipper/filters/tracing"
 	skpio "github.com/zalando/skipper/io"
-	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	snet "github.com/zalando/skipper/net"
@@ -90,14 +89,14 @@ const (
 
 	// PreserveHost indicates whether the outgoing request to the
 	// backend should use by default the 'Host' header of the incoming
-	// request, or the host part of the backend address, in case filters
-	// don't change it.
+	// request, or the host part of the backend address, unless filters
+	// change it.
 	PreserveHost
 
 	// Debug indicates that the current proxy instance will be used as a
 	// debug proxy. Debug proxies don't forward the request to the
 	// route backends, but they execute all filters, and return a
-	// JSON document with the changes the filters make to the request
+	// JSON document with the changes that the filters make to the request
 	// and with the approximate changes they would make to the
 	// response.
 	Debug
@@ -428,7 +427,7 @@ func (f Flags) patchPath() bool { return f&PatchPath != 0 }
 // PriorityRoute are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
 type PriorityRoute interface {
-	// If the request is matched, returns a route, otherwise nil.
+	// If the request is matched, returns a route; otherwise, nil.
 	// Additionally it may return a parameter map used by the filters
 	// in the route.
 	Match(*http.Request) (*routing.Route, map[string]string)
@@ -446,7 +445,7 @@ type Proxy struct {
 	routing                  *routing.Routing
 	registry                 *routing.EndpointRegistry
 	fadein                   *fadeIn
-	heathlyEndpoints         *healthyEndpoints
+	healthyEndpoints         *healthyEndpoints
 	roundTripper             http.RoundTripper
 	priorityRoutes           []PriorityRoute
 	flags                    Flags
@@ -608,7 +607,7 @@ func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	rt := ctx.route
 	endpoints := rt.LBEndpoints
 	endpoints = p.fadein.filterFadeIn(endpoints, rt)
-	endpoints = p.heathlyEndpoints.filterHealthyEndpoints(ctx, endpoints, p.metrics)
+	endpoints = p.healthyEndpoints.filterHealthyEndpoints(ctx, endpoints, p.metrics)
 
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
@@ -868,7 +867,7 @@ func WithParams(p Params) *Proxy {
 	var healthyEndpointsChooser *healthyEndpoints
 	if p.EnablePassiveHealthCheck {
 		healthyEndpointsChooser = &healthyEndpoints{
-			rnd:                        rand.New(loadbalancer.NewLockedSource()),
+			rnd:                        rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), // #nosec
 			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
 		}
 	}
@@ -876,9 +875,9 @@ func WithParams(p Params) *Proxy {
 		routing:  p.Routing,
 		registry: p.EndpointRegistry,
 		fadein: &fadeIn{
-			rnd: rand.New(loadbalancer.NewLockedSource()),
+			rnd: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), // #nosec
 		},
-		heathlyEndpoints:         healthyEndpointsChooser,
+		healthyEndpoints:         healthyEndpointsChooser,
 		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
 		priorityRoutes:           p.PriorityRoutes,
 		flags:                    p.Flags,
@@ -1266,7 +1265,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			return perr
 		}
 	}
-	// every time the context is used for a request the context executionCounter is incremented
+	// every time the context is used for a request, the context executionCounter is incremented
 	// a context executionCounter equal to zero represents a root context.
 	ctx.executionCounter++
 	lookupStart := time.Now()
@@ -1286,7 +1285,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 	requestStopWatch.Start()
 
-	// not every of these branches could endup in a response to the client
+	// not every of these branches could end up in a response to the client
 	if ctx.deprecatedShunted() {
 		ctx.Logger().Debugf("deprecated shunting detected in route: %s", ctx.route.Id)
 		return &proxyError{handled: true}
@@ -1912,7 +1911,7 @@ func (p *Proxy) makeErrorResponse(ctx *context, perr *proxyError) {
 // errorHandlerFilter is an opt-in for filters to get called
 // Response(ctx) in case of errors.
 type errorHandlerFilter interface {
-	// HandleErrorResponse returns true in case a filter wants to get called
+	// HandleErrorResponse returns true if a filter wants to get called
 	HandleErrorResponse() bool
 }
 

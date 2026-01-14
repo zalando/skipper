@@ -22,7 +22,7 @@ An example of route with awsSigv4 filter is
 			with pre-signed requests preventing headers from being added to the request's query string.
 
 		- DisableURIPathEscaping
-			Disables the automatic escaping of the URI path of the request for the siganture's canonical string's path. For services that do not need additional
+			Disables the automatic escaping of the URI path of the request for the signature's canonical string's path. For services that do not need additional
 			escaping then use this to disable the signer escaping the path. S3 is an example of a service that does not need additional escaping.
 			http://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
 
@@ -46,6 +46,6 @@ An example of route with awsSigv4 filter is
 This filter reads the body in memory. This is needed to generate signature as per Signature V4 specs. Special considerations need to be taken when operating the skipper with concurrent requests.
 
 # Overwriting io.ReadCloser
-This filter resets `read` and `close` implementations of body to default. So in case a filter before this filter has some custom implementations of thse methods, they would be overwritten.
+This filter resets `read` and `close` implementations of body to default. So if a filter before this filter has some custom implementations of these methods, they would be overwritten.
 */
 package awssigv4

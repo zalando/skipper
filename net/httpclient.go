@@ -40,7 +40,7 @@ type Client struct {
 // If secrets.SecretsReader is nil, but BearerTokenFile is not empty
 // string, it creates StaticDelegateSecret with a wrapped
 // secrets.SecretPaths, which can be used with Kubernetes secrets to
-// read from the secret an automatically updated Bearer token.
+// read from the secret and automatically update Bearer token.
 func NewClient(o Options) *Client {
 	if o.Log == nil {
 		o.Log = &logging.DefaultLog{}

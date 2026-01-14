@@ -156,6 +156,7 @@ type Config struct {
 
 	ValidateQuery    bool      `yaml:"validate-query"`
 	ValidateQueryLog bool      `yaml:"validate-query-log"`
+	MaxContentLength int64     `yaml:"max-content-length"`
 	RefusePayload    multiFlag `yaml:"refuse-payload"`
 
 	// Kubernetes:
@@ -298,6 +299,8 @@ type Config struct {
 	SwarmRedisMinConns           int           `yaml:"swarm-redis-min-conns"`
 	SwarmRedisMaxConns           int           `yaml:"swarm-redis-max-conns"`
 	SwarmRedisEndpointsRemoteURL string        `yaml:"swarm-redis-remote"`
+	SwarmRedisUpdateInterval     time.Duration `yaml:"swarm-redis-update-interval"`
+	SwarmRedisHeartbeatFrequency time.Duration `yaml:"swarm-redis-heartbeat-frequency"`
 	// swim based
 	SwarmKubernetesNamespace          string        `yaml:"swarm-namespace"`
 	SwarmKubernetesLabelSelectorKey   string        `yaml:"swarm-label-selector-key"`
@@ -376,7 +379,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.IgnoreTrailingSlash, "ignore-trailing-slash", false, "flag indicating to ignore trailing slashes in paths when routing")
 	flag.BoolVar(&cfg.Insecure, "insecure", false, "flag indicating to ignore the verification of the TLS certificates of the backend services")
 	flag.BoolVar(&cfg.ProxyPreserveHost, "proxy-preserve-host", false, "flag indicating to preserve the incoming request 'Host' header in the outgoing requests")
-	flag.BoolVar(&cfg.DevMode, "dev-mode", false, "enables developer time behavior, like ubuffered routing updates")
+	flag.BoolVar(&cfg.DevMode, "dev-mode", false, "enables developer time behavior, like unbuffered routing updates")
 	flag.StringVar(&cfg.SupportListener, "support-listener", ":9911", "network address used for exposing the /metrics endpoint. An empty value disables support endpoint.")
 	flag.StringVar(&cfg.DebugListener, "debug-listener", "", "when this address is set, skipper starts an additional listener returning the original and transformed requests")
 	flag.StringVar(&cfg.CertPathTLS, "tls-cert", "", "the path on the local filesystem to the certificate file(s) (including any intermediates), multiple may be given comma separated")
@@ -431,7 +434,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.ServeStatusCodeMetric, "serve-status-code-metric", true, "enables the HTTP response status code as a domain of the total serve time metric. It affects both route and host split metrics")
 	flag.BoolVar(&cfg.BackendHostMetrics, "backend-host-metrics", false, "enables reporting total serve time metrics for each backend")
 	flag.BoolVar(&cfg.ProxyRequestMetrics, "proxy-request-metrics", false, "enables reporting latency / time spent in handling the request part of the proxy operation i.e., the duration from entry till before the backend round trip")
-	flag.BoolVar(&cfg.ProxyResponseMetrics, "proxy-response-metrics", false, "enables reporting latency / time spent in handling the reponse part of the proxy operation i.e., the duration from after the backend round trip till the response is served")
+	flag.BoolVar(&cfg.ProxyResponseMetrics, "proxy-response-metrics", false, "enables reporting latency / time spent in handling the response part of the proxy operation i.e., the duration from after the backend round trip till the response is served")
 	flag.BoolVar(&cfg.AllFiltersMetrics, "all-filters-metrics", false, "enables reporting combined filter metrics for each route")
 	flag.BoolVar(&cfg.CombinedResponseMetrics, "combined-response-metrics", false, "enables reporting combined response time metrics")
 	flag.BoolVar(&cfg.RouteResponseMetrics, "route-response-metrics", false, "enables reporting response time metrics for each route")
@@ -487,7 +490,8 @@ func NewConfig() *Config {
 
 	flag.BoolVar(&cfg.NormalizeHost, "normalize-host", false, "converts request host to lowercase and removes port and trailing dot if any")
 	flag.BoolVar(&cfg.ValidateQuery, "validate-query", true, "Validates the HTTP Query of a request and if invalid responds with status code 400")
-	flag.BoolVar(&cfg.ValidateQueryLog, "validate-query-log", true, "Enable looging for validate query logs")
+	flag.BoolVar(&cfg.ValidateQueryLog, "validate-query-log", true, "Enable logging for validate query logs")
+	flag.Int64Var(&cfg.MaxContentLength, "max-content-length", 0, "Limit the maximum Content-Length value")
 
 	flag.Var(&cfg.RefusePayload, "refuse-payload", "refuse requests that match configured value. Can be set multiple times")
 
@@ -508,7 +512,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.KubernetesEnableEndpointSlices, "enable-kubernetes-endpointslices", false, "Enables that skipper fetches Kubernetes endpointslices instead of endpoints to scale more than 1000 pods within a service")
 	flag.BoolVar(&cfg.KubernetesEnableEastWest, "enable-kubernetes-east-west", false, "*Deprecated*: use kubernetes-east-west-range feature. Enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local")
 	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", "*Deprecated*: use kubernetes-east-west-range feature. Sets the east-west domain, defaults to .skipper.cluster.local")
-	flag.Var(cfg.KubernetesEastWestRangeDomains, "kubernetes-east-west-range-domains", "set the the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates")
+	flag.Var(cfg.KubernetesEastWestRangeDomains, "kubernetes-east-west-range-domains", "set the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates")
 	flag.StringVar(&cfg.KubernetesEastWestRangePredicatesString, "kubernetes-east-west-range-predicates", "", "set the predicates that will be appended to routes identified as to -kubernetes-east-west-range-domains")
 	flag.Var(&cfg.KubernetesAnnotationPredicatesString, "kubernetes-annotation-predicates", "configures predicates appended to non east-west routes of annotated resources. E.g. -kubernetes-annotation-predicates='zone-a=true=Foo() && Bar()' will add 'Foo() && Bar()' predicates to all non east-west routes of ingress or routegroup annotated with 'zone-a: true'. For east-west routes use -kubernetes-east-west-range-annotation-predicates.")
 	flag.Var(&cfg.KubernetesAnnotationFiltersAppendString, "kubernetes-annotation-filters-append", "configures filters appended to non east-west routes of annotated resources. E.g. -kubernetes-annotation-filters-append='zone-a=true=foo() -> bar()' will add 'foo() -> bar()' filters to all non east-west routes of ingress or routegroup annotated with 'zone-a: true'. For east-west routes use -kubernetes-east-west-range-annotation-filters-append.")
@@ -539,7 +543,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.Oauth2CallbackPath, "oauth2-callback-path", "", "sets the path where the OAuth2 callback requests with the authorization code should be redirected to")
 	flag.DurationVar(&cfg.Oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", 2*time.Second, "sets the default tokeninfo request timeout duration to 2000ms")
 	flag.IntVar(&cfg.Oauth2TokeninfoCacheSize, "oauth2-tokeninfo-cache-size", 0, "non-zero value enables tokeninfo cache and sets the maximum number of cached tokens")
-	flag.DurationVar(&cfg.Oauth2TokeninfoCacheTTL, "oauth2-tokeninfo-cache-ttl", 0, "non-zero value limits the lifetime of a cached tokeninfo which otherwise equals to the tokeninfo 'expires_in' field value")
+	flag.DurationVar(&cfg.Oauth2TokeninfoCacheTTL, "oauth2-tokeninfo-cache-ttl", 0, "non-zero value limits the lifetime of a cached tokeninfo which otherwise equals the tokeninfo 'expires_in' field value")
 	flag.DurationVar(&cfg.Oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", 2*time.Second, "sets the default tokenintrospection request timeout duration to 2000ms")
 	flag.Var(&cfg.Oauth2AuthURLParameters, "oauth2-auth-url-parameters", "sets additional parameters to send when calling the OAuth2 authorize or token endpoints as key-value pairs")
 	flag.StringVar(&cfg.Oauth2AccessTokenHeaderName, "oauth2-access-token-header-name", "", "sets the access token to a header on the request with this name")
@@ -556,7 +560,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.EnableAdvancedValidation, "enable-advanced-validation", false, "enables advanced validation logic for Kubernetes resources")
 
 	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", "file storing the encryption key of the OID Connect token. Enables OIDC filters")
-	flag.DurationVar(&cfg.OIDCCookieValidity, "oidc-cookie-validity", time.Hour, "sets the cookie expiry time to +1h for OIDC filters, in case no 'exp' claim is found in the JWT token")
+	flag.DurationVar(&cfg.OIDCCookieValidity, "oidc-cookie-validity", time.Hour, "sets the cookie expiry time to +1h for OIDC filters, when no 'exp' claim is found in the JWT token")
 	flag.DurationVar(&cfg.OidcDistributedClaimsTimeout, "oidc-distributed-claims-timeout", 2*time.Second, "sets the default OIDC distributed claims request timeout duration to 2000ms")
 	flag.IntVar(&cfg.OIDCCookieRemoveSubdomains, "oidc-cookie-remove-subdomains", 1, "sets the number of subdomains to remove from the callback request hostname to obtain token cookie domain")
 	flag.Var(cfg.CredentialPaths, "credentials-paths", "directories or files to watch for credentials to use by bearerinjector filter")
@@ -621,7 +625,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.ExpectContinueTimeoutBackend, "expect-continue-timeout-backend", 30*time.Second, "sets the HTTP expect continue timeout for backend connections")
 	flag.IntVar(&cfg.MaxIdleConnsBackend, "max-idle-connection-backend", 0, "sets the maximum idle connections for all backend connections")
 	flag.BoolVar(&cfg.DisableHTTPKeepalives, "disable-http-keepalives", false, "forces backend to always create a new connection")
-	flag.BoolVar(&cfg.KubernetesEnableTLS, "kubernetes-enable-tls", false, "enable using kubnernetes resources to terminate tls")
+	flag.BoolVar(&cfg.KubernetesEnableTLS, "kubernetes-enable-tls", false, "enable using kubernetes resources to terminate tls")
 
 	// Swarm:
 	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, "enable swarm communication between nodes in a skipper fleet")
@@ -634,6 +638,8 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.SwarmRedisMinConns, "swarm-redis-min-conns", net.DefaultMinConns, "set min number of connections to redis")
 	flag.IntVar(&cfg.SwarmRedisMaxConns, "swarm-redis-max-conns", net.DefaultMaxConns, "set max number of connections to redis")
 	flag.StringVar(&cfg.SwarmRedisEndpointsRemoteURL, "swarm-redis-remote", "", "Remote URL to pull redis endpoints from.")
+	flag.DurationVar(&cfg.SwarmRedisUpdateInterval, "swarm-redis-update-interval", net.DefaultUpdateInterval, "set update interval to update redis addresses")
+	flag.DurationVar(&cfg.SwarmRedisHeartbeatFrequency, "swarm-redis-heartbeat-frequency", net.DefaultHeartbeatFrequency, "set redis heartbeat frequency")
 	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, "Kubernetes labelselector value to find swarm peer instances")
@@ -1024,6 +1030,8 @@ func (c *Config) ToOptions() skipper.Options {
 		SwarmRedisMinIdleConns:       c.SwarmRedisMinConns,
 		SwarmRedisMaxIdleConns:       c.SwarmRedisMaxConns,
 		SwarmRedisEndpointsRemoteURL: c.SwarmRedisEndpointsRemoteURL,
+		SwarmRedisUpdateInterval:     c.SwarmRedisUpdateInterval,
+		SwarmRedisHeartbeatFrequency: c.SwarmRedisHeartbeatFrequency,
 		// swim based
 		SwarmKubernetesNamespace:          c.SwarmKubernetesNamespace,
 		SwarmKubernetesLabelSelectorKey:   c.SwarmKubernetesLabelSelectorKey,
@@ -1143,6 +1151,15 @@ func (c *Config) ToOptions() skipper.Options {
 		})
 	}
 
+	if c.MaxContentLength != 0 {
+		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
+			return &net.ContentLengthHeadersHandler{
+				Max:     c.MaxContentLength,
+				Handler: handler,
+			}
+		})
+	}
+
 	return options
 }
 
@@ -1160,7 +1177,7 @@ func (c *Config) getMinTLSVersion() uint16 {
 	if v, ok := tlsVersionTable[c.TLSMinVersion]; ok {
 		return v
 	}
-	log.Infof("No valid minimal TLS version confiured (set to '%s'), fallback to default: %s", c.TLSMinVersion, defaultMinTLSVersion)
+	log.Infof("No valid minimal TLS version configured (set to '%s'), fall back to default: %s", c.TLSMinVersion, defaultMinTLSVersion)
 	return tlsVersionTable[defaultMinTLSVersion]
 }
 

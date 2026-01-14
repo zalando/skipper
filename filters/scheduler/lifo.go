@@ -34,9 +34,9 @@ const (
 	// Deprecated, use filters.LifoGroupName instead
 	LIFOGroupName = filters.LifoGroupName
 
-	defaultMaxConcurreny = 100
-	defaultMaxQueueSize  = 100
-	defaultTimeout       = 10 * time.Second
+	defaultMaxConcurrency = 100
+	defaultMaxQueueSize   = 100
+	defaultTimeout        = 10 * time.Second
 )
 
 func NewLIFO() filters.Spec {
@@ -91,7 +91,7 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	var l lifoFilter
 
 	// set defaults
-	l.config.MaxConcurrency = defaultMaxConcurreny
+	l.config.MaxConcurrency = defaultMaxConcurrency
 	l.config.MaxQueueSize = defaultMaxQueueSize
 	l.config.Timeout = defaultTimeout
 
@@ -178,7 +178,7 @@ func (*lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	// set defaults
 	cfg := scheduler.Config{
-		MaxConcurrency: defaultMaxConcurreny,
+		MaxConcurrency: defaultMaxConcurrency,
 		MaxQueueSize:   defaultMaxQueueSize,
 		Timeout:        defaultTimeout,
 	}

@@ -330,7 +330,7 @@ PathSubtree("/") && Method("OPTIONS")
 ### encodeRequestHeader
 
 The filter has 2 arguments, the header name and the encoding.
-If the encoding can not be changed we set the header value to empty string.
+If the encoding cannot be changed we set the header value to empty string.
 Supported encodings are listed in https://pkg.go.dev/golang.org/x/text/encoding/charmap .
 
 Example:
@@ -341,7 +341,7 @@ encodeRequestHeader("X-Foo", "Windows1252")
 ### encodeResponseHeader
 
 The filter has 2 arguments, the header name and the encoding.
-If the encoding can not be changed we set the header value to empty string.
+If the encoding cannot be changed we set the header value to empty string.
 Supported encodings are listed in https://pkg.go.dev/golang.org/x/text/encoding/charmap .
 
 Example:
@@ -456,7 +456,7 @@ see also [redirect-handling](../tutorials/common-use-cases.md#redirect-handling)
 
 ### redirectToLower
 
-Same as [redirectTo](#redirectto), but replaces all strings to lower case.
+Same as [redirectTo](#redirectto), but replaces all strings to lowercase.
 
 ## HTTP Query
 ### stripQuery
@@ -2042,7 +2042,7 @@ opaAuthorizeRequest("my-app-id", "com.mydomain.xxx.myprop: myvalue")
 
 *Data Flows*
 
-The data flow in case the policy allows the request looks like this
+The data flow when the policy allows the request looks like this
 
 ```ascii
              ┌──────────────────┐               ┌────────────────────┐
@@ -2068,7 +2068,7 @@ The data flow in case the policy allows the request looks like this
 
 In Step (2) the http request is transformed into an input object following the [Envoy structure](https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/auth/v3/external_auth.proto#service-auth-v3-checkrequest) that is also used by the OPA Envoy plugin. In (3) the decision of the policy is evaluated. If it is equivalent to an "allow", the remaining steps are executed as without the filter.
 
-The data flow in case the policy disallows the request looks like this
+The data flow when the policy disallows the request looks like this
 
 ```ascii
              ┌──────────────────┐               ┌────────────────────┐
@@ -2180,12 +2180,12 @@ This filter signs request using [AWS Sig V4](https://docs.aws.amazon.com/AmazonS
 - `x-amz-time` header must contain the time in RFC3339 format which this filter can use to generate signature and `X-Amz-Date` header on signed request. This time stamp is considered as the time stamp of generated signature.
 - `x-amz-session` must contain valid AWS session token ([see](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_use-resources.html#using-temp-creds-sdk)) to be set as `X-Amz-Security-Token` in signed request when `DisableSessionToken` parameter defined on route is set to false.
 
-Filter removes these headers after reading the values. Once the signature is generated, it is appended to existing Authorization header or if there is no exisiting Authorization header, added as new and forwarded to AWS service.
+Filter removes these headers after reading the values. Once the signature is generated, it is appended to existing Authorization header or if there is no Authorization header, added as new and forwarded to AWS service.
 
 awsSigv4 filter can be defined on a route as `awsSigv4("<service>, "<region>", <DisableHeaderHoisting>, <DisableURIPathEscaping>, <DisableSessionToken>)`
 
 An example of route with awsSigv4 filter is
-	`editorRoute: * -> awsSigv4("dynamodb" , "us-east-1", false, false, false) -> "https://dynamodb.us-east-1.amazonaws.com";`
+	`editorRoute: * -> awsSigv4("dynamodb" , "us-east-1", "false", "false", "false") -> "https://dynamodb.us-east-1.amazonaws.com";`
 
 This filter expects:
 
@@ -2198,7 +2198,7 @@ This filter expects:
 - `DisableHeaderHoisting` Disables the Signer's moving HTTP header key/value pairs from the HTTP request header to the request's query string. This is most commonly used
 		with pre-signed requests preventing headers from being added to the request's query string.
 
-- `DisableURIPathEscaping` Disables the automatic escaping of the URI path of the request for the siganture's canonical string's path. For services that do not need additional
+- `DisableURIPathEscaping` Disables the automatic escaping of the URI path of the request for the signature's canonical string's path. For services that do not need additional
 		escaping then use this to disable the signer escaping the path. S3 is an example of a service that does not need additional escaping.
 		http://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
 
@@ -2212,7 +2212,7 @@ This filter reads the body in memory. This is needed to generate signature as pe
 
 
 #### Overwriting io.ReadCloser
-This filter resets `read` and `close` implementations of body to default. So in case a filter before this filter has some custom implementations of thse methods, they would be overwritten.
+This filter resets `read` and `close` implementations of body to default. So when a filter before this filter has some custom implementations of these methods, they would be overwritten.
 
 
 
@@ -2319,7 +2319,7 @@ The "rate breaker" works similar to the [consecutiveBreaker](#consecutivebreaker
 instead of considering N consecutive failures for going open, it maintains a sliding
 window of the last M events, both successes and failures, and opens only when the number
 of failures reaches N within the window. This way the sliding window is not time based
-and allows the same breaker characteristics for low and high rate traffic.
+and allows the same breaker characteristics for high and low rate traffic.
 
 Parameters:
 
@@ -2386,7 +2386,7 @@ Parameters:
 
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
-* optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string)
+* optional parameter to set the same client by header, if the provided string contains `,`, it will combine all these headers (string)
 
 ```
 clientRatelimit(3, "1m")
@@ -2436,7 +2436,7 @@ Parameters:
 * rate limit group (string)
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
-* optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string)
+* optional parameter to set the same client by header, if the provided string contains `,`, it will combine all these headers (string)
 
 ```
 clusterClientRatelimit("groupA", 10, "1h")
@@ -2523,7 +2523,7 @@ bar: Path("/bar")
 ```
 Configures rate limit of 40 requests per second for each `backend1` and `backend2`
 for the `/foo` requests and 80 requests per second for the `/bar` requests by using different group name per path.
-The total request rate each backend receives can not exceed `40+80=120` requests per second.
+The total request rate each backend receives cannot exceed `40+80=120` requests per second.
 
 ```
 foo: Path("/baz")
@@ -2557,7 +2557,7 @@ If a template placeholder can't be resolved then request is allowed and does not
 
 Leak rate (divided by increment) defines a maximum average allowed request rate.
 The rate is configured by two parameters for convenience and consistency with other filters but is actually a single number,
-e.g. the rate of 2 per second equals to the rate of 20 per 10 seconds or 120 per minute.
+e.g. the rate of 2 per second equals the rate of 20 per 10 seconds or 120 per minute.
 
 Capacity defines the maximum request burst size or an allowed jitter.
 
@@ -2622,7 +2622,7 @@ Examples:
 // allow each unique Authorization header once in five seconds
 clusterLeakyBucketRatelimit("auth-${request.header.Authorization}", 1, "5s", 2, 1)
 
-// allow 60 requests per hour (each subsequent request allowed not earlied than after 1h/60 = 1m) for all clients
+// allow 60 requests per hour (each subsequent request allowed not earlier than after 1h/60 = 1m) for all clients
 clusterLeakyBucketRatelimit("hourly", 60, "1h", 1, 1)
 
 // allow 10 requests per minute for each unique PHPSESSID cookie with bursts of up to 5 requests
@@ -3475,7 +3475,7 @@ In particular, [template placeholders](#template-placeholders) referencing the r
 This filter works like [tracingTagFromResponse](#tracingtagfromresponse)
 but only for responses having status code from the specified range.
 
-Example: set error tag to true in case response status code is `>= 500` and `<= 599`:
+Example: set error tag to true when response status code is `>= 500` and `<= 599`:
 
 ```
 tracingTagFromResponseIfStatus("error", "true", 500, 599)
@@ -3505,7 +3505,7 @@ Some filters influence how load balancing will be done
 When this filter is set, and the route has a load balanced backend using [supported algorithm](backends.md#load-balancer-backend),
 then the newly added endpoints will receive
 the traffic in a gradually increasing way, starting from their detection for the specified duration, after which
-they receive equal amount traffic as the previously existing routes. The detection time of an load balanced
+they receive equal amount traffic as the previously existing routes. The detection time of a load balanced
 backend endpoint is preserved over multiple generations of the route configuration (over route changes). This
 filter can be used to saturate the load of autoscaling applications that require a warm-up time and therefore a
 smooth ramp-up. The fade-in feature can be used together with the roundRobin, random  or consistentHash LB algorithms.
@@ -3534,7 +3534,7 @@ Traffic fade-in has the potential to skew the traffic to your backend pods in ca
 fade-in duration. The image below shows an example of a rolling restart for a four-pod deployment (A, B, C, D)
 into (E, F, G, H), and the traffic share of each pod over time. While the ramp-up of the new pods is ongoing,
 the remaining old pods will receive a largely increased traffic share (especially the last one, D in this
-example), as well as an over-propotional traffic share for the first pod in the rollout (E).
+example), as well as an over-proportional traffic share for the first pod in the rollout (E).
 
 To make rolling restarts safe, you need to slow them down by setting `spec.minReadySeconds` on the pod spec
 of your deployment or stackset, according to your fadeIn duration.
@@ -3585,7 +3585,7 @@ consistentHashKey("${request.source}") // same as the default key
 ### consistentHashBalanceFactor
 
 This filter sets the balance factor used by the [`consistentHash`](backends.md#load-balancer-backend) algorithm to prevent a single backend endpoint from being overloaded.
-The number of in-flight requests for an endpoint can be no higher than `(average-in-flight-requests * balanceFactor) + 1`.
+The number of in-flight requests for an endpoint cannot exceed `(average-in-flight-requests * balanceFactor) + 1`.
 This is helpful in the case where certain keys are very popular and threaten to overload the endpoint they are mapped to.
 [Further Details](https://ai.googleblog.com/2017/04/consistent-hashing-with-bounded-loads.html).
 

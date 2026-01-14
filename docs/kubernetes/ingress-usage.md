@@ -363,7 +363,7 @@ zalando.org/skipper-routes: |
 ```
 
 Keep in mind that you need a valid backend definition to backends
-which are available, otherwise Skipper would not accept the entire
+which are available; otherwise, Skipper would not accept the entire
 route definition from the ingress object for safety reasons.
 
 ### CORS example
@@ -478,11 +478,11 @@ Add a HTTP header in the response path of your clients.
 
 ### Enable compression
 
-Compress responses with accepted encoding (more details [here](../reference/filters.md#compress)).
+Compress responses (see details about [selecting responses to compress](../reference/filters.md#compress)).
 
     compress() // compress all valid MIME types
     compress("text/html") // only compress HTML files
-    compress(11, "text/html") // control the level of compression, 1 = fastest, 11 = best compression (fallback to 9 for gzip), 0 = no compression
+    compress(11, "text/html") // control the level of compression, 1 = fastest, 11 = best compression (fall back to 9 for gzip), 0 = no compression
 
 ### Set the Path
 
@@ -568,9 +568,9 @@ Examples:
     logHeader("request") // log all request headers
     logBody("response", 1024) // log up to 1024 Bytes of the response body
 
-### Flow Id to trace request flows
+### Flow ID to trace request flows
 
-To trace request flows Skipper can generate a unique Flow Id for every
+To trace request flows Skipper can generate a unique Flow ID for every
 HTTP request that it receives. You can then find the trace of the
 request in all your access logs.  Skipper sets the X-Flow-Id header to
 a unique value. Read more about this in our
@@ -702,7 +702,7 @@ filters](../reference/filters.md#rate-limit) section and in our
 #### Client Ratelimits
 
 The example shows 20 calls per hour per client, based on
-X-Forwarded-For header or IP in case there is no X-Forwarded-For header
+X-Forwarded-For header or IP when there is no X-Forwarded-For header
 set, are allowed to each Skipper instance for the given ingress.
 
 ```yaml

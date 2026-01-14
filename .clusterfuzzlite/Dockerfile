@@ -1,4 +1,4 @@
-FROM gcr.io/oss-fuzz-base/base-builder-go@sha256:1d95a720e0e57ae5ed99de73c1329b3d6ce6d3f6646e8d7770df911cdce7f531
+FROM gcr.io/oss-fuzz-base/base-builder-go@sha256:679783b8b7a36560a9d41d66f1f25c3036e6b5cae1088f88a0357384e6757ec4
 
 COPY . $SRC/skipper
 COPY ./.clusterfuzzlite/build.sh $SRC/

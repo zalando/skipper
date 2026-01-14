@@ -34,7 +34,7 @@ func TestMethodsArgs(t *testing.T) {
 		false,
 	},
 		{
-			"ok case insensitive",
+			"ok case-insensitive",
 			[]interface{}{"GeT", "post", "oPtiOnS"},
 			false,
 		}} {
@@ -58,7 +58,7 @@ func TestMethodsArgs(t *testing.T) {
 }
 
 func TestMethodsMatch(t *testing.T) {
-	msg := "match multiple case insensitive"
+	msg := "match multiple case-insensitive"
 	args := []interface{}{"gEt", "post", "DELETE", "ConnEct"}
 	match := map[string]bool{
 		"GeT":     true,

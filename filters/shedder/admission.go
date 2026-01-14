@@ -198,7 +198,7 @@ type admissionControl struct {
 }
 
 func randWithSeed() func() float64 {
-	return rand.New(rand.NewPCG(2, 3)).Float64
+	return rand.New(rand.NewPCG(2, 3)).Float64 // #nosec
 }
 
 func NewAdmissionControl(o Options) filters.Spec {
@@ -240,7 +240,7 @@ func (*AdmissionControlSpec) Name() string { return filters.AdmissionControlName
 // minRps threshold that needs to be reached such that the filter will apply
 // successThreshold is within (0,1] and sets the lowest request success rate at which the filter will not reject requests.
 // maxRejectProbability is within (0,1] and sets the upper bound of reject probability.
-// exponent >0, 1: linear, 1/2: qudratic, 1/3: cubic, ..
+// exponent >0, 1: linear, 1/2: quadratic, 1/3: cubic, ..
 //
 // see also https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/admission_control_filter#admission-control
 func (spec *AdmissionControlSpec) CreateFilter(args []interface{}) (filters.Filter, error) {

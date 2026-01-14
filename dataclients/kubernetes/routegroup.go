@@ -308,7 +308,7 @@ func appendEastWest(ctx *routeGroupContext, routes []*eskip.Route, current *eski
 }
 
 func appendHTTPSRedirect(ctx *routeGroupContext, routes []*eskip.Route, current *eskip.Route) []*eskip.Route {
-	// in case a route explicitly handles the forwarded proto header, we
+	// when a route explicitly handles the forwarded proto header, we
 	// don't shadow it
 
 	if !ctx.internal && ctx.provideHTTPSRedirect && !hasProtoPredicate(current) {

@@ -61,12 +61,12 @@ func Test_all(t *testing.T) {
 		r:        []string{"r", "l"},
 		expected: false,
 	}, {
-		msg:      "l has two and r has two, both same same 1",
+		msg:      "l has two and r has two, both same 1",
 		l:        []string{"l", "r"},
 		r:        []string{"r", "l"},
 		expected: true,
 	}, {
-		msg:      "l has two and r has two, both same same 2",
+		msg:      "l has two and r has two, both same 2",
 		l:        []string{"r", "l"},
 		r:        []string{"r", "l"},
 		expected: true,

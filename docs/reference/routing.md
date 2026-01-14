@@ -40,7 +40,7 @@ constructed route objects with filter instances and endpoint configurations. Fil
 ### PreProcessors
 
 PreProcessors are interfaces that process routes **before** they are instantiated from their `eskip.Route` representation.
-This allows modification or preparing pre-requisites for the route definitions before they become part of the routing table.
+This allows modification or preparing prerequisites for the route definitions before they become part of the routing table.
 
 #### Interface
 

@@ -328,7 +328,7 @@ func (fq *FifoQueue) Config() Config {
 	return fq.config
 }
 
-// Reconfigure updates the connfiguration of the FifoQueue. It will
+// Reconfigure updates the configuration of the FifoQueue. It will
 // reset the current state.
 func (fq *FifoQueue) Reconfigure(c Config) {
 	fq.config = c
@@ -535,7 +535,7 @@ func (r *Registry) deleteUnused(inUse map[queueId]struct{}) {
 
 // PreProcessor returns routing.PreProcessor that ensures single lifo filter instance per route
 //
-// Registry can not implement routing.PreProcessor directly due to unfortunate method name clash with routing.PostProcessor
+// Registry cannot implement routing.PreProcessor directly due to unfortunate method name clash with routing.PostProcessor
 func (r *Registry) PreProcessor() routing.PreProcessor {
 	return registryPreProcessor{}
 }

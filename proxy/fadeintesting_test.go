@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -33,7 +34,7 @@ too. The harness implements the following setup:
 const (
 	testFadeInDuration = 6000 * time.Millisecond
 	statBucketCount    = 10
-	clientRate         = time.Millisecond
+	clientRate         = 100 * time.Microsecond
 	minStats           = 300
 	fadeInTolerance    = 0.3
 )
@@ -87,7 +88,7 @@ type fadeInClient struct {
 
 func randomURLs(t *testing.T, n int) []string {
 	var u []string
-	for i := 0; i < n; i++ {
+	for range n {
 		l, err := net.Listen("tcp", ":0")
 		if err != nil {
 			t.Fatal(err)
@@ -259,7 +260,7 @@ func (p *fadeInProxy) addInstances(n int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	for i := 0; i < n; i++ {
+	for range n {
 		client := p.backend.createDataClient()
 		fr := make(filters.Registry)
 		fr.Register(fadein.NewFadeIn())
@@ -415,6 +416,9 @@ func trimFailed(s []stat) []stat {
 }
 
 func checkSuccess(t *testing.T, s []stat) {
+	if len(s) == 0 {
+		t.Fatal("Failed to generate stats.")
+	}
 	var foundAny bool
 	for _, si := range s {
 		foundAny = true
@@ -486,8 +490,25 @@ func checkEndpointFadeIn(t *testing.T, s []stat) {
 	checkSamples(t, s)
 	buckets := statBuckets(s)
 	sizes := bucketSizes(buckets)
-	if sizes[0] >= sizes[len(sizes)/2] || sizes[len(sizes)/2] >= sizes[len(sizes)-1] {
-		t.Fatal("Failed to fade-in.")
+	if strings.Contains(t.Name(), "no_endpoints") {
+		sum := 0.0
+		for i := range sizes {
+			sum += sizes[i]
+		}
+		avg := sum / float64(len(sizes))
+		tenPerc := avg * 10 / 100
+		t.Logf("sizes: %v", sizes)
+		t.Logf("avg: %0.2f, tenPerc: %0.2f", avg, tenPerc)
+		for i := range sizes {
+			if (avg-tenPerc) >= sizes[i] || sizes[i] >= (avg+tenPerc) {
+				t.Fatalf("Failed to fade-in no endpoints: %0.2f >= %0.2f || %0.2f >= %0.2f", avg-tenPerc, sizes[i], sizes[i], avg+tenPerc)
+			}
+		}
+	} else {
+		if sizes[0] >= sizes[len(sizes)/2] || sizes[len(sizes)/2] >= sizes[len(sizes)-1] {
+			t.Logf("sizes: %v", sizes)
+			t.Fatalf("Failed to fade-in: %0.2f >= %0.2f || %0.2f >= %0.2f", sizes[0], sizes[len(sizes)/2], sizes[len(sizes)/2], sizes[len(sizes)-1])
+		}
 	}
 }
 

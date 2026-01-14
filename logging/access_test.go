@@ -26,10 +26,10 @@ func (c accessCustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 	if entry.Context != nil {
 		if traceId, ok := entry.Context.Value(accessLogContextKey{}).(string); ok {
-			return []byte(fmt.Sprintf("%s\n", traceId)), nil
+			return fmt.Appendf(nil, "%s\n", traceId), nil
 		}
 	}
-	return []byte(fmt.Sprintf("%s\n", entry.Message)), nil
+	return fmt.Appendf(nil, "%s\n", entry.Message), nil
 }
 
 func testRequest(params url.Values) *http.Request {
@@ -175,7 +175,7 @@ func TestUseXForwardedListLiteral(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`192.168.3.3:80, 192.168.4.4 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+		`192.168.3.3, 192.168.4.4 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
 	)
 }
 
@@ -196,7 +196,27 @@ func TestPortFwd4(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`192.168.3.3:6969 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+		`192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+	)
+}
+
+func TestPortFwd4LogPoisoning(t *testing.T) {
+	entry := testAccessEntry()
+	entry.Request.Header.Set("X-Forwarded-For", "helloworld, 192.168.3.3:6969")
+	testAccessLogDefault(
+		t,
+		entry,
+		`192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+	)
+}
+
+func TestPortFwd6LogPoisoning(t *testing.T) {
+	entry := testAccessEntry()
+	entry.Request.Header.Set("X-Forwarded-For", "helloworld, [2001:db8:85a3:8d3:1319:8a2e:370:7348]:1234")
+	testAccessLogDefault(
+		t,
+		entry,
+		`2001:db8:85a3:8d3:1319:8a2e:370:7348 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
 	)
 }
 
@@ -205,7 +225,7 @@ func TestPortFwd4JSON(t *testing.T) {
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:6969")
 	testAccessLog(
 		t, entry,
-		`{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"192.168.3.3:6969","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }

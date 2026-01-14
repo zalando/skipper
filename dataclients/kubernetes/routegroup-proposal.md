@@ -867,7 +867,7 @@ spec:
           servicePort: 80
 ```
 
-Not possible with a single RouteGroup, because backends can not bind to a host.
+Not possible with a single RouteGroup, because backends cannot bind to a host.
 
 #### Traffic Switching with 2 hostnames
 
@@ -1026,7 +1026,7 @@ can define
 
 The problem of VirtualService object is that it does not reflect
 Skipper filters and predicates. There are a number of predicates and
-filters, that can not be used from the VirtualService and we would
+filters, that cannot be used from the VirtualService and we would
 need to map every single key to a specific predicate or filter. This
 increases the complexity of the code base. Skipper also lacks of the
 L4 capabilities, such that we would not be 100% compliant to the spec.

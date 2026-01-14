@@ -38,7 +38,7 @@ go build -buildmode=plugin -o example.so example.go
 There are some pitfalls:
 
 * packages which are shared between skipper and the plugin **must not** be in
-  a `vendor/` directory, otherwise the plugin will fail to load or in some
+  a `vendor/` directory; otherwise, the plugin will fail to load or in some
   cases give wrong results (e.g. an opentracing span cannot be found in the
   context even if it is present). This also means:
   Do not vendor skipper in a plugin repo...

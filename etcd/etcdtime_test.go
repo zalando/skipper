@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func TestTimedoutEndpointsRotation(t *testing.T) {
+func TestTimedOutEndpointsRotation(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	}))
 

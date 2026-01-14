@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"os"
@@ -480,7 +480,7 @@ func (registry *OpenPolicyAgentRegistry) startCustomControlLoopDaemon() {
 // Prevent different opa instances from triggering plugins (f.ex. downloading new bundles) at the same time
 func (registry *OpenPolicyAgentRegistry) controlLoopIntervalWithJitter() time.Duration {
 	if registry.controlLoopMaxJitter > 0 {
-		return registry.controlLoopInterval + time.Duration(rand.Int63n(int64(registry.controlLoopMaxJitter))) - registry.controlLoopMaxJitter/2
+		return registry.controlLoopInterval + time.Duration(rand.Int64N(int64(registry.controlLoopMaxJitter))) - registry.controlLoopMaxJitter/2 // #nosec
 	}
 	return registry.controlLoopInterval
 }
@@ -1101,7 +1101,7 @@ func (m *bufferedBodyReader) Read(p []byte) (int, error) {
 	return m.input.Read(p)
 }
 
-// Close closes the undelrying reader if it implements io.Closer.
+// Close closes the underlying reader if it implements io.Closer.
 func (m *bufferedBodyReader) Close() error {
 	var err error
 	m.once.Do(func() {

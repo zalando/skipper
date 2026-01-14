@@ -68,7 +68,7 @@ func (t *Tracer) FindAllSpans(operationName string) []*Span {
 }
 
 // FindSpan returns the first span with the defined operation name and true,
-// if at least one was collected, otherwise nil and false.
+// if at least one was collected; otherwise, nil and false.
 func (t *Tracer) FindSpan(operationName string) (*Span, bool) {
 	all := t.FindAllSpans(operationName)
 	if len(all) > 0 {

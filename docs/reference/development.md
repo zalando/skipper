@@ -409,7 +409,7 @@ index 0000000..d43c4ea
 
 ### Using a debugger
 Skipper supports plugins and to offer this support it uses the [`plugin`](https://golang.org/pkg/plugin/)
-library. Due to a bug in the Go compiler as reported [here](https://github.com/golang/go/issues/23733) a
+library. Due to [Go compiler issue #23733](https://github.com/golang/go/issues/23733), a
 debugger cannot be used. This issue will be fixed in Go 1.12 but until then the only workaround is to remove
 references to the `plugin` library. The following patch can be used for debugging.
 

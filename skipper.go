@@ -96,7 +96,7 @@ type Options struct {
 	// that have to return 200 before skipper becomes ready
 	StatusChecks []string
 
-	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the inernalIPS range for healthcheck purposes
+	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the internalIPS range for healthcheck purposes
 	WhitelistedHealthCheckCIDR []string
 
 	// Network address that skipper should listen on.
@@ -186,7 +186,7 @@ type Options struct {
 
 	// KubernetesHealthcheck, when Kubernetes ingress is set, indicates
 	// whether an automatic healthcheck route should be generated. The
-	// generated route will report healthyness when the Kubernetes API
+	// generated route will report healthiness when the Kubernetes API
 	// calls are successful. The healthcheck endpoint is accessible from
 	// internal IPs, with the path /kube-system/healthz.
 	KubernetesHealthcheck bool
@@ -269,7 +269,7 @@ type Options struct {
 	// *DEPRECATED* KubernetesEastWestDomain sets the cluster internal domain used to create additional routes in skipper, defaults to skipper.cluster.local
 	KubernetesEastWestDomain string
 
-	// KubernetesEastWestRangeDomains set the the cluster internal domains for
+	// KubernetesEastWestRangeDomains set the cluster internal domains for
 	// east west traffic. Identified routes to such domains will include
 	// the KubernetesEastWestRangePredicates.
 	KubernetesEastWestRangeDomains []string
@@ -547,7 +547,7 @@ type Options struct {
 	// If set, the total response handling time take by skipper will be
 	// collected. It measures the duration taken by skipper to process the
 	// response, from after the backend round trip is finished, excluding
-	// the filters processing and until the before the response is served.
+	// the filters processing and until before the response is served.
 	EnableProxyResponseMetrics bool
 
 	// If set, detailed response time metrics will be collected
@@ -666,7 +666,7 @@ type Options struct {
 	// multiple keys, the order must match the one given in CertPathTLS
 	KeyPathTLS string
 
-	// TLSClientAuth sets the policy the server will follow for
+	// TLSClientAuth sets the policy that the server will follow for
 	// TLS Client Authentication, see [tls.ClientAuthType]
 	TLSClientAuth tls.ClientAuthType
 
@@ -828,7 +828,7 @@ type Options struct {
 	// revoked during a logout.
 	OAuth2RevokeTokenURL string
 
-	// OAuthTokeninfoURL sets the the URL to be queried for
+	// OAuthTokeninfoURL sets the URL to be queried for
 	// information for all auth.NewOAuthTokeninfo*() filters.
 	OAuthTokeninfoURL string
 
@@ -964,6 +964,7 @@ type Options struct {
 	SwarmRedisEndpointsRemoteURL  string
 	SwarmRedisConnMetricsInterval time.Duration
 	SwarmRedisUpdateInterval      time.Duration
+	SwarmRedisHeartbeatFrequency  time.Duration
 	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
@@ -1354,14 +1355,14 @@ func listen(o *Options, address string, mtr metrics.Metrics) (net.Listener, erro
 		if err != nil {
 			memoryLimitBytes, err = os.ReadFile(memoryLimitFileV1)
 			if err != nil {
-				log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
+				log.Errorf("Failed to read memory limits, fall back to defaults: %v", err)
 			}
 		}
 		if err == nil {
 			memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
 			memoryLimit, err = strconv.ParseInt(memoryLimitString, 10, 64)
 			if err != nil {
-				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
+				log.Errorf("Failed to convert memory limits, fall back to defaults: %v", err)
 			}
 
 			// 4GB, temporarily, as a tested magic number until a better mechanism is in place:
@@ -1514,7 +1515,7 @@ func findKubernetesDataclient(dataClients []routing.DataClient) *kubernetes.Clie
 func getKubernetesRedisAddrUpdater(opts *Options, kdc *kubernetes.Client, loaded bool) func() ([]string, error) {
 	if loaded {
 		// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
-		// has polled the data once or kdc.GetEndpointAdresses should be blocking
+		// has polled the data once or kdc.GetEndpointAddresses should be blocking
 		// call to kubernetes API
 		return func() ([]string, error) {
 			a := kdc.GetEndpointAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
@@ -1592,7 +1593,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		o.MetricsFlavours = append(o.MetricsFlavours, "prometheus")
 	}
 
-	metricsKind := metrics.UnkownKind
+	metricsKind := metrics.UnknownKind
 	for _, s := range o.MetricsFlavours {
 		switch s {
 		case "codahale":
@@ -1603,7 +1604,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	// set default if unset
-	if metricsKind == metrics.UnkownKind {
+	if metricsKind == metrics.UnknownKind {
 		metricsKind = metrics.CodaHaleKind
 	}
 
@@ -1844,6 +1845,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				MaxIdleConns:        o.SwarmRedisMaxIdleConns,
 				ConnMetricsInterval: o.SwarmRedisConnMetricsInterval,
 				UpdateInterval:      o.SwarmRedisUpdateInterval,
+				HeartbeatFrequency:  o.SwarmRedisHeartbeatFrequency,
 				Tracer:              tracer,
 				Log:                 log.New(),
 			}

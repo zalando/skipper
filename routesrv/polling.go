@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ const (
 	LogRoutesEmpty          = "received empty routes; ignoring"
 	LogRoutesInitialized    = "routes initialized"
 	LogRoutesUpdated        = "routes updated"
+	LogRoutesNoChange       = "routes did not change"
 )
 
 type poller struct {
@@ -50,16 +52,16 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 	defer ticker.Stop()
 	p.setGaugeToCurrentTime("polling_started_timestamp")
 
-	var lastRoutesById map[string]string
+	var (
+		lastRoutesByID map[string]string
+		lastRoutes     []*eskip.Route
+	)
+
 	for {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
 
 		routes, err := p.client.LoadAll()
-		routes = p.process(routes)
-		routesCount := len(routes)
-
-		switch {
-		case err != nil:
+		if err != nil {
 			log.WithError(err).Error(LogRoutesFetchingFailed)
 			p.metrics.IncCounter("routes.fetch_errors")
 
@@ -68,33 +70,47 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 				"event", "error",
 				"message", fmt.Sprintf("%s: %s", LogRoutesFetchingFailed, err),
 			)
-		case routesCount == 0:
-			log.Info(LogRoutesEmpty)
-			p.metrics.IncCounter("routes.empty")
-			span.SetTag("routes.count", routesCount)
-		case routesCount > 0:
-			routesBytes, routesHash, initialized, updated := p.b.formatAndSet(routes)
-			logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes, "hash": routesHash})
-			if initialized {
-				logger.Info(LogRoutesInitialized)
-				span.SetTag("routes.initialized", true)
-				p.setGaugeToCurrentTime("routes.initialized_timestamp")
-			}
-			if updated {
-				logger.Info(LogRoutesUpdated)
-				span.SetTag("routes.updated", true)
-				p.setGaugeToCurrentTime("routes.updated_timestamp")
-				p.metrics.UpdateGauge("routes.total", float64(routesCount))
-				p.metrics.UpdateGauge("routes.byte", float64(routesBytes))
-			}
-			span.SetTag("routes.count", routesCount)
-			span.SetTag("routes.bytes", routesBytes)
-			span.SetTag("routes.hash", routesHash)
 
-			if updated && log.IsLevelEnabled(log.DebugLevel) {
-				routesById := mapRoutes(routes)
-				logChanges(routesById, lastRoutesById)
-				lastRoutesById = routesById
+		} else if hasChanged(lastRoutes, routes) {
+			lastRoutes = routes
+
+			routes = p.process(routes)
+			routesCount := len(routes)
+			span.SetTag("routes.count", routesCount)
+
+			switch {
+			case routesCount == 0:
+				p.handleEmptyRoutes()
+			case routesCount > 0:
+				routesBytes, routesHash, initialized, updated := p.b.formatAndSet(routes)
+				logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes, "hash": routesHash})
+				if initialized {
+					logger.Info(LogRoutesInitialized)
+					span.SetTag("routes.initialized", true)
+					p.setGaugeToCurrentTime("routes.initialized_timestamp")
+				}
+				if updated {
+					logger.Info(LogRoutesUpdated)
+					span.SetTag("routes.updated", true)
+					p.setGaugeToCurrentTime("routes.updated_timestamp")
+					p.metrics.UpdateGauge("routes.total", float64(routesCount))
+					p.metrics.UpdateGauge("routes.byte", float64(routesBytes))
+				}
+				span.SetTag("routes.bytes", routesBytes)
+				span.SetTag("routes.hash", routesHash)
+
+				if updated && log.IsLevelEnabled(log.DebugLevel) {
+					routesByID := mapRoutes(routes)
+					logChanges(routesByID, lastRoutesByID)
+					lastRoutesByID = routesByID
+				}
+			}
+		} else {
+			log.Info(LogRoutesNoChange)
+			span.SetTag("routes.updated", false)
+			span.SetTag("routes.count", len(lastRoutes))
+			if len(routes) == 0 {
+				p.handleEmptyRoutes()
 			}
 		}
 
@@ -107,6 +123,11 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		case <-ticker.C:
 		}
 	}
+}
+
+func (p *poller) handleEmptyRoutes() {
+	log.Info(LogRoutesEmpty)
+	p.metrics.IncCounter("routes.empty")
 }
 
 func (p *poller) process(routes []*eskip.Route) []*eskip.Route {
@@ -125,7 +146,7 @@ func (p *poller) process(routes []*eskip.Route) []*eskip.Route {
 		routes = cloner.Do(routes)
 	}
 
-	// sort the routes, otherwise it will lead to different etag values for the same route list for different orders
+	// sort the routes; otherwise, it will lead to different etag values for the same route list for different orders
 	sort.SliceStable(routes, func(i, j int) bool {
 		return routes[i].Id < routes[j].Id
 	})
@@ -137,35 +158,56 @@ func (p *poller) setGaugeToCurrentTime(name string) {
 	p.metrics.UpdateGauge(name, (float64(time.Now().UnixNano()) / 1e9))
 }
 
-func mapRoutes(routes []*eskip.Route) map[string]string {
-	byId := make(map[string]string)
-	for _, r := range routes {
-		byId[r.Id] = r.String()
+func hasChanged(lastRoutes, newRoutes []*eskip.Route) bool {
+	if len(lastRoutes) != len(newRoutes) {
+		return true
 	}
-	return byId
+	sort.SliceStable(newRoutes, func(i, j int) bool {
+		comp := strings.Compare(newRoutes[i].Id, newRoutes[j].Id)
+		switch comp {
+		case 0:
+			return true
+		case 1:
+			return true
+		case -1:
+			return false
+		}
+		log.Fatalf("Failed to run strings.Compare(%q,%q)", newRoutes[i].Id, newRoutes[j].Id)
+		return true // never happens
+	})
+
+	return !eskip.EqLists(lastRoutes, newRoutes)
 }
 
-func logChanges(routesById map[string]string, lastRoutesById map[string]string) {
+func mapRoutes(routes []*eskip.Route) map[string]string {
+	byID := make(map[string]string)
+	for _, r := range routes {
+		byID[r.Id] = r.String()
+	}
+	return byID
+}
+
+func logChanges(routesByID map[string]string, lastRoutesByID map[string]string) {
 	logf := func(op string, id string, format string, args ...any) {
 		level := log.GetLevel()
 		fields := log.Fields{"op": op, "id": id}
 		if level == log.TraceLevel {
-			fields["route"] = routesById[id]
+			fields["route"] = routesByID[id]
 		}
 		log.WithFields(fields).Logf(level, format, args...)
 	}
 
-	inserted := notIn(routesById, lastRoutesById)
+	inserted := notIn(routesByID, lastRoutesByID)
 	for i, id := range inserted {
 		logf("inserted", id, "Inserted route %d of %d", i+1, len(inserted))
 	}
 
-	deleted := notIn(lastRoutesById, routesById)
+	deleted := notIn(lastRoutesByID, routesByID)
 	for i, id := range deleted {
 		logf("deleted", id, "Deleted route %d of %d", i+1, len(deleted))
 	}
 
-	updated := valueMismatch(routesById, lastRoutesById)
+	updated := valueMismatch(routesByID, lastRoutesByID)
 	for i, id := range updated {
 		logf("updated", id, "Updated route %d of %d", i+1, len(updated))
 	}

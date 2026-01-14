@@ -187,11 +187,11 @@ func TestCertRegistry(t *testing.T) {
 
 	})
 
-	t.Run("get non existent cert", func(t *testing.T) {
+	t.Run("get nonexistent cert", func(t *testing.T) {
 		cr := NewCertRegistry()
 		_, found := cr.lookup["foo"]
 		if found {
-			t.Error("non existent certificate was found")
+			t.Error("nonexistent certificate was found")
 		}
 	})
 

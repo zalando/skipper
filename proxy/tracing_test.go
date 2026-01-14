@@ -403,7 +403,7 @@ func TestTracingProxySpanWithRetry(t *testing.T) {
 	}
 
 	// Two lb group members are used in round-robin, starting at a non-deterministic index.
-	// One of them cannot be connected to, and the proxy should fallback to the other. We
+	// One of them cannot be connected to, and the proxy should fall back to the other. We
 	// want to verify here that the proxy span is traced properly in the fallback case.
 	//lint:ignore SA4000 valid testcase in this case
 	if !testFallback() && !testFallback() {

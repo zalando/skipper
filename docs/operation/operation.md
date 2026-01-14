@@ -234,7 +234,7 @@ You may add static metrics labels like `version` using Prometheus [relabeling fe
 
 Skipper Proxy Metrics provides information about the time spent by skipper in processing a request i.e., the time spent by a request inside skipper (this excludes the response application of filters to a req/res, the backend roundtrip and serving the response). The total proxy metrics are enabled by default and these metrics can be used to build KPIs / SLOs, so as to understand and monitor the performance of skipper.
 
-The Proxy Metrics exludes the filter processing as this is dependent on which filters the user decides to use for a particular route. The backend round trip time depends on the backend application and the operation being performed. And the serve response depends on the client. These are operations are not in control of skipper and are hence excluded to solely monitor the performance of Skipper.
+The Proxy Metrics excludes the filter processing as this is dependent on which filters the user decides to use for a particular route. The backend round trip time depends on the backend application and the operation being performed. And the serve response depends on the client. These are operations are not in control of skipper and are hence excluded to solely monitor the performance of Skipper.
 
 These metrics are exposed in /metrics, the example json structure looks like this:
 
@@ -264,7 +264,7 @@ These metrics are exposed in /metrics, the example json structure looks like thi
 The proxy metrics can also be fetched in more detail, i.e., splits the proxy total metrics to get the proxy request metrics and proxy response metrics. The Proxy Request Metrics provides the duration / time taken from the start of ServeHTTP till the backend round trip. The Proxy Response Metrics provides the duration / time taken from after the backend round trip till the response is served.
 
     -proxy-request-metrics
-        enbales the collection proxy request metrics
+        enables the collection proxy request metrics
     -proxy-response-metrics
         enables the collection proxy response metrics
 
@@ -696,7 +696,7 @@ by the default, and exposed among the timers via the following keys:
 - skipper.swarm.redis.query.retryafter.success.<group>: successful allow requests to the rate limiter, grouped
   by the rate limiter group name when used
 - skipper.swarm.redis.query.retryafter.failure.<group>: failed allow requests to the rate limiter, ungrouped,
-  where the redis communication faileds, grouped by the rate limiter group name when used
+  where the redis communication failed, grouped by the rate limiter group name when used
 
 See more details about rate limiting at [Rate limiting](../reference/filters.md#clusterclientratelimit).
 
@@ -908,7 +908,7 @@ open an issue or pull request in our [repository](https://github.com/zalando/ski
 
 Skipper supports [OpenTelemetry](https://opentelemetry.io/) tracing using [standard environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) and the `-open-telemetry` flag.
 
-To enable and configure OpenTelemtry using environment variables set `-open-telemetry` to an empty YAML object:
+To enable and configure OpenTelemetry using environment variables set `-open-telemetry` to an empty YAML object:
 
 ```sh
 OTEL_TRACES_EXPORTER="otlp" \
@@ -1157,8 +1157,8 @@ The parameters of `-passive-health-check` option are:
 
 + `period=<duration>` - the duration of stats reset period
 + `min-requests=<int>` - the minimum number of requests per `period` per backend endpoint required to activate PHC for this endpoint
-+ `min-drop-probabilty=[0.0 <= p < max-drop-probability)` - the minimum possible probability of unhealthy endpoint being not considered while choosing the endpoint for the given request. The same value is in fact used as minimal failed requests ratio for PHC to be enabled for this endpoint
-+ `max-drop-probabilty=(min-drop-probability < p <= 1.0]` - the maximum possible probability of unhealthy endpoint being not considered
++ `min-drop-probability=[0.0 <= p < max-drop-probability)` - the minimum possible probability of unhealthy endpoint being not considered while choosing the endpoint for the given request. The same value is in fact used as minimal failed requests ratio for PHC to be enabled for this endpoint
++ `max-drop-probability=(min-drop-probability < p <= 1.0]` - the maximum possible probability of unhealthy endpoint being not considered
 while choosing the endpoint for the given request
 + `max-unhealthy-endpoints-ratio=[0.0 <= r <= 1.0]` - the maximum ratio of unhealthy endpoints for PHC to try to mitigate ongoing requests
 
@@ -1220,7 +1220,7 @@ individual clients and 10 maximum hits. Make sure you monitor Go
 metrics. Ratelimit filter `clusterClientRatelimit` implementation
 using the Redis ring based solution, adds 2 additional roundtrips to
 redis per hit. Make sure you monitor redis closely, because skipper
-will fallback to allow traffic if redis can not be reached.
+will fall back to allow traffic if redis cannot be reached.
 
 ### Slow Backends
 

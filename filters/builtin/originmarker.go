@@ -25,7 +25,7 @@ type OriginMarker struct {
 }
 
 // NewOriginMarkerSpec creates a filter specification whose instances
-// mark the origin an eskip.Route
+// mark the origin of an eskip.Route
 func NewOriginMarkerSpec() filters.Spec {
 	return &originMarkerSpec{}
 }
