@@ -259,8 +259,7 @@ type Options struct {
 	// ForwardBackendURL allows to use <forward> backend via kubernetes, for example routegroup backend `type: forward`.
 	ForwardBackendURL string
 
-	// TopologyZone
-	// TODO: explain its use
+	// TopologyZone if set to non empty string will be used to filter endpointslice endpoints by this value.
 	TopologyZone string
 }
 

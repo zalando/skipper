@@ -311,7 +311,7 @@ type Options struct {
 	// KubernetesRedisServicePort to be used to lookup ring shards dynamically
 	KubernetesRedisServicePort int
 
-	// KubernetesTopologyZone TODO
+	// KubernetesTopologyZone if set to non empty string it is used to filter endpointslice endpoints by this value.
 	KubernetesTopologyZone string
 
 	// KubernetesForceService overrides the default Skipper functionality to route traffic using Kubernetes Endpoints,
