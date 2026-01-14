@@ -47,4 +47,5 @@ const (
 	TrafficName               = "Traffic"
 	TrafficSegmentName        = "TrafficSegment"
 	ContentLengthBetweenName  = "ContentLengthBetween"
+	OTelBaggageName           = "OTelBaggage"
 )
