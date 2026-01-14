@@ -21,22 +21,23 @@ const (
 // ratelimiters.
 type Registry struct {
 	sync.Mutex
-	once      sync.Once
-	global    Settings
-	lookup    map[Settings]*Ratelimit
-	swarm     Swarmer
-	redisRing *net.RedisRingClient
+	once       sync.Once
+	global     Settings
+	lookup     map[Settings]*Ratelimit
+	swarm      Swarmer
+	redisRing  *net.RedisRingClient
+	valkeyRing *net.ValkeyRingClient
 }
 
 // NewRegistry initializes a registry with the provided default settings.
 func NewRegistry(settings ...Settings) *Registry {
-	return NewSwarmRegistry(nil, nil, settings...)
+	return NewRedisSwarmRegistry(nil, nil, settings...)
 }
 
-// NewSwarmRegistry initializes a registry with an optional swarm and
+// NewRedisSwarmRegistry initializes a registry with an optional swarm and
 // the provided default settings. If swarm is nil, clusterRatelimits
 // will be replaced by voidRatelimit, which is a noop limiter implementation.
-func NewSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, settings ...Settings) *Registry {
+func NewRedisSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, settings ...Settings) *Registry {
 	defaults := Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,
@@ -64,6 +65,41 @@ func NewSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, settings ...Settings)
 	}
 
 	return r
+}
+
+// NewValkeySwarmRegistry initializes a registry with an optional swarm and
+// the provided default settings. If swarm is nil, clusterRatelimits
+// will be replaced by voidRatelimit, which is a noop limiter implementation.
+func NewValkeySwarmRegistry(swarm Swarmer, vo *net.ValkeyOptions, settings ...Settings) (*Registry, error) {
+	defaults := Settings{
+		Type:          DisableRatelimit,
+		MaxHits:       DefaultMaxhits,
+		TimeWindow:    DefaultTimeWindow,
+		CleanInterval: DefaultCleanInterval,
+	}
+
+	if vo != nil && vo.MetricsPrefix == "" {
+		vo.MetricsPrefix = redisMetricsPrefix
+	}
+
+	ring, err := net.NewValkeyRingClient(vo)
+	if err != nil {
+		return nil, err
+	}
+
+	r := &Registry{
+		once:       sync.Once{},
+		global:     defaults,
+		lookup:     make(map[Settings]*Ratelimit),
+		swarm:      swarm,
+		valkeyRing: ring,
+	}
+
+	if len(settings) > 0 {
+		r.global = settings[0]
+	}
+
+	return r, nil
 }
 
 // Close teardown Registry and dependent resources
