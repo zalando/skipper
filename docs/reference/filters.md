@@ -929,6 +929,24 @@ Example:
 * -> writeTimeout("10ms") -> "https://www.example.org";
 ```
 
+## Fallback
+
+### loopbackIfStatus
+
+Fallbacks to the given path if the response has the specified code. The filter 
+replaces the response coming from the backend or the previous filters.
+
+Parameters:
+
+* status code (int)
+* path (string)
+
+Example:
+
+```
+loopback_404: Path("/loopback-404") -> inlineContent("The page you are looking for is not available!") -> <shunt>
+r: Path("/page/:id") -> loopbackIfStatus(404, "/loopback-404") -> "https://www.example.org"
+```
 
 ## Shadow Traffic
 ### tee
