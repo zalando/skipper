@@ -722,7 +722,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		return nil, err
 	}
 
-	discoveryOpts := map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}, dl.DLPluginName: dl.Factory()}
+	pluginFactories := map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}, dl.DLPluginName: dl.Factory()}
 
 	var bootConfig map[string]any
 	err = util.Unmarshal(configBytes, &bootConfig)
@@ -730,7 +730,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		return nil, err
 	}
 
-	discoveryPlugin, err := discovery.New(manager, discovery.Factories(discoveryOpts), discovery.Hooks(configHooks), discovery.BootConfig(bootConfig))
+	discoveryPlugin, err := discovery.New(manager, discovery.Factories(pluginFactories), discovery.Hooks(configHooks), discovery.BootConfig(bootConfig))
 	if err != nil {
 		return nil, err
 	}
