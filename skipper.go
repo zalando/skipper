@@ -1064,6 +1064,7 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		BackendTrafficAlgorithm:                        o.KubernetesBackendTrafficAlgorithm,
 		DefaultLoadBalancerAlgorithm:                   o.KubernetesDefaultLoadBalancerAlgorithm,
 		ForwardBackendURL:                              o.ForwardBackendURL,
+		TopologyZone:                                   o.KubernetesTopologyZone,
 	}
 }
 
