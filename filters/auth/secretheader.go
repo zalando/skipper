@@ -1,6 +1,7 @@
 package auth
 
 import (
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/secrets"
 )
@@ -67,9 +68,11 @@ func (s *secretHeaderSpec) CreateFilter(args []interface{}) (filters.Filter, err
 
 func (f *secretHeaderFilter) Request(ctx filters.FilterContext) {
 	value, ok := f.secretsReader.GetSecret(f.secretName)
-	if ok {
-		ctx.Request().Header.Set(f.headerName, f.prefix+string(value)+f.suffix)
+	if !ok {
+		log.Errorf("Secret %q not found for setRequestHeaderFromSecret filter", f.secretName)
+		return
 	}
+	ctx.Request().Header.Set(f.headerName, f.prefix+string(value)+f.suffix)
 }
 
 func (*secretHeaderFilter) Response(filters.FilterContext) {}

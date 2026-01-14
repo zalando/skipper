@@ -1,9 +1,12 @@
 package auth_test
 
 import (
+	"bytes"
 	"net/http"
+	"strings"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
@@ -99,4 +102,49 @@ func TestSetRequestHeaderFromSecret(t *testing.T) {
 			}
 		})
 	}
+}
+
+func captureLog(t *testing.T, level log.Level) *bytes.Buffer {
+	oldOut := log.StandardLogger().Out
+	var out bytes.Buffer
+	log.SetOutput(&out)
+
+	oldLevel := log.GetLevel()
+	log.SetLevel(level)
+
+	t.Cleanup(func() {
+		log.SetOutput(oldOut)
+		log.SetLevel(oldLevel)
+	})
+	return &out
+}
+
+func TestSetRequestHeaderFromSecretLogsErrorOnMissingSecret(t *testing.T) {
+	out := captureLog(t, log.ErrorLevel)
+
+	spec := auth.NewSetRequestHeaderFromSecret(&testSecretsReader{
+		name:   "/my-secret",
+		secret: "secret-value",
+	})
+
+	ff := eskip.MustParseFilters(`setRequestHeaderFromSecret("X-Secret", "/nonexistent-secret")`)
+	require.Len(t, ff, 1)
+
+	f, err := spec.CreateFilter(ff[0].Args)
+	assert.NoError(t, err)
+
+	ctx := &filtertest.Context{
+		FRequest: &http.Request{
+			Header: http.Header{},
+		},
+	}
+	f.Request(ctx)
+
+	logOutput := out.String()
+	if !strings.Contains(logOutput, "/nonexistent-secret") || !strings.Contains(logOutput, "not found for setRequestHeaderFromSecret filter") {
+		t.Errorf("expected log message about missing secret, got: %s", logOutput)
+	}
+
+	// Verify no header was set
+	assert.NotContains(t, ctx.FRequest.Header, "X-Secret")
 }
