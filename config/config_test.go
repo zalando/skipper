@@ -95,6 +95,7 @@ func defaultConfig(with func(*Config)) *Config {
 		RuntimeMetrics:                          true,
 		HistogramMetricBuckets:                  []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
 		ResponseSizeBuckets:                     metrics.DefaultResponseSizeBuckets,
+		RequestSizeBuckets:                      metrics.DefaultRequestSizeBuckets,
 		ApplicationLogLevel:                     log.InfoLevel,
 		ApplicationLogLevelString:               "INFO",
 		ApplicationLogPrefix:                    "[APP]",
@@ -278,6 +279,7 @@ func Test_Validate(t *testing.T) {
 			change: func(c *Config) {
 				c.HistogramMetricBucketsString = ""
 				c.ResponseSizeBucketsString = ""
+				c.RequestSizeBucketsString = ""
 				c.ApplicationLogLevel = log.InfoLevel
 				c.ApplicationLogLevelString = "INFO"
 			},

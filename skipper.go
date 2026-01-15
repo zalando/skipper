@@ -597,6 +597,9 @@ type Options struct {
 	// Use custom buckets for prometheus response body size.
 	ResponseSizeBuckets []float64
 
+	// Use custom buckets for prometheus request header size.
+	RequestSizeBuckets []float64
+
 	// The following options, for backwards compatibility, are true
 	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
 	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters,
@@ -1637,6 +1640,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		UseExpDecaySample:                  o.MetricsUseExpDecaySample,
 		HistogramBuckets:                   o.HistogramMetricBuckets,
 		ResponseSizeBuckets:                o.ResponseSizeBuckets,
+		RequestSizeBuckets:                 o.RequestSizeBuckets,
 		DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
 		PrometheusRegistry:                 o.PrometheusRegistry,
 		EnablePrometheusStartLabel:         o.EnablePrometheusStartLabel,
