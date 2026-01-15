@@ -143,7 +143,7 @@ func (a *All) Close() {
 	a.prometheus.Close()
 }
 
-// Implements the PrometheusMetrics interface
+// ScopedPrometheusRegisterer implements the PrometheusMetrics interface
 func (a *All) ScopedPrometheusRegisterer(subsystem string) prometheus.Registerer {
 	return a.prometheus.ScopedPrometheusRegisterer(subsystem)
 }

@@ -84,9 +84,8 @@ func NewPrometheus(opts Options) *Prometheus {
 	opts = applyCompatibilityDefaults(opts)
 
 	p := &Prometheus{
-		registry:  opts.PrometheusRegistry,
-		opts:      opts,
-		namespace: namespace,
+		registry: opts.PrometheusRegistry,
+		opts:     opts,
 	}
 
 	if p.registry == nil {
@@ -107,6 +106,7 @@ func NewPrometheus(opts Options) *Prometheus {
 	if opts.Prefix != "" {
 		namespace = strings.TrimSuffix(opts.Prefix, ".")
 	}
+	p.namespace = namespace
 
 	p.routeLookupM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,

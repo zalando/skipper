@@ -1106,33 +1106,51 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 func TestPrometheusPluginStatusGaugeRegistered(t *testing.T) {
 	_, config := mockControlPlaneWithResourceBundle(WithStatusPluginEnabled(true))
 
-	reg := prometheus.NewRegistry()
-	registry, err := NewOpenPolicyAgentRegistry(
+	promRegistry := prometheus.NewRegistry()
+	opaRegistry, err := NewOpenPolicyAgentRegistry(
 		WithReuseDuration(1*time.Second),
 		WithCleanInterval(1*time.Second),
 		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
-		WithPrometheusRegisterer(reg),
+		WithPrometheusRegisterer(promRegistry),
 	)
 	assert.NoError(t, err)
 
-	inst, err := registry.GetOrStartInstance("test")
+	opaInst, err := opaRegistry.GetOrStartInstance("test")
 	assert.NoError(t, err)
 
 	// Simulate an HTTP request evaluation
 	ctx := context.Background()
-	_, err = inst.Eval(ctx, &authv3.CheckRequest{
+	_, err = opaInst.Eval(ctx, &authv3.CheckRequest{
 		Attributes: &authv3.AttributeContext{},
 	})
 	assert.NoError(t, err)
 
 	// Gather metrics and check for plugin_status_gauge
-	metricsFamilies, err := reg.Gather()
+	metricsFamilies, err := promRegistry.Gather()
 	assert.NoError(t, err)
 
 	found := false
+	foundLabels := map[string]string{
+		"name":              "bundle",
+		"opa_instance_id":   "34b78d90-6d9a-4ecc-8ff9-393b9dafa40d", // random ID
+		"opa_instance_name": "test",
+		"status":            "OK",
+	}
 	for _, mf := range metricsFamilies {
 		if mf.GetName() == "plugin_status_gauge" && len(mf.Metric) > 0 {
-			found = true
+			if len(mf.Metric) > 0 {
+				met := mf.Metric[0]
+				for _, lPair := range met.GetLabel() {
+					switch lPair.GetName() {
+					case "opa_instance_id":
+						found = true // ok, because random ID should always be there
+					default:
+						if foundLabels[lPair.GetName()] != lPair.GetValue() {
+							t.Fatalf("Failed to find label %q: %q, got: %q", lPair.GetName(), foundLabels[lPair.GetName()], lPair.GetValue())
+						}
+					}
+				}
+			}
 			break
 		}
 	}
