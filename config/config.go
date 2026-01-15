@@ -110,6 +110,8 @@ type Config struct {
 	HistogramMetricBuckets              []float64 `yaml:"-"`
 	ResponseSizeBucketsString           string    `yaml:"response-size-buckets"`
 	ResponseSizeBuckets                 []float64 `yaml:"-"`
+	RequestSizeBucketsString            string    `yaml:"request-size-buckets"`
+	RequestSizeBuckets                  []float64 `yaml:"-"`
 	DisableMetricsCompat                bool      `yaml:"disable-metrics-compat"`
 	ApplicationLog                      string    `yaml:"application-log"`
 	ApplicationLogLevel                 log.Level `yaml:"-"`
@@ -445,6 +447,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.MetricsUseExpDecaySample, "metrics-exp-decay-sample", false, "use exponentially decaying sample in metrics")
 	flag.StringVar(&cfg.HistogramMetricBucketsString, "histogram-metric-buckets", "", "use custom buckets for prometheus histograms, must be a comma-separated list of numbers")
 	flag.StringVar(&cfg.ResponseSizeBucketsString, "response-size-buckets", "", "use custom buckets for prometheus response size metrics, must be a comma-separated list of numbers")
+	flag.StringVar(&cfg.RequestSizeBucketsString, "request-size-buckets", "", "use custom buckets for prometheus request header size metrics, must be a comma-separated list of numbers")
 	flag.BoolVar(&cfg.DisableMetricsCompat, "disable-metrics-compat", false, "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters")
 	flag.StringVar(&cfg.ApplicationLog, "application-log", "", "output file for the application log. When not set, /dev/stderr is used")
 	flag.StringVar(&cfg.ApplicationLogLevelString, "application-log-level", "INFO", "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG")
@@ -707,6 +710,10 @@ func validate(c *Config) error {
 	if err != nil {
 		return err
 	}
+	_, err = c.parseHistogramBuckets(c.RequestSizeBucketsString, metrics.DefaultRequestSizeBuckets)
+	if err != nil {
+		return err
+	}
 	return c.parseForwardedHeaders()
 }
 
@@ -768,6 +775,7 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 	c.KubernetesBackendTrafficAlgorithm, _ = kubernetes.ParseBackendTrafficAlgorithm(c.KubernetesBackendTrafficAlgorithmString)
 	c.HistogramMetricBuckets, _ = c.parseHistogramBuckets(c.HistogramMetricBucketsString, prometheus.DefBuckets)
 	c.ResponseSizeBuckets, _ = c.parseHistogramBuckets(c.ResponseSizeBucketsString, metrics.DefaultResponseSizeBuckets)
+	c.RequestSizeBuckets, _ = c.parseHistogramBuckets(c.RequestSizeBucketsString, metrics.DefaultRequestSizeBuckets)
 
 	if c.ClientKeyFile != "" && c.ClientCertFile != "" {
 		certsFiles := strings.Split(c.ClientCertFile, ",")
@@ -882,6 +890,7 @@ func (c *Config) ToOptions() skipper.Options {
 		MetricsUseExpDecaySample:            c.MetricsUseExpDecaySample,
 		HistogramMetricBuckets:              c.HistogramMetricBuckets,
 		ResponseSizeBuckets:                 c.ResponseSizeBuckets,
+		RequestSizeBuckets:                  c.RequestSizeBuckets,
 		DisableMetricsCompatibilityDefaults: c.DisableMetricsCompat,
 		ApplicationLogOutput:                c.ApplicationLog,
 		ApplicationLogPrefix:                c.ApplicationLogPrefix,

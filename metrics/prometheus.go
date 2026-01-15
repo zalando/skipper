@@ -31,12 +31,12 @@ const (
 	GiB = 1024 * MiB
 )
 
-// headerSizeBuckets are chosen to cover typical max request header sizes:
+// DefaultRequestSizeBuckets are chosen to cover typical max request header sizes:
 //   - 64 KiB for [AWS ELB](https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/how-elastic-load-balancing-works.html#http-header-limits)
 //   - 16 KiB for [NodeJS](https://nodejs.org/api/cli.html#cli_max_http_header_size_size)
 //   - 8 KiB for [Nginx](https://nginx.org/en/docs/http/ngx_http_core_module.html#large_client_header_buffers)
 //   - 8 KiB for [Spring Boot](https://docs.spring.io/spring-boot/appendix/application-properties/index.html#application-properties.server.server.max-http-request-header-size)
-var headerSizeBuckets = []float64{4 * KiB, 8 * KiB, 16 * KiB, 64 * KiB}
+var DefaultRequestSizeBuckets = []float64{4 * KiB, 8 * KiB, 16 * KiB, 64 * KiB}
 
 // DefaultResponseSizeBuckets are chosen to cover 2^(10*n) sizes up to 1 GiB and halves of those.
 var DefaultResponseSizeBuckets = []float64{1, 512, 1 * KiB, 512 * KiB, 1 * MiB, 512 * MiB, 1 * GiB}
@@ -94,6 +94,11 @@ func NewPrometheus(opts Options) *Prometheus {
 	responseSizeBuckets := DefaultResponseSizeBuckets
 	if len(opts.ResponseSizeBuckets) > 1 {
 		responseSizeBuckets = opts.ResponseSizeBuckets
+	}
+
+	requestSizeBuckets := DefaultRequestSizeBuckets
+	if len(opts.RequestSizeBuckets) > 1 {
+		requestSizeBuckets = opts.RequestSizeBuckets
 	}
 
 	namespace := promNamespace
@@ -169,7 +174,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promBackendSubsystem,
 		Name:      "request_header_bytes",
 		Help:      "Size of a backend request header.",
-		Buckets:   headerSizeBuckets,
+		Buckets:   requestSizeBuckets,
 	}, []string{"host"}))
 
 	p.backendM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{

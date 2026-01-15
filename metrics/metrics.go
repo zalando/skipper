@@ -191,6 +191,10 @@ type Options struct {
 	// response in bytes metrics.
 	ResponseSizeBuckets []float64
 
+	// RequestSizeBuckets defines buckets into which the observations are counted for
+	// request header in bytes metrics.
+	RequestSizeBuckets []float64
+
 	// The following options, for backwards compatibility, are true
 	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
 	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters,
