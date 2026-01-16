@@ -150,6 +150,14 @@ func (p *TestProxy) Client() *TestClient {
 	return &TestClient{p.server.Client()}
 }
 
+func (p *TestProxy) ClientWithoutRedirectFollow() *TestClient {
+	client := p.server.Client()
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return &TestClient{client}
+}
+
 func (p *TestProxy) Close() error {
 	p.Log.Close()
 	if p.dc != nil {
