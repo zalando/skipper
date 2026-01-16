@@ -562,7 +562,7 @@ func collectReadyEndpoints(endpointSlices *endpointSliceList) map[definitions.Re
 }
 
 // loadEndpointAddresses returns the list of all addresses for the given service using endpoints or endpointslices API.
-func (c *clusterClient) loadEndpointAddresses(namespace, name string) ([]string, error) {
+func (c *clusterClient) loadEndpointAddresses(zone, namespace, name string) ([]string, error) {
 	var result []string
 	if c.enableEndpointSlices {
 		url := fmt.Sprintf(EndpointSlicesNamespaceFmt, namespace) +
@@ -579,7 +579,11 @@ func (c *clusterClient) loadEndpointAddresses(namespace, name string) ([]string,
 		}
 
 		for _, eps := range ready {
-			result = eps.addresses()
+			if zone != "" {
+				result = eps.addressesByZone(zone)
+			} else {
+				result = eps.addresses()
+			}
 			break
 		}
 	} else {
