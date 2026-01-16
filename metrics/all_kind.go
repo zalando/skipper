@@ -3,6 +3,8 @@ package metrics
 import (
 	"net/http"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type All struct {
@@ -139,6 +141,11 @@ func (a *All) SetInvalidRoute(routeId, reason string) {
 func (a *All) Close() {
 	a.codaHale.Close()
 	a.prometheus.Close()
+}
+
+// ScopedPrometheusRegisterer implements the PrometheusMetrics interface
+func (a *All) ScopedPrometheusRegisterer(subsystem string) prometheus.Registerer {
+	return a.prometheus.ScopedPrometheusRegisterer(subsystem)
 }
 
 func (a *All) RegisterHandler(path string, handler *http.ServeMux) {

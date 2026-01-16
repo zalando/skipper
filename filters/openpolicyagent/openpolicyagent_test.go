@@ -39,6 +39,8 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 	"google.golang.org/protobuf/encoding/protojson"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type MockOpenPolicyAgentFilter struct {
@@ -155,12 +157,19 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 
 type controlPlaneConfig struct {
 	enableJwtCaching bool
+	enableStatus     bool
 }
 type ControlPlaneOption func(*controlPlaneConfig)
 
 func WithJwtCaching(enabled bool) ControlPlaneOption {
 	return func(cfg *controlPlaneConfig) {
 		cfg.enableJwtCaching = enabled
+	}
+}
+
+func WithStatusPluginEnabled(enabled bool) ControlPlaneOption {
+	return func(cfg *controlPlaneConfig) {
+		cfg.enableStatus = enabled
 	}
 }
 
@@ -215,6 +224,15 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 		`
 	}
 
+	statusConfig := ""
+	if cfg.enableStatus {
+		statusConfig = `
+			"status": {
+				"console": true
+			},
+		`
+	}
+
 	config := fmt.Appendf(nil, `{
 		"services": {
 			"test": {
@@ -227,6 +245,7 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 			}
 		},
 		%s
+		%s
 		"plugins": {
 			"envoy_ext_authz_grpc": {
 				"path": "envoy/authz/allow",
@@ -234,7 +253,7 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 				"skip-request-body-parse": false
 			}
 		}
-	}`, opaControlPlane.URL(), jwtCacheConfig)
+	}`, opaControlPlane.URL(), jwtCacheConfig, statusConfig)
 
 	return opaControlPlane, config
 }
@@ -1082,6 +1101,60 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 
 	f1()
 	f2()
+}
+
+func TestPrometheusPluginStatusGaugeRegistered(t *testing.T) {
+	_, config := mockControlPlaneWithResourceBundle(WithStatusPluginEnabled(true))
+
+	promRegistry := prometheus.NewRegistry()
+	opaRegistry, err := NewOpenPolicyAgentRegistry(
+		WithReuseDuration(1*time.Second),
+		WithCleanInterval(1*time.Second),
+		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
+		WithPrometheusRegisterer(promRegistry),
+	)
+	assert.NoError(t, err)
+
+	opaInst, err := opaRegistry.GetOrStartInstance("test")
+	assert.NoError(t, err)
+
+	// Simulate an HTTP request evaluation
+	ctx := context.Background()
+	_, err = opaInst.Eval(ctx, &authv3.CheckRequest{
+		Attributes: &authv3.AttributeContext{},
+	})
+	assert.NoError(t, err)
+
+	// Gather metrics and check for plugin_status_gauge
+	metricsFamilies, err := promRegistry.Gather()
+	assert.NoError(t, err)
+
+	found := false
+	foundLabels := map[string]string{
+		"name":              "bundle",
+		"opa_instance_id":   "34b78d90-6d9a-4ecc-8ff9-393b9dafa40d", // random ID
+		"opa_instance_name": "test",
+		"status":            "OK",
+	}
+	for _, mf := range metricsFamilies {
+		if mf.GetName() == "plugin_status_gauge" && len(mf.Metric) > 0 {
+			if len(mf.Metric) > 0 {
+				met := mf.Metric[0]
+				for _, lPair := range met.GetLabel() {
+					switch lPair.GetName() {
+					case "opa_instance_id":
+						found = true // ok, because random ID should always be there
+					default:
+						if foundLabels[lPair.GetName()] != lPair.GetValue() {
+							t.Fatalf("Failed to find label %q: %q, got: %q", lPair.GetName(), foundLabels[lPair.GetName()], lPair.GetValue())
+						}
+					}
+				}
+			}
+			break
+		}
+	}
+	assert.True(t, found, "plugin_status_gauge should be registered and have data")
 }
 
 type opaInstanceStartupTestCase struct {
