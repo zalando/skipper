@@ -19,6 +19,8 @@ type MockSpan struct {
 	t *MockTracer
 }
 
+var _ opentracing.Tracer = NewTracer()
+
 func NewTracer() *MockTracer {
 	return &MockTracer{mockTracer: mocktracer.New()}
 }
