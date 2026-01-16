@@ -51,7 +51,16 @@ func leafWeight(l *leafMatcher) int {
 		w++
 	}
 
-	w += len(l.hostRxs)
+	for _, rx := range l.hostRxs {
+		if strings.HasPrefix(rx.String(), "[a-z0-9]+((-[a-z0-9]+)?)*") {
+			// this is a free wildcard, skip it from the first matching
+			w += 0
+		} else {
+			w += 1
+		}
+	}
+
+	// w += len(l.hostRxs)
 	w += len(l.pathRxs)
 	w += len(l.headersExact)
 	w += len(l.headersRegexp)
