@@ -17,6 +17,7 @@ import (
 	"github.com/zalando/skipper/filters/fadein"
 	"github.com/zalando/skipper/filters/flowid"
 	logfilter "github.com/zalando/skipper/filters/log"
+	"github.com/zalando/skipper/filters/normalizepath"
 	"github.com/zalando/skipper/filters/rfc"
 	"github.com/zalando/skipper/filters/scheduler"
 	"github.com/zalando/skipper/filters/sed"
@@ -242,6 +243,7 @@ func Filters() []filters.Spec {
 		consistenthash.NewConsistentHashKey(),
 		consistenthash.NewConsistentHashBalanceFactor(),
 		tls.New(),
+		normalizepath.NewNormalizePath(),
 	}
 }
 
