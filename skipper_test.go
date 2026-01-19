@@ -549,6 +549,7 @@ func TestDataClients(t *testing.T) {
 		ExpectedBytesPerRequest:         1024,
 		ReadHeaderTimeoutServer:         0,
 		ReadTimeoutServer:               1 * time.Second,
+		TCPQueueTimeoutServer:           1 * time.Second,
 		MetricsFlavours:                 []string{"codahale"},
 		EnablePrometheusMetrics:         true,
 		LoadBalancerHealthCheckInterval: 3 * time.Second,

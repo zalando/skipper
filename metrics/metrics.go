@@ -84,6 +84,36 @@ type Metrics interface {
 	Close()
 }
 
+type NoMetric struct{}
+
+func (NoMetric) MeasureSince(string, time.Time)                      {}
+func (NoMetric) IncCounter(string)                                   {}
+func (NoMetric) IncCounterBy(string, int64)                          {}
+func (NoMetric) IncFloatCounterBy(string, float64)                   {}
+func (NoMetric) MeasureRouteLookup(time.Time)                        {}
+func (NoMetric) MeasureFilterCreate(string, time.Time)               {}
+func (NoMetric) MeasureFilterRequest(string, time.Time)              {}
+func (NoMetric) MeasureAllFiltersRequest(string, time.Time)          {}
+func (NoMetric) MeasureBackendRequestHeader(string, int)             {}
+func (NoMetric) MeasureBackend(string, time.Time)                    {}
+func (NoMetric) MeasureBackendHost(string, time.Time)                {}
+func (NoMetric) MeasureFilterResponse(string, time.Time)             {}
+func (NoMetric) MeasureAllFiltersResponse(string, time.Time)         {}
+func (NoMetric) MeasureResponse(int, string, string, time.Time)      {}
+func (NoMetric) MeasureResponseSize(string, int64)                   {}
+func (NoMetric) MeasureProxy(time.Duration, time.Duration)           {}
+func (NoMetric) MeasureServe(string, string, string, int, time.Time) {}
+func (NoMetric) IncRoutingFailures()                                 {}
+func (NoMetric) IncErrorsBackend(string)                             {}
+func (NoMetric) MeasureBackend5xx(time.Time)                         {}
+func (NoMetric) IncErrorsStreaming(string)                           {}
+func (NoMetric) RegisterHandler(string, *http.ServeMux)              {}
+func (NoMetric) UpdateGauge(string, float64)                         {}
+func (NoMetric) UpdateInvalidRoute(map[string]int)                   {}
+func (NoMetric) Close()                                              {}
+
+var _ Metrics = NoMetric{}
+
 // Options for initializing metrics collection.
 type Options struct {
 	// the metrics exposing format.
