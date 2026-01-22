@@ -84,6 +84,14 @@ type Metrics interface {
 	Close()
 }
 
+// PrometheusMetrics is an optional interface that a Metrics flavour can implement.
+// This can only credibly be implemented with Prometheus as a backend and can also be removed if Prometheus
+// is the only supported backend and Codahale support is dropped
+type PrometheusMetrics interface {
+	Metrics
+	ScopedPrometheusRegisterer(subsystem string) prometheus.Registerer
+}
+
 // Options for initializing metrics collection.
 type Options struct {
 	// the metrics exposing format.

@@ -73,9 +73,10 @@ type Prometheus struct {
 	customGaugeM               *prometheus.GaugeVec
 	invalidRouteM              *prometheus.GaugeVec
 
-	opts     Options
-	registry *prometheus.Registry
-	handler  http.Handler
+	opts      Options
+	registry  *prometheus.Registry
+	handler   http.Handler
+	namespace string
 }
 
 // NewPrometheus returns a new Prometheus metric backend.
@@ -105,6 +106,7 @@ func NewPrometheus(opts Options) *Prometheus {
 	if opts.Prefix != "" {
 		namespace = strings.TrimSuffix(opts.Prefix, ".")
 	}
+	p.namespace = namespace
 
 	p.routeLookupM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -539,6 +541,11 @@ func (p *Prometheus) SetInvalidRoute(routeId, reason string) {
 }
 
 func (p *Prometheus) Close() {}
+
+// ScopedPrometheusRegisterer implements the PrometheusMetrics interface
+func (p *Prometheus) ScopedPrometheusRegisterer(subsystem string) prometheus.Registerer {
+	return prometheus.WrapRegistererWithPrefix(p.namespace+"_"+subsystem+"_", p.registry)
+}
 
 // withStartLabelGatherer adds a "start" label to all counters with
 // the value of counter creation timestamp as unix nanoseconds.

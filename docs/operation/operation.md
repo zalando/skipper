@@ -716,6 +716,10 @@ The following timer metrics are exposed per used bundle-name:
 - `skipper.opaAuthorizeRequest.custom.eval_time.<bundle-name>`
 - `skipper.opaServeResponse.custom.eval_time.<bundle-name>`
 
+Open Policy Agent [native Prometheus metrics](https://www.openpolicyagent.org/docs/monitoring#status-metrics) are passed through if the metrics backend is set to Prometheus (via `--metrics-flavour`). 
+
+The OPA native metrics are prefixed with `skipper_openpolicyagent_`, e.g. `skipper_openpolicyagent_plugin_status_gauge` will be exposed via Skipper's `/metrics` endpoint. Two extra labels are added to all metrics: `opa_instance_name` (set to the bundle name parameter of the filters) and `opa_instance_id` (a random ID that identifies the virtual OPA instance).
+
 ### RouteSRV metrics
 
 RouteSRV metrics expose the following metrics in Prometheus format:
