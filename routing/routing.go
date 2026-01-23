@@ -414,6 +414,11 @@ type RouteLookup struct {
 	rt *routeTable
 }
 
+// Print returns valid routes from the captured routing Table.
+func (rl *RouteLookup) Print(pretty eskip.PrettyPrintInfo) string {
+	return eskip.Print(pretty, rl.rt.validRoutes...)
+}
+
 // Do executes the lookup against the captured routing table. Equivalent to
 // Routing.Route().
 func (rl *RouteLookup) Do(req *http.Request) (*Route, map[string]string) {
