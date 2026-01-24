@@ -277,6 +277,7 @@ type Client struct {
 	quit                   chan struct{}
 	defaultFiltersDir      string
 	forwardBackendURL      string
+	zone                   string
 	state                  *clusterState
 	loggingInterval        time.Duration
 	loggingLastEnabled     time.Time
@@ -359,6 +360,7 @@ func New(o Options) (*Client, error) {
 		defaultFiltersDir:      o.DefaultFiltersDir,
 		forwardBackendURL:      o.ForwardBackendURL,
 		loggingInterval:        1 * time.Minute,
+		zone:                   o.TopologyZone,
 	}, nil
 }
 
