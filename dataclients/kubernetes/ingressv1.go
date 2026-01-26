@@ -109,7 +109,10 @@ func convertPathRuleV1(
 			ic.logger.Errorf("Failed to find target port for service %s, but %d endpoints exist", svcName, len(eps))
 		}
 	} else if svc.Spec.Type == "ExternalName" {
-		return externalNameRoute(ns, name, host, hostRegexp, svc, servicePort, allowedExternalNames)
+		if ic.enableExternalNames {
+			return externalNameRoute(ns, name, host, hostRegexp, svc, servicePort, allowedExternalNames)
+		}
+		return nil, errNotEnabledExternalName
 	} else if forceKubernetesService {
 		eps = []string{serviceNameBackend(svcName, ns, servicePort)}
 	} else {
@@ -182,6 +185,11 @@ func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *d
 		// processing of the independent ingresses.
 		if errors.Is(err, errNotAllowedExternalName) {
 			ic.logger.Infof("Not allowed external name: %v", err)
+			return nil
+		}
+
+		if errors.Is(err, errNotEnabledExternalName) {
+			ic.logger.Infof("Not enabled to reference external name from ingress: %s/%s", meta.Namespace, meta.Name)
 			return nil
 		}
 
@@ -359,8 +367,12 @@ func (ing *ingress) convertDefaultBackendV1(
 		ic.logger.Errorf("Failed to find target port %v, %s, for service %s add shuntroute: %v", svc.Spec.Ports, svcPort, svcName, err)
 		err = nil
 	} else if svc.Spec.Type == "ExternalName" {
-		r, err := externalNameRoute(ns, name, "default", nil, svc, servicePort, ing.allowedExternalNames)
-		return r, err == nil, err
+		if ic.enableExternalNames {
+			r, err := externalNameRoute(ns, name, "default", nil, svc, servicePort, ing.allowedExternalNames)
+			return r, err == nil, err
+		}
+		return nil, false, errNotEnabledExternalName
+
 	} else if forceKubernetesService {
 		eps = []string{serviceNameBackend(svcName, ns, servicePort)}
 	} else {
@@ -435,6 +447,7 @@ func (ing *ingress) ingressV1Route(
 		annotationPredicate: annotationPredicate(i.Metadata),
 		annotationBackend:   annotationBackendString(i.Metadata),
 		forwardBackendURL:   ing.forwardBackendURL,
+		enableExternalNames: ing.enableExternalNames,
 		extraRoutes:         extraRoutes(i.Metadata),
 		backendWeights:      backendWeights(i.Metadata, logger),
 		pathMode:            pathMode(i.Metadata, ing.pathMode, logger),

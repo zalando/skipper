@@ -190,6 +190,7 @@ type Config struct {
 	KubernetesAnnotationPredicates                       []kubernetes.AnnotationPredicates  `yaml:"-"`
 	KubernetesAnnotationFiltersAppend                    []kubernetes.AnnotationFilters     `yaml:"-"`
 	KubernetesEastWestRangePredicates                    []*eskip.Predicate                 `yaml:"-"`
+	EnableKubernetesExternalNames                        bool                               `yaml:"enable-kubernetes-external-names"`
 	KubernetesOnlyAllowedExternalNames                   bool                               `yaml:"kubernetes-only-allowed-external-names"`
 	KubernetesAllowedExternalNames                       regexpListFlag                     `yaml:"kubernetes-allowed-external-names"`
 	KubernetesRedisServiceNamespace                      string                             `yaml:"kubernetes-redis-service-namespace"`
@@ -522,6 +523,7 @@ func NewConfig() *Config {
 	flag.Var(&cfg.KubernetesAnnotationFiltersAppendString, "kubernetes-annotation-filters-append", "configures filters appended to non east-west routes of annotated resources. E.g. -kubernetes-annotation-filters-append='zone-a=true=foo() -> bar()' will add 'foo() -> bar()' filters to all non east-west routes of ingress or routegroup annotated with 'zone-a: true'. For east-west routes use -kubernetes-east-west-range-annotation-filters-append.")
 	flag.Var(&cfg.KubernetesEastWestRangeAnnotationPredicatesString, "kubernetes-east-west-range-annotation-predicates", "similar to -kubernetes-annotation-predicates configures predicates appended to east-west routes of annotated resources. See also -kubernetes-east-west-range-domains.")
 	flag.Var(&cfg.KubernetesEastWestRangeAnnotationFiltersAppendString, "kubernetes-east-west-range-annotation-filters-append", "similar to -kubernetes-annotation-filters-append configures filters appended to east-west routes of annotated resources. See also -kubernetes-east-west-range-domains.")
+	flag.BoolVar(&cfg.EnableKubernetesExternalNames, "enable-kubernetes-external-names", false, "only if enabled we allow to use external name services as backends in Ingress")
 	flag.BoolVar(&cfg.KubernetesOnlyAllowedExternalNames, "kubernetes-only-allowed-external-names", false, "only accept external name services, route group network backends and route group explicit LB endpoints from an allow list defined by zero or more -kubernetes-allowed-external-name flags")
 	flag.Var(&cfg.KubernetesAllowedExternalNames, "kubernetes-allowed-external-name", "set zero or more regular expressions from which at least one should be matched by the external name services, route group network addresses and explicit endpoints domain names")
 	flag.StringVar(&cfg.KubernetesRedisServiceNamespace, "kubernetes-redis-service-namespace", "", "Sets namespace for redis to be used to lookup endpoints")
@@ -948,6 +950,7 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesEastWestRangeAnnotationFiltersAppend: c.KubernetesEastWestRangeAnnotationFiltersAppend,
 		KubernetesAnnotationPredicates:                 c.KubernetesAnnotationPredicates,
 		KubernetesAnnotationFiltersAppend:              c.KubernetesAnnotationFiltersAppend,
+		EnableKubernetesExternalNames:                  c.EnableKubernetesExternalNames,
 		KubernetesOnlyAllowedExternalNames:             c.KubernetesOnlyAllowedExternalNames,
 		KubernetesAllowedExternalNames:                 c.KubernetesAllowedExternalNames,
 		KubernetesRedisServiceNamespace:                c.KubernetesRedisServiceNamespace,

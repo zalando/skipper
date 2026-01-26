@@ -233,6 +233,10 @@ type Options struct {
 	// (using tracingTag filter) should be added to all routes
 	BackendNameTracingTag bool
 
+	// EnableExternalNames enables the integration of Kubernetes
+	// Service type ExternalName as backends in Ingress.
+	EnableExternalNames bool
+
 	// OnlyAllowedExternalNames will enable validation of ingress external names and route groups network
 	// backend addresses, explicit LB endpoints validation against the list of patterns in
 	// AllowedExternalNames.

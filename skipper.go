@@ -293,6 +293,9 @@ type Options struct {
 	// KubernetesAnnotationFiltersAppend sets filters to append for each annotation key and value
 	KubernetesAnnotationFiltersAppend []kubernetes.AnnotationFilters
 
+	// EnableKubernetesExternalNames enables to use Kubernetes service type ExternalName as backend in Ingress and RouteGroup.
+	EnableKubernetesExternalNames bool
+
 	// KubernetesOnlyAllowedExternalNames will enable validation of ingress external names and route groups network
 	// backend addresses, explicit LB endpoints validation against the list of patterns in
 	// AllowedExternalNames.
@@ -1034,6 +1037,7 @@ type Options struct {
 func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 	return kubernetes.Options{
 		AllowedExternalNames:                           o.KubernetesAllowedExternalNames,
+		EnableExternalNames:                            o.EnableKubernetesExternalNames,
 		BackendNameTracingTag:                          o.OpenTracingBackendNameTag,
 		DefaultFiltersDir:                              o.DefaultFiltersDir,
 		KubernetesInCluster:                            o.KubernetesInCluster,
