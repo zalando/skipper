@@ -933,7 +933,7 @@ Example:
 
 ### loopbackIfStatus
 
-Fallbacks to the given path if the response has the specified code. The filter 
+Fallbacks to the given path if the response has the specified code. The filter
 replaces the response coming from the backend or the previous filters.
 
 Parameters:
@@ -1021,6 +1021,15 @@ See also:
 
 * [Tee predicate](predicates.md#tee)
 * [Shadow Traffic Tutorial](../tutorials/shadow-traffic.md)
+
+### teeResponse
+
+The teeResponse filter provides the possibility to send the HTTP body
+of the response to some other HTTP endpoint as request body.
+
+```
+r: * -> teeResponse("https://another-api.example.org") -> "http://api.example.org";
+```
 
 ## HTTP Body
 ### compress
