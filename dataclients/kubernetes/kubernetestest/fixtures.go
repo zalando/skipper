@@ -41,6 +41,7 @@ type kubeOptionsParser struct {
 	HTTPSRedirectCode                              int                               `yaml:"httpsRedirectCode"`
 	DisableCatchAllRoutes                          bool                              `yaml:"disableCatchAllRoutes"`
 	BackendNameTracingTag                          bool                              `yaml:"backendNameTracingTag"`
+	EnableExternalNames                            bool                              `yaml:"enableExternalNames"`
 	OnlyAllowedExternalNames                       bool                              `yaml:"onlyAllowedExternalNames"`
 	AllowedExternalNames                           []string                          `yaml:"allowedExternalNames"`
 	IngressClass                                   string                            `yaml:"kubernetes-ingress-class"`
@@ -263,6 +264,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 			t.Fatal(err)
 		}
 
+		o.EnableExternalNames = kop.EnableExternalNames
 		o.OnlyAllowedExternalNames = kop.OnlyAllowedExternalNames
 		o.AllowedExternalNames = aen
 	}
