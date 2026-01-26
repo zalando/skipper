@@ -21,10 +21,9 @@ type (
 	}
 
 	teeResponse struct {
-		client             *net.Client
-		host               string
-		scheme             string
-		shadowResponseDone func() // test hook
+		client *net.Client
+		host   string
+		scheme string
 	}
 )
 
@@ -109,21 +108,10 @@ func (f *teeResponse) Response(fc filters.FilterContext) {
 		return
 	}
 
-	mainBody := fc.Response().Body
-	if mainBody == nil {
-		return
-	}
-
 	pr, pw := io.Pipe()
-	fc.Response().Body = &teeTie{mainBody, pw}
+	fc.Response().Body = &teeTie{fc.Response().Body, pw}
 
 	go func() {
-		defer func() {
-			if f.shadowResponseDone != nil {
-				f.shadowResponseDone()
-			}
-		}()
-
 		req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s", f.scheme, f.host), pr)
 		if err != nil {
 			logrus.Errorf("Failed to create request: %v", err)
