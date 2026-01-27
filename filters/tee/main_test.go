@@ -21,4 +21,10 @@ func cleanupClients() {
 		c.Close()
 	}
 	teeClients.mu.Unlock()
+
+	teeResponseClients.mu.Lock()
+	for _, c := range teeResponseClients.store {
+		c.Close()
+	}
+	teeResponseClients.mu.Unlock()
 }

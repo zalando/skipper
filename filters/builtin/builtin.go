@@ -202,6 +202,7 @@ func Filters() []filters.Spec {
 		tee.NewTeeDeprecated(),
 		tee.NewTeeNoFollow(),
 		tee.NewTeeLoopback(),
+		tee.NewTeeResponse(tee.Options{}),
 		sed.New(),
 		sed.NewDelimited(),
 		sed.NewRequest(),

@@ -1737,6 +1737,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			NoFollow: true,
 			Tracer:   tracer,
 		}),
+		// teeResponse()
+		teefilters.NewTeeResponse(teefilters.Options{
+			Tracer: tracer,
+		}),
 	)
 
 	if o.OAuthTokeninfoURL != "" {

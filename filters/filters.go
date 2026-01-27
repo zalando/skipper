@@ -282,6 +282,7 @@ const (
 	LogBodyName                                = "logBody"
 	LogHeaderName                              = "logHeader"
 	TeeName                                    = "tee"
+	TeeResponseName                            = "teeResponse"
 	TeenfName                                  = "teenf"
 	TeeLoopbackName                            = "teeLoopback"
 	SedName                                    = "sed"
