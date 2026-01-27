@@ -58,8 +58,8 @@ func (spec *teeResponseSpec) Name() string {
 	return filters.TeeResponseName
 }
 
-// CreateFilter creates out teeResponse Filter
-// If only one parameter is given shadow backend is used as it is specified
+// CreateFilter creates a teeResponse Filter
+// Accepts only one parameter: shadow backend url
 func (spec *teeResponseSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
 	if len(config) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
