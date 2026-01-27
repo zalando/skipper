@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 )
@@ -31,7 +30,7 @@ type Validator[R KubernetesResource] interface {
 	Validate(resource R) error
 }
 
-func validateFilters(resourceCtx ResourceContext, filterRegistry filters.Registry, mtr metrics.Metrics, filters []*eskip.Filter) error {
+func validateFilters(resourceCtx ResourceContext, rOptions routing.Options, filters []*eskip.Filter) error {
 	filterNames := make([]string, len(filters))
 	for i, filter := range filters {
 		filterNames[i] = filter.Name
@@ -40,12 +39,11 @@ func validateFilters(resourceCtx ResourceContext, filterRegistry filters.Registr
 	routeId := buildValidationRouteID(resourceCtx, "filters", strings.Join(filterNames, ","))
 	route := &eskip.Route{Id: routeId, Filters: filters}
 
-	options := &routing.Options{FilterRegistry: filterRegistry, Metrics: mtr}
-	_, err := routing.ValidateRoute(options, route)
-	return routing.HandleValidationError(mtr, err, routeId)
+	_, err := routing.ValidateRoute(&rOptions, route)
+	return routing.HandleValidationError(rOptions.Metrics, err, routeId)
 }
 
-func validatePredicates(resourceCtx ResourceContext, predicateSpecs []routing.PredicateSpec, mtr metrics.Metrics, predicates []*eskip.Predicate) error {
+func validatePredicates(resourceCtx ResourceContext, rOptions routing.Options, predicates []*eskip.Predicate) error {
 	predicateNames := make([]string, len(predicates))
 	for i, predicate := range predicates {
 		predicateNames[i] = predicate.Name
@@ -54,22 +52,18 @@ func validatePredicates(resourceCtx ResourceContext, predicateSpecs []routing.Pr
 	routeId := buildValidationRouteID(resourceCtx, "predicates", strings.Join(predicateNames, ","))
 	route := &eskip.Route{Id: routeId, Predicates: predicates}
 
-	options := &routing.Options{Predicates: predicateSpecs, Metrics: mtr}
-	_, err := routing.ValidateRoute(options, route)
-	return routing.HandleValidationError(mtr, err, routeId)
+	_, err := routing.ValidateRoute(&rOptions, route)
+	return routing.HandleValidationError(rOptions.Metrics, err, routeId)
 }
 
-func validateRoute(resourceCtx ResourceContext, baseOptions routing.Options, mtr metrics.Metrics, route *eskip.Route) error {
+func validateRoute(resourceCtx ResourceContext, baseOptions routing.Options, route *eskip.Route) error {
 	originalID := route.Id
 	routeId := buildValidationRouteID(resourceCtx, "route", originalID)
 	validationRoute := *route
 	validationRoute.Id = routeId
 
-	options := baseOptions
-	options.Metrics = mtr
-
-	_, err := routing.ValidateRoute(&options, &validationRoute)
-	return routing.HandleValidationError(mtr, err, routeId)
+	_, err := routing.ValidateRoute(&baseOptions, &validationRoute)
+	return routing.HandleValidationError(baseOptions.Metrics, err, routeId)
 }
 
 func validateBackend(resourceCtx ResourceContext, backend string, backendType eskip.BackendType, mtr metrics.Metrics) error {

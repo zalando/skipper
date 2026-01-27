@@ -2321,7 +2321,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	// start validation webhook server if enabled
 	if o.ValidationWebhookEnabled {
-		if err = validation.StartValidation(o.ValidationWebhookAddress, o.ValidationWebhookCertFile, o.ValidationWebhookKeyFile, o.EnableAdvancedValidation, ro.FilterRegistry, ro.Predicates, mtr); err != nil {
+		validationOptions := validation.Options{
+			Address:                  o.ValidationWebhookAddress,
+			CertFile:                 o.ValidationWebhookCertFile,
+			KeyFile:                  o.ValidationWebhookKeyFile,
+			EnableAdvancedValidation: o.EnableAdvancedValidation,
+		}
+		if err = validation.StartValidation(validationOptions, ro); err != nil {
 			log.Fatalf("Failed to start validation webhook: %v", err)
 		}
 	}

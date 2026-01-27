@@ -475,6 +475,15 @@ func processTreePredicates(r *Route, predicateList []*eskip.Predicate) error {
 // ValidateRoute processes a route definition for the routing table.
 // This function is exported to be used by validation webhooks.
 func ValidateRoute(o *Options, def *eskip.Route) (*Route, error) {
+
+	for _, preprocessor := range o.PreProcessors {
+		mdef := preprocessor.Do([]*eskip.Route{def})
+		if mdefLen := len(mdef); mdefLen != 1 {
+			return nil, fmt.Errorf("preprocessing route failed while validating")
+		}
+		def = mdef[0]
+	}
+
 	route, err := processRouteDef(o, mapPredicates(o.Predicates), def)
 	if err != nil {
 		return nil, err

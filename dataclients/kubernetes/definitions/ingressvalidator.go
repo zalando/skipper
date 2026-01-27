@@ -5,15 +5,11 @@ import (
 	"fmt"
 
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 )
 
 type IngressV1Validator struct {
-	FilterRegistry           filters.Registry
-	PredicateSpecs           []routing.PredicateSpec
-	Metrics                  metrics.Metrics
+	RoutingOptions           routing.Options
 	EnableAdvancedValidation bool
 }
 
@@ -41,7 +37,7 @@ func (igv *IngressV1Validator) validateFilterAnnotation(item *IngressV1Item) err
 				Namespace:    item.Metadata.Namespace,
 				Name:         item.Metadata.Name,
 				ResourceType: ResourceTypeIngress,
-			}, igv.FilterRegistry, igv.Metrics, parsedFilters); err != nil {
+			}, igv.RoutingOptions, parsedFilters); err != nil {
 				return fmt.Errorf("invalid %q annotation: %w", IngressFilterAnnotation, err)
 			}
 		}
@@ -62,7 +58,7 @@ func (igv *IngressV1Validator) validatePredicateAnnotation(item *IngressV1Item) 
 				Namespace:    item.Metadata.Namespace,
 				Name:         item.Metadata.Name,
 				ResourceType: ResourceTypeIngress,
-			}, igv.PredicateSpecs, igv.Metrics, parsedPredicates); err != nil {
+			}, igv.RoutingOptions, parsedPredicates); err != nil {
 				return fmt.Errorf("invalid %q annotation: %w", IngressPredicateAnnotation, err)
 			}
 		}
@@ -79,16 +75,12 @@ func (igv *IngressV1Validator) validateRoutesAnnotation(item *IngressV1Item) err
 			return fmt.Errorf("invalid %q annotation: %w", IngressRoutesAnnotation, err)
 		}
 		if igv.EnableAdvancedValidation {
-			opts := routing.Options{
-				FilterRegistry: igv.FilterRegistry,
-				Predicates:     igv.PredicateSpecs,
-			}
 			for _, r := range parsedRoutes {
 				if err := validateRoute(ResourceContext{
 					Namespace:    item.Metadata.Namespace,
 					Name:         item.Metadata.Name,
 					ResourceType: ResourceTypeIngress,
-				}, opts, igv.Metrics, r); err != nil {
+				}, igv.RoutingOptions, r); err != nil {
 					errs = append(errs, fmt.Errorf("invalid %q annotation: %w", IngressRoutesAnnotation, err))
 				}
 			}
