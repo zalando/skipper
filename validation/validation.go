@@ -15,8 +15,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes/admission"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -25,21 +23,28 @@ const (
 	readHeaderTimeout = time.Minute
 )
 
+type Options struct {
+	Address                  string
+	CertFile                 string
+	KeyFile                  string
+	EnableAdvancedValidation bool
+}
+
 // StartValidation launches the validation webhook server and keeps serving until the
 // returned listener encounters an unrecoverable error, or the process shuts down.
-func StartValidation(address, certFile, keyFile string, enableAdvancedValidation bool, filterRegistry filters.Registry, predicateSpecs []routing.PredicateSpec, mtr metrics.Metrics) error {
-	if certFile == "" || keyFile == "" {
+func StartValidation(opts Options, routingOptions routing.Options) error {
+	if opts.CertFile == "" || opts.KeyFile == "" {
 		return errors.New("validation webhook requires TLS: cert file or key file not provided")
 	}
 
 	server := &http.Server{
-		Addr:              address,
-		Handler:           newValidationHandler(enableAdvancedValidation, filterRegistry, predicateSpecs, mtr),
+		Addr:              opts.Address,
+		Handler:           newValidationHandler(opts.EnableAdvancedValidation, routingOptions),
 		ReadTimeout:       readTimeout,
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 
-	log.Infof("Starting server on %s", address)
+	log.Infof("Starting server on %s", opts.Address)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)
@@ -52,7 +57,7 @@ func StartValidation(address, certFile, keyFile string, enableAdvancedValidation
 		}
 	}()
 
-	err := server.ListenAndServeTLS(certFile, keyFile)
+	err := server.ListenAndServeTLS(opts.CertFile, opts.KeyFile)
 
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("failed to listen: %w", err)
@@ -61,23 +66,19 @@ func StartValidation(address, certFile, keyFile string, enableAdvancedValidation
 	return nil
 }
 
-func newValidationHandler(enableAdvancedValidation bool, filterRegistry filters.Registry, predicateSpecs []routing.PredicateSpec, mtr metrics.Metrics) http.Handler {
+func newValidationHandler(enableAdvancedValidation bool, routingOptions routing.Options) http.Handler {
 	mux := http.NewServeMux()
 
 	rgAdmitter := &admission.RouteGroupAdmitter{
 		RouteGroupValidator: &definitions.RouteGroupValidator{
-			FilterRegistry:           filterRegistry,
-			PredicateSpecs:           predicateSpecs,
-			Metrics:                  mtr,
+			RoutingOptions:           routingOptions,
 			EnableAdvancedValidation: enableAdvancedValidation,
 		},
 	}
 
 	ingressAdmitter := &admission.IngressAdmitter{
 		IngressValidator: &definitions.IngressV1Validator{
-			FilterRegistry:           filterRegistry,
-			PredicateSpecs:           predicateSpecs,
-			Metrics:                  mtr,
+			RoutingOptions:           routingOptions,
 			EnableAdvancedValidation: enableAdvancedValidation,
 		},
 	}

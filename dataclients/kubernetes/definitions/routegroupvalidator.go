@@ -6,15 +6,11 @@ import (
 	"net/url"
 
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 )
 
 type RouteGroupValidator struct {
-	FilterRegistry           filters.Registry
-	PredicateSpecs           []routing.PredicateSpec
-	Metrics                  metrics.Metrics
+	RoutingOptions           routing.Options
 	EnableAdvancedValidation bool
 }
 
@@ -92,7 +88,7 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 					Namespace:    item.Metadata.Namespace,
 					Name:         item.Metadata.Name,
 					ResourceType: ResourceTypeRouteGroup,
-				}, rgv.FilterRegistry, rgv.Metrics, parsedFilters); err != nil {
+				}, rgv.RoutingOptions, parsedFilters); err != nil {
 					errs = append(errs, fmt.Errorf("invalid filter %q: %w", f, err))
 				}
 			}
@@ -122,7 +118,7 @@ func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
 				Namespace:    item.Metadata.Namespace,
 				Name:         item.Metadata.Name,
 				ResourceType: ResourceTypeRouteGroup,
-			}, rgv.PredicateSpecs, rgv.Metrics, routePredicates); err != nil {
+			}, rgv.RoutingOptions, routePredicates); err != nil {
 				errs = append(errs, err)
 			}
 		}
@@ -150,7 +146,7 @@ func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 				Namespace:    item.Metadata.Namespace,
 				Name:         item.Metadata.Name,
 				ResourceType: ResourceTypeRouteGroup,
-			}, backend.Address, backend.Type, rgv.Metrics); err != nil {
+			}, backend.Address, backend.Type, rgv.RoutingOptions.Metrics); err != nil {
 				errs = append(errs, err)
 			}
 		}
