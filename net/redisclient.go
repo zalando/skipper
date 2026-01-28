@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -324,30 +325,36 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 	r.log.Infof("Start goroutine to update redis instances every %s", r.options.UpdateInterval)
 	defer r.log.Info("Stopped goroutine to update redis")
 
+	time.Sleep(time.Duration(rand.Int63n(int64(r.options.UpdateInterval))))
 	ticker := time.NewTicker(r.options.UpdateInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-r.quit:
 			return
-		case <-ticker.C:
+		default:
 		}
 
 		addrs, err := r.options.AddrUpdater()
-		if err != nil {
-			r.log.Errorf("Failed to start redis updater: %v", err)
-			continue
-		}
-		if !hasAll(addrs, old) {
-			r.log.Infof("Redis updater updating old(%d) != new(%d)", len(old), len(addrs))
-			r.SetAddrs(ctx, addrs)
-			r.metrics.UpdateGauge(r.metricsPrefix+"shards", float64(r.ring.Len()))
+		if err == nil {
+			if !hasAll(addrs, old) {
+				r.log.Infof("Redis updater updating old(%d) != new(%d)", len(old), len(addrs))
+				r.SetAddrs(ctx, addrs)
+				r.metrics.UpdateGauge(r.metricsPrefix+"shards", float64(r.ring.Len()))
 
-			old = make(map[string]struct{})
-			for _, addr := range addrs {
-				old[addr] = struct{}{}
+				old = make(map[string]struct{})
+				for _, addr := range addrs {
+					old[addr] = struct{}{}
+				}
 			}
+		} else {
+			r.log.Errorf("Failed to update redis addresses: %v", err)
+		}
 
+		select {
+		case <-r.quit:
+			return
+		case <-ticker.C:
 		}
 	}
 }
