@@ -39,7 +39,7 @@ func validateFilters(resourceCtx ResourceContext, rOptions routing.Options, filt
 	routeId := buildValidationRouteID(resourceCtx, "filters", strings.Join(filterNames, ","))
 	route := &eskip.Route{Id: routeId, Filters: filters}
 
-	_, err := routing.ValidateRoute(&rOptions, route)
+	err := routing.ValidateRoute(&rOptions, route)
 	return routing.HandleValidationError(rOptions.Metrics, err, routeId)
 }
 
@@ -52,7 +52,7 @@ func validatePredicates(resourceCtx ResourceContext, rOptions routing.Options, p
 	routeId := buildValidationRouteID(resourceCtx, "predicates", strings.Join(predicateNames, ","))
 	route := &eskip.Route{Id: routeId, Predicates: predicates}
 
-	_, err := routing.ValidateRoute(&rOptions, route)
+	err := routing.ValidateRoute(&rOptions, route)
 	return routing.HandleValidationError(rOptions.Metrics, err, routeId)
 }
 
@@ -62,7 +62,7 @@ func validateRoute(resourceCtx ResourceContext, baseOptions routing.Options, rou
 	validationRoute := *route
 	validationRoute.Id = routeId
 
-	_, err := routing.ValidateRoute(&baseOptions, &validationRoute)
+	err := routing.ValidateRoute(&baseOptions, &validationRoute)
 	return routing.HandleValidationError(baseOptions.Metrics, err, routeId)
 }
 

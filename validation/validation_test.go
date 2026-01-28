@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"regexp"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
@@ -282,6 +281,44 @@ func TestValidationHandlers(t *testing.T) {
 	}
 }
 
+// editAndAddRoutePreProcessor is a test preprocessor that both transforms routes
+// and adds additional routes, similar to OAuth Grant preprocessor behavior
+type editAndAddRoutePreProcessor struct{}
+
+func (p *editAndAddRoutePreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
+	result := make([]*eskip.Route, len(routes))
+
+	// Transform existing routes (fix unknownFilter -> blockContent)
+	for i, route := range routes {
+		newRoute := *route // copy
+		newRoute.Filters = make([]*eskip.Filter, len(route.Filters))
+		for j, filter := range route.Filters {
+			newFilter := *filter // copy
+			if filter.Name == "unknownFilter" {
+				newFilter.Name = "blockContent"
+			}
+			newRoute.Filters[j] = &newFilter
+		}
+		result[i] = &newRoute
+	}
+
+	// Add a callback route (similar to OAuth Grant)
+	callbackRoute := &eskip.Route{
+		Id: "__test_callback_route",
+		Predicates: []*eskip.Predicate{{
+			Name: "Path",
+			Args: []interface{}{"/.well-known/test-callback"},
+		}},
+		Filters: []*eskip.Filter{{
+			Name: "blockContent",
+			Args: []interface{}{"callback"},
+		}},
+		BackendType: eskip.ShuntBackend,
+	}
+
+	return append(result, callbackRoute)
+}
+
 func TestValidationWithPreProcessors(t *testing.T) {
 	testCases := []struct {
 		name              string
@@ -292,7 +329,7 @@ func TestValidationWithPreProcessors(t *testing.T) {
 		expectedMessage   string
 	}{
 		{
-			name: "routegroup with EditRoute preprocessor - should succeed after transformation",
+			name: "routegroup with preprocessor - should succeed after transformation",
 			path: "/routegroups",
 			payload: newRouteGroupPayload(func(spec map[string]any) {
 				spec["routes"] = []map[string]any{
@@ -315,7 +352,7 @@ func TestValidationWithPreProcessors(t *testing.T) {
 			expectedMessage:   `filter "unknownFilter" not found`,
 		},
 		{
-			name: "ingress with EditRoute preprocessor - should succeed after transformation",
+			name: "ingress with preprocessor - should succeed after transformation",
 			path: "/ingresses",
 			payload: newIngressPayload(func(meta map[string]any) {
 				annotations := meta["annotations"].(map[string]any)
@@ -336,7 +373,7 @@ func TestValidationWithPreProcessors(t *testing.T) {
 			expectedMessage:   `filter "unknownFilter" not found`,
 		},
 		{
-			name: "ingress routes with EditRoute preprocessor - should succeed",
+			name: "ingress routes with preprocessor - should succeed",
 			path: "/ingresses",
 			payload: newIngressPayload(func(meta map[string]any) {
 				annotations := meta["annotations"].(map[string]any)
@@ -376,11 +413,9 @@ func TestValidationWithPreProcessors(t *testing.T) {
 			}
 
 			if tc.withPreProcessors {
-				editRegex := regexp.MustCompile(`unknownFilter\(([^)]*)\)`)
-				editRoute := eskip.NewEditor(editRegex, `blockContent($1)`)
-
+				// Use the custom preprocessor that both edits and adds routes
 				routingOptions.PreProcessors = []routing.PreProcessor{
-					editRoute,
+					&editAndAddRoutePreProcessor{},
 				}
 			}
 

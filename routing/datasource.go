@@ -472,25 +472,43 @@ func processTreePredicates(r *Route, predicateList []*eskip.Predicate) error {
 	return nil
 }
 
-// ValidateRoute processes a route definition for the routing table.
-// This function is exported to be used by validation webhooks.
-func ValidateRoute(o *Options, def *eskip.Route) (*Route, error) {
-
+// ValidateRoute processes a route definition through all configured preprocessors
+// and validates that all resulting routes can be successfully processed.
+//
+// This function is specifically designed for validation webhooks where:
+// - Preprocessors may add additional routes (like OAuth callback routes)
+// - All resulting routes must be valid, not just the original
+//
+// Returns an error if any preprocessor fails or any resulting route is invalid.
+func ValidateRoute(o *Options, def *eskip.Route) error {
+	mdef := []*eskip.Route{def}
 	for _, preprocessor := range o.PreProcessors {
-		mdef := preprocessor.Do([]*eskip.Route{def})
-		if mdefLen := len(mdef); mdefLen != 1 {
-			return nil, fmt.Errorf("preprocessing route failed while validating")
+		mdef = preprocessor.Do(mdef)
+		if len(mdef) == 0 {
+			return fmt.Errorf("preprocessing route failed while validating")
 		}
-		def = mdef[0]
 	}
 
-	route, err := processRouteDef(o, mapPredicates(o.Predicates), def)
-	if err != nil {
-		return nil, err
+	mp := mapPredicates(o.Predicates)
+	var validatedRoutes []*Route
+
+	cleanUp := func() {
+		for _, route := range validatedRoutes {
+			closeFilters(route.Filters)
+		}
+	}
+	for _, r := range mdef {
+		route, err := processRouteDef(o, mp, r)
+		if err != nil {
+			cleanUp()
+			return err
+		}
+		validatedRoutes = append(validatedRoutes, route)
 	}
 
-	defer closeFilters(route.Filters)
-	return route, nil
+	defer cleanUp()
+
+	return nil
 }
 
 // processes a route definition for the routing table
