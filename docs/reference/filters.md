@@ -1788,6 +1788,10 @@ to untrusted downstream services.
 The filter will inject the OAuth2 bearer token into the request headers if the flag
 `oauth2-access-token-header-name` is set.
 
+The filter will substitute the base URL of redirect_uri, if "X-Skipper-Redirect-Base-Uri" header is passed in the request.
+The value will be in the form of "http://host.tld" or "https://host.tld".
+Otherwise, the "Host" of the request is used as the base URL of the redirect_uri.
+
 The filter must be used in conjunction with the [grantCallback](#grantcallback) filter
 where the OAuth2 provider can redirect authenticated users with an authorization code.
 Skipper will make sure to add the `grantCallback` filter for you to your routes when
