@@ -14,6 +14,7 @@ import (
 
 	"encoding/json"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
@@ -1044,4 +1045,62 @@ func TestDuplicateDataClients(t *testing.T) {
 			t.Errorf("expected 2 dataclients, got: %v", clients)
 		}
 	})
+}
+
+func TestRouteLookupPrint(t *testing.T) {
+	tests := []struct {
+		name   string
+		routes string
+	}{
+		{
+			name:   "empty routing table",
+			routes: "",
+		},
+		{
+			name:   "single route",
+			routes: `route1: Path("/test") -> "https://example.org";`,
+		},
+		{
+			name: "multiple routes",
+			routes: `
+			route1: Path("/test1") -> "https://example1.org";
+			route2: Path("/test2") -> "https://example2.org";
+			`,
+		},
+		{
+			name: "multiple routes with invalid",
+			routes: `
+			route1: Path("/test1") -> "https://example1.org";
+			route2: Path("/test2") -> "https://example2.org";
+			route3: Path("/test3") -> IN() -> "https://example3.org";
+			`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actualRoutes := eskip.MustParse(tt.routes)
+			// Create test data client with the routes
+			dc := testdataclient.New(actualRoutes)
+			defer dc.Close()
+
+			// Create test routing
+			tr, err := newTestRouting(dc)
+			if err != nil {
+				t.Fatalf("failed to create test routing: %v", err)
+			}
+			defer tr.close()
+
+			// Get RouteLookup and call Print
+			rl := tr.routing.Get()
+			prettyInfo := eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}
+			result := rl.Print(prettyInfo)
+			validRoutes := rl.ValidRoutes()
+			t.Logf("Valid routes %d", len(validRoutes))
+
+			expected := eskip.Print(prettyInfo, validRoutes...)
+
+			assert.Equal(t, expected, result)
+		})
+	}
 }
