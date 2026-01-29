@@ -307,17 +307,19 @@ func (p *editAndAddRoutePreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
 		Id: "__test_callback_route",
 		Predicates: []*eskip.Predicate{{
 			Name: "Path",
-			Args: []interface{}{"/.well-known/test-callback"},
+			Args: []any{"/.well-known/test-callback"},
 		}},
 		Filters: []*eskip.Filter{{
 			Name: "blockContent",
-			Args: []interface{}{"callback"},
+			Args: []any{"callback"},
 		}},
 		BackendType: eskip.ShuntBackend,
 	}
 
 	return append(result, callbackRoute)
 }
+
+var _ routing.PreProcessor = &editAndAddRoutePreProcessor{}
 
 func TestValidationWithPreProcessors(t *testing.T) {
 	testCases := []struct {
