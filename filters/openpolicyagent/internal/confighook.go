@@ -89,6 +89,15 @@ type PrometheusOverride struct {
 }
 
 func (p *PrometheusOverride) OnConfig(ctx context.Context, config *config.Config) (*config.Config, error) {
+	return enablePrometheusMetrics(config)
+}
+
+// TODO: Commented out to showcase failing test
+//func (p *PrometheusOverride) OnConfigDiscovery(ctx context.Context, config *config.Config) (*config.Config, error) {
+//	return enablePrometheusMetrics(config)
+//}
+
+func enablePrometheusMetrics(config *config.Config) (*config.Config, error) {
 	var (
 		statusConfig status.Config
 		message      []byte
