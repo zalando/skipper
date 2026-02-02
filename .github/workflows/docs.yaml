@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version: 3.x
-      - uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7
+      - uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306
         with:
           key: ${{ github.ref }}
           path: .cache
