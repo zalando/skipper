@@ -31,12 +31,12 @@ const (
 	GiB = 1024 * MiB
 )
 
-// headerSizeBuckets are chosen to cover typical max request header sizes:
+// DefaultRequestSizeBuckets are chosen to cover typical max request header sizes:
 //   - 64 KiB for [AWS ELB](https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/how-elastic-load-balancing-works.html#http-header-limits)
 //   - 16 KiB for [NodeJS](https://nodejs.org/api/cli.html#cli_max_http_header_size_size)
 //   - 8 KiB for [Nginx](https://nginx.org/en/docs/http/ngx_http_core_module.html#large_client_header_buffers)
 //   - 8 KiB for [Spring Boot](https://docs.spring.io/spring-boot/appendix/application-properties/index.html#application-properties.server.server.max-http-request-header-size)
-var headerSizeBuckets = []float64{4 * KiB, 8 * KiB, 16 * KiB, 64 * KiB}
+var DefaultRequestSizeBuckets = []float64{4 * KiB, 8 * KiB, 16 * KiB, 64 * KiB}
 
 // DefaultResponseSizeBuckets are chosen to cover 2^(10*n) sizes up to 1 GiB and halves of those.
 var DefaultResponseSizeBuckets = []float64{1, 512, 1 * KiB, 512 * KiB, 1 * MiB, 512 * MiB, 1 * GiB}
@@ -73,9 +73,10 @@ type Prometheus struct {
 	customGaugeM               *prometheus.GaugeVec
 	invalidRouteM              *prometheus.GaugeVec
 
-	opts     Options
-	registry *prometheus.Registry
-	handler  http.Handler
+	opts      Options
+	registry  *prometheus.Registry
+	handler   http.Handler
+	namespace string
 }
 
 // NewPrometheus returns a new Prometheus metric backend.
@@ -96,10 +97,16 @@ func NewPrometheus(opts Options) *Prometheus {
 		responseSizeBuckets = opts.ResponseSizeBuckets
 	}
 
+	requestSizeBuckets := DefaultRequestSizeBuckets
+	if len(opts.RequestSizeBuckets) > 1 {
+		requestSizeBuckets = opts.RequestSizeBuckets
+	}
+
 	namespace := promNamespace
 	if opts.Prefix != "" {
 		namespace = strings.TrimSuffix(opts.Prefix, ".")
 	}
+	p.namespace = namespace
 
 	p.routeLookupM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -169,7 +176,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promBackendSubsystem,
 		Name:      "request_header_bytes",
 		Help:      "Size of a backend request header.",
-		Buckets:   headerSizeBuckets,
+		Buckets:   requestSizeBuckets,
 	}, []string{"host"}))
 
 	p.backendM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -534,6 +541,11 @@ func (p *Prometheus) SetInvalidRoute(routeId, reason string) {
 }
 
 func (p *Prometheus) Close() {}
+
+// ScopedPrometheusRegisterer implements the PrometheusMetrics interface
+func (p *Prometheus) ScopedPrometheusRegisterer(subsystem string) prometheus.Registerer {
+	return prometheus.WrapRegistererWithPrefix(p.namespace+"_"+subsystem+"_", p.registry)
+}
 
 // withStartLabelGatherer adds a "start" label to all counters with
 // the value of counter creation timestamp as unix nanoseconds.

@@ -317,9 +317,12 @@ func (c *context) loopbackInternal(discardResponse bool) {
 		if err != nil {
 			c.Logger().Errorf("context: error during closing the response body: %v", err)
 		}
-	}
-	if c.proxySpan != nil {
+
+		// span tag `shadow: true` should only be set if the response is discarded
 		c.proxy.tracing.setTag(c.proxySpan, "shadow", "true")
+	}
+
+	if c.proxySpan != nil {
 		c.proxySpan.Finish()
 	}
 

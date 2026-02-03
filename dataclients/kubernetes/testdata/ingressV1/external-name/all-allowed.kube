@@ -1,3 +1,4 @@
+enableExternalNames: true
 onlyAllowedExternalNames: true
 allowedExternalNames:
 - ^external1[.]example[.]org$

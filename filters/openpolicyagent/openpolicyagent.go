@@ -41,6 +41,7 @@ import (
 	iCache "github.com/open-policy-agent/opa/v1/topdown/cache"
 	opatracing "github.com/open-policy-agent/opa/v1/tracing"
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -112,7 +113,8 @@ type OpenPolicyAgentRegistry struct {
 	maxRequestBodyBytes     int64
 	bodyReadBufferSize      int64
 
-	tracer opentracing.Tracer
+	tracer               opentracing.Tracer
+	prometheusRegisterer prometheus.Registerer
 
 	enableCustomControlLoop bool
 	controlLoopInterval     time.Duration
@@ -220,6 +222,13 @@ func WithControlLoopInterval(interval time.Duration) func(*OpenPolicyAgentRegist
 func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.controlLoopMaxJitter = maxJitter
+		return nil
+	}
+}
+
+func WithPrometheusRegisterer(registerer prometheus.Registerer) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.prometheusRegisterer = registerer
 		return nil
 	}
 }
@@ -682,12 +691,32 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
 	logger = logger.WithFields(map[string]interface{}{"bundle-name": bundleName})
 
-	configHooks := hooks.New()
+	var configHooks []hooks.Hook
 	if registry.enableCustomControlLoop {
-		configHooks = hooks.New(&internal.ManualOverride{})
+		configHooks = append(configHooks, &internal.ManualOverride{})
 	}
 
-	manager, err := plugins.New(configBytes, id, store, configLabelsInfo(*opaConfig), plugins.Logger(logger), registry.withTracingOptions(bundleName), plugins.WithHooks(configHooks))
+	var registerer prometheus.Registerer
+	if registry.prometheusRegisterer != nil {
+		registerer = prometheus.WrapRegistererWith(
+			prometheus.Labels{
+				"opa_instance_name": bundleName,
+				"opa_instance_id":   id,
+			},
+			registry.prometheusRegisterer,
+		)
+
+		configHooks = append(configHooks, &internal.PrometheusOverride{})
+	}
+
+	manager, err := plugins.New(configBytes,
+		id,
+		store,
+		configLabelsInfo(*opaConfig),
+		plugins.Logger(logger),
+		registry.withTracingOptions(bundleName),
+		plugins.WithHooks(hooks.New(configHooks...)),
+		plugins.WithPrometheusRegister(registerer))
 
 	if err != nil {
 		return nil, err
@@ -701,7 +730,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		return nil, err
 	}
 
-	discoveryPlugin, err := discovery.New(manager, discovery.Factories(pluginFactories), discovery.Hooks(configHooks), discovery.BootConfig(bootConfig))
+	discoveryPlugin, err := discovery.New(manager, discovery.Factories(pluginFactories), discovery.Hooks(hooks.New(configHooks...)), discovery.BootConfig(bootConfig))
 	if err != nil {
 		return nil, err
 	}

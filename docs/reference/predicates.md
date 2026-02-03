@@ -761,3 +761,19 @@ ContentLengthBetween(0, 1000)
 // matches the range from 1000 to 9999
 ContentLengthBetween(1000, 10000)
 ```
+
+## OpenTelemetry - OTel
+
+[OpenTelemetry](https://opentelemetry.io/) (short OTel) based
+predicates are able to match based on OTel data.
+
+### OTelBaggage
+
+OpenTelemetry defined Baggage as [W3C spec](https://www.w3.org/TR/baggage/).
+OTelBaggage predicate is able to match the Baggage item by key.
+
+The example matches the key of a baggage item key `foo` whatever the baggage item value or property is:
+
+```
+OTelBaggage("foo")
+```

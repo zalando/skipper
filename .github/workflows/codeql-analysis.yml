@@ -40,14 +40,14 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         # We must fetch at least the immediate parents so that if this is
         # a pull request then we can checkout the head.
         fetch-depth: 2
 
     - name: Setup Go
-      uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c
+      uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5
       with:
         go-version: '^1.23'
         check-latest: true

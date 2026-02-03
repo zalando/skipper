@@ -58,6 +58,7 @@ import (
 	"github.com/zalando/skipper/predicates/host"
 	"github.com/zalando/skipper/predicates/interval"
 	"github.com/zalando/skipper/predicates/methods"
+	skpotel "github.com/zalando/skipper/predicates/otel"
 	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/predicates/source"
@@ -291,6 +292,9 @@ type Options struct {
 
 	// KubernetesAnnotationFiltersAppend sets filters to append for each annotation key and value
 	KubernetesAnnotationFiltersAppend []kubernetes.AnnotationFilters
+
+	// EnableKubernetesExternalNames enables to use Kubernetes service type ExternalName as backend in Ingress and RouteGroup.
+	EnableKubernetesExternalNames bool
 
 	// KubernetesOnlyAllowedExternalNames will enable validation of ingress external names and route groups network
 	// backend addresses, explicit LB endpoints validation against the list of patterns in
@@ -595,6 +599,9 @@ type Options struct {
 
 	// Use custom buckets for prometheus response body size.
 	ResponseSizeBuckets []float64
+
+	// Use custom buckets for prometheus request header size.
+	RequestSizeBuckets []float64
 
 	// The following options, for backwards compatibility, are true
 	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
@@ -986,6 +993,11 @@ type Options struct {
 	// KubernetesEnableTLS enables kubernetes to use resources to terminate tls
 	KubernetesEnableTLS bool
 
+	// EnableLua allows to use lua() filters, if not enabled
+	// skipper does not support Lua, because of security
+	// considerations.
+	EnableLua bool
+
 	// LuaModules that are allowed to be used.
 	//
 	// Use <module>.<symbol> to selectively enable module symbols,
@@ -1025,6 +1037,7 @@ type Options struct {
 func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 	return kubernetes.Options{
 		AllowedExternalNames:                           o.KubernetesAllowedExternalNames,
+		EnableExternalNames:                            o.EnableKubernetesExternalNames,
 		BackendNameTracingTag:                          o.OpenTracingBackendNameTag,
 		DefaultFiltersDir:                              o.DefaultFiltersDir,
 		KubernetesInCluster:                            o.KubernetesInCluster,
@@ -1636,6 +1649,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		UseExpDecaySample:                  o.MetricsUseExpDecaySample,
 		HistogramBuckets:                   o.HistogramMetricBuckets,
 		ResponseSizeBuckets:                o.ResponseSizeBuckets,
+		RequestSizeBuckets:                 o.RequestSizeBuckets,
 		DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
 		PrometheusRegistry:                 o.PrometheusRegistry,
 		EnablePrometheusStartLabel:         o.EnablePrometheusStartLabel,
@@ -1722,6 +1736,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		teefilters.WithOptions(teefilters.Options{
 			NoFollow: true,
 			Tracer:   tracer,
+		}),
+		// teeResponse()
+		teefilters.NewTeeResponse(teefilters.Options{
+			Tracer: tracer,
 		}),
 	)
 
@@ -2002,7 +2020,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			opts = append(opts, openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata))
 		}
 
-		opaRegistry, err = openpolicyagent.NewOpenPolicyAgentRegistry(
+		opaRegistryOpts := []func(*openpolicyagent.OpenPolicyAgentRegistry) error{
 			openpolicyagent.WithMaxRequestBodyBytes(o.OpenPolicyAgentMaxRequestBodySize),
 			openpolicyagent.WithMaxMemoryBodyParsing(o.OpenPolicyAgentMaxMemoryBodyParsing),
 			openpolicyagent.WithReadBodyBufferSize(o.OpenPolicyAgentRequestBodyBufferSize),
@@ -2015,8 +2033,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			openpolicyagent.WithEnableDataPreProcessingOptimization(o.EnableOpenPolicyAgentDataPreProcessingOptimization),
 			openpolicyagent.WithPreloadingEnabled(o.EnableOpenPolicyAgentPreloading),
 			openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...),
-		)
+		}
 
+		if promMetrics, ok := mtr.(metrics.PrometheusMetrics); ok {
+			opaRegistryOpts = append(opaRegistryOpts,
+				openpolicyagent.WithPrometheusRegisterer(promMetrics.ScopedPrometheusRegisterer("openpolicyagent")))
+		}
+
+		opaRegistry, err = openpolicyagent.NewOpenPolicyAgentRegistry(opaRegistryOpts...)
 		if err != nil {
 			log.Errorf("failed to create Open Policy Agent registry: %v.", err)
 			return err
@@ -2040,15 +2064,17 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		o.CustomFilters = append(o.CustomFilters, compress)
 	}
 
-	lua, err := script.NewLuaScriptWithOptions(script.LuaOptions{
-		Modules: o.LuaModules,
-		Sources: o.LuaSources,
-	})
-	if err != nil {
-		log.Errorf("Failed to create lua filter: %v.", err)
-		return err
+	if o.EnableLua {
+		lua, err := script.NewLuaScriptWithOptions(script.LuaOptions{
+			Modules: o.LuaModules,
+			Sources: o.LuaSources,
+		})
+		if err != nil {
+			log.Errorf("Failed to create lua filter: %v.", err)
+			return err
+		}
+		o.CustomFilters = append(o.CustomFilters, lua)
 	}
-	o.CustomFilters = append(o.CustomFilters, lua)
 
 	// create routing
 	// create the proxy instance
@@ -2095,6 +2121,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		forwarded.NewForwardedProto(),
 		host.NewAny(),
 		content.NewContentLengthBetween(),
+		skpotel.NewBaggage(),
 	)
 
 	// provide default value for wrapper if not defined
@@ -2302,7 +2329,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	// start validation webhook server if enabled
 	if o.ValidationWebhookEnabled {
-		if err = validation.StartValidation(o.ValidationWebhookAddress, o.ValidationWebhookCertFile, o.ValidationWebhookKeyFile, o.EnableAdvancedValidation, ro.FilterRegistry, ro.Predicates, mtr); err != nil {
+		validationOptions := validation.Options{
+			Address:                  o.ValidationWebhookAddress,
+			CertFile:                 o.ValidationWebhookCertFile,
+			KeyFile:                  o.ValidationWebhookKeyFile,
+			EnableAdvancedValidation: o.EnableAdvancedValidation,
+		}
+		if err = validation.StartValidation(validationOptions, ro); err != nil {
 			log.Fatalf("Failed to start validation webhook: %v", err)
 		}
 	}

@@ -37,7 +37,7 @@ Service type | supported | workaround
 --- | --- | ---
 ClusterIP | yes | ---
 NodePort | yes | ---
-ExternalName | yes | ---
+ExternalName | yes (enable by `-enable-kubernetes-external-names` | ---
 LoadBalancer | no | it should not, because Kubernetes cloud-controller-manager will maintain it
 
 

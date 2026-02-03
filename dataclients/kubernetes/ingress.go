@@ -37,6 +37,7 @@ type ingressContext struct {
 	annotationPredicate string
 	annotationBackend   string
 	forwardBackendURL   string
+	enableExternalNames bool
 	extraRoutes         []*eskip.Route
 	backendWeights      map[string]float64
 	pathMode            PathMode
@@ -58,6 +59,7 @@ type ingress struct {
 	provideHTTPSRedirect                           bool
 	disableCatchAllRoutes                          bool
 	forceKubernetesService                         bool
+	enableExternalNames                            bool
 	backendTrafficAlgorithm                        BackendTrafficAlgorithm
 	defaultLoadBalancerAlgorithm                   string
 	forwardBackendURL                              string
@@ -67,9 +69,12 @@ type ingress struct {
 	kubernetesEastWestRangeAnnotationFiltersAppend []AnnotationFilters
 }
 
-var nonWord = regexp.MustCompile(`\W`)
+var (
+	nonWord = regexp.MustCompile(`\W`)
 
-var errNotAllowedExternalName = errors.New("ingress with not allowed external name service")
+	errNotEnabledExternalName = errors.New("ingress is not enabled to reference external name service")
+	errNotAllowedExternalName = errors.New("ingress with not allowed external name service")
+)
 
 func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
 	ic.applyBackend(route)
@@ -102,6 +107,7 @@ func newIngress(o Options) *ingress {
 		kubernetesEastWestDomain:                       o.KubernetesEastWestDomain,
 		eastWestRangeDomains:                           o.KubernetesEastWestRangeDomains,
 		eastWestRangePredicates:                        o.KubernetesEastWestRangePredicates,
+		enableExternalNames:                            o.EnableExternalNames,
 		allowedExternalNames:                           o.AllowedExternalNames,
 		forceKubernetesService:                         o.ForceKubernetesService,
 		backendTrafficAlgorithm:                        o.BackendTrafficAlgorithm,

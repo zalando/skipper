@@ -411,6 +411,138 @@ func TestTracingProxySpanWithRetry(t *testing.T) {
 	}
 }
 
+func TestTracingProxySpanWithTeeLoopbackFilter(t *testing.T) {
+	// shadow backend server for shadow traffic, if shunt backend is used proxy span will be nil
+	sb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Hello! I'm shadow backend!"))
+	}))
+	defer sb.Close()
+
+	doc := fmt.Sprintf(`
+main: Path("/main") -> teeLoopback("shadow-main") -> inlineContent("<h1>Hello! I'm main :)</h1>") -> <shunt>;
+shadow: Path("/main") && Tee("shadow-main") && Weight(2) -> "%s";
+`, sb.URL)
+
+	tracer := tracingtest.NewTracer()
+	params := Params{
+		OpenTracing: &OpenTracingParams{
+			Tracer: tracer,
+		},
+		Flags: FlagsNone,
+	}
+
+	t.Setenv("HOSTNAME", "shadow-tag.tracing.test")
+
+	tp, err := newTestProxyWithParams(doc, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	req, err := http.NewRequest("GET", ps.URL+"/main", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Flow-Id", "test-flow-id")
+
+	rsp, err := ps.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rsp.Body.Close()
+	io.Copy(io.Discard, rsp.Body)
+	t.Logf("got response %d", rsp.StatusCode)
+
+	// find the proxy span for the shadow route
+	var shadowProxySpan *tracingtest.MockSpan
+	for _, s := range tracer.FinishedSpans() {
+		if s.OperationName == "proxy" && s.Tag(SkipperRouteIDTag) == "shadow" {
+			shadowProxySpan = s
+			break
+		}
+	}
+	if shadowProxySpan == nil {
+		t.Fatal("proxy span for shadow route not found")
+	}
+	verifyTag(t, shadowProxySpan, HTTPStatusCodeTag, uint16(200))
+	verifyTag(t, shadowProxySpan, "shadow", "true")
+}
+
+func TestTracingProxySpanWithLoopbackIfStatusFilter(t *testing.T) {
+	// b: backend server that returns 404 to trigger loopbackIfStatus
+	// fb: fallback backend server for loopback request
+	// We cannot use shunt backends instead because in that case the proxy span will be nil
+	b := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("Hello! I'm main backend!"))
+	}))
+	defer b.Close()
+	fb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Hello! I'm fallback backend!"))
+	}))
+	defer fb.Close()
+
+	doc := fmt.Sprintf(`
+main: Path("/main") -> loopbackIfStatus(404, "/fallback") -> "%s";
+fallback: Path("/fallback") -> "%s";
+`, b.URL, fb.URL)
+
+	tracer := tracingtest.NewTracer()
+	params := Params{
+		OpenTracing: &OpenTracingParams{
+			Tracer: tracer,
+		},
+		Flags: FlagsNone,
+	}
+
+	t.Setenv("HOSTNAME", "shadow-tag.tracing.test")
+
+	tp, err := newTestProxyWithParams(doc, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	req, err := http.NewRequest("GET", ps.URL+"/main", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Flow-Id", "test-flow-id-fallback")
+
+	rsp, err := ps.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rsp.Body.Close()
+	io.Copy(io.Discard, rsp.Body)
+	t.Logf("got response %d", rsp.StatusCode)
+
+	pxSpanCount := 0
+	for _, s := range tracer.FinishedSpans() {
+		if s.OperationName == "proxy" {
+			pxSpanCount++
+			verifyNoTag(t, s, "shadow")
+			if s.Tag(SkipperRouteIDTag) == "fallback" {
+				verifyTag(t, s, HTTPStatusCodeTag, uint16(200))
+			}
+			if s.Tag(SkipperRouteIDTag) == "main" {
+				verifyTag(t, s, HTTPStatusCodeTag, uint16(404))
+			}
+		}
+	}
+	if pxSpanCount == 0 {
+		t.Fatal("No proxy spans found! Should found two proxy spans for main and fallback routes")
+	}
+}
+
 func TestProxyTracingDefaultOptions(t *testing.T) {
 	t1 := newProxyTracing(nil)
 	if t1.tracer == nil || t1.initialOperationName == "" {

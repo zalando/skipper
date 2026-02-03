@@ -110,6 +110,8 @@ type Config struct {
 	HistogramMetricBuckets              []float64 `yaml:"-"`
 	ResponseSizeBucketsString           string    `yaml:"response-size-buckets"`
 	ResponseSizeBuckets                 []float64 `yaml:"-"`
+	RequestSizeBucketsString            string    `yaml:"request-size-buckets"`
+	RequestSizeBuckets                  []float64 `yaml:"-"`
 	DisableMetricsCompat                bool      `yaml:"disable-metrics-compat"`
 	ApplicationLog                      string    `yaml:"application-log"`
 	ApplicationLogLevel                 log.Level `yaml:"-"`
@@ -188,6 +190,7 @@ type Config struct {
 	KubernetesAnnotationPredicates                       []kubernetes.AnnotationPredicates  `yaml:"-"`
 	KubernetesAnnotationFiltersAppend                    []kubernetes.AnnotationFilters     `yaml:"-"`
 	KubernetesEastWestRangePredicates                    []*eskip.Predicate                 `yaml:"-"`
+	EnableKubernetesExternalNames                        bool                               `yaml:"enable-kubernetes-external-names"`
 	KubernetesOnlyAllowedExternalNames                   bool                               `yaml:"kubernetes-only-allowed-external-names"`
 	KubernetesAllowedExternalNames                       regexpListFlag                     `yaml:"kubernetes-allowed-external-names"`
 	KubernetesRedisServiceNamespace                      string                             `yaml:"kubernetes-redis-service-namespace"`
@@ -313,6 +316,7 @@ type Config struct {
 
 	ClusterRatelimitMaxGroupShards int `yaml:"cluster-ratelimit-max-group-shards"`
 
+	EnableLua  bool      `yaml:"enable-lua"`
 	LuaModules *listFlag `yaml:"lua-modules"`
 	LuaSources *listFlag `yaml:"lua-sources"`
 
@@ -445,6 +449,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.MetricsUseExpDecaySample, "metrics-exp-decay-sample", false, "use exponentially decaying sample in metrics")
 	flag.StringVar(&cfg.HistogramMetricBucketsString, "histogram-metric-buckets", "", "use custom buckets for prometheus histograms, must be a comma-separated list of numbers")
 	flag.StringVar(&cfg.ResponseSizeBucketsString, "response-size-buckets", "", "use custom buckets for prometheus response size metrics, must be a comma-separated list of numbers")
+	flag.StringVar(&cfg.RequestSizeBucketsString, "request-size-buckets", "", "use custom buckets for prometheus request header size metrics, must be a comma-separated list of numbers")
 	flag.BoolVar(&cfg.DisableMetricsCompat, "disable-metrics-compat", false, "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters")
 	flag.StringVar(&cfg.ApplicationLog, "application-log", "", "output file for the application log. When not set, /dev/stderr is used")
 	flag.StringVar(&cfg.ApplicationLogLevelString, "application-log-level", "INFO", "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG")
@@ -518,6 +523,7 @@ func NewConfig() *Config {
 	flag.Var(&cfg.KubernetesAnnotationFiltersAppendString, "kubernetes-annotation-filters-append", "configures filters appended to non east-west routes of annotated resources. E.g. -kubernetes-annotation-filters-append='zone-a=true=foo() -> bar()' will add 'foo() -> bar()' filters to all non east-west routes of ingress or routegroup annotated with 'zone-a: true'. For east-west routes use -kubernetes-east-west-range-annotation-filters-append.")
 	flag.Var(&cfg.KubernetesEastWestRangeAnnotationPredicatesString, "kubernetes-east-west-range-annotation-predicates", "similar to -kubernetes-annotation-predicates configures predicates appended to east-west routes of annotated resources. See also -kubernetes-east-west-range-domains.")
 	flag.Var(&cfg.KubernetesEastWestRangeAnnotationFiltersAppendString, "kubernetes-east-west-range-annotation-filters-append", "similar to -kubernetes-annotation-filters-append configures filters appended to east-west routes of annotated resources. See also -kubernetes-east-west-range-domains.")
+	flag.BoolVar(&cfg.EnableKubernetesExternalNames, "enable-kubernetes-external-names", false, "only if enabled we allow to use external name services as backends in Ingress")
 	flag.BoolVar(&cfg.KubernetesOnlyAllowedExternalNames, "kubernetes-only-allowed-external-names", false, "only accept external name services, route group network backends and route group explicit LB endpoints from an allow list defined by zero or more -kubernetes-allowed-external-name flags")
 	flag.Var(&cfg.KubernetesAllowedExternalNames, "kubernetes-allowed-external-name", "set zero or more regular expressions from which at least one should be matched by the external name services, route group network addresses and explicit endpoints domain names")
 	flag.StringVar(&cfg.KubernetesRedisServiceNamespace, "kubernetes-redis-service-namespace", "", "Sets namespace for redis to be used to lookup endpoints")
@@ -651,6 +657,7 @@ func NewConfig() *Config {
 
 	flag.IntVar(&cfg.ClusterRatelimitMaxGroupShards, "cluster-ratelimit-max-group-shards", 1, "sets the maximum number of group shards for the clusterRatelimit filter")
 
+	flag.BoolVar(&cfg.EnableLua, "enable-lua", false, "enable the Lua scripting engine to be able to use the lua() filter")
 	flag.Var(cfg.LuaModules, "lua-modules", "comma separated list of lua filter modules. Use <module>.<symbol> to selectively enable module symbols, for example: package,base._G,base.print,json")
 	flag.Var(cfg.LuaSources, "lua-sources", `comma separated list of lua input types for the lua() filter. Valid sources "", "file", "inline", "file,inline" and "none". Use "file" to only allow lua file references in lua filter. Default "" is the same as "file","inline". Use "none" to disable lua filters.`)
 
@@ -704,6 +711,10 @@ func validate(c *Config) error {
 		return err
 	}
 	_, err = c.parseHistogramBuckets(c.ResponseSizeBucketsString, metrics.DefaultResponseSizeBuckets)
+	if err != nil {
+		return err
+	}
+	_, err = c.parseHistogramBuckets(c.RequestSizeBucketsString, metrics.DefaultRequestSizeBuckets)
 	if err != nil {
 		return err
 	}
@@ -768,6 +779,7 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 	c.KubernetesBackendTrafficAlgorithm, _ = kubernetes.ParseBackendTrafficAlgorithm(c.KubernetesBackendTrafficAlgorithmString)
 	c.HistogramMetricBuckets, _ = c.parseHistogramBuckets(c.HistogramMetricBucketsString, prometheus.DefBuckets)
 	c.ResponseSizeBuckets, _ = c.parseHistogramBuckets(c.ResponseSizeBucketsString, metrics.DefaultResponseSizeBuckets)
+	c.RequestSizeBuckets, _ = c.parseHistogramBuckets(c.RequestSizeBucketsString, metrics.DefaultRequestSizeBuckets)
 
 	if c.ClientKeyFile != "" && c.ClientCertFile != "" {
 		certsFiles := strings.Split(c.ClientCertFile, ",")
@@ -882,6 +894,7 @@ func (c *Config) ToOptions() skipper.Options {
 		MetricsUseExpDecaySample:            c.MetricsUseExpDecaySample,
 		HistogramMetricBuckets:              c.HistogramMetricBuckets,
 		ResponseSizeBuckets:                 c.ResponseSizeBuckets,
+		RequestSizeBuckets:                  c.RequestSizeBuckets,
 		DisableMetricsCompatibilityDefaults: c.DisableMetricsCompat,
 		ApplicationLogOutput:                c.ApplicationLog,
 		ApplicationLogPrefix:                c.ApplicationLogPrefix,
@@ -937,6 +950,7 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesEastWestRangeAnnotationFiltersAppend: c.KubernetesEastWestRangeAnnotationFiltersAppend,
 		KubernetesAnnotationPredicates:                 c.KubernetesAnnotationPredicates,
 		KubernetesAnnotationFiltersAppend:              c.KubernetesAnnotationFiltersAppend,
+		EnableKubernetesExternalNames:                  c.EnableKubernetesExternalNames,
 		KubernetesOnlyAllowedExternalNames:             c.KubernetesOnlyAllowedExternalNames,
 		KubernetesAllowedExternalNames:                 c.KubernetesAllowedExternalNames,
 		KubernetesRedisServiceNamespace:                c.KubernetesRedisServiceNamespace,
@@ -1045,6 +1059,7 @@ func (c *Config) ToOptions() skipper.Options {
 
 		ClusterRatelimitMaxGroupShards: c.ClusterRatelimitMaxGroupShards,
 
+		EnableLua:  c.EnableLua,
 		LuaModules: c.LuaModules.values,
 		LuaSources: c.LuaSources.values,
 
