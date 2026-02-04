@@ -34,6 +34,7 @@ type Context struct {
 	FOutgoingHost       string
 	FMetrics            filters.Metrics
 	FTracer             opentracing.Tracer
+	FRouteId            string
 }
 
 func (spec *Filter) Name() string                    { return spec.FilterName }
@@ -91,3 +92,5 @@ func (fc *Context) LoopbackWithResponse() {}
 func (fc *Context) Split() (filters.FilterContext, error) {
 	return fc, nil
 }
+
+func (fc *Context) RouteId() string { return fc.FRouteId }
