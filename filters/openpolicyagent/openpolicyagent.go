@@ -586,6 +586,7 @@ func (registry *OpenPolicyAgentRegistry) markUnused(inUse map[*OpenPolicyAgentIn
 
 func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName string) (*OpenPolicyAgentInstance, error) {
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
+	runtime.RegisterPlugin(dl.DLPluginName, dl.Factory())
 
 	engine, err := registry.new(inmem.NewWithOpts(inmem.OptReturnASTValuesOnRead(registry.enableDataPreProcessingOptimization)), bundleName,
 		registry.maxRequestBodyBytes, registry.bodyReadBufferSize)
@@ -687,6 +688,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	}
 
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
+	runtime.RegisterPlugin(dl.DLPluginName, dl.Factory())
 
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
 	logger = logger.WithFields(map[string]interface{}{"bundle-name": bundleName})
