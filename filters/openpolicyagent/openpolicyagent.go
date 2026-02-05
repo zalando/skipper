@@ -761,7 +761,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	manager.RegisterPluginStatusListener("instance-health-check", func(_ map[string]*plugins.Status) {
 		// Get fresh status to workaround OPA issue https://github.com/open-policy-agent/opa/issues/8009
 		status := opa.manager.PluginStatus()
-		opa.healthy.Store(allPluginsReady(status, bundle.Name, discovery.Name))
+		opa.healthy.Store(allPluginsReady(status, bundle.Name, discovery.Name, dl.DLPluginName))
 		opa.Logger().Info("OPA instance health updated: healthy=%t status=%+v", opa.healthy.Load(), status)
 	})
 
