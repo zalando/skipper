@@ -229,6 +229,13 @@ func (c *context) Logger() filters.FilterContextLogger {
 	return c.logger
 }
 
+func (c *context) RouteId() string {
+	if c.route == nil {
+		return ""
+	}
+	return c.route.Id
+}
+
 func (c *context) Serve(r *http.Response) {
 	r.Request = c.Request()
 

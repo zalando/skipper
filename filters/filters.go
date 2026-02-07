@@ -135,6 +135,10 @@ type FilterContext interface {
 	LoopbackWithResponse()
 
 	Logger() FilterContextLogger
+
+	// RouteId Returns the route ID of the currently matched route or an empty string
+	// if no route has been matched yet.
+	RouteId() string
 }
 
 // FilterContextLogger is the logger which logs messages with additional context information.
