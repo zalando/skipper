@@ -18,7 +18,7 @@ with many above 15k routes. Our routing capabilities is based on
 which match the best route for a given request.
 
 Skipper can modify every detail in HTTP request and response by using
-[filters](../filters.md), that you apply to a route. One more complex
+[filters](../reference/filters.md), that you apply to a route. One more complex
 example is authentication for example via [Open Policy Agent](../reference/filters.md#open-policy-agent)
 or [cluster based rate limits](../reference/filters.md#clusterclientratelimit).
 
