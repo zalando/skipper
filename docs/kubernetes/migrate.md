@@ -20,7 +20,7 @@ which match the best route for a given request.
 Skipper can modify every detail in HTTP request and response by using
 [filters](../filters.md), that you apply to a route. One more complex
 example is authentication for example via [Open Policy Agent](../reference/filters.md#open-policy-agent)
-or [cluster based rate limits](../reference/filters.md##clusterclientratelimit).
+or [cluster based rate limits](../reference/filters.md#clusterclientratelimit).
 
 Skipper has also a very good visibility features, Prometheus metrics,
 access logs in Apache format, Opentracing/OTel with detailed proxy
