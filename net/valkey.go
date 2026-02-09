@@ -94,7 +94,7 @@ func createValkeyClient(addr string, opt *ValkeyOptions) (valkey.Client, error) 
 	)
 
 	if opt.EnableOTel {
-		valkeyotel.NewClient(clientOptions, opt.OTelOptions...)
+		cli, err = valkeyotel.NewClient(clientOptions, opt.OTelOptions...)
 	} else {
 		cli, err = valkey.NewClient(clientOptions)
 	}
@@ -294,7 +294,7 @@ func (vr *valkeyRing) RunScript(ctx context.Context, script *valkey.Lua, keys []
 	return script.Exec(ctx, shard, keys, args)
 }
 
-// ValkeyRingClient is a wrapper aroung valkey.Client that does access valkey shard by
+// ValkeyRingClient is a wrapper around valkey.Client that does access valkey shard by
 // computing a ring hash. It logs to the logging.Logger interface,
 // that you can pass. It adds metrics and operations are traced with
 // opentracing. You can set timeouts and the defaults are set to be ok
@@ -464,6 +464,9 @@ func (vrc *ValkeyRingClient) SetWithExpire(ctx context.Context, key string, valu
 		if err := res.Error(); err != nil {
 			return err
 		}
+	}
+	if len(results) == 0 {
+		return fmt.Errorf("failed to SetWithExpire, no result")
 	}
 	return results[len(results)-1].Error()
 }
