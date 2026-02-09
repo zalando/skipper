@@ -30,7 +30,7 @@ nav:
         - RouteGroup Validation: kubernetes/routegroup-validation.md
         - East-West aka svc-to-svc: kubernetes/east-west-usage.md
         - External Addresses aka External Name: kubernetes/external-addresses.md
-	- Migration: kubernetes/migrate.md
+        - Migration: kubernetes/migrate.md
     - Tutorials:
         - Basics: tutorials/basics.md
         - Common Use Cases: tutorials/common-use-cases.md
