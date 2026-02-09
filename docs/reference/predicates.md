@@ -52,6 +52,12 @@ There is a known bug with how predicates of the form `Path("/foo/*")` are curren
 defined with `*` doesn't have a name here. Wildcards must have a name, but Skipper currently does not reject
 these routes, resulting in undefined behavior.
 
+**Invalid patterns:**
+
+Free wildcards (`*` or `**`) **must be at the end of the path**. Using a free wildcard in the middle of the path
+is invalid and will result in the error `free wildcard param should be last`. If you need to match a path segment
+in the middle, use a named parameter (`:param`) instead.
+
 **Trailing slash:**
 
 By default, `Path("/foo")` and `Path("/foo/")` are not equivalent. Ignoring the trailing slash can be toggled
