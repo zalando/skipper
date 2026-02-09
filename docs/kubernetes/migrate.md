@@ -1,6 +1,6 @@
 This provides a guide for people that want to migrate from another Ingress Controller to Skipper.
 
-You can use our [Skipper install guide](../ingress-controller.md) to
+You can use our [Skipper install guide](ingress-controller.md) to
 deploy skipper and test it. Different Ingress controllers have a lot
 of advantages and disadvantages. Skipper is the most feature rich
 controller for HTTP. Skipper does not support lower level protocols as
@@ -14,13 +14,13 @@ of efficient routing up to 500k routes (not a kubernetes controller
 installation). In comparision the gateway-api tests end at 5k
 routes. We run ourselves Skipper as ingress controller in clusters
 with many above 15k routes. Our routing capabilities is based on
-[predicates](../predicates.md),
+[predicates](../reference/predicates.md),
 which match the best route for a given request.
 
 Skipper can modify every detail in HTTP request and response by using
 [filters](../filters.md), that you apply to a route. One more complex
-example is authentication for example via [Open Policy Agent](../filters.md#open-policy-agent)
-or [cluster based rate limits](../filters.md##clusterclientratelimit).
+example is authentication for example via [Open Policy Agent](../reference/filters.md#open-policy-agent)
+or [cluster based rate limits](../reference/filters.md##clusterclientratelimit).
 
 Skipper has also a very good visibility features, Prometheus metrics,
 access logs in Apache format, Opentracing/OTel with detailed proxy
@@ -85,7 +85,7 @@ nginx.ingress.kubernetes.io/mirror-target: https://1.2.3.4$request_uri
 nginx.ingress.kubernetes.io/mirror-host: "test.env.com"
 ```
 
-Skipper [tee filters](../filters.md#shadow-traffic)
+Skipper [tee filters](../reference/filters.md#shadow-traffic)
 ```
 zalando.org/skipper-filter: tee("https://test.env.com")
 ```
@@ -97,7 +97,7 @@ Nginx
 nginx.ingress.kubernetes.io/whitelist-source-range: 10.0.0.0/24,172.10.0.1
 ```
 
-Skipper predicate [ClientIP](../predicates.md#clientip) or [Source](../predicates.md#source)
+Skipper predicate [ClientIP](../reference/predicates.md#clientip) or [Source](../reference/predicates.md#source)
 ```
 zalando.org/skipper-predicate: ClientIP("10.0.0.0/24", "172.10.0.1")
 ```
@@ -109,7 +109,7 @@ Nginx (supports only by pod limit)
 nginx.ingress.kubernetes.io/limit-rps: 100
 ```
 
-Skipper supports different style of [rate limit filters](../filters.md#rate-limit). Some filters also support [template variables](../filters.md#template-placeholders).
+Skipper supports different style of [rate limit filters](../reference/filters.md#rate-limit). Some filters also support [template variables](../reference/filters.md#template-placeholders).
 ```
 # by pod limit
 zalando.org/skipper-filter: clientRatelimit(100, "1s")
@@ -133,7 +133,7 @@ nginx.ingress.kubernetes.io/permanent-redirect-code: '308'
 ```
 
 Skipper custom routes supports eskip, skipper's routing language.  The
-[<shunt> backend](../backends.md#shunt-backend) responds to the client
+[<shunt> backend](../reference/backends.md#shunt-backend) responds to the client
 directly from the proxy.
 ```
 zalando.org/skipper-routes: |
