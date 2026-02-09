@@ -730,7 +730,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		return nil, err
 	}
 
-	discoveryPlugin, err := discovery.New(manager, discovery.Factories(pluginFactories), discovery.Hooks(configHooks), discovery.BootConfig(bootConfig))
+	discoveryPlugin, err := discovery.New(manager, discovery.Factories(pluginFactories), discovery.Hooks(hooks.New(configHooks...)), discovery.BootConfig(bootConfig))
 	if err != nil {
 		return nil, err
 	}
