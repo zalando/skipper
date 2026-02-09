@@ -18,6 +18,9 @@ import (
 	"text/template"
 	"time"
 
+	dl "github.com/open-policy-agent/eopa/pkg/plugins/decision_logs"
+	"github.com/open-policy-agent/opa/v1/util"
+
 	"google.golang.org/protobuf/proto"
 
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -583,6 +586,7 @@ func (registry *OpenPolicyAgentRegistry) markUnused(inUse map[*OpenPolicyAgentIn
 
 func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName string) (*OpenPolicyAgentInstance, error) {
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
+	runtime.RegisterPlugin(dl.DLPluginName, dl.Factory())
 
 	engine, err := registry.new(inmem.NewWithOpts(inmem.OptReturnASTValuesOnRead(registry.enableDataPreProcessingOptimization)), bundleName,
 		registry.maxRequestBodyBytes, registry.bodyReadBufferSize)
@@ -684,6 +688,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	}
 
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
+	runtime.RegisterPlugin(dl.DLPluginName, dl.Factory())
 
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
 	logger = logger.WithFields(map[string]interface{}{"bundle-name": bundleName})
@@ -719,8 +724,15 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		return nil, err
 	}
 
-	discoveryPlugin, err := discovery.New(manager, discovery.Factories(map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}}), discovery.Hooks(hooks.New(configHooks...)))
+	pluginFactories := map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}, dl.DLPluginName: dl.Factory()}
 
+	var bootConfig map[string]any
+	err = util.Unmarshal(configBytes, &bootConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	discoveryPlugin, err := discovery.New(manager, discovery.Factories(pluginFactories), discovery.Hooks(hooks.New(configHooks...)), discovery.BootConfig(bootConfig))
 	if err != nil {
 		return nil, err
 	}
