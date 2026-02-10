@@ -137,7 +137,7 @@ func (c *clusterLimitValkey) Allow(ctx context.Context, clearText string) bool {
 	if allow {
 		c.metrics.IncCounter(valkeyMetricsPrefix + "allows")
 	} else {
-		c.metrics.IncCounter(valkeyMetricsPrefix + "forbids")
+		c.metrics.IncCounter(valkeyMetricsPrefix + "forbids") // TODO(sszuecs) forbids or better deny?
 	}
 	return allow
 }

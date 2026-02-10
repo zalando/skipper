@@ -196,6 +196,9 @@ type Config struct {
 	KubernetesRedisServiceNamespace                      string                             `yaml:"kubernetes-redis-service-namespace"`
 	KubernetesRedisServiceName                           string                             `yaml:"kubernetes-redis-service-name"`
 	KubernetesRedisServicePort                           int                                `yaml:"kubernetes-redis-service-port"`
+	KubernetesValkeyServiceNamespace                     string                             `yaml:"kubernetes-valkey-service-namespace"`
+	KubernetesValkeyServiceName                          string                             `yaml:"kubernetes-valkey-service-name"`
+	KubernetesValkeyServicePort                          int                                `yaml:"kubernetes-valkey-service-port"`
 	KubernetesBackendTrafficAlgorithmString              string                             `yaml:"kubernetes-backend-traffic-algorithm"`
 	KubernetesBackendTrafficAlgorithm                    kubernetes.BackendTrafficAlgorithm `yaml:"-"`
 	KubernetesDefaultLoadBalancerAlgorithm               string                             `yaml:"kubernetes-default-lb-algorithm"`
@@ -304,6 +307,14 @@ type Config struct {
 	SwarmRedisEndpointsRemoteURL string        `yaml:"swarm-redis-remote"`
 	SwarmRedisUpdateInterval     time.Duration `yaml:"swarm-redis-update-interval"`
 	SwarmRedisHeartbeatFrequency time.Duration `yaml:"swarm-redis-heartbeat-frequency"`
+	// valkey based
+	SwarmValkeyURLs               *listFlag     `yaml:"swarm-valkey-urls"`
+	SwarmValkeyEndpointsRemoteURL string        `yaml:"swarm-valkey-remote"`
+	SwarmValkeyUsername           string        `yaml:"swarm-valkey-username"`
+	SwarmValkeyPassword           string        `yaml:"swarm-valkey-password"`
+	SwarmValkeyConnLifetime       time.Duration `yaml:"swarm-valkey-conn-lifetime"`
+	SwarmValkeyConnWriteTimeout   time.Duration `yaml:"swarm-valkey-conn-timeout"`
+	SwarmValkeyUpdateInterval     time.Duration `yaml:"swarm-valkey-update-interval"`
 	// swim based
 	SwarmKubernetesNamespace          string        `yaml:"swarm-namespace"`
 	SwarmKubernetesLabelSelectorKey   string        `yaml:"swarm-label-selector-key"`
@@ -342,7 +353,8 @@ const (
 	defaultMinTLSVersion = "1.2"
 
 	// environment keys:
-	redisPasswordEnv = "SWARM_REDIS_PASSWORD"
+	redisPasswordEnv  = "SWARM_REDIS_PASSWORD"
+	valkeyPasswordEnv = "SWARM_VALKEY_PASSWORD"
 )
 
 func NewConfig() *Config {
@@ -355,6 +367,7 @@ func NewConfig() *Config {
 	cfg.MultiPlugins = newPluginFlag()
 	cfg.CredentialPaths = commaListFlag()
 	cfg.SwarmRedisURLs = commaListFlag()
+	cfg.SwarmValkeyURLs = commaListFlag()
 	cfg.AppendFilters = &defaultFiltersFlags{}
 	cfg.PrependFilters = &defaultFiltersFlags{}
 	cfg.DisabledFilters = commaListFlag()
@@ -529,6 +542,9 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesRedisServiceNamespace, "kubernetes-redis-service-namespace", "", "Sets namespace for redis to be used to lookup endpoints")
 	flag.StringVar(&cfg.KubernetesRedisServiceName, "kubernetes-redis-service-name", "", "Sets name for redis to be used to lookup endpoints")
 	flag.IntVar(&cfg.KubernetesRedisServicePort, "kubernetes-redis-service-port", 6379, "Sets the port for redis to be used to lookup endpoints")
+	flag.StringVar(&cfg.KubernetesValkeyServiceNamespace, "kubernetes-valkey-service-namespace", "", "Sets namespace for valkey to be used to lookup endpoints")
+	flag.StringVar(&cfg.KubernetesValkeyServiceName, "kubernetes-valkey-service-name", "", "Sets name for valkey to be used to lookup endpoints")
+	flag.IntVar(&cfg.KubernetesValkeyServicePort, "kubernetes-valkey-service-port", 6379, "Sets the port for valkey to be used to lookup endpoints")
 	flag.StringVar(&cfg.KubernetesBackendTrafficAlgorithmString, "kubernetes-backend-traffic-algorithm", kubernetes.TrafficPredicateAlgorithm.String(), "sets the algorithm to be used for traffic splitting between backends: traffic-predicate or traffic-segment-predicate")
 	flag.StringVar(&cfg.KubernetesDefaultLoadBalancerAlgorithm, "kubernetes-default-lb-algorithm", kubernetes.DefaultLoadBalancerAlgorithm, "sets the default algorithm to be used for load balancing between backend endpoints, available options: roundRobin, consistentHash, random, powerOfRandomNChoices")
 	flag.BoolVar(&cfg.KubernetesForceService, "kubernetes-force-service", false, "overrides default Skipper functionality and routes traffic using Kubernetes Services instead of Endpoints")
@@ -635,6 +651,7 @@ func NewConfig() *Config {
 
 	// Swarm:
 	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, "enable swarm communication between nodes in a skipper fleet")
+	// redis
 	flag.Var(cfg.SwarmRedisURLs, "swarm-redis-urls", "Redis URLs as comma separated list, used for building a swarm, for example in redis based cluster ratelimits.\nUse "+redisPasswordEnv+" environment variable or 'swarm-redis-password' key in config file to set redis password")
 	flag.StringVar(&cfg.SwarmRedisHashAlgorithm, "swarm-redis-hash-algorithm", "", "sets hash algorithm to be used in redis ring client to find the shard <jump|mpchash|rendezvous|rendezvousVnodes>, defaults to github.com/redis/go-redis default")
 	flag.DurationVar(&cfg.SwarmRedisDialTimeout, "swarm-redis-dial-timeout", net.DefaultDialTimeout, "set redis client dial timeout")
@@ -646,6 +663,13 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.SwarmRedisEndpointsRemoteURL, "swarm-redis-remote", "", "Remote URL to pull redis endpoints from.")
 	flag.DurationVar(&cfg.SwarmRedisUpdateInterval, "swarm-redis-update-interval", net.DefaultUpdateInterval, "set update interval to update redis addresses")
 	flag.DurationVar(&cfg.SwarmRedisHeartbeatFrequency, "swarm-redis-heartbeat-frequency", net.DefaultHeartbeatFrequency, "set redis heartbeat frequency")
+	// valkey
+	flag.Var(cfg.SwarmValkeyURLs, "swarm-valkey-urls", "Valkey URLs as comma separated list, used for building a swarm, for example in valkey based cluster ratelimits.\nUse "+valkeyPasswordEnv+" environment variable or 'swarm-valkey-password' key in config file to set valkey password")
+	flag.StringVar(&cfg.SwarmValkeyEndpointsRemoteURL, "swarm-valkey-remote", "", "Remote URL to pull valkey endpoints from.")
+	flag.DurationVar(&cfg.SwarmValkeyConnLifetime, "swarm-valkey-conn-lifetime", net.DefaultConnLifeTime, "set valkey client connection life time")
+	flag.DurationVar(&cfg.SwarmValkeyConnWriteTimeout, "swarm-valkey-conn-timeout", net.DefaultConnWriteTimeout, "set valkey client timeout for connect,read,write")
+	flag.DurationVar(&cfg.SwarmValkeyUpdateInterval, "swarm-valkey-update-interval", net.DefaultUpdateInterval, "set update interval to update valkey addresses")
+	// swim
 	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, "Kubernetes labelselector value to find swarm peer instances")
@@ -956,6 +980,9 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesRedisServiceNamespace:                c.KubernetesRedisServiceNamespace,
 		KubernetesRedisServiceName:                     c.KubernetesRedisServiceName,
 		KubernetesRedisServicePort:                     c.KubernetesRedisServicePort,
+		KubernetesValkeyServiceNamespace:               c.KubernetesValkeyServiceNamespace,
+		KubernetesValkeyServiceName:                    c.KubernetesValkeyServiceName,
+		KubernetesValkeyServicePort:                    c.KubernetesValkeyServicePort,
 		KubernetesBackendTrafficAlgorithm:              c.KubernetesBackendTrafficAlgorithm,
 		KubernetesDefaultLoadBalancerAlgorithm:         c.KubernetesDefaultLoadBalancerAlgorithm,
 		KubernetesForceService:                         c.KubernetesForceService,
@@ -1046,6 +1073,14 @@ func (c *Config) ToOptions() skipper.Options {
 		SwarmRedisEndpointsRemoteURL: c.SwarmRedisEndpointsRemoteURL,
 		SwarmRedisUpdateInterval:     c.SwarmRedisUpdateInterval,
 		SwarmRedisHeartbeatFrequency: c.SwarmRedisHeartbeatFrequency,
+		// valkey based
+		SwarmValkeyURLs:               c.SwarmValkeyURLs.values,
+		SwarmValkeyEndpointsRemoteURL: c.SwarmValkeyEndpointsRemoteURL,
+		SwarmValkeyUsername:           c.SwarmValkeyUsername,
+		SwarmValkeyPassword:           c.SwarmValkeyPassword,
+		SwarmValkeyConnLifetime:       c.SwarmValkeyConnLifetime,
+		SwarmValkeyConnWriteTimeout:   c.SwarmValkeyConnWriteTimeout,
+		SwarmValkeyUpdateInterval:     c.SwarmValkeyUpdateInterval,
 		// swim based
 		SwarmKubernetesNamespace:          c.SwarmKubernetesNamespace,
 		SwarmKubernetesLabelSelectorKey:   c.SwarmKubernetesLabelSelectorKey,
@@ -1277,6 +1312,10 @@ func (c *Config) parseEnv() {
 	// Set Redis password from environment variable if not set earlier (configuration file)
 	if c.SwarmRedisPassword == "" {
 		c.SwarmRedisPassword = os.Getenv(redisPasswordEnv)
+	}
+	// Set Valkey password from environment variable if not set earlier (configuration file)
+	if c.SwarmValkeyPassword == "" {
+		c.SwarmValkeyPassword = os.Getenv(valkeyPasswordEnv)
 	}
 }
 

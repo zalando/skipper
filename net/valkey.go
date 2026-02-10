@@ -18,7 +18,14 @@ import (
 	"github.com/zalando/skipper/metrics"
 )
 
-const ringSize = 10000
+const (
+	ringSize = 10000
+
+	DefaultUpdateInterval = 10 * time.Second
+
+	DefaultConnLifeTime     = time.Minute
+	DefaultConnWriteTimeout = 25 * time.Millisecond
+)
 
 // ValkeyOptions is used to configure the ValkeyRing
 //

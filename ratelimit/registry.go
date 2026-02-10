@@ -34,6 +34,22 @@ func NewRegistry(settings ...Settings) *Registry {
 	return NewRedisSwarmRegistry(nil, nil, settings...)
 }
 
+// NewSwarmRegistry initializes a registry with an optional swarm and
+// the provided default settings. If swarm is nil, clusterRatelimits
+// will be replaced by voidRatelimit, which is a noop limiter implementation.
+func NewSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, vo *net.ValkeyOptions, settings ...Settings) *Registry {
+	if vo != nil {
+		reg, err := NewValkeySwarmRegistry(vo, settings...)
+		if err != nil {
+			log.Errorf("Failed to create vakey swarm registry: %v", err)
+		} else {
+			return reg
+		}
+
+	}
+	return NewRedisSwarmRegistry(swarm, ro, settings...)
+}
+
 // NewRedisSwarmRegistry initializes a registry with an optional swarm and
 // the provided default settings. If swarm is nil, clusterRatelimits
 // will be replaced by voidRatelimit, which is a noop limiter implementation.
@@ -67,10 +83,10 @@ func NewRedisSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, settings ...Sett
 	return r
 }
 
-// NewValkeySwarmRegistry initializes a registry with an optional swarm and
-// the provided default settings. If swarm is nil, clusterRatelimits
+// NewValkeySwarmRegistry initializes a registry with Valkey shards and
+// the provided default settings. If settings are not set, clusterRatelimits
 // will be replaced by voidRatelimit, which is a noop limiter implementation.
-func NewValkeySwarmRegistry(swarm Swarmer, vo *net.ValkeyOptions, settings ...Settings) (*Registry, error) {
+func NewValkeySwarmRegistry(vo *net.ValkeyOptions, settings ...Settings) (*Registry, error) {
 	defaults := Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,
@@ -79,7 +95,7 @@ func NewValkeySwarmRegistry(swarm Swarmer, vo *net.ValkeyOptions, settings ...Se
 	}
 
 	if vo != nil && vo.MetricsPrefix == "" {
-		vo.MetricsPrefix = redisMetricsPrefix
+		vo.MetricsPrefix = valkeyMetricsPrefix
 	}
 
 	ring, err := net.NewValkeyRingClient(vo)
@@ -91,7 +107,6 @@ func NewValkeySwarmRegistry(swarm Swarmer, vo *net.ValkeyOptions, settings ...Se
 		once:       sync.Once{},
 		global:     defaults,
 		lookup:     make(map[Settings]*Ratelimit),
-		swarm:      swarm,
 		valkeyRing: ring,
 	}
 
@@ -105,7 +120,12 @@ func NewValkeySwarmRegistry(swarm Swarmer, vo *net.ValkeyOptions, settings ...Se
 // Close teardown Registry and dependent resources
 func (r *Registry) Close() {
 	r.once.Do(func() {
-		r.redisRing.Close()
+		if r.redisRing != nil {
+			r.redisRing.Close()
+		}
+		if r.valkeyRing != nil {
+			r.valkeyRing.Close()
+		}
 		for _, rl := range r.lookup {
 			rl.Close()
 		}
@@ -118,7 +138,7 @@ func (r *Registry) get(s Settings) *Ratelimit {
 
 	rl, ok := r.lookup[s]
 	if !ok {
-		rl = newRatelimit(s, r.swarm, r.redisRing)
+		rl = newRatelimit(s, r.swarm, r.redisRing, r.valkeyRing)
 		r.lookup[s] = rl
 	}
 
