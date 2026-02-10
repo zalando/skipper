@@ -1,6 +1,7 @@
 package traffic
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"net/http"
 
@@ -49,22 +50,22 @@ func (*segmentSpec) Name() string {
 //	r20: Path("/test") && TrafficSegment(0.8, 1.0) -> <shunt>;
 func (s *segmentSpec) Create(args []any) (routing.Predicate, error) {
 	if len(args) != 2 {
-		return nil, predicates.ErrInvalidPredicateParameters
+		return nil, fmt.Errorf("%w: invalid number of arguments, expects two arguments", predicates.ErrInvalidPredicateParameters)
 	}
 
 	p, ok := &segmentPredicate{randFloat64: s.randFloat64}, false
 
 	if p.min, ok = args[0].(float64); !ok || p.min < 0 || p.min > 1 {
-		return nil, predicates.ErrInvalidPredicateParameters
+		return nil, fmt.Errorf("%w: min is out of range", predicates.ErrInvalidPredicateParameters)
 	}
 
 	if p.max, ok = args[1].(float64); !ok || p.max < 0 || p.max > 1 {
-		return nil, predicates.ErrInvalidPredicateParameters
+		return nil, fmt.Errorf("%w: max is out of range", predicates.ErrInvalidPredicateParameters)
 	}
 
 	// min == max defines a never-matching interval, e.g. "owl interval" [0,0)
 	if p.min > p.max {
-		return nil, predicates.ErrInvalidPredicateParameters
+		return nil, fmt.Errorf("%w: invalid range", predicates.ErrInvalidPredicateParameters)
 	}
 
 	return p, nil
