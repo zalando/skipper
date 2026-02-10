@@ -84,6 +84,10 @@ func (c *inlineContentIfStatus) Response(ctx filters.FilterContext) {
 
 	contentLength := len(c.text)
 	rsp.ContentLength = int64(contentLength)
+
+	rsp.Header.Del("Content-Length")
+	rsp.Header.Del("Content-Encoding")
+
 	rsp.Header.Set("Content-Type", c.mime)
 	rsp.Header.Set("Content-Length", strconv.Itoa(contentLength))
 	rsp.Body = io.NopCloser(bytes.NewBufferString(c.text))
