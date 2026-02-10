@@ -1,0 +1,2 @@
+kube_default__myapp_ingress__example_org____myapp_service: Host("^(example[.]org[.]?(:[0-9]+)?)$") 
+	-> <roundRobin,"http://10.3.0.3:8080", "http://10.3.0.4:8080", "http://10.3.0.5:8080">;
