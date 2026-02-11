@@ -402,6 +402,7 @@ func (vrc *ValkeyRingClient) startUpdater(ctx context.Context) {
 
 	ticker := time.NewTicker(vrc.options.UpdateInterval)
 	defer ticker.Stop()
+	init := true
 	for {
 		select {
 		case <-vrc.quit:
@@ -415,10 +416,14 @@ func (vrc *ValkeyRingClient) startUpdater(ctx context.Context) {
 			continue
 		}
 		if len(difference(addrs, old)) != 0 {
-			vrc.log.Infof("Valkey updater updating old(%d) != new(%d)", len(old), len(addrs))
 			vrc.SetAddrs(ctx, addrs)
-			vrc.metrics.UpdateGauge(vrc.metricsPrefix+"shards", float64(vrc.ring.Len()))
+			vrc.log.Infof("Valkey updater updated old(%d) -> new(%d)", len(old), len(addrs))
 
+			old = addrs
+		} else if init && len(addrs) != 0 {
+			init = false
+			vrc.SetAddrs(ctx, addrs)
+			vrc.log.Infof("Valkey updater initial set to %d shards", len(addrs))
 			old = addrs
 		}
 	}
@@ -430,6 +435,7 @@ func (vrc *ValkeyRingClient) StartSpan(operationName string, opts ...opentracing
 
 func (vrc *ValkeyRingClient) SetAddrs(ctx context.Context, addrs []string) {
 	vrc.ring.SetAddr(addrs)
+	vrc.metrics.UpdateGauge(vrc.metricsPrefix+"shards", float64(vrc.ring.Len()))
 }
 
 func (vrc *ValkeyRingClient) RingAvailable(ctx context.Context) bool {

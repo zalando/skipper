@@ -1546,7 +1546,7 @@ func findKubernetesDataclient(dataClients []routing.DataClient) *kubernetes.Clie
 	return kdc
 }
 
-func getKubernetesAddrUpdater(opts *Options, kdc *kubernetes.Client, loaded bool, ns, name string, port int) func() ([]string, error) {
+func getKubernetesAddrUpdater(kdc *kubernetes.Client, loaded bool, ns, name string, port int) func() ([]string, error) {
 	if loaded {
 		// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
 		// has polled the data once or kdc.GetEndpointAddresses should be blocking
@@ -1957,7 +1957,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			kdc := findKubernetesDataclient(dataClients)
 			if kdc != nil {
-				valkeyOptions.AddrUpdater = getKubernetesAddrUpdater(&o, kdc, true, o.KubernetesValkeyServiceNamespace, o.KubernetesValkeyServiceName, o.KubernetesValkeyServicePort)
+				kdc.LoadAll()
+				valkeyOptions.AddrUpdater = getKubernetesAddrUpdater(kdc, true, o.KubernetesValkeyServiceNamespace, o.KubernetesValkeyServiceName, o.KubernetesValkeyServicePort)
 			} else {
 				kdc, err := kubernetes.New(o.KubernetesDataClientOptions())
 				if err != nil {
@@ -1965,23 +1966,25 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				}
 				defer kdc.Close()
 
-				valkeyOptions.AddrUpdater = getKubernetesAddrUpdater(&o, kdc, false, o.KubernetesValkeyServiceNamespace, o.KubernetesValkeyServiceName, o.KubernetesValkeyServicePort)
+				valkeyOptions.AddrUpdater = getKubernetesAddrUpdater(kdc, false, o.KubernetesValkeyServiceNamespace, o.KubernetesValkeyServiceName, o.KubernetesValkeyServicePort)
 			}
 
-			_, err = valkeyOptions.AddrUpdater()
+			res, err := valkeyOptions.AddrUpdater()
 			if err != nil {
 				log.Errorf("Failed to update valkey addresses from kubernetes: %v", err)
 				return err
 			}
-		} else if valkeyOptions != nil && o.SwarmValkeyEndpointsRemoteURL != "" {
-			log.Infof("Use remote address %s to fetch updates valkey shards", o.SwarmValkeyEndpointsRemoteURL)
-			valkeyOptions.AddrUpdater = getRemoteURLShardAddrUpdater(o.SwarmValkeyEndpointsRemoteURL)
+			log.Infof("Initial valkey address kubernetes update got %d shards", len(res))
 
-			_, err = valkeyOptions.AddrUpdater()
+		} else if valkeyOptions != nil && o.SwarmValkeyEndpointsRemoteURL != "" {
+			log.Infof("Use remote address %q to fetch updates valkey shards", o.SwarmValkeyEndpointsRemoteURL)
+			valkeyOptions.AddrUpdater = getRemoteURLShardAddrUpdater(o.SwarmValkeyEndpointsRemoteURL)
+			res, err := valkeyOptions.AddrUpdater()
 			if err != nil {
 				log.Errorf("Failed to update valkey addresses from URL: %v", err)
 				return err
 			}
+			log.Infof("Initial valkey address remote update got %d shards", len(res))
 		}
 
 		// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
@@ -1990,7 +1993,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			kdc := findKubernetesDataclient(dataClients)
 			if kdc != nil {
-				redisOptions.AddrUpdater = getKubernetesAddrUpdater(&o, kdc, true, o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort)
+				redisOptions.AddrUpdater = getKubernetesAddrUpdater(kdc, true, o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort)
 			} else {
 				kdc, err := kubernetes.New(o.KubernetesDataClientOptions())
 				if err != nil {
@@ -1998,7 +2001,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				}
 				defer kdc.Close()
 
-				redisOptions.AddrUpdater = getKubernetesAddrUpdater(&o, kdc, false, o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort)
+				redisOptions.AddrUpdater = getKubernetesAddrUpdater(kdc, false, o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort)
 			}
 
 			_, err = redisOptions.AddrUpdater()
@@ -2048,7 +2051,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			ratelimitfilters.NewBackendRatelimit(),
 		)
 
-		if redisOptions != nil {
+		if redisOptions != nil || valkeyOptions != nil {
 			o.CustomFilters = append(o.CustomFilters, ratelimitfilters.NewClusterLeakyBucketRatelimit(ratelimitRegistry))
 		}
 	}

@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: namespace1
+  name: service1
+spec:
+  ports:
+  - port: 6379
+    protocol: TCP
+    targetPort: 6379
+  type: ClusterIP
+---
+apiVersion: v1
+kind: EndpointSlice
+metadata:
+  labels:
+    kubernetes.io/service-name: service1
+  namespace: namespace1
+  name: service1-foo
+endpoints:
+  - addresses:
+    - 10.2.55.7
+    zone: my-zone-1
+ports:
+  - port: 6379
+    protocol: TCP
+---
+apiVersion: v1
+kind: EndpointSlice
+metadata:
+  labels:
+    kubernetes.io/service-name: service1
+  namespace: namespace1
+  name: service1-bar
+endpoints:
+  - addresses:
+    - 10.2.5.7
+    zone: my-zone-2
+ports:
+  - port: 6379
+    protocol: TCP

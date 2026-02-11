@@ -41,7 +41,7 @@ func NewSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, vo *net.ValkeyOptions
 	if vo != nil {
 		reg, err := NewValkeySwarmRegistry(vo, settings...)
 		if err != nil {
-			log.Errorf("Failed to create vakey swarm registry: %v", err)
+			log.Errorf("Failed to create valkey swarm registry: %v", err)
 		} else {
 			return reg
 		}

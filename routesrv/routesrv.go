@@ -116,6 +116,21 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		mux.Handle("/swarm/redis/shards", rh)
 	}
 
+	var vh *ValkeyHandler
+	// in case we have kubernetes dataclient and we can detect valkey instances, we patch valkeyOptions
+	if opts.KubernetesValkeyServiceNamespace != "" && opts.KubernetesValkeyServiceName != "" {
+		log.Infof("Use endpoints %s/%s to fetch updated valkey shards", opts.KubernetesValkeyServiceNamespace, opts.KubernetesValkeyServiceName)
+		vh = &ValkeyHandler{}
+		_, err := dataclient.LoadAll()
+		if err != nil {
+			return nil, err
+		}
+		vh.AddrUpdater = getValkeyAddresses(&opts, dataclient, m)
+		mux.Handle("/swarm/valkey/shards", vh)
+		println("HERE")
+	}
+	println("HERE 2")
+
 	rs.server = &http.Server{
 		Addr:              opts.Address,
 		Handler:           mux,
