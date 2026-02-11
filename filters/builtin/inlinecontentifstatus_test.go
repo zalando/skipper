@@ -14,7 +14,7 @@ import (
 func TestInlineContentIfStatusArgs(t *testing.T) {
 	for _, test := range []struct {
 		title          string
-		args           []interface{}
+		args           []any
 		expectedStatus int
 		expectedText   string
 		expectedMime   string
@@ -24,43 +24,49 @@ func TestInlineContentIfStatusArgs(t *testing.T) {
 		fail:  true,
 	}, {
 		title: "too little args",
-		args:  []interface{}{400},
+		args:  []any{400},
 		fail:  true,
 	}, {
 		title: "too many args",
-		args:  []interface{}{400, "bar", "baz", "qux"},
+		args:  []any{400, "bar", "baz", "qux"},
 		fail:  true,
 	}, {
 		title: "not string for text",
-		args:  []interface{}{503, 42},
+		args:  []any{503, 42},
 		fail:  true,
 	}, {
 		title: "too small status code",
-		args:  []interface{}{42, "bar"},
+		args:  []any{42, "bar"},
 		fail:  true,
 	}, {
 		title: "too large status code",
-		args:  []interface{}{666, "bar"},
+		args:  []any{666, "bar"},
 		fail:  true,
 	}, {
 		title: "not string for mime",
-		args:  []interface{}{400, "foo", 42},
+		args:  []any{400, "foo", 42},
 		fail:  true,
 	}, {
 		title:          "status and text only",
-		args:           []interface{}{200, "foo"},
+		args:           []any{200, "foo"},
 		expectedStatus: 200,
 		expectedText:   "foo",
 		expectedMime:   "text/plain",
 	}, {
 		title:          "status and text content, html type specified",
-		args:           []interface{}{403.0, `Works!`, "text/html"},
+		args:           []any{403.0, `Works!`, "text/html"},
 		expectedStatus: 403,
 		expectedText:   `Works!`,
 		expectedMime:   "text/html",
 	}, {
 		title:          "status and html type detected",
-		args:           []interface{}{500, `<!doctype html><html>foo</html>`},
+		args:           []any{500, `<!doctype html><html>foo</html>`},
+		expectedStatus: 500,
+		expectedText:   `<!doctype html><html>foo</html>`,
+		expectedMime:   "text/html",
+	}, {
+		title:          "status and html type detected",
+		args:           []any{500, `<!doctype html><html>foo</html>`},
 		expectedStatus: 500,
 		expectedText:   `<!doctype html><html>foo</html>`,
 		expectedMime:   "text/html",
@@ -133,6 +139,17 @@ func TestInlineContentIfStatus(t *testing.T) {
 		expectedStatus:      200,
 		expectedContent:     `{"foo": ["bar", "baz"]}`,
 		expectedContentType: "application/json",
+	}, {
+		title: "should reset content encoding",
+		routes: `*
+			-> inlineContentIfStatus(200, "text")
+			-> status(200)
+			-> compress()
+			-> inlineContent("compressed text")
+			-> <shunt>`,
+		expectedStatus:      200,
+		expectedContent:     `text`,
+		expectedContentType: "text/plain",
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			r := eskip.MustParse(test.routes)
@@ -168,6 +185,10 @@ func TestInlineContentIfStatus(t *testing.T) {
 				t.Error("invalid content length received")
 				t.Log("got:     ", rsp.Header.Get("Content-Length"))
 				t.Log("expected:", len(test.expectedContent))
+			}
+
+			if rsp.Header.Get("Content-Encoding") != "" {
+				t.Error("content encoding not reset")
 			}
 
 			b, err := io.ReadAll(rsp.Body)
