@@ -597,7 +597,7 @@ func (c *clusterClient) loadEndpointAddresses(zone, namespace, name string) ([]s
 		}
 		result = ep.addresses()
 	}
-	if len(resultByZone) > 2 {
+	if len(resultByZone) >= minEndpointsByZone {
 		result = resultByZone
 	}
 	sort.Strings(result)
