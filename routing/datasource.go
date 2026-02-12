@@ -241,7 +241,7 @@ func createFilter(o *Options, def *eskip.Filter, cpm map[string]PredicateSpec) (
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to create filter %q: %w", errInvalidFilterParams, spec.Name(), err)
+		return nil, fmt.Errorf("%w: failed to create filter %v: %w", errInvalidFilterParams, def, err)
 	}
 	return f, nil
 }
@@ -401,7 +401,7 @@ func processPredicates(o *Options, cpm map[string]PredicateSpec, defs []*eskip.P
 
 		cp, err := spec.Create(def.Args)
 		if err != nil {
-			return nil, 0, fmt.Errorf("%w: failed to create predicate %q: %w", errInvalidPredicateParams, spec.Name(), err)
+			return nil, 0, fmt.Errorf("%w: failed to create predicate %v: %w", errInvalidPredicateParams, def, err)
 		}
 
 		if ws, ok := spec.(WeightedPredicateSpec); ok {
@@ -515,7 +515,7 @@ func ValidateRoute(o *Options, def *eskip.Route) error {
 func processRouteDef(o *Options, cpm map[string]PredicateSpec, def *eskip.Route) (*Route, error) {
 	scheme, host, err := SplitBackend(def.Backend, def.BackendType, def.Shunt)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errFailedBackendSplit, err)
+		return nil, fmt.Errorf("%w: failed to parse backend address %q: %w", errFailedBackendSplit, def.Backend, err)
 	}
 
 	fs, err := createFilters(o, def.Filters, cpm)
