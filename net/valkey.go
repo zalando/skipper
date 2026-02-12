@@ -404,6 +404,7 @@ func (vrc *ValkeyRingClient) startUpdater(ctx context.Context) {
 	defer ticker.Stop()
 	init := true
 	for {
+
 		select {
 		case <-vrc.quit:
 			return
@@ -415,7 +416,7 @@ func (vrc *ValkeyRingClient) startUpdater(ctx context.Context) {
 			vrc.log.Errorf("Failed to run valkey updater: %v", err)
 			continue
 		}
-		if len(difference(addrs, old)) != 0 {
+		if !init && len(difference(addrs, old)) != 0 {
 			vrc.SetAddrs(ctx, addrs)
 			vrc.log.Infof("Valkey updater updated old(%d) -> new(%d)", len(old), len(addrs))
 
