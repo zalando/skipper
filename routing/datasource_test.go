@@ -19,6 +19,7 @@ import (
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/query"
+	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 )
@@ -101,10 +102,22 @@ func TestProcessRouteDefErrors(t *testing.T) {
 			`unknown_predicate: predicate "Unknown" not found`,
 		}, {
 			`QueryParam() -> <shunt>`,
-			`invalid_predicate_params: failed to create predicate "QueryParam": invalid predicate parameters`,
+			`invalid_predicate_params: failed to create predicate QueryParam(): invalid predicate parameters`,
+		}, {
+			`QueryParam("a", "b", "c") -> <shunt>`,
+			`invalid_predicate_params: failed to create predicate QueryParam("a", "b", "c"): invalid predicate parameters`,
 		}, {
 			`* -> setPath() -> <shunt>`,
-			`invalid_filter_params: failed to create filter "setPath": invalid filter parameters`,
+			`invalid_filter_params: failed to create filter setPath(): invalid filter parameters`,
+		}, {
+			`TrafficSegment(0.5, 1.5) -> <shunt>`,
+			`invalid_predicate_params: failed to create predicate TrafficSegment(0.5, 1.5): invalid predicate parameters: max is out of range`,
+		}, {
+			`TrafficSegment(1, 0) -> <shunt>`,
+			`invalid_predicate_params: failed to create predicate TrafficSegment(1, 0): invalid predicate parameters: invalid range`,
+		}, {
+			`* -> "invalid-url"`,
+			`failed_backend_split: failed to parse backend address "invalid-url": parse "invalid-url": invalid URI for request`,
 		},
 	} {
 		func() {
@@ -124,7 +137,7 @@ func TestProcessRouteDefErrors(t *testing.T) {
 			}
 
 			pr := map[string]routing.PredicateSpec{}
-			for _, s := range []routing.PredicateSpec{primitive.NewTrue(), query.New()} {
+			for _, s := range []routing.PredicateSpec{primitive.NewTrue(), query.New(), traffic.NewSegment()} {
 				pr[s.Name()] = s
 			}
 			fr := make(filters.Registry)
