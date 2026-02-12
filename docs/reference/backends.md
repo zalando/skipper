@@ -299,8 +299,6 @@ Current implemented algorithms:
 - `powerOfRandomNChoices`: backend is chosen by powerOfRandomNChoices algorithm with selecting N random endpoints and picking the one with least outstanding requests from them. (http://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf)
 - __TODO__: https://github.com/zalando/skipper/issues/557
 
-All algorithms except `powerOfRandomNChoices` support [fadeIn](filters.md#fadein) filter.
-
 Route example with 2 backends and the `roundRobin` algorithm:
 ```
 r0: * -> <roundRobin, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
