@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -54,6 +55,7 @@ type ingress struct {
 	eastWestRangePredicates                        []*eskip.Predicate
 	allowedExternalNames                           []*regexp.Regexp
 	kubernetesEastWestDomain                       string
+	zone                                           string
 	pathMode                                       PathMode
 	httpsRedirectCode                              int
 	kubernetesEnableEastWest                       bool
@@ -109,6 +111,7 @@ func newIngress(o Options) *ingress {
 		eastWestRangeDomains:                           o.KubernetesEastWestRangeDomains,
 		eastWestRangePredicates:                        o.KubernetesEastWestRangePredicates,
 		enableExternalNames:                            o.EnableExternalNames,
+		zone:                                           o.TopologyZone,
 		allowedExternalNames:                           o.AllowedExternalNames,
 		forceKubernetesService:                         o.ForceKubernetesService,
 		backendTrafficAlgorithm:                        o.BackendTrafficAlgorithm,
@@ -383,10 +386,8 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 			return true
 		}
 
-		for _, exp := range route.PathRegexps {
-			if exp == "^/" {
-				return true
-			}
+		if slices.Contains(route.PathRegexps, "^/") {
+			return true
 		}
 	}
 

@@ -383,7 +383,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		}
 
 		eps = state.GetEndpointsByService(
-			ic.zone,
+			ing.zone,
 			ns,
 			svcName,
 			protocol,
@@ -457,6 +457,7 @@ func (ing *ingress) ingressV1Route(
 		defaultFilters:      df,
 		certificateRegistry: r,
 		calculateTraffic:    getBackendTrafficCalculator[*weightedIngressBackend](ing.backendTrafficAlgorithm),
+		zone:                ing.zone,
 	}
 
 	var route *eskip.Route
