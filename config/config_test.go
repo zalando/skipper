@@ -159,7 +159,7 @@ func defaultConfig(with func(*Config)) *Config {
 		SwarmRedisMaxConns:                      100,
 		SwarmValkeyURLs:                         commaListFlag(),
 		SwarmValkeyConnLifetime:                 time.Minute,
-		SwarmValkeyConnWriteTimeout:             time.Millisecond,
+		SwarmValkeyConnWriteTimeout:             25 * time.Millisecond,
 		SwarmValkeyUpdateInterval:               10 * time.Second,
 		SwarmKubernetesNamespace:                "kube-system",
 		SwarmKubernetesLabelSelectorKey:         "application",
@@ -379,6 +379,7 @@ func Test_NewConfigWithArgs(t *testing.T) {
 					values:  []string{"http://foo.test/bar", "http://baz.test/qux"},
 				}
 				c.SwarmRedisPassword = "set_from_file"
+				c.SwarmValkeyPassword = "set_from_file2"
 				c.RefusePayload = multiFlag{"foo", "bar", "baz"}
 			}),
 		},
