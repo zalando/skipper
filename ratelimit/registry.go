@@ -31,12 +31,11 @@ type Registry struct {
 
 // NewRegistry initializes a registry with the provided default settings.
 func NewRegistry(settings ...Settings) *Registry {
-	return NewRedisSwarmRegistry(nil, nil, settings...)
+	return NewSwarmRegistry(nil, nil, nil, settings...)
 }
 
 // NewSwarmRegistry initializes a registry with an optional swarm and
-// the provided default settings. If swarm is nil, clusterRatelimits
-// will be replaced by voidRatelimit, which is a noop limiter implementation.
+// the provided default settings.
 func NewSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, vo *net.ValkeyOptions, settings ...Settings) *Registry {
 	if vo != nil {
 		reg, err := NewValkeySwarmRegistry(vo, settings...)
@@ -45,31 +44,53 @@ func NewSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, vo *net.ValkeyOptions
 		} else {
 			return reg
 		}
-
 	}
-	return NewRedisSwarmRegistry(swarm, ro, settings...)
+
+	if ro != nil {
+		return NewRedisSwarmRegistry(ro, settings...)
+	}
+
+	return NewSwimSwarmRegistry(swarm, settings...)
 }
 
-// NewRedisSwarmRegistry initializes a registry with an optional swarm and
-// the provided default settings. If swarm is nil, clusterRatelimits
-// will be replaced by voidRatelimit, which is a noop limiter implementation.
-func NewRedisSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, settings ...Settings) *Registry {
-	defaults := Settings{
+func getSwarmRegistryDefaultSettings() Settings {
+	return Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,
 		TimeWindow:    DefaultTimeWindow,
 		CleanInterval: DefaultCleanInterval,
 	}
+}
 
+// NewSwimSwarmRegistry initializes a registry and the provided
+// default settings.
+func NewSwimSwarmRegistry(swarm Swarmer, settings ...Settings) *Registry {
+	r := &Registry{
+		once:   sync.Once{},
+		global: getSwarmRegistryDefaultSettings(),
+		lookup: make(map[Settings]*Ratelimit),
+		swarm:  swarm,
+	}
+
+	if len(settings) > 0 {
+		r.global = settings[0]
+	}
+
+	return r
+
+}
+
+// NewRedisSwarmRegistry initializes a registry with Redis shards and
+// the optional provided default settings.
+func NewRedisSwarmRegistry(ro *net.RedisOptions, settings ...Settings) *Registry {
 	if ro != nil && ro.MetricsPrefix == "" {
 		ro.MetricsPrefix = redisMetricsPrefix
 	}
 
 	r := &Registry{
 		once:      sync.Once{},
-		global:    defaults,
+		global:    getSwarmRegistryDefaultSettings(),
 		lookup:    make(map[Settings]*Ratelimit),
-		swarm:     swarm,
 		redisRing: net.NewRedisRingClient(ro),
 	}
 	if ro != nil {
@@ -83,17 +104,9 @@ func NewRedisSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, settings ...Sett
 	return r
 }
 
-// NewValkeySwarmRegistry initializes a registry with Valkey shards and
-// the provided default settings. If settings are not set, clusterRatelimits
-// will be replaced by voidRatelimit, which is a noop limiter implementation.
+// NewValkeySwarmRegistry initializes a registry with Valkey shards
+// and the optional provided default settings.
 func NewValkeySwarmRegistry(vo *net.ValkeyOptions, settings ...Settings) (*Registry, error) {
-	defaults := Settings{
-		Type:          DisableRatelimit,
-		MaxHits:       DefaultMaxhits,
-		TimeWindow:    DefaultTimeWindow,
-		CleanInterval: DefaultCleanInterval,
-	}
-
 	if vo != nil && vo.MetricsPrefix == "" {
 		vo.MetricsPrefix = valkeyMetricsPrefix
 	}
@@ -105,7 +118,7 @@ func NewValkeySwarmRegistry(vo *net.ValkeyOptions, settings ...Settings) (*Regis
 
 	r := &Registry{
 		once:       sync.Once{},
-		global:     defaults,
+		global:     getSwarmRegistryDefaultSettings(),
 		lookup:     make(map[Settings]*Ratelimit),
 		valkeyRing: ring,
 	}
