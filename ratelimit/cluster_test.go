@@ -29,6 +29,7 @@ func Test_newClusterRateLimiter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create valkey ring client: %v", err)
 	}
+	defer valkeyRing.Close()
 
 	fake, err := newFakeSwarm("foo01", 3*time.Second)
 	if err != nil {
