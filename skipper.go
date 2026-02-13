@@ -305,13 +305,22 @@ type Options struct {
 	// used with external name services (type=ExternalName).
 	KubernetesAllowedExternalNames []*regexp.Regexp
 
-	// KubernetesRedisServiceNamespace to be used to lookup ring shards dynamically
+	// KubernetesValkeyServiceNamespace to be used to lookup ring shards dynamically to support autoscaling
+	KubernetesValkeyServiceNamespace string
+
+	// KubernetesValkeyServiceName to be used to lookup ring shards dynamically to support autoscaling
+	KubernetesValkeyServiceName string
+
+	// KubernetesValkeyServicePort to be used to lookup ring shards dynamically to support autoscaling
+	KubernetesValkeyServicePort int
+
+	// KubernetesRedisServiceNamespace to be used to lookup ring shards dynamically to support autoscaling
 	KubernetesRedisServiceNamespace string
 
-	// KubernetesRedisServiceName to be used to lookup ring shards dynamically
+	// KubernetesRedisServiceName to be used to lookup ring shards dynamically to support autoscaling
 	KubernetesRedisServiceName string
 
-	// KubernetesRedisServicePort to be used to lookup ring shards dynamically
+	// KubernetesRedisServicePort to be used to lookup ring shards dynamically to support autoscaling
 	KubernetesRedisServicePort int
 
 	// KubernetesTopologyZone if set to non empty string it is used to filter endpointslice endpoints by this value.
@@ -975,6 +984,14 @@ type Options struct {
 	SwarmRedisConnMetricsInterval time.Duration
 	SwarmRedisUpdateInterval      time.Duration
 	SwarmRedisHeartbeatFrequency  time.Duration
+	// valkey based swarm
+	SwarmValkeyURLs               []string
+	SwarmValkeyEndpointsRemoteURL string
+	SwarmValkeyUsername           string
+	SwarmValkeyPassword           string
+	SwarmValkeyConnWriteTimeout   time.Duration
+	SwarmValkeyConnLifetime       time.Duration
+	SwarmValkeyUpdateInterval     time.Duration
 	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
@@ -1529,23 +1546,23 @@ func findKubernetesDataclient(dataClients []routing.DataClient) *kubernetes.Clie
 	return kdc
 }
 
-func getKubernetesRedisAddrUpdater(opts *Options, kdc *kubernetes.Client, loaded bool) func() ([]string, error) {
+func getKubernetesAddrUpdater(kdc *kubernetes.Client, loaded bool, ns, name string, port int) func() ([]string, error) {
 	if loaded {
 		// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
 		// has polled the data once or kdc.GetEndpointAddresses should be blocking
 		// call to kubernetes API
 		return func() ([]string, error) {
-			a := kdc.GetEndpointAddresses("", opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
-			log.Debugf("GetEndpointAddresses found %d redis endpoints", len(a))
+			a := kdc.GetEndpointAddresses("", ns, name)
+			log.Debugf("GetEndpointAddresses found %d redis/valkey endpoints", len(a))
 
-			return joinPort(a, opts.KubernetesRedisServicePort), nil
+			return joinPort(a, port), nil
 		}
 	} else {
 		return func() ([]string, error) {
-			a, err := kdc.LoadEndpointAddresses("", opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
-			log.Debugf("LoadEndpointAddresses found %d redis endpoints, err: %v", len(a), err)
+			a, err := kdc.LoadEndpointAddresses("", ns, name)
+			log.Debugf("LoadEndpointAddresses found %d redis/valkey endpoints, err: %v", len(a), err)
 
-			return joinPort(a, opts.KubernetesRedisServicePort), err
+			return joinPort(a, port), err
 		}
 	}
 }
@@ -1558,31 +1575,31 @@ func joinPort(addrs []string, port int) []string {
 	return addrs
 }
 
-type RedisEndpoint struct {
+type ShardEndpoint struct {
 	Address string `json:"address"`
 }
 
-type RedisEndpoints struct {
-	Endpoints []RedisEndpoint `json:"endpoints"`
+type ShardEndpoints struct {
+	Endpoints []ShardEndpoint `json:"endpoints"`
 }
 
-func getRemoteURLRedisAddrUpdater(address string) func() ([]string, error) {
+func getRemoteURLShardAddrUpdater(address string) func() ([]string, error) {
 	/* #nosec */
 	return func() ([]string, error) {
 		resp, err := http.Get(address)
 		if err != nil {
-			log.Errorf("failed to connect to redis endpoint %v, due to: %v", address, err)
+			log.Errorf("failed to connect to redis/valkey endpoint %v, due to: %v", address, err)
 			return nil, err
 		}
 		defer resp.Body.Close()
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			log.Errorf("failed to read to redis response %v", err)
+			log.Errorf("failed to read to redis/valkey response %v", err)
 			return nil, err
 		}
 
-		target := &RedisEndpoints{}
+		target := &ShardEndpoints{}
 
 		err = json.Unmarshal(body, target)
 		if err != nil {
@@ -1847,11 +1864,28 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		)
 	}
 
-	var swarmer ratelimit.Swarmer
-	var redisOptions *skpnet.RedisOptions
+	var (
+		swarmer       ratelimit.Swarmer
+		redisOptions  *skpnet.RedisOptions
+		valkeyOptions *skpnet.ValkeyOptions
+	)
 	log.Infof("enable swarm: %v", o.EnableSwarm)
 	if o.EnableSwarm {
-		if len(o.SwarmRedisURLs) > 0 || o.KubernetesRedisServiceName != "" || o.SwarmRedisEndpointsRemoteURL != "" {
+		if len(o.SwarmValkeyURLs) > 0 || o.KubernetesValkeyServiceName != "" || o.SwarmValkeyEndpointsRemoteURL != "" {
+			log.Infof("Valkey based swarm with %d shards", len(o.SwarmValkeyURLs))
+
+			valkeyOptions = &skpnet.ValkeyOptions{
+				Addrs:            o.SwarmValkeyURLs,
+				UpdateInterval:   o.SwarmValkeyUpdateInterval,
+				Username:         o.SwarmValkeyUsername,
+				Password:         o.SwarmValkeyPassword,
+				ConnWriteTimeout: o.SwarmValkeyConnWriteTimeout,
+				ConnLifetime:     o.SwarmValkeyConnLifetime,
+				Tracer:           tracer,
+				Log:              log.New(),
+			}
+
+		} else if len(o.SwarmRedisURLs) > 0 || o.KubernetesRedisServiceName != "" || o.SwarmRedisEndpointsRemoteURL != "" {
 			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
 
 			redisOptions = &skpnet.RedisOptions{
@@ -1871,6 +1905,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				Tracer:              tracer,
 				Log:                 log.New(),
 			}
+
 		} else {
 			log.Infof("Start swim based swarm")
 			swops := &swarm.Options{
@@ -1897,7 +1932,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				}
 				other := []*swarm.NodeInfo{self}
 
-				for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
+				for addr := range strings.SplitSeq(o.SwarmStaticOther, ",") {
 					ni, err := swarm.NewStaticNodeInfo(addr, addr)
 					if err != nil {
 						return fmt.Errorf("failed to get static NodeInfo: %w", err)
@@ -1916,13 +1951,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			swarmer = theSwarm
 		}
 
-		// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
-		if redisOptions != nil && o.KubernetesRedisServiceNamespace != "" && o.KubernetesRedisServiceName != "" {
-			log.Infof("Use endpoints %s/%s to fetch updated redis shards", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
+		// in case we have kubernetes dataclient and we can detect valkey instances, we patch valkeyOptions
+		if valkeyOptions != nil && o.KubernetesValkeyServiceNamespace != "" && o.KubernetesValkeyServiceName != "" {
+			log.Infof("Use endpoints %s/%s to fetch updated valkey shards", o.KubernetesValkeyServiceNamespace, o.KubernetesValkeyServiceName)
 
 			kdc := findKubernetesDataclient(dataClients)
 			if kdc != nil {
-				redisOptions.AddrUpdater = getKubernetesRedisAddrUpdater(&o, kdc, true)
+				kdc.LoadAll()
+				valkeyOptions.AddrUpdater = getKubernetesAddrUpdater(kdc, true, o.KubernetesValkeyServiceNamespace, o.KubernetesValkeyServiceName, o.KubernetesValkeyServicePort)
 			} else {
 				kdc, err := kubernetes.New(o.KubernetesDataClientOptions())
 				if err != nil {
@@ -1930,7 +1966,42 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				}
 				defer kdc.Close()
 
-				redisOptions.AddrUpdater = getKubernetesRedisAddrUpdater(&o, kdc, false)
+				valkeyOptions.AddrUpdater = getKubernetesAddrUpdater(kdc, false, o.KubernetesValkeyServiceNamespace, o.KubernetesValkeyServiceName, o.KubernetesValkeyServicePort)
+			}
+
+			res, err := valkeyOptions.AddrUpdater()
+			if err != nil {
+				log.Errorf("Failed to update valkey addresses from kubernetes: %v", err)
+				return err
+			}
+			log.Infof("Initial valkey address kubernetes update got %d shards", len(res))
+
+		} else if valkeyOptions != nil && o.SwarmValkeyEndpointsRemoteURL != "" {
+			log.Infof("Use remote address %q to fetch updates valkey shards", o.SwarmValkeyEndpointsRemoteURL)
+			valkeyOptions.AddrUpdater = getRemoteURLShardAddrUpdater(o.SwarmValkeyEndpointsRemoteURL)
+			res, err := valkeyOptions.AddrUpdater()
+			if err != nil {
+				log.Errorf("Failed to update valkey addresses from URL: %v", err)
+				return err
+			}
+			log.Infof("Initial valkey address remote update got %d shards", len(res))
+		}
+
+		// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
+		if redisOptions != nil && o.KubernetesRedisServiceNamespace != "" && o.KubernetesRedisServiceName != "" {
+			log.Infof("Use endpoints %s/%s to fetch updated redis shards", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
+
+			kdc := findKubernetesDataclient(dataClients)
+			if kdc != nil {
+				redisOptions.AddrUpdater = getKubernetesAddrUpdater(kdc, true, o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort)
+			} else {
+				kdc, err := kubernetes.New(o.KubernetesDataClientOptions())
+				if err != nil {
+					return err
+				}
+				defer kdc.Close()
+
+				redisOptions.AddrUpdater = getKubernetesAddrUpdater(kdc, false, o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort)
 			}
 
 			_, err = redisOptions.AddrUpdater()
@@ -1940,7 +2011,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			}
 		} else if redisOptions != nil && o.SwarmRedisEndpointsRemoteURL != "" {
 			log.Infof("Use remote address %s to fetch updates redis shards", o.SwarmRedisEndpointsRemoteURL)
-			redisOptions.AddrUpdater = getRemoteURLRedisAddrUpdater(o.SwarmRedisEndpointsRemoteURL)
+			redisOptions.AddrUpdater = getRemoteURLShardAddrUpdater(o.SwarmRedisEndpointsRemoteURL)
 
 			_, err = redisOptions.AddrUpdater()
 			if err != nil {
@@ -1954,7 +2025,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	var failClosedRatelimitPostProcessor *ratelimitfilters.FailClosedPostProcessor
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		ratelimitRegistry = ratelimit.NewSwarmRegistry(swarmer, redisOptions, o.RatelimitSettings...)
+		ratelimitRegistry = ratelimit.NewSwarmRegistry(swarmer, redisOptions, valkeyOptions, o.RatelimitSettings...)
 		defer ratelimitRegistry.Close()
 
 		if hook := o.SwarmRegistry; hook != nil {
@@ -1980,7 +2051,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			ratelimitfilters.NewBackendRatelimit(),
 		)
 
-		if redisOptions != nil {
+		if redisOptions != nil || valkeyOptions != nil {
 			o.CustomFilters = append(o.CustomFilters, ratelimitfilters.NewClusterLeakyBucketRatelimit(ratelimitRegistry))
 		}
 	}

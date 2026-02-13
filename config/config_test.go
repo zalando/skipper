@@ -113,6 +113,7 @@ func defaultConfig(with func(*Config)) *Config {
 		KubernetesHTTPSRedirectCode:             308,
 		KubernetesPathModeString:                "kubernetes-ingress",
 		KubernetesRedisServicePort:              6379,
+		KubernetesValkeyServicePort:             6379,
 		KubernetesBackendTrafficAlgorithmString: "traffic-predicate",
 		KubernetesDefaultLoadBalancerAlgorithm:  "roundRobin",
 		Oauth2TokeninfoTimeout:                  2 * time.Second,
@@ -156,6 +157,10 @@ func defaultConfig(with func(*Config)) *Config {
 		SwarmRedisHeartbeatFrequency:            500 * time.Millisecond,
 		SwarmRedisMinConns:                      100,
 		SwarmRedisMaxConns:                      100,
+		SwarmValkeyURLs:                         commaListFlag(),
+		SwarmValkeyConnLifetime:                 time.Minute,
+		SwarmValkeyConnWriteTimeout:             25 * time.Millisecond,
+		SwarmValkeyUpdateInterval:               10 * time.Second,
 		SwarmKubernetesNamespace:                "kube-system",
 		SwarmKubernetesLabelSelectorKey:         "application",
 		SwarmKubernetesLabelSelectorValue:       "skipper-ingress",
@@ -374,6 +379,7 @@ func Test_NewConfigWithArgs(t *testing.T) {
 					values:  []string{"http://foo.test/bar", "http://baz.test/qux"},
 				}
 				c.SwarmRedisPassword = "set_from_file"
+				c.SwarmValkeyPassword = "set_from_file2"
 				c.RefusePayload = multiFlag{"foo", "bar", "baz"}
 			}),
 		},

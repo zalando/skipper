@@ -111,8 +111,8 @@ const (
 
 	// ClusterClientRatelimit is used to calculate a rate limit
 	// for a whole skipper fleet per user for a backend, needs
-	// swarm to be enabled with -enable-swarm. In case of redis it
-	// will not consume more memory.
+	// swarm to be enabled with -enable-swarm. In case of redis or
+	// valkey it will not consume more memory.
 	// In case of swim based cluster ratelimit, one filter
 	// consumes memory calculated by the following formular, where
 	// N is the number of individual clients put into the same
@@ -281,10 +281,10 @@ func (rrl *RoundRobinLookuper) String() string {
 // Settings configures the chosen rate limiter
 type Settings struct {
 	// FailClosed allows to to decide what happens on failures to
-	// query the ratelimit. For example redis is down, fail open
-	// or fail closed. FailClosed set to true will deny the
-	// request and set to true will allow the request. Default is
-	// to fail open.
+	// query the ratelimit. For example redis or valkey is down,
+	// fail open or fail closed. FailClosed set to true will deny
+	// the request and set to true will allow the request. Default
+	// is to fail open.
 	FailClosed bool `yaml:"fail-closed"`
 
 	// Type of the chosen rate limiter
@@ -427,7 +427,7 @@ func (zeroRatelimit) RetryAfter(string) int              { return zeroRetry }
 func (zeroRatelimit) Delta(string) time.Duration         { return zeroDelta }
 func (zeroRatelimit) Resize(string, int)                 {}
 
-func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient) *Ratelimit {
+func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient, valkeyRing *net.ValkeyRingClient) *Ratelimit {
 	var impl limiter
 	if s.MaxHits == 0 {
 		impl = zeroRatelimit{}
@@ -444,7 +444,7 @@ func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient) *Ratel
 			s.CleanInterval = 0
 			fallthrough
 		case ClusterClientRatelimit:
-			impl = newClusterRateLimiter(s, sw, redisRing, s.Group)
+			impl = newClusterRateLimiter(s, sw, redisRing, valkeyRing, s.Group)
 		default:
 			impl = voidRatelimit{}
 		}

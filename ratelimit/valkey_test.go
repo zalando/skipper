@@ -7,18 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zalando/skipper/metrics"
-	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/net"
-	"github.com/zalando/skipper/net/redistest"
+	"github.com/zalando/skipper/net/valkeytest"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_clusterLimitRedis_WithPass(t *testing.T) {
-	const redisPassword = "pass"
+func Test_clusterLimitValkey_WithPass(t *testing.T) {
+	const valkeyPassword = "pass"
 
-	redisAddr, done := redistest.NewTestRedisWithPassword(t, redisPassword)
+	valkeyAddr, done := valkeytest.NewTestValkeyWithPassword(t, valkeyPassword)
 	defer done()
 
 	clusterClientLimit := Settings{
@@ -37,43 +35,47 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 		addrs      []string
 		password   string
 		want       []bool
+		wantErr    bool
 	}{
 		{
 			name:       "correct password",
 			settings:   clusterClientLimit,
 			args:       "clientAuth",
-			addrs:      []string{redisAddr},
-			password:   redisPassword,
+			addrs:      []string{valkeyAddr},
+			password:   valkeyPassword,
 			iterations: 6,
 			want:       append(repeat(true, 5), false),
 		},
 		{
-			name:       "wrong password, fail open",
-			settings:   clusterClientLimit,
-			args:       "clientAuth",
-			addrs:      []string{redisAddr},
-			password:   "wrong",
-			iterations: 6,
-			want:       repeat(true, 6),
+			name:     "wrong password, fail",
+			addrs:    []string{valkeyAddr},
+			password: "wrong",
+			wantErr:  true,
 		},
 		{
-			name:       "no password, fail open",
-			settings:   clusterClientLimit,
-			args:       "clientAuth",
-			addrs:      []string{redisAddr},
-			password:   "",
-			iterations: 6,
-			want:       repeat(true, 6),
+			name:     "no password, fail",
+			addrs:    []string{valkeyAddr},
+			password: "",
+			wantErr:  true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{
-				Addrs:    []string{redisAddr},
+			ringClient, err := net.NewValkeyRingClient(&net.ValkeyOptions{
+				Addrs:    []string{valkeyAddr},
 				Password: tt.password,
 			})
+			if err != nil && tt.wantErr {
+				// valkey client returns an error not as redis which needs special handling to detect errors and ignore errors on creation of the client.
+				return
+			}
+			if err != nil {
+				t.Fatalf("Failed to create ValkeyRingClient: %v", err)
+			}
+
 			defer ringClient.Close()
-			c := newClusterRateLimiterRedis(
+
+			c := newClusterRateLimiterValkey(
 				tt.settings,
 				ringClient,
 				tt.settings.Group,
@@ -88,8 +90,8 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 	}
 }
 
-func Benchmark_clusterLimitRedis_Allow(b *testing.B) {
-	redisAddr, done := redistest.NewTestRedis(b)
+func Benchmark_clusterLimitValkey_Allow(b *testing.B) {
+	valkeyAddr, done := valkeytest.NewTestValkey(b)
 	defer done()
 
 	for i := range 21 {
@@ -104,9 +106,10 @@ func Benchmark_clusterLimitRedis_Allow(b *testing.B) {
 				Group:      groupName,
 			}
 
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			ringClient, err := net.NewValkeyRingClient(&net.ValkeyOptions{Addrs: []string{valkeyAddr}})
+			assert.Nil(b, err, "Failed to create ValkeyRingClient")
 			defer ringClient.Close()
-			c := newClusterRateLimiterRedis(
+			c := newClusterRateLimiterValkey(
 				clusterClientLimit,
 				ringClient,
 				clusterClientLimit.Group,
@@ -120,8 +123,8 @@ func Benchmark_clusterLimitRedis_Allow(b *testing.B) {
 	}
 }
 
-func Test_clusterLimitRedis_Allow(t *testing.T) {
-	redisAddr, done := redistest.NewTestRedis(t)
+func Test_clusterLimitValkey_Allow(t *testing.T) {
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
 	defer done()
 
 	clusterlimit := Settings{
@@ -177,9 +180,10 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			ringClient, err := net.NewValkeyRingClient(&net.ValkeyOptions{Addrs: []string{valkeyAddr}})
+			assert.Nil(t, err, "Failed to create ValkeyRingClient")
 			defer ringClient.Close()
-			c := newClusterRateLimiterRedis(
+			c := newClusterRateLimiterValkey(
 				tt.settings,
 				ringClient,
 				tt.settings.Group,
@@ -194,8 +198,8 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 	}
 }
 
-func Test_clusterLimitRedis_Delta(t *testing.T) {
-	redisAddr, done := redistest.NewTestRedis(t)
+func Test_clusterLimitValkey_Delta(t *testing.T) {
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
 	defer done()
 
 	clusterlimit := Settings{
@@ -238,9 +242,10 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			ringClient, err := net.NewValkeyRingClient(&net.ValkeyOptions{Addrs: []string{valkeyAddr}})
+			assert.Nil(t, err, "Failed to create ValkeyRingClient")
 			defer ringClient.Close()
-			c := newClusterRateLimiterRedis(
+			c := newClusterRateLimiterValkey(
 				tt.settings,
 				ringClient,
 				tt.settings.Group,
@@ -251,14 +256,14 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 			}
 			got := c.Delta(tt.args)
 			if tt.want-100*time.Millisecond < got && got < tt.want+100*time.Millisecond {
-				t.Errorf("clusterLimitRedis.Delta() = %v, want %v", got, tt.want)
+				t.Errorf("clusterLimitValkey.Delta() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func Test_clusterLimitRedis_Oldest(t *testing.T) {
-	redisAddr, done := redistest.NewTestRedis(t)
+func Test_clusterLimitValkey_Oldest(t *testing.T) {
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
 	defer done()
 
 	clusterlimit := Settings{
@@ -301,9 +306,10 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			ringClient, err := net.NewValkeyRingClient(&net.ValkeyOptions{Addrs: []string{valkeyAddr}})
+			assert.Nil(t, err, "Failed to create ValkeyRingClient")
 			defer ringClient.Close()
-			c := newClusterRateLimiterRedis(
+			c := newClusterRateLimiterValkey(
 				tt.settings,
 				ringClient,
 				tt.settings.Group,
@@ -315,14 +321,14 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 			}
 			got := c.Oldest(tt.args)
 			if got.Before(now.Add(-tt.want)) && now.Add(tt.want).Before(got) {
-				t.Errorf("clusterLimitRedis.Oldest() = %v, not within +/- %v from now %v", got, tt.want, now)
+				t.Errorf("clusterLimitValkey.Oldest() = %v, not within +/- %v from now %v", got, tt.want, now)
 			}
 		})
 	}
 }
 
-func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
-	redisAddr, done := redistest.NewTestRedis(t)
+func Test_clusterLimitValkey_RetryAfter(t *testing.T) {
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
 	defer done()
 
 	clusterlimit := Settings{
@@ -365,9 +371,10 @@ func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			ringClient, err := net.NewValkeyRingClient(&net.ValkeyOptions{Addrs: []string{valkeyAddr}})
+			assert.Nil(t, err, "Failed to create ValkeyRingClient")
 			defer ringClient.Close()
-			c := newClusterRateLimiterRedis(
+			c := newClusterRateLimiterValkey(
 				tt.settings,
 				ringClient,
 				tt.settings.Group,
@@ -377,13 +384,14 @@ func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 				_ = c.Allow(context.Background(), tt.args)
 			}
 			if got := c.RetryAfter(tt.args); got != tt.want {
-				t.Errorf("clusterLimitRedis.RetryAfter() = %v, want %v", got, tt.want)
+				t.Errorf("clusterLimitValkey.RetryAfter() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestFailOpenOnRedisError(t *testing.T) {
+/* TODO(sszuecs): fail open on rate limit side
+func TestFailOpenOnValkeyError(t *testing.T) {
 	dm := metrics.Default
 	defer func() { metrics.Default = dm }()
 
@@ -396,11 +404,12 @@ func TestFailOpenOnRedisError(t *testing.T) {
 		TimeWindow: 10 * time.Second,
 		Group:      "agroup",
 	}
-	// redis unavailable
-	ringClient := net.NewRedisRingClient(&net.RedisOptions{})
+	// valkey unavailable
+	ringClient, err := net.NewValkeyRingClient(&net.ValkeyOptions{})
+	assert.Nil(t, err, "Failed to create ValkeyRingClient")
 	defer ringClient.Close()
 
-	c := newClusterRateLimiterRedis(
+	c := newClusterRateLimiterValkey(
 		settings,
 		ringClient,
 		settings.Group,
@@ -411,19 +420,20 @@ func TestFailOpenOnRedisError(t *testing.T) {
 		t.Error("expected allow on error")
 	}
 	m.WithCounters(func(counters map[string]int64) {
-		if counters["swarm.redis.total"] != 1 {
+		if counters["swarm.valkey.total"] != 1 {
 			t.Error("expected 1 total")
 		}
-		if counters["swarm.redis.allows"] != 1 {
+		if counters["swarm.valkey.allows"] != 1 {
 			t.Error("expected 1 allow on error")
 		}
-		if counters["swarm.redis.forbids"] != 0 {
+		if counters["swarm.valkey.forbids"] != 0 {
 			t.Error("expected no forbids on error")
 		}
 	})
 	m.WithMeasures(func(measures map[string][]time.Duration) {
-		if _, ok := measures["swarm.redis.query.allow.failure.agroup"]; !ok {
+		if _, ok := measures["swarm.valkey.query.allow.failure.agroup"]; !ok {
 			t.Error("expected query allow failure on error")
 		}
 	})
 }
+*/

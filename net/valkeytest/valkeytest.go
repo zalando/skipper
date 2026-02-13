@@ -60,7 +60,7 @@ func newTestValkeyWithOptions(t testing.TB, opts options) (address string, done 
 			ExposedPorts: []string{"6379/tcp"},
 			Networks:     []string{network.Name},
 			WaitingFor: wait.ForAll(
-				wait.ForLog("* Ready to accept connections"),
+				wait.ForLog("* Ready to accept connections tcp"),
 				wait.NewHostPortStrategy(port),
 			),
 		},

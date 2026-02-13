@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: namespace1
+  name: service1
+spec:
+  ports:
+  - port: 6379
+    protocol: TCP
+    targetPort: 6379
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  namespace: namespace1
+  name: service1
+subsets:
+- addresses:
+  - hostname: skipper-ingress-valkey-1
+    ip: 10.2.5.7
+  - hostname: skipper-ingress-valkey-0
+    ip: 10.2.55.7
+  ports:
+  - port: 6379
+    protocol: TCP
