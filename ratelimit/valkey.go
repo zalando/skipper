@@ -153,14 +153,12 @@ func (c *clusterLimitValkey) allow(ctx context.Context, clearText string) (bool,
 	// drop all elements of the set which occurred before one interval ago.
 	_, err := c.ringClient.ZRemRangeByScore(ctx, key, "0.0", clearBefore)
 	if err != nil {
-		println("ZRemRangeByScore")
 		return false, err
 	}
 
 	// get cardinality
 	count, err := c.ringClient.ZCard(ctx, key)
 	if err != nil {
-		println("ZCard")
 		return false, err
 	}
 
@@ -171,13 +169,11 @@ func (c *clusterLimitValkey) allow(ctx context.Context, clearText string) (bool,
 
 	_, err = c.ringClient.ZAdd(ctx, key, fmt.Sprintf("%d", nowNanos), float64(nowNanos))
 	if err != nil {
-		println("ZAdd")
 		return false, err
 	}
 
 	_, err = c.ringClient.Expire(ctx, key, c.window+time.Second)
 	if err != nil {
-		println("Expire")
 		return false, err
 	}
 
@@ -191,7 +187,6 @@ func (c *clusterLimitValkey) Close() {}
 func (c *clusterLimitValkey) deltaFrom(ctx context.Context, clearText string, from time.Time) (time.Duration, error) {
 	oldest, err := c.oldest(ctx, clearText)
 	if err != nil {
-		println("Failed c.oldest in deltaFrom")
 		return 0, err
 	}
 

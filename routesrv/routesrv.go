@@ -127,9 +127,7 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		}
 		vh.AddrUpdater = getValkeyAddresses(&opts, dataclient, m)
 		mux.Handle("/swarm/valkey/shards", vh)
-		println("HERE")
 	}
-	println("HERE 2")
 
 	rs.server = &http.Server{
 		Addr:              opts.Address,
