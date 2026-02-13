@@ -43,7 +43,7 @@ func (vh *ValkeyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func getValkeyAddresses(opts *skipper.Options, kdc *kubernetes.Client, m metrics.Metrics) func() ([]byte, error) {
 	return func() ([]byte, error) {
-		a := kdc.GetEndpointAddresses(opts.KubernetesValkeyServiceNamespace, opts.KubernetesValkeyServiceName)
+		a := kdc.GetEndpointAddresses("", opts.KubernetesValkeyServiceNamespace, opts.KubernetesValkeyServiceName)
 		log.Infof("Valkey updater called and found %d valkey endpoints: %v", len(a), a) //TODO(sszuecs): Debugf
 		m.UpdateGauge("valkey_endpoints", float64(len(a)))
 
