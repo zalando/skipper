@@ -67,6 +67,7 @@ type clusterClient struct {
 	routeGroupClass *regexp.Regexp
 	ingressClass    *regexp.Regexp
 	httpClient      *http.Client
+	zone            string
 
 	ingressLabelSelectors        string
 	servicesLabelSelectors       string
@@ -176,6 +177,7 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		routeGroupValidator:          &definitions.RouteGroupValidator{EnableAdvancedValidation: false},
 		ingressValidator:             &definitions.IngressV1Validator{EnableAdvancedValidation: false},
 		enableEndpointSlices:         o.KubernetesEnableEndpointslices,
+		zone:                         o.TopologyZone,
 	}
 
 	if o.KubernetesInCluster {
@@ -562,8 +564,8 @@ func collectReadyEndpoints(endpointSlices *endpointSliceList) map[definitions.Re
 }
 
 // loadEndpointAddresses returns the list of all addresses for the given service using endpoints or endpointslices API.
-func (c *clusterClient) loadEndpointAddresses(namespace, name string) ([]string, error) {
-	var result []string
+func (c *clusterClient) loadEndpointAddresses(zone, namespace, name string) ([]string, error) {
+	var result, resultByZone []string
 	if c.enableEndpointSlices {
 		url := fmt.Sprintf(EndpointSlicesNamespaceFmt, namespace) +
 			toLabelSelectorQuery(map[string]string{endpointSliceServiceNameLabel: name})
@@ -579,7 +581,11 @@ func (c *clusterClient) loadEndpointAddresses(namespace, name string) ([]string,
 		}
 
 		for _, eps := range ready {
+			if zone != "" {
+				resultByZone = eps.addressesByZone(zone)
+			}
 			result = eps.addresses()
+
 			break
 		}
 	} else {
@@ -590,6 +596,9 @@ func (c *clusterClient) loadEndpointAddresses(namespace, name string) ([]string,
 			return nil, fmt.Errorf("requesting endpoints for %s/%s failed: %w", namespace, name, err)
 		}
 		result = ep.addresses()
+	}
+	if len(resultByZone) >= minEndpointsByZone {
+		result = resultByZone
 	}
 	sort.Strings(result)
 

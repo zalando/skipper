@@ -314,6 +314,9 @@ type Options struct {
 	// KubernetesRedisServicePort to be used to lookup ring shards dynamically
 	KubernetesRedisServicePort int
 
+	// KubernetesTopologyZone if set to non empty string it is used to filter endpointslice endpoints by this value.
+	KubernetesTopologyZone string
+
 	// KubernetesForceService overrides the default Skipper functionality to route traffic using Kubernetes Endpoints,
 	// instead using Kubernetes Services.
 	KubernetesForceService bool
@@ -1073,6 +1076,7 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		BackendTrafficAlgorithm:                        o.KubernetesBackendTrafficAlgorithm,
 		DefaultLoadBalancerAlgorithm:                   o.KubernetesDefaultLoadBalancerAlgorithm,
 		ForwardBackendURL:                              o.ForwardBackendURL,
+		TopologyZone:                                   o.KubernetesTopologyZone,
 	}
 }
 
@@ -1531,14 +1535,14 @@ func getKubernetesRedisAddrUpdater(opts *Options, kdc *kubernetes.Client, loaded
 		// has polled the data once or kdc.GetEndpointAddresses should be blocking
 		// call to kubernetes API
 		return func() ([]string, error) {
-			a := kdc.GetEndpointAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
+			a := kdc.GetEndpointAddresses("", opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
 			log.Debugf("GetEndpointAddresses found %d redis endpoints", len(a))
 
 			return joinPort(a, opts.KubernetesRedisServicePort), nil
 		}
 	} else {
 		return func() ([]string, error) {
-			a, err := kdc.LoadEndpointAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
+			a, err := kdc.LoadEndpointAddresses("", opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
 			log.Debugf("LoadEndpointAddresses found %d redis endpoints, err: %v", len(a), err)
 
 			return joinPort(a, opts.KubernetesRedisServicePort), err

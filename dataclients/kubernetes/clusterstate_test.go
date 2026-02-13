@@ -57,7 +57,7 @@ func benchmarkCachedEndpoints(b *testing.B, n int) {
 	b.ResetTimer()
 	dummy := []string{}
 	for i := 0; i < b.N; i++ {
-		dummy = cs.GetEndpointsByTarget("default", "foo-0", "TCP", "http", &definitions.BackendPort{})
+		dummy = cs.GetEndpointsByTarget("", "default", "foo-0", "TCP", "http", &definitions.BackendPort{})
 	}
 	dummy2 = dummy
 }
