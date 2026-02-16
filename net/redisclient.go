@@ -116,7 +116,6 @@ const (
 	DefaultMaxConns = 100
 
 	defaultConnMetricsInterval = 60 * time.Second
-	DefaultUpdateInterval      = 10 * time.Second
 	DefaultHeartbeatFrequency  = 500 * time.Millisecond // https://github.com/redis/go-redis/blob/452eb3d15f9ccdb8e4ed3876cafc88c3d35e0e13/ring.go#L167C28-L167C50
 )
 

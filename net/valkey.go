@@ -11,14 +11,21 @@ import (
 	xxhash "github.com/cespare/xxhash/v2"
 	"github.com/opentracing/opentracing-go"
 	"github.com/valkey-io/valkey-go"
-
 	"github.com/valkey-io/valkey-go/valkeyhook"
 	"github.com/valkey-io/valkey-go/valkeyotel"
+
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 )
 
-const ringSize = 10000
+const (
+	ringSize = 10000
+
+	DefaultUpdateInterval = 10 * time.Second
+
+	DefaultConnLifeTime     = time.Minute
+	DefaultConnWriteTimeout = 25 * time.Millisecond
+)
 
 // ValkeyOptions is used to configure the ValkeyRing
 //
@@ -395,7 +402,9 @@ func (vrc *ValkeyRingClient) startUpdater(ctx context.Context) {
 
 	ticker := time.NewTicker(vrc.options.UpdateInterval)
 	defer ticker.Stop()
+	init := true
 	for {
+
 		select {
 		case <-vrc.quit:
 			return
@@ -407,11 +416,15 @@ func (vrc *ValkeyRingClient) startUpdater(ctx context.Context) {
 			vrc.log.Errorf("Failed to run valkey updater: %v", err)
 			continue
 		}
-		if len(difference(addrs, old)) != 0 {
-			vrc.log.Infof("Valkey updater updating old(%d) != new(%d)", len(old), len(addrs))
+		if !init && len(difference(addrs, old)) != 0 {
 			vrc.SetAddrs(ctx, addrs)
-			vrc.metrics.UpdateGauge(vrc.metricsPrefix+"shards", float64(vrc.ring.Len()))
+			vrc.log.Infof("Valkey updater updated old(%d) -> new(%d)", len(old), len(addrs))
 
+			old = addrs
+		} else if init && len(addrs) != 0 {
+			init = false
+			vrc.SetAddrs(ctx, addrs)
+			vrc.log.Infof("Valkey updater initial set to %d shards", len(addrs))
 			old = addrs
 		}
 	}
@@ -423,6 +436,7 @@ func (vrc *ValkeyRingClient) StartSpan(operationName string, opts ...opentracing
 
 func (vrc *ValkeyRingClient) SetAddrs(ctx context.Context, addrs []string) {
 	vrc.ring.SetAddr(addrs)
+	vrc.metrics.UpdateGauge(vrc.metricsPrefix+"shards", float64(vrc.ring.Len()))
 }
 
 func (vrc *ValkeyRingClient) RingAvailable(ctx context.Context) bool {

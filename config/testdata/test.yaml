@@ -5,6 +5,7 @@ status-checks:
   - http://foo.test/bar
   - http://baz.test/qux
 swarm-redis-password: set_from_file
+swarm-valkey-password: set_from_file2
 refuse-payload:
   - foo
   - bar
