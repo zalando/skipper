@@ -17,5 +17,5 @@ pull-request:
       - bugfix
       - documentation
       - dependencies
-X-Zalando-Team: "teapot"
+X-Zalando-Team: "gwproxy"
 X-Zalando-Type: code
