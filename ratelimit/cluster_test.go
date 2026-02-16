@@ -82,6 +82,23 @@ func Test_newClusterRateLimiter(t *testing.T) {
 				TimeWindow: 3 * time.Second,
 			},
 			swarm:      nil,
+			redisRing:  redisRing,
+			valkeyRing: valkeyRing,
+			group:      "mygroup",
+			want: &clusterLimitValkey{
+				group:      "mygroup",
+				maxHits:    10,
+				window:     3 * time.Second,
+				ringClient: valkeyRing,
+			},
+		},
+		{
+			name: "no swarmer, a redis and valkey ring",
+			settings: Settings{
+				MaxHits:    10,
+				TimeWindow: 3 * time.Second,
+			},
+			swarm:      nil,
 			valkeyRing: valkeyRing,
 			group:      "mygroup",
 			want: &clusterLimitValkey{
