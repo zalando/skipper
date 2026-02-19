@@ -7,6 +7,7 @@ import (
 const (
 	testToken                    = "test-token"
 	testWebhookInvalidScopeToken = "test-webhook-invalid-scope-token"
+	testWebhookRedirectToken     = "test-webhook-redirect"
 	testUID                      = "jdoe"
 	testScope                    = "test-scope"
 	testScope2                   = "test-scope2"
