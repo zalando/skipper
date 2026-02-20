@@ -9,12 +9,13 @@ import (
 var errInvalidMetadata = errors.New("invalid metadata")
 
 type Metadata struct {
-	Namespace   string            `json:"namespace"`
-	Name        string            `json:"name"`
-	Created     time.Time         `json:"creationTimestamp"`
-	Uid         string            `json:"uid"`
-	Annotations map[string]string `json:"annotations"`
-	Labels      map[string]string `json:"labels"`
+	Namespace       string            `json:"namespace"`
+	Name            string            `json:"name"`
+	ResourceVersion string            `json:"resourceVersion,omitempty"`
+	Created         time.Time         `json:"creationTimestamp"`
+	Uid             string            `json:"uid"`
+	Annotations     map[string]string `json:"annotations"`
+	Labels          map[string]string `json:"labels"`
 }
 
 func (meta *Metadata) ToResourceID() ResourceID {

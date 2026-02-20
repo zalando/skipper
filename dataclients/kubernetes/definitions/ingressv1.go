@@ -20,8 +20,22 @@ type IngressV1List struct {
 }
 
 type IngressV1Item struct {
-	Metadata *Metadata      `json:"metadata"`
-	Spec     *IngressV1Spec `json:"spec"`
+	Metadata *Metadata        `json:"metadata"`
+	Spec     *IngressV1Spec   `json:"spec"`
+	Status   *IngressV1Status `json:"status,omitempty"`
+}
+
+type IngressV1Status struct {
+	LoadBalancer IngressV1LoadBalancerStatus `json:"loadBalancer,omitempty"`
+}
+
+type IngressV1LoadBalancerStatus struct {
+	Ingress []IngressLoadBalancerIngress `json:"ingress,omitempty"`
+}
+
+type IngressLoadBalancerIngress struct {
+	IP       string `json:"ip,omitempty"`
+	Hostname string `json:"hostname,omitempty"`
 }
 
 // IngressV1Spec https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressspec-v1-networking-k8s-io
