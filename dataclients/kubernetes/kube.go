@@ -265,6 +265,10 @@ type Options struct {
 
 	// TopologyZone if set to non empty string will be used to filter endpointslice endpoints by this value.
 	TopologyZone string
+
+	// IngressStatusFromService, when set to <namespace>/<name>, makes skipper update ingress status.loadBalancer.ingress
+	// addresses from the referenced Service object.
+	IngressStatusFromService string
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.

@@ -64,10 +64,11 @@ type clusterClient struct {
 	apiURL              string
 	certificateRegistry *certregistry.CertRegistry
 
-	routeGroupClass *regexp.Regexp
-	ingressClass    *regexp.Regexp
-	httpClient      *http.Client
-	zone            string
+	routeGroupClass          *regexp.Regexp
+	ingressClass             *regexp.Regexp
+	httpClient               *http.Client
+	zone                     string
+	ingressStatusFromService string
 
 	ingressLabelSelectors        string
 	servicesLabelSelectors       string
@@ -178,6 +179,7 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		ingressValidator:             &definitions.IngressV1Validator{EnableAdvancedValidation: false},
 		enableEndpointSlices:         o.KubernetesEnableEndpointslices,
 		zone:                         o.TopologyZone,
+		ingressStatusFromService:     o.IngressStatusFromService,
 	}
 
 	if o.KubernetesInCluster {
@@ -241,7 +243,11 @@ func (c *clusterClient) setNamespace(namespace string) {
 }
 
 func (c *clusterClient) createRequest(uri string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequest("GET", c.apiURL+uri, body)
+	return c.createRequestWithMethod(http.MethodGet, uri, body)
+}
+
+func (c *clusterClient) createRequestWithMethod(method, uri string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequest(method, c.apiURL+uri, body)
 	if err != nil {
 		return nil, err
 	}
@@ -255,6 +261,31 @@ func (c *clusterClient) createRequest(uri string, body io.Reader) (*http.Request
 	}
 
 	return req, nil
+}
+
+func (c *clusterClient) patchJSON(uri string, payload []byte) error {
+	req, err := c.createRequestWithMethod(http.MethodPatch, uri, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/merge-patch+json")
+
+	rsp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode == http.StatusNotFound {
+		return errResourceNotFound
+	}
+
+	if rsp.StatusCode < http.StatusOK || rsp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("patch request to %s failed, status: %d, %s", uri, rsp.StatusCode, rsp.Status)
+	}
+
+	return nil
 }
 
 func (c *clusterClient) getJSON(uri string, a interface{}) error {
@@ -668,5 +699,169 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		}
 	}
 
+	if err := c.updateIngressesV1Status(state); err != nil {
+		log.Errorf("failed to update ingress status: %v", err)
+	}
+
 	return state, nil
+}
+
+func parseNamespaceName(resource string) (string, string, error) {
+	ns, name, ok := strings.Cut(resource, "/")
+	if !ok || ns == "" || name == "" {
+		return "", "", fmt.Errorf("invalid resource reference %q, expected <namespace>/<name>", resource)
+	}
+
+	return ns, name, nil
+}
+
+func fromExternalIPs(ips []string) []definitions.IngressLoadBalancerIngress {
+	addresses := make([]definitions.IngressLoadBalancerIngress, 0, len(ips))
+	for _, ip := range ips {
+		if ip == "" {
+			continue
+		}
+		addresses = append(addresses, definitions.IngressLoadBalancerIngress{IP: ip})
+	}
+	return addresses
+}
+
+func fromAddressList(addresses []string) []definitions.IngressLoadBalancerIngress {
+	result := make([]definitions.IngressLoadBalancerIngress, 0, len(addresses))
+	for _, address := range addresses {
+		if address == "" {
+			continue
+		}
+		result = append(result, definitions.IngressLoadBalancerIngress{IP: address})
+	}
+	return result
+}
+
+func ingressAddressesEqual(a, b []definitions.IngressLoadBalancerIngress) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	toKey := func(item definitions.IngressLoadBalancerIngress) string {
+		return item.IP + "|" + item.Hostname
+	}
+
+	aKeys := make([]string, 0, len(a))
+	bKeys := make([]string, 0, len(b))
+	for _, item := range a {
+		aKeys = append(aKeys, toKey(item))
+	}
+	for _, item := range b {
+		bKeys = append(bKeys, toKey(item))
+	}
+
+	sort.Strings(aKeys)
+	sort.Strings(bKeys)
+
+	for i := range aKeys {
+		if aKeys[i] != bKeys[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (c *clusterClient) ingressStatusAddressesFromService(state *clusterState) ([]definitions.IngressLoadBalancerIngress, error) {
+	if c.ingressStatusFromService == "" {
+		return nil, nil
+	}
+
+	ns, name, err := parseNamespaceName(c.ingressStatusFromService)
+	if err != nil {
+		return nil, err
+	}
+
+	svc, ok := state.services[newResourceID(ns, name)]
+	if !ok || svc == nil || svc.Spec == nil {
+		return nil, fmt.Errorf("service not found: %s", c.ingressStatusFromService)
+	}
+
+	spec := svc.Spec
+	switch spec.Type {
+	case "ExternalName":
+		if spec.ExternalName == "" {
+			return nil, nil
+		}
+		return []definitions.IngressLoadBalancerIngress{{Hostname: spec.ExternalName}}, nil
+	case "ClusterIP":
+		if spec.ClusterIP == "" || strings.EqualFold(spec.ClusterIP, "None") {
+			return nil, nil
+		}
+		return []definitions.IngressLoadBalancerIngress{{IP: spec.ClusterIP}}, nil
+	case "NodePort":
+		if len(spec.ExternalIPs) > 0 {
+			return fromExternalIPs(spec.ExternalIPs), nil
+		}
+		return fromAddressList(state.getEndpointAddresses(c.zone, ns, name)), nil
+	case "LoadBalancer":
+		if svc.Status != nil && len(svc.Status.LoadBalancer.Ingress) > 0 {
+			addresses := make([]definitions.IngressLoadBalancerIngress, 0, len(svc.Status.LoadBalancer.Ingress))
+			for _, item := range svc.Status.LoadBalancer.Ingress {
+				if item.IP == "" && item.Hostname == "" {
+					continue
+				}
+				addresses = append(addresses, definitions.IngressLoadBalancerIngress{IP: item.IP, Hostname: item.Hostname})
+			}
+			return addresses, nil
+		}
+		if len(spec.ExternalIPs) > 0 {
+			return fromExternalIPs(spec.ExternalIPs), nil
+		}
+		return nil, nil
+	default:
+		if len(spec.ExternalIPs) > 0 {
+			return fromExternalIPs(spec.ExternalIPs), nil
+		}
+		return nil, nil
+	}
+}
+
+func (c *clusterClient) updateIngressesV1Status(state *clusterState) error {
+	if c.ingressStatusFromService == "" || state == nil || len(state.ingressesV1) == 0 {
+		return nil
+	}
+
+	addresses, err := c.ingressStatusAddressesFromService(state)
+	if err != nil {
+		return err
+	}
+
+	for _, ing := range state.ingressesV1 {
+		if ing == nil || ing.Metadata == nil || ing.Metadata.Name == "" || ing.Metadata.Namespace == "" {
+			continue
+		}
+
+		current := []definitions.IngressLoadBalancerIngress(nil)
+		if ing.Status != nil {
+			current = ing.Status.LoadBalancer.Ingress
+		}
+
+		if ingressAddressesEqual(current, addresses) {
+			continue
+		}
+
+		payload, err := json.Marshal(map[string]interface{}{
+			"status": map[string]interface{}{
+				"loadBalancer": map[string]interface{}{
+					"ingress": addresses,
+				},
+			},
+		})
+		if err != nil {
+			return err
+		}
+
+		uri := fmt.Sprintf(IngressesV1NamespaceFmt, ing.Metadata.Namespace) + "/" + ing.Metadata.Name + "/status"
+		if err := c.patchJSON(uri, payload); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

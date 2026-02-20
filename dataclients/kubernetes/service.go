@@ -33,12 +33,27 @@ type serviceSpec struct {
 	Type         string         `json:"type"`
 	ClusterIP    string         `json:"clusterIP"`
 	ExternalName string         `json:"externalName"`
+	ExternalIPs  []string       `json:"externalIPs"`
 	Ports        []*servicePort `json:"ports"`
 }
 
+type serviceStatus struct {
+	LoadBalancer serviceLoadBalancerStatus `json:"loadBalancer"`
+}
+
+type serviceLoadBalancerStatus struct {
+	Ingress []serviceLoadBalancerIngress `json:"ingress"`
+}
+
+type serviceLoadBalancerIngress struct {
+	IP       string `json:"ip,omitempty"`
+	Hostname string `json:"hostname,omitempty"`
+}
+
 type service struct {
-	Meta *definitions.Metadata `json:"Metadata"`
-	Spec *serviceSpec          `json:"spec"`
+	Meta   *definitions.Metadata `json:"Metadata"`
+	Spec   *serviceSpec          `json:"spec"`
+	Status *serviceStatus        `json:"status"`
 }
 
 type serviceList struct {

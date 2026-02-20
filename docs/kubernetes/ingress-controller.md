@@ -488,6 +488,43 @@ endpoint rather than the cluster-wide ingresses endpoint.
 By default this value is an empty string (`""`) and will scope the skipper
 instance to be cluster-wide, watching all `Ingress` objects across all namespaces.
 
+## Publish Ingress status from a Service
+
+Skipper can update `Ingress.status.loadBalancer.ingress` from a configured
+Service by setting:
+
+`-kubernetes-ingress-status-from-service=<namespace>/<service-name>`
+
+Example:
+
+```bash
+skipper -kubernetes-ingress-status-from-service=ingress-system/skipper
+```
+
+When enabled, Skipper reads the configured Service and patches the
+`/status` subresource of ingresses only if the status value changed.
+
+### RBAC requirement for status updates
+
+Before enabling this feature, many setups only required read access
+(`get`, `list`) on `ingresses`. For status reconciliation, Skipper also needs
+write access on the `ingresses/status` subresource.
+
+Add the following rule to your ClusterRole:
+
+```yaml
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - patch
+  - update
+```
+
+If this permission is missing, Skipper logs Kubernetes RBAC "forbidden"
+errors when trying to write ingress status.
+
 ## Helm-based deployment
 
 Skipper is not available as a Helm chart.
