@@ -18,9 +18,9 @@ type ForwardedHeaders struct {
 	Method bool
 	// Uri sets the path and query as X-Forwarded-Uri header to the request header
 	Uri bool
-	// Sets X-Forwarded-Port value
+	// Port sets X-Forwarded-Port value, use "auto" to detect from the listener address
 	Port string
-	// Sets X-Forwarded-Proto value
+	// Proto sets X-Forwarded-Proto value, use "auto" to detect from TLS state
 	Proto string
 }
 
@@ -54,11 +54,23 @@ func (h *ForwardedHeaders) Set(req *http.Request) {
 		req.Header.Set("X-Forwarded-Uri", req.RequestURI)
 	}
 
-	if h.Port != "" {
+	if h.Port == "auto" {
+		if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
+			if _, port, err := net.SplitHostPort(addr.String()); err == nil {
+				req.Header.Set("X-Forwarded-Port", port)
+			}
+		}
+	} else if h.Port != "" {
 		req.Header.Set("X-Forwarded-Port", h.Port)
 	}
 
-	if h.Proto != "" {
+	if h.Proto == "auto" {
+		if req.TLS != nil {
+			req.Header.Set("X-Forwarded-Proto", "https")
+		} else {
+			req.Header.Set("X-Forwarded-Proto", "http")
+		}
+	} else if h.Proto != "" {
 		req.Header.Set("X-Forwarded-Proto", h.Proto)
 	}
 }
