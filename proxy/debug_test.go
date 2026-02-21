@@ -10,8 +10,6 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-func takePt(n int) *int { return &n }
-
 func TestDebug(t *testing.T) {
 	for _, ti := range []struct {
 		msg    string
@@ -77,7 +75,7 @@ func TestDebug(t *testing.T) {
 				Header: http.Header{"X-Test-Header-2": []string{"test-header-value-2"}},
 				Host:   "www.example.org"},
 			ResponseMod: &debugResponseMod{
-				Status: takePt(http.StatusTeapot),
+				Status: new(http.StatusTeapot),
 				Header: http.Header{"X-Test-Response-Header": []string{"test-response-header-value"}}},
 			RequestBody:     "outgoing body content",
 			ResponseModBody: "response body"},
@@ -102,7 +100,7 @@ func TestDebug(t *testing.T) {
 				Host:          "test.example.org",
 				RemoteAddress: "::1"},
 			ResponseMod: &debugResponseMod{
-				Status: takePt(http.StatusNotFound)},
+				Status: new(http.StatusNotFound)},
 			RequestBody: "incoming body content"},
 	}, {
 		"incoming body when no outgoing",
@@ -152,7 +150,7 @@ func TestDebug(t *testing.T) {
 			response: &http.Response{
 				StatusCode: http.StatusTeapot,
 				Header:     http.Header{}}},
-		debugDocument{ResponseMod: &debugResponseMod{Status: takePt(http.StatusTeapot)}},
+		debugDocument{ResponseMod: &debugResponseMod{Status: new(http.StatusTeapot)}},
 	}, {
 		"response when header",
 		debugInfo{
@@ -168,7 +166,7 @@ func TestDebug(t *testing.T) {
 				StatusCode: http.StatusTeapot}},
 		debugDocument{
 			ResponseMod: &debugResponseMod{
-				Status: takePt(http.StatusTeapot)}},
+				Status: new(http.StatusTeapot)}},
 	}, {
 		"error",
 		debugInfo{

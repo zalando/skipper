@@ -10,7 +10,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -559,8 +558,8 @@ func (g withStartLabelGatherer) Gather() ([]*dto.MetricFamily, error) {
 		if metricFamily.GetType() == dto.MetricType_COUNTER {
 			for _, metric := range metricFamily.Metric {
 				metric.Label = append(metric.Label, &dto.LabelPair{
-					Name:  proto.String("start"),
-					Value: proto.String(fmt.Sprintf("%d", metric.Counter.CreatedTimestamp.AsTime().UnixNano())),
+					Name:  new("start"),
+					Value: new(fmt.Sprintf("%d", metric.Counter.CreatedTimestamp.AsTime().UnixNano())),
 				})
 			}
 		}

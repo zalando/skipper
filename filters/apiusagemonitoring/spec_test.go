@@ -43,10 +43,6 @@ func unknownPath(applicationId string) pathMatcher {
 	}
 }
 
-func matcher(matcher string) *string {
-	return &matcher
-}
-
 func assertPath(t *testing.T, actualPath *pathInfo, expectedPath pathMatcher) {
 	assert.Equalf(t, expectedPath.ApiId, actualPath.ApiId, "AppId")
 	assert.Equalf(t, expectedPath.ApplicationId, actualPath.ApplicationId, "ApplicationId")
@@ -198,7 +194,7 @@ func Test_CreateFilter_NonParsableParametersShouldBeLoggedAndIgnored(t *testing.
 			Tag:           "{no-tag}",
 			ApiId:         "my_api",
 			PathTemplate:  "test",
-			Matcher:       matcher("^/*test/*$"),
+			Matcher:       new("^/*test/*$"),
 		},
 	})
 	assertPath(t, filter.UnknownPath, unknownPath("my_app"))
@@ -233,21 +229,21 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 			Tag:           "staging",
 			ApiId:         "my_api",
 			PathTemplate:  "foo/orders/{order-id}",
-			Matcher:       matcher("^/*foo/+orders/+.+/*$"),
+			Matcher:       new("^/*foo/+orders/+.+/*$"),
 		},
 		{
 			ApplicationId: "my_app",
 			Tag:           "staging",
 			ApiId:         "my_api",
 			PathTemplate:  "foo/orders",
-			Matcher:       matcher("^/*foo/+orders/*$"),
+			Matcher:       new("^/*foo/+orders/*$"),
 		},
 		{
 			ApplicationId: "my_app",
 			Tag:           "staging",
 			ApiId:         "my_api",
 			PathTemplate:  "foo/order-items/{order-id}:{order-item-id}",
-			Matcher:       matcher("^/*foo/+order-items/+.+:.+/*$"),
+			Matcher:       new("^/*foo/+order-items/+.+:.+/*$"),
 		},
 	})
 	assertPath(t, filter.UnknownPath, unknownPath("my_app"))
@@ -316,35 +312,35 @@ func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
 			Tag:           "{no-tag}",
 			ApiId:         "orders_api",
 			PathTemplate:  "foo/orders/{order-id}",
-			Matcher:       matcher("^/*foo/+orders/+.+/*$"),
+			Matcher:       new("^/*foo/+orders/+.+/*$"),
 		},
 		{
 			ApplicationId: "my_app",
 			Tag:           "{no-tag}",
 			ApiId:         "orders_api",
 			PathTemplate:  "foo/orders",
-			Matcher:       matcher("^/*foo/+orders/*$"),
+			Matcher:       new("^/*foo/+orders/*$"),
 		},
 		{
 			ApplicationId: "my_app",
 			Tag:           "{no-tag}",
 			ApiId:         "orders_api",
 			PathTemplate:  "foo/order-items/{order-id}:{order-item-id}",
-			Matcher:       matcher("^/*foo/+order-items/+.+:.+/*$"),
+			Matcher:       new("^/*foo/+order-items/+.+:.+/*$"),
 		},
 		{
 			ApplicationId: "my_app",
 			Tag:           "tag",
 			ApiId:         "customers_api",
 			PathTemplate:  "foo/customers/{customer-id}",
-			Matcher:       matcher("^/*foo/+customers/+.+/*$"),
+			Matcher:       new("^/*foo/+customers/+.+/*$"),
 		},
 		{
 			ApplicationId: "my_app",
 			Tag:           "tag",
 			ApiId:         "customers_api",
 			PathTemplate:  "foo/customers",
-			Matcher:       matcher("^/*foo/+customers/*$"),
+			Matcher:       new("^/*foo/+customers/*$"),
 		},
 	})
 	assertPath(t, filter.UnknownPath, unknownPath("my_app"))
@@ -381,14 +377,14 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 			Tag:           "staging",
 			ApiId:         "orders_api",
 			PathTemplate:  "foo/orders/{order-id}",
-			Matcher:       matcher("^/*foo/+orders/+.+/*$"),
+			Matcher:       new("^/*foo/+orders/+.+/*$"),
 		},
 		{
 			ApplicationId: "my_order_app",
 			Tag:           "staging",
 			ApiId:         "orders_api",
 			PathTemplate:  "foo/orders",
-			Matcher:       matcher("^/*foo/+orders/*$"),
+			Matcher:       new("^/*foo/+orders/*$"),
 		},
 	})
 	assertPath(t, filter.UnknownPath, unknownPath("my_order_app"))
@@ -418,7 +414,7 @@ func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 			Tag:           "{no-tag}",
 			ApiId:         "orders_api",
 			PathTemplate:  "foo",
-			Matcher:       matcher("^/*foo/*$"),
+			Matcher:       new("^/*foo/*$"),
 		},
 	})
 	assertPath(t, filter.UnknownPath, unknownPath("my_app"))
@@ -448,7 +444,7 @@ func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
 			Tag:           "{no-tag}",
 			ApiId:         "orders_api",
 			PathTemplate:  "foo/{a}",
-			Matcher:       matcher("^/*foo/+.+/*$"),
+			Matcher:       new("^/*foo/+.+/*$"),
 		},
 	})
 	assertPath(t, filter.UnknownPath, unknownPath("my_app"))
