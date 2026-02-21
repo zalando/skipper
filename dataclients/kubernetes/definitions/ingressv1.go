@@ -34,7 +34,7 @@ type IngressV1Spec struct {
 
 // BackendV1 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressbackend-v1-networking-k8s-io
 type BackendV1 struct {
-	Service Service `json:"service,omitempty"` // can be nil, because of TypedLocalObjectReference
+	Service Service `json:"service"` // can be nil, because of TypedLocalObjectReference
 	// Resource TypedLocalObjectReference is not supported https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#typedlocalobjectreference-v1-core
 }
 
@@ -85,7 +85,7 @@ type ResourceID struct {
 
 // BackendPort is used for TargetPort similar to Kubernetes intOrString type
 type BackendPort struct {
-	Value interface{}
+	Value any
 }
 
 // ParseIngressV1JSON parse JSON into an IngressV1List

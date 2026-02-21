@@ -11,7 +11,7 @@ import (
 func TestCookieArgs(t *testing.T) {
 	for _, ti := range []struct {
 		msg  string
-		args []interface{}
+		args []any
 		err  bool
 	}{{
 		"no args",
@@ -19,19 +19,19 @@ func TestCookieArgs(t *testing.T) {
 		true,
 	}, {
 		"too many args",
-		[]interface{}{"name", "value", "something"},
+		[]any{"name", "value", "something"},
 		true,
 	}, {
 		"invalid name",
-		[]interface{}{float64(1), "value"},
+		[]any{float64(1), "value"},
 		true,
 	}, {
 		"invalid value",
-		[]interface{}{"name", `\`},
+		[]any{"name", `\`},
 		true,
 	}, {
 		"ok",
-		[]interface{}{"name", "value"},
+		[]any{"name", "value"},
 		false,
 	}} {
 		func() {
@@ -56,22 +56,22 @@ func TestCookieArgs(t *testing.T) {
 func TestCookieMatch(t *testing.T) {
 	for _, ti := range []struct {
 		msg     string
-		args    []interface{}
+		args    []any
 		cookies string
 		match   bool
 	}{{
 		"not found",
-		[]interface{}{"tcial", "^enabled$"},
+		[]any{"tcial", "^enabled$"},
 		"some=value",
 		false,
 	}, {
 		"don't match",
-		[]interface{}{"tcial", "^enabled, but not working$"},
+		[]any{"tcial", "^enabled, but not working$"},
 		"some=value;tcial=enabled",
 		false,
 	}, {
 		"match",
-		[]interface{}{"tcial", "^enabled$"},
+		[]any{"tcial", "^enabled$"},
 		"some=value;tcial=enabled",
 		true,
 	}} {

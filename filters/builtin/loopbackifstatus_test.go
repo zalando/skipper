@@ -14,7 +14,7 @@ func TestLoopbackIfStatusCreateFilter(t *testing.T) {
 	spec := NewLoopbackIfStatus()
 
 	// Valid arguments
-	f, err := spec.CreateFilter([]interface{}{401, "/new-path"})
+	f, err := spec.CreateFilter([]any{401, "/new-path"})
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -23,25 +23,25 @@ func TestLoopbackIfStatusCreateFilter(t *testing.T) {
 	}
 
 	// Invalid status code type
-	_, err = spec.CreateFilter([]interface{}{"401", "/new-path"})
+	_, err = spec.CreateFilter([]any{"401", "/new-path"})
 	if err == nil {
 		t.Error("expected error for invalid status code type")
 	}
 
 	// Invalid status code value
-	_, err = spec.CreateFilter([]interface{}{99, "/new-path"})
+	_, err = spec.CreateFilter([]any{99, "/new-path"})
 	if err == nil {
 		t.Error("expected error for status code out of range")
 	}
 
 	// Invalid path type
-	_, err = spec.CreateFilter([]interface{}{401, 123})
+	_, err = spec.CreateFilter([]any{401, 123})
 	if err == nil {
 		t.Error("expected error for invalid path type")
 	}
 
 	// Not enough arguments
-	_, err = spec.CreateFilter([]interface{}{401})
+	_, err = spec.CreateFilter([]any{401})
 	if err == nil {
 		t.Error("expected error for missing path argument")
 	}

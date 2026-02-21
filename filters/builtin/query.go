@@ -47,7 +47,7 @@ func (spec *modQuery) Name() string {
 	}
 }
 
-func createDropQuery(config []interface{}) (filters.Filter, error) {
+func createDropQuery(config []any) (filters.Filter, error) {
 	if len(config) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -60,7 +60,7 @@ func createDropQuery(config []interface{}) (filters.Filter, error) {
 	return &modQuery{behavior: drop, name: eskip.NewTemplate(tpl)}, nil
 }
 
-func createSetQuery(config []interface{}) (filters.Filter, error) {
+func createSetQuery(config []any) (filters.Filter, error) {
 	l := len(config)
 	if l < 1 || l > 2 {
 		return nil, filters.ErrInvalidFilterParameters
@@ -84,7 +84,7 @@ func createSetQuery(config []interface{}) (filters.Filter, error) {
 // Creates instances of the modQuery filter.
 //
 //lint:ignore ST1016 "spec" makes sense here and we reuse the type for the filter
-func (spec *modQuery) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (spec *modQuery) CreateFilter(config []any) (filters.Filter, error) {
 	switch spec.behavior {
 	case drop:
 		return createDropQuery(config)

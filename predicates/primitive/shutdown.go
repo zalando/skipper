@@ -39,7 +39,7 @@ func newShutdown() (routing.PredicateSpec, chan os.Signal) {
 func (*shutdown) Name() string { return predicates.ShutdownName }
 
 // Create returns a Predicate that evaluates to true if Skipper is shutting down
-func (s *shutdown) Create(args []interface{}) (routing.Predicate, error) {
+func (s *shutdown) Create(args []any) (routing.Predicate, error) {
 	if len(args) != 0 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}

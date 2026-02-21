@@ -84,7 +84,7 @@ type FilterContext interface {
 
 	// Provides a read-write state bag, unique to a request and shared by all
 	// the filters in the route.
-	StateBag() map[string]interface{}
+	StateBag() map[string]any
 
 	// Gives filters access to the backend url specified in the route or an empty
 	// value if it's a shunt, loopback. In case of dynamic backend is empty.
@@ -143,10 +143,10 @@ type FilterContext interface {
 
 // FilterContextLogger is the logger which logs messages with additional context information.
 type FilterContextLogger interface {
-	Debugf(format string, args ...interface{})
-	Infof(format string, args ...interface{})
-	Warnf(format string, args ...interface{})
-	Errorf(format string, args ...interface{})
+	Debugf(format string, args ...any)
+	Infof(format string, args ...any)
+	Warnf(format string, args ...any)
+	Errorf(format string, args ...any)
 }
 
 // Metrics provides possibility to use custom metrics from filter implementations. The custom metrics will
@@ -200,7 +200,7 @@ type Spec interface {
 
 	// CreateFilter creates a Filter instance. Called with the parameters in the route
 	// definition while initializing a route.
-	CreateFilter(config []interface{}) (Filter, error)
+	CreateFilter(config []any) (Filter, error)
 }
 
 // Registry used to lookup Spec objects while initializing routes.

@@ -2,6 +2,7 @@ package skipper
 
 import (
 	"fmt"
+	"slices"
 
 	"os"
 	"path/filepath"
@@ -142,12 +143,7 @@ func pluginIsLoaded(done map[string][]string, name, spec string) bool {
 	if !ok {
 		return false
 	}
-	for _, s := range loaded {
-		if s == spec {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(loaded, spec)
 }
 
 func markPluginLoaded(done map[string][]string, name, spec string) {
@@ -357,7 +353,7 @@ func readPluginConfig(plugin string) (conf []string, err error) {
 		}
 		return nil, err
 	}
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" && line[0] != '#' {
 			conf = append(conf, line)

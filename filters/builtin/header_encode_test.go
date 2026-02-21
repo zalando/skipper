@@ -24,232 +24,232 @@ func TestEncodeRequestHeaderNameUnknown(t *testing.T) {
 func TestCreateFilterEncodeRequestHeader(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
-		args    []interface{}
+		args    []any
 		wantErr error
 	}{
 		{
 			name:    "CodePage037",
-			args:    []interface{}{"X-foo", "CodePage037"},
+			args:    []any{"X-foo", "CodePage037"},
 			wantErr: nil,
 		},
 		{
 			name:    "CodePage1047",
-			args:    []interface{}{"X-foo", "CodePage1047"},
+			args:    []any{"X-foo", "CodePage1047"},
 			wantErr: nil,
 		},
 		{
 			name:    "CodePage1140",
-			args:    []interface{}{"X-foo", "CodePage1140"},
+			args:    []any{"X-foo", "CodePage1140"},
 			wantErr: nil,
 		},
 		{
 			name:    "CodePage437",
-			args:    []interface{}{"X-foo", "CodePage437"},
+			args:    []any{"X-foo", "CodePage437"},
 			wantErr: nil,
 		},
 		{
 			name:    "CodePage850",
-			args:    []interface{}{"X-foo", "CodePage850"},
+			args:    []any{"X-foo", "CodePage850"},
 			wantErr: nil,
 		},
 		{
 			name:    "CodePage852",
-			args:    []interface{}{"X-foo", "CodePage852"},
+			args:    []any{"X-foo", "CodePage852"},
 			wantErr: nil,
 		},
 		{
 			name:    "CodePage855",
-			args:    []interface{}{"X-foo", "CodePage855"},
+			args:    []any{"X-foo", "CodePage855"},
 			wantErr: nil,
 		},
 		{
 			name:    "CodePage858",
-			args:    []interface{}{"X-foo", "CodePage858"},
+			args:    []any{"X-foo", "CodePage858"},
 			wantErr: nil,
 		},
 		{
 			name:    "CodePage860",
-			args:    []interface{}{"X-foo", "CodePage860"},
+			args:    []any{"X-foo", "CodePage860"},
 			wantErr: nil,
 		},
 		{
 			name:    "CodePage862",
-			args:    []interface{}{"X-foo", "CodePage862"},
+			args:    []any{"X-foo", "CodePage862"},
 			wantErr: nil,
 		},
 		{
 			name:    "CodePage863",
-			args:    []interface{}{"X-foo", "CodePage863"},
+			args:    []any{"X-foo", "CodePage863"},
 			wantErr: nil,
 		},
 		{
 			name:    "CodePage865",
-			args:    []interface{}{"X-foo", "CodePage865"},
+			args:    []any{"X-foo", "CodePage865"},
 			wantErr: nil,
 		},
 		{
 			name:    "CodePage866",
-			args:    []interface{}{"X-foo", "CodePage866"},
+			args:    []any{"X-foo", "CodePage866"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_1",
-			args:    []interface{}{"X-foo", "ISO8859_1"},
+			args:    []any{"X-foo", "ISO8859_1"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_10",
-			args:    []interface{}{"X-foo", "ISO8859_10"},
+			args:    []any{"X-foo", "ISO8859_10"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_13",
-			args:    []interface{}{"X-foo", "ISO8859_13"},
+			args:    []any{"X-foo", "ISO8859_13"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_14",
-			args:    []interface{}{"X-foo", "ISO8859_14"},
+			args:    []any{"X-foo", "ISO8859_14"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_15",
-			args:    []interface{}{"X-foo", "ISO8859_15"},
+			args:    []any{"X-foo", "ISO8859_15"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_16",
-			args:    []interface{}{"X-foo", "ISO8859_16"},
+			args:    []any{"X-foo", "ISO8859_16"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_2",
-			args:    []interface{}{"X-foo", "ISO8859_2"},
+			args:    []any{"X-foo", "ISO8859_2"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_3",
-			args:    []interface{}{"X-foo", "ISO8859_3"},
+			args:    []any{"X-foo", "ISO8859_3"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_4",
-			args:    []interface{}{"X-foo", "ISO8859_4"},
+			args:    []any{"X-foo", "ISO8859_4"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_5",
-			args:    []interface{}{"X-foo", "ISO8859_5"},
+			args:    []any{"X-foo", "ISO8859_5"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_6",
-			args:    []interface{}{"X-foo", "ISO8859_6"},
+			args:    []any{"X-foo", "ISO8859_6"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_7",
-			args:    []interface{}{"X-foo", "ISO8859_7"},
+			args:    []any{"X-foo", "ISO8859_7"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_8",
-			args:    []interface{}{"X-foo", "ISO8859_8"},
+			args:    []any{"X-foo", "ISO8859_8"},
 			wantErr: nil,
 		},
 		{
 			name:    "ISO8859_9",
-			args:    []interface{}{"X-foo", "ISO8859_9"},
+			args:    []any{"X-foo", "ISO8859_9"},
 			wantErr: nil,
 		},
 		{
 			name:    "KOI8R",
-			args:    []interface{}{"X-foo", "KOI8R"},
+			args:    []any{"X-foo", "KOI8R"},
 			wantErr: nil,
 		},
 		{
 			name:    "KOI8U",
-			args:    []interface{}{"X-foo", "KOI8U"},
+			args:    []any{"X-foo", "KOI8U"},
 			wantErr: nil,
 		},
 		{
 			name:    "Macintosh",
-			args:    []interface{}{"X-foo", "Macintosh"},
+			args:    []any{"X-foo", "Macintosh"},
 			wantErr: nil,
 		},
 		{
 			name:    "MacintoshCyrillic",
-			args:    []interface{}{"X-foo", "MacintoshCyrillic"},
+			args:    []any{"X-foo", "MacintoshCyrillic"},
 			wantErr: nil,
 		},
 		{
 			name:    "Windows1250",
-			args:    []interface{}{"X-foo", "Windows1250"},
+			args:    []any{"X-foo", "Windows1250"},
 			wantErr: nil,
 		},
 		{
 			name:    "Windows1251",
-			args:    []interface{}{"X-foo", "Windows1251"},
+			args:    []any{"X-foo", "Windows1251"},
 			wantErr: nil,
 		},
 		{
 			name:    "Windows1252",
-			args:    []interface{}{"X-foo", "Windows1252"},
+			args:    []any{"X-foo", "Windows1252"},
 			wantErr: nil,
 		},
 		{
 			name:    "Windows1253",
-			args:    []interface{}{"X-foo", "Windows1253"},
+			args:    []any{"X-foo", "Windows1253"},
 			wantErr: nil,
 		},
 		{
 			name:    "Windows1254",
-			args:    []interface{}{"X-foo", "Windows1254"},
+			args:    []any{"X-foo", "Windows1254"},
 			wantErr: nil,
 		},
 		{
 			name:    "Windows1255",
-			args:    []interface{}{"X-foo", "Windows1255"},
+			args:    []any{"X-foo", "Windows1255"},
 			wantErr: nil,
 		},
 		{
 			name:    "Windows1256",
-			args:    []interface{}{"X-foo", "Windows1256"},
+			args:    []any{"X-foo", "Windows1256"},
 			wantErr: nil,
 		},
 		{
 			name:    "Windows1257",
-			args:    []interface{}{"X-foo", "Windows1257"},
+			args:    []any{"X-foo", "Windows1257"},
 			wantErr: nil,
 		},
 		{
 			name:    "Windows1258",
-			args:    []interface{}{"X-foo", "Windows1258"},
+			args:    []any{"X-foo", "Windows1258"},
 			wantErr: nil,
 		},
 		{
 			name:    "Windows874",
-			args:    []interface{}{"X-foo", "Windows874"},
+			args:    []any{"X-foo", "Windows874"},
 			wantErr: nil,
 		},
 		{
 			name:    "unknown",
-			args:    []interface{}{"X-foo", "unknown"},
+			args:    []any{"X-foo", "unknown"},
 			wantErr: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name:    "error not enough arguments",
-			args:    []interface{}{"X-foo"},
+			args:    []any{"X-foo"},
 			wantErr: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name:    "type error key",
-			args:    []interface{}{5, "X-foo"},
+			args:    []any{5, "X-foo"},
 			wantErr: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name:    "type error value",
-			args:    []interface{}{"X-foo", 5},
+			args:    []any{"X-foo", 5},
 			wantErr: filters.ErrInvalidFilterParameters,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {

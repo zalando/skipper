@@ -42,27 +42,27 @@ func benchmarkRegexp(b *testing.B, routesCount, concurrency int) {
 	pg := pathgen.New(pathgen.PathGeneratorOptions{RandSeed: 42})
 
 	hosts := make([]string, 0, totalHosts)
-	for i := 0; i < totalHosts; i++ {
+	for range totalHosts {
 		hosts = append(hosts, hostRegexp(pg))
 	}
 
 	pathRegexps := make([]string, 0, totalPathRegexps)
-	for i := 0; i < totalPathRegexps; i++ {
+	for range totalPathRegexps {
 		pathRegexps = append(pathRegexps, pathRegexp(pg))
 	}
 
 	paths := make([]string, 0, routesCount)
-	for i := 0; i < routesCount; i++ {
+	for range routesCount {
 		paths = append(paths, pg.Next())
 	}
 
 	routes := make([]*eskip.Route, 0, routesCount)
-	for i := 0; i < routesCount; i++ {
+	for i := range routesCount {
 		r := &eskip.Route{
 			Id: fmt.Sprintf("route%d", i),
 			Filters: []*eskip.Filter{{
 				Name: "status",
-				Args: []interface{}{200},
+				Args: []any{200},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}
@@ -75,7 +75,7 @@ func benchmarkRegexp(b *testing.B, routesCount, concurrency int) {
 		} else {
 			r.Predicates = append(r.Predicates, &eskip.Predicate{
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					paths[pg.Rnd.IntN(len(paths))],
 				},
 			})
@@ -96,9 +96,8 @@ func benchmarkRegexp(b *testing.B, routesCount, concurrency int) {
 
 	b.ResetTimer()
 	var wg sync.WaitGroup
-	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
-		go func() {
+	for range concurrency {
+		wg.Go(func() {
 			for j := 0; j < b.N/concurrency; j++ {
 				if b.Failed() {
 					wg.Done()
@@ -115,8 +114,7 @@ func benchmarkRegexp(b *testing.B, routesCount, concurrency int) {
 				rsp.Body.Close()
 			}
 
-			wg.Done()
-		}()
+		})
 	}
 
 	wg.Wait()

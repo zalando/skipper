@@ -134,10 +134,7 @@ func (o Options) maxQueueSize() int64 {
 		return int64(o.MaxQueueSize)
 	}
 
-	maxQueueSize := 10 * o.maxConcurrency()
-	if maxQueueSize > maxCalculatedQueueSize {
-		maxQueueSize = maxCalculatedQueueSize
-	}
+	maxQueueSize := min(10*o.maxConcurrency(), maxCalculatedQueueSize)
 
 	return maxQueueSize
 }

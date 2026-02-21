@@ -38,9 +38,9 @@ func (al *AccessLogFilter) Request(ctx filters.FilterContext) {
 	bag[AccessLogEnabledKey] = al
 
 	if al.MaskedQueryParams != nil {
-		additionalData, ok := bag[AccessLogAdditionalDataKey].(map[string]interface{})
+		additionalData, ok := bag[AccessLogAdditionalDataKey].(map[string]any)
 		if !ok {
-			additionalData = make(map[string]interface{})
+			additionalData = make(map[string]any)
 			bag[AccessLogAdditionalDataKey] = additionalData
 		}
 		maskedQueryParams, ok := additionalData[KeyMaskedQueryParams].(map[string]struct{})
@@ -55,7 +55,7 @@ func (al *AccessLogFilter) Request(ctx filters.FilterContext) {
 
 func (*AccessLogFilter) Response(filters.FilterContext) {}
 
-func extractFilterValues(args []interface{}, enable bool) (filters.Filter, error) {
+func extractFilterValues(args []any, enable bool) (filters.Filter, error) {
 	prefixes := make([]int, 0)
 	for _, prefix := range args {
 		var intPref int
@@ -92,7 +92,7 @@ func NewDisableAccessLog() filters.Spec {
 
 func (*disableAccessLog) Name() string { return filters.DisableAccessLogName }
 
-func (al *disableAccessLog) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (al *disableAccessLog) CreateFilter(args []any) (filters.Filter, error) {
 	return extractFilterValues(args, false)
 }
 
@@ -110,7 +110,7 @@ func NewEnableAccessLog() filters.Spec {
 
 func (*enableAccessLog) Name() string { return filters.EnableAccessLogName }
 
-func (al *enableAccessLog) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (al *enableAccessLog) CreateFilter(args []any) (filters.Filter, error) {
 	return extractFilterValues(args, true)
 }
 
@@ -126,7 +126,7 @@ func NewMaskAccessLogQuery() filters.Spec {
 
 func (*maskAccessLogQuery) Name() string { return filters.MaskAccessLogQueryName }
 
-func (al *maskAccessLogQuery) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (al *maskAccessLogQuery) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

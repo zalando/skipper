@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -127,11 +128,8 @@ func matchOutput(matchFile, output string) error {
 		rx := regexp.MustCompile(e)
 
 		var found bool
-		for _, l := range lines {
-			if rx.MatchString(l) {
-				found = true
-				break
-			}
+		if slices.ContainsFunc(lines, rx.MatchString) {
+			found = true
 		}
 
 		if !found {

@@ -49,7 +49,7 @@ func (t *timeout) Name() string {
 	return "unknownFilter"
 }
 
-func (t *timeout) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (t *timeout) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

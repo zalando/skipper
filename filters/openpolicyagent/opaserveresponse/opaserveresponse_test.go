@@ -276,7 +276,7 @@ func TestServerResponseFilter(t *testing.T) {
 
 			fr := make(filters.Registry)
 
-			config := []byte(fmt.Sprintf(`{
+			config := fmt.Appendf(nil, `{
 				"services": {
 					"test": {
 						"url": %q
@@ -300,7 +300,7 @@ func TestServerResponseFilter(t *testing.T) {
 				"decision_logs": {
 					"console": true
 				}
-			}`, opaControlPlane.URL(), ti.regoQuery))
+			}`, opaControlPlane.URL(), ti.regoQuery)
 
 			opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()),
 				openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate(config)))
@@ -311,7 +311,7 @@ func TestServerResponseFilter(t *testing.T) {
 			ftSpec = NewOpaServeResponseWithReqBodySpec(opaFactory)
 			fr.Register(ftSpec)
 
-			filterArgs := []interface{}{ti.bundleName}
+			filterArgs := []any{ti.bundleName}
 			if ti.contextExtensions != "" {
 				filterArgs = append(filterArgs, ti.contextExtensions)
 			}
@@ -357,18 +357,18 @@ func TestCreateFilterArguments(t *testing.T) {
 
 	ftSpec := NewOpaServeResponseSpec(opaRegistry)
 
-	_, err = ftSpec.CreateFilter([]interface{}{})
+	_, err = ftSpec.CreateFilter([]any{})
 	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
 
-	_, err = ftSpec.CreateFilter([]interface{}{42})
+	_, err = ftSpec.CreateFilter([]any{42})
 	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
 
-	_, err = ftSpec.CreateFilter([]interface{}{"a bundle", 42})
+	_, err = ftSpec.CreateFilter([]any{"a bundle", 42})
 	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
 
-	_, err = ftSpec.CreateFilter([]interface{}{"a bundle", "invalid; context extensions"})
+	_, err = ftSpec.CreateFilter([]any{"a bundle", "invalid; context extensions"})
 	assert.Error(t, err)
 
-	_, err = ftSpec.CreateFilter([]interface{}{"a bundle", "extra: value", "superfluous argument"})
+	_, err = ftSpec.CreateFilter([]any{"a bundle", "extra: value", "superfluous argument"})
 	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
 }

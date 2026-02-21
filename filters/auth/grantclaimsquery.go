@@ -21,6 +21,6 @@ func (s *grantClaimsQuerySpec) Name() string {
 	return filters.GrantClaimsQueryName
 }
 
-func (s *grantClaimsQuerySpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *grantClaimsQuerySpec) CreateFilter(args []any) (filters.Filter, error) {
 	return s.oidcSpec.CreateFilter(args)
 }

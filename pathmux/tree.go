@@ -20,12 +20,12 @@ type Matcher interface {
 	// Match should return true and the object to be returned by the lookup, when the argument value fulfils the
 	// conditions defined by the custom logic in the matcher itself. If it returns false, it instructs the
 	// lookup to continue with backtracking from the current tree position.
-	Match(value interface{}) (bool, interface{})
+	Match(value any) (bool, any)
 }
 
 type trueMatcher struct{}
 
-func (m *trueMatcher) Match(value interface{}) (bool, interface{}) {
+func (m *trueMatcher) Match(value any) (bool, any) {
 	return true, value
 }
 
@@ -52,7 +52,7 @@ type node struct {
 
 	isCatchAll bool
 
-	leafValue interface{}
+	leafValue any
 }
 
 // Tree structure to store values associated to paths.
@@ -186,7 +186,7 @@ func commonPrefixLen(x, y string) int {
 	return n
 }
 
-func (n *node) search(path string, m Matcher) (found *node, params []string, value interface{}) {
+func (n *node) search(path string, m Matcher) (found *node, params []string, value any) {
 	pathLen := len(path)
 	if pathLen == 0 {
 		if n.leafValue == nil {
@@ -279,7 +279,7 @@ func (n *node) search(path string, m Matcher) (found *node, params []string, val
 //
 // - free wildcard: e.g. /some/path/*wildcard, where a wildcard at the
 // end of a path matches anything.
-func (t *Tree) Add(path string, value interface{}) error {
+func (t *Tree) Add(path string, value any) error {
 	n, err := (*node)(t).addPath(path[1:])
 	if err != nil {
 		return err
@@ -291,7 +291,7 @@ func (t *Tree) Add(path string, value interface{}) error {
 
 // Lookup tries to find a value in the tree associated to a path. If the found path definition contains
 // wildcards, the values of the wildcards are returned in the second argument.
-func (t *Tree) Lookup(path string) (interface{}, []string) {
+func (t *Tree) Lookup(path string) (any, []string) {
 	node, params, _ := t.LookupMatcher(path, tm)
 	return node, params
 }
@@ -301,7 +301,7 @@ func (t *Tree) Lookup(path string) (interface{}, []string) {
 // the matcher is called to check if the value meets the conditions implemented by the custom matcher. If it
 // returns true, then the lookup is done and the additional return value from the matcher is returned as the
 // lookup result. If it returns false, the lookup continues with backtracking from the current tree position.
-func (t *Tree) LookupMatcher(path string, m Matcher) (interface{}, []string, interface{}) {
+func (t *Tree) LookupMatcher(path string, m Matcher) (any, []string, any) {
 	if path == "" {
 		path = "/"
 	}

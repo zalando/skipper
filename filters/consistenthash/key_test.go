@@ -20,11 +20,11 @@ func TestConsistentHashKey(t *testing.T) {
 				"X-Uid": []string{"user1"},
 			},
 		},
-		FStateBag: make(map[string]interface{}),
+		FStateBag: make(map[string]any),
 	}
 
 	// missing placeholder does not set key
-	f, err := spec.CreateFilter([]interface{}{"missing: ${request.header.missing}"})
+	f, err := spec.CreateFilter([]any{"missing: ${request.header.missing}"})
 	if err != nil {
 		t.Fatal("failed to create filter")
 	}
@@ -35,7 +35,7 @@ func TestConsistentHashKey(t *testing.T) {
 	}
 
 	// set key with placeholder
-	f, _ = spec.CreateFilter([]interface{}{"set: ${request.header.x-uid}"})
+	f, _ = spec.CreateFilter([]any{"set: ${request.header.x-uid}"})
 	f.Request(c)
 
 	if c.FStateBag[loadbalancer.ConsistentHashKey] != "set: user1" {
@@ -43,7 +43,7 @@ func TestConsistentHashKey(t *testing.T) {
 	}
 
 	// second filter overwrites
-	f, _ = spec.CreateFilter([]interface{}{"overwrite: ${request.header.x-uid}"})
+	f, _ = spec.CreateFilter([]any{"overwrite: ${request.header.x-uid}"})
 	f.Request(c)
 
 	if c.FStateBag[loadbalancer.ConsistentHashKey] != "overwrite: user1" {
@@ -51,7 +51,7 @@ func TestConsistentHashKey(t *testing.T) {
 	}
 
 	// missing placeholder does not overwrite
-	f, _ = spec.CreateFilter([]interface{}{"missing overwrite: ${request.header.missing}"})
+	f, _ = spec.CreateFilter([]any{"missing overwrite: ${request.header.missing}"})
 	f.Request(c)
 
 	if c.FStateBag[loadbalancer.ConsistentHashKey] != "overwrite: user1" {

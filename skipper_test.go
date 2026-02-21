@@ -458,7 +458,7 @@ type (
 )
 
 func (s *customRatelimitSpec) Name() string { return "customRatelimit" }
-func (s *customRatelimitSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (s *customRatelimitSpec) CreateFilter(config []any) (filters.Filter, error) {
 	log.Infof("Registry: %v", s.registry)
 	return &customRatelimitFilter{}, nil
 }

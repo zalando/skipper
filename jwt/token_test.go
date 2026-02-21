@@ -13,7 +13,7 @@ func TestParse(t *testing.T) {
 	for _, tt := range []struct {
 		value  string
 		ok     bool
-		claims map[string]interface{}
+		claims map[string]any
 	}{
 		{
 			value: "",
@@ -34,13 +34,13 @@ func TestParse(t *testing.T) {
 			value: "x..z",
 			ok:    false,
 		}, {
-			value:  "x." + marshalBase64JSON(t, map[string]interface{}{"hello": "world"}) + ".z",
+			value:  "x." + marshalBase64JSON(t, map[string]any{"hello": "world"}) + ".z",
 			ok:     true,
-			claims: map[string]interface{}{"hello": "world"},
+			claims: map[string]any{"hello": "world"},
 		}, {
-			value:  "." + marshalBase64JSON(t, map[string]interface{}{"no header": "no signature"}) + ".",
+			value:  "." + marshalBase64JSON(t, map[string]any{"no header": "no signature"}) + ".",
 			ok:     true,
-			claims: map[string]interface{}{"no header": "no signature"},
+			claims: map[string]any{"no header": "no signature"},
 		},
 	} {
 		token, err := Parse(tt.value)
@@ -59,7 +59,7 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func marshalBase64JSON(tb testing.TB, v interface{}) string {
+func marshalBase64JSON(tb testing.TB, v any) string {
 	d, err := json.Marshal(v)
 	if err != nil {
 		tb.Fatalf("failed to marshal json: %v, %v", v, err)
@@ -70,7 +70,7 @@ func marshalBase64JSON(tb testing.TB, v interface{}) string {
 var parseSink *Token
 
 func BenchmarkParse(b *testing.B) {
-	claims := map[string]interface{}{
+	claims := map[string]any{
 		"azp":                    strings.Repeat("z", 100),
 		"exp":                    1234567890,
 		"aaaaaaaaaaaaaaaaaaaaaa": strings.Repeat("a", 40),

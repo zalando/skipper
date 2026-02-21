@@ -76,10 +76,7 @@ func (r *ring) rangeOver(f func(net.Conn)) {
 		start = len(r.connections) + start
 	}
 
-	finish := start + r.size
-	if finish >= len(r.connections) {
-		finish = len(r.connections)
-	}
+	finish := min(start+r.size, len(r.connections))
 
 	for i := start; i < finish; i++ {
 		f(r.connections[i])

@@ -306,7 +306,7 @@ func Test_Filter_PathTemplateMatchesInternalSlashes(t *testing.T) {
 
 func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testing.T) {
 	filterCreate := func() (filters.Filter, error) {
-		args := []interface{}{`{
+		args := []any{`{
 				"application_id": "my_app",
                 "tag": "my_tag",
 				"api_id": "my_api",
@@ -360,7 +360,7 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 
 func Test_Filter_PathTemplateMatchesPathFromRequestChain(t *testing.T) {
 	filterCreate := func() (filters.Filter, error) {
-		args := []interface{}{`{
+		args := []any{`{
 				"application_id": "my_app",
                 "tag": "my_tag",
 				"api_id": "my_api",

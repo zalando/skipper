@@ -30,7 +30,7 @@ func (s *forwardTokenFieldSpec) Name() string {
 	return filters.ForwardTokenFieldName
 }
 
-func (*forwardTokenFieldSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (*forwardTokenFieldSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -77,7 +77,7 @@ func (f *forwardTokenFieldFilter) Request(ctx filters.FilterContext) {
 
 func (*forwardTokenFieldFilter) Response(filters.FilterContext) {}
 
-func getPayload(ctx filters.FilterContext, cacheKey string) interface{} {
+func getPayload(ctx filters.FilterContext, cacheKey string) any {
 	cachedValue, ok := ctx.StateBag()[cacheKey]
 	if !ok {
 		return nil

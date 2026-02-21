@@ -178,7 +178,7 @@ func NewDecompress() filters.Spec {
 
 func (d decompress) Name() string { return filters.DecompressName }
 
-func (d decompress) CreateFilter([]interface{}) (filters.Filter, error) {
+func (d decompress) CreateFilter([]any) (filters.Filter, error) {
 	return d, nil
 }
 

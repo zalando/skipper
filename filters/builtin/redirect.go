@@ -73,7 +73,7 @@ func (spec *redirect) Name() string {
 }
 
 // Creates an instance of the redirect filter.
-func (spec *redirect) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (spec *redirect) CreateFilter(config []any) (filters.Filter, error) {
 	invalidArgs := func() (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}

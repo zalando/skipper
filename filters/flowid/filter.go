@@ -90,7 +90,7 @@ func (*flowId) Response(filters.FilterContext) {}
 // CreateFilter will return a new flowId filter from the spec
 // If at least 1 argument is present and it contains the value "reuse", the filter instance is configured to accept
 // keep the value of the X-Flow-Id header, if it's already set
-func (spec *flowIdSpec) CreateFilter(fc []interface{}) (filters.Filter, error) {
+func (spec *flowIdSpec) CreateFilter(fc []any) (filters.Filter, error) {
 	var reuseExisting bool
 	if len(fc) > 0 {
 		if r, ok := fc[0].(string); ok {

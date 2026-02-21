@@ -808,7 +808,7 @@ func TestTeardown(t *testing.T) {
 		}
 
 		var conns []*testConnection
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			conns = append(conns, <-tl.conns)
 		}
 
@@ -862,7 +862,7 @@ func TestTeardown(t *testing.T) {
 		}
 
 		var conns []*testConnection
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			conns = append(conns, <-tl.conns)
 		}
 

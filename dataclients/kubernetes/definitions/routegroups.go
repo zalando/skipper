@@ -3,6 +3,7 @@ package definitions
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"errors"
 
@@ -295,11 +296,5 @@ func backendTypeFromString(s string) (eskip.BackendType, error) {
 }
 
 func hasEmpty(s []string) bool {
-	for _, si := range s {
-		if si == "" {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(s, "")
 }

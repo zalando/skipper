@@ -61,7 +61,7 @@ func TestConcurrencySingleRoute(t *testing.T) {
 		backends []string
 	)
 
-	for i := 0; i < backendCount; i++ {
+	for i := range backendCount {
 		content := fmt.Sprintf("lb group member %d", i)
 		contents = append(contents, content)
 
@@ -124,7 +124,7 @@ func TestConcurrencySingleRoute(t *testing.T) {
 		wg.Done()
 	}
 
-	for i := 0; i < concurrency; i++ {
+	for range concurrency {
 		wg.Add(1)
 		go runClient()
 	}
@@ -162,7 +162,7 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 		backends []string
 	)
 
-	for i := 0; i < backendCount; i++ {
+	for i := range backendCount {
 		content := fmt.Sprintf("lb group member %d", i)
 		contents = append(contents, content)
 
@@ -234,7 +234,7 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 		wg.Done()
 	}
 
-	for i := 0; i < concurrency; i++ {
+	for range concurrency {
 		wg.Add(1)
 		go runClient()
 	}
@@ -272,7 +272,7 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 
 	apps := []string{"app1", "app2"}
 	for _, app := range apps {
-		for i := 0; i < backendCount; i++ {
+		for i := range backendCount {
 			content := fmt.Sprintf("%s lb group member %d", app, i)
 			contents[app] = append(contents[app], content)
 
@@ -348,7 +348,7 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 		wg.Done()
 	}
 
-	for i := 0; i < concurrency; i++ {
+	for range concurrency {
 		wg.Add(1)
 		go runClient()
 	}
@@ -375,7 +375,7 @@ func createDataClientWithUpdates(initial []*eskip.Route, updateTimeout time.Dura
 				Backend: "https://some.site",
 				Predicates: []*eskip.Predicate{{
 					Name: "Host",
-					Args: []interface{}{
+					Args: []any{
 						"no.sense",
 					},
 				}},

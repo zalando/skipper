@@ -152,7 +152,7 @@ func (s *spec) Name() string {
 	return s.name
 }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []any) (routing.Predicate, error) {
 	if len(args) == 0 || len(args)%2 != 0 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
@@ -252,7 +252,7 @@ func (p *predicate) Match(r *http.Request) bool {
 	return res
 }
 
-func stringValue(payload map[string]interface{}, key string) (string, bool) {
+func stringValue(payload map[string]any, key string) (string, bool) {
 	if value, ok := payload[key]; ok {
 		result, ok := value.(string)
 		return result, ok
@@ -260,7 +260,7 @@ func stringValue(payload map[string]interface{}, key string) (string, bool) {
 	return "", false
 }
 
-func allMatch(expected map[string][]valueMatcher, payload map[string]interface{}) bool {
+func allMatch(expected map[string][]valueMatcher, payload map[string]any) bool {
 	if len(expected) > len(payload) {
 		return false
 	}
@@ -280,7 +280,7 @@ func allMatch(expected map[string][]valueMatcher, payload map[string]interface{}
 	return true
 }
 
-func anyMatch(expected map[string][]valueMatcher, payload map[string]interface{}) bool {
+func anyMatch(expected map[string][]valueMatcher, payload map[string]any) bool {
 	if len(expected) == 0 {
 		return true
 	}

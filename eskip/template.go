@@ -57,13 +57,13 @@ func (t *Template) Apply(get TemplateGetter) string {
 // placeholders. Returns true if all placeholders resolved to non-empty values.
 func (t *Template) ApplyContext(ctx TemplateContext) (string, bool) {
 	return t.apply(func(key string) string {
-		if h := strings.TrimPrefix(key, "request.header."); h != key {
+		if h, ok := strings.CutPrefix(key, "request.header."); ok {
 			return ctx.Request().Header.Get(h)
 		}
-		if q := strings.TrimPrefix(key, "request.query."); q != key {
+		if q, ok := strings.CutPrefix(key, "request.query."); ok {
 			return ctx.Request().URL.Query().Get(q)
 		}
-		if c := strings.TrimPrefix(key, "request.cookie."); c != key {
+		if c, ok := strings.CutPrefix(key, "request.cookie."); ok {
 			if cookie, err := ctx.Request().Cookie(c); err == nil {
 				return cookie.Value
 			}
@@ -88,7 +88,7 @@ func (t *Template) ApplyContext(ctx TemplateContext) (string, bool) {
 			}
 		}
 		if ctx.Response() != nil {
-			if h := strings.TrimPrefix(key, "response.header."); h != key {
+			if h, ok := strings.CutPrefix(key, "response.header."); ok {
 				return ctx.Response().Header.Get(h)
 			}
 		}

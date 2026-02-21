@@ -24,9 +24,9 @@ type path struct{}
 // See also the PatchPath documentation in the rfc package.
 func NewPath() filters.Spec { return path{} }
 
-func (p path) Name() string                                       { return filters.RfcPathName }
-func (p path) CreateFilter([]interface{}) (filters.Filter, error) { return path{}, nil }
-func (p path) Response(filters.FilterContext)                     {}
+func (p path) Name() string                               { return filters.RfcPathName }
+func (p path) CreateFilter([]any) (filters.Filter, error) { return path{}, nil }
+func (p path) Response(filters.FilterContext)             {}
 
 func (p path) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
@@ -41,9 +41,9 @@ type host struct{}
 // See also the PatchHost documentation in the rfc package.
 func NewHost() filters.Spec { return host{} }
 
-func (host) Name() string                                       { return filters.RfcHostName }
-func (host) CreateFilter([]interface{}) (filters.Filter, error) { return host{}, nil }
-func (host) Response(filters.FilterContext)                     {}
+func (host) Name() string                               { return filters.RfcHostName }
+func (host) CreateFilter([]any) (filters.Filter, error) { return host{}, nil }
+func (host) Response(filters.FilterContext)             {}
 
 func (host) Request(ctx filters.FilterContext) {
 	ctx.Request().Host = rfc.PatchHost(ctx.Request().Host)

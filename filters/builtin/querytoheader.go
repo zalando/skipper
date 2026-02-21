@@ -40,7 +40,7 @@ func (*queryToHeaderSpec) Name() string {
 
 // CreateFilter creates a `queryToHeader` filter instance with below signature
 // s.CreateFilter("foo-query-param", "X-Foo-Header")
-func (*queryToHeaderSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (*queryToHeaderSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if l := len(args); l < 2 || l > 3 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

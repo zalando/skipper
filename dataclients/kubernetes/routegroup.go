@@ -231,7 +231,7 @@ func applyDefaultFilters(ctx *routeGroupContext, serviceName string, r *eskip.Ro
 	return nil
 }
 
-func appendFilter(f []*eskip.Filter, name string, args ...interface{}) []*eskip.Filter {
+func appendFilter(f []*eskip.Filter, name string, args ...any) []*eskip.Filter {
 	return append(f, &eskip.Filter{
 		Name: name,
 		Args: args,
@@ -281,7 +281,7 @@ func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r
 	return nil
 }
 
-func appendPredicate(p []*eskip.Predicate, name string, args ...interface{}) []*eskip.Predicate {
+func appendPredicate(p []*eskip.Predicate, name string, args ...any) []*eskip.Predicate {
 	return append(p, &eskip.Predicate{
 		Name: name,
 		Args: args,

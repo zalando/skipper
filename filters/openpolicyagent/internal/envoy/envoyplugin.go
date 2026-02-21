@@ -14,7 +14,7 @@ import (
 type Factory struct{}
 
 // New returns the object initialized with a valid plugin configuration.
-func (Factory) New(m *plugins.Manager, cfg interface{}) plugins.Plugin {
+func (Factory) New(m *plugins.Manager, cfg any) plugins.Plugin {
 	p := &Plugin{
 		manager: m,
 		cfg:     *cfg.(*PluginConfig),
@@ -26,7 +26,7 @@ func (Factory) New(m *plugins.Manager, cfg interface{}) plugins.Plugin {
 }
 
 // Validate returns a valid configuration to instantiate the plugin.
-func (Factory) Validate(m *plugins.Manager, bs []byte) (interface{}, error) {
+func (Factory) Validate(m *plugins.Manager, bs []byte) (any, error) {
 	cfg := PluginConfig{
 		DryRun: defaultDryRun,
 	}
@@ -42,7 +42,7 @@ func (Factory) Validate(m *plugins.Manager, bs []byte) (interface{}, error) {
 	return &cfg, nil
 }
 
-func (p *Plugin) Reconfigure(ctx context.Context, config interface{}) {
+func (p *Plugin) Reconfigure(ctx context.Context, config any) {
 	p.cfg = *config.(*PluginConfig)
 }
 
@@ -106,8 +106,8 @@ func stringPathToRef(s string) (r ast.Ref) {
 		return r
 	}
 
-	p := strings.Split(s, "/")
-	for _, x := range p {
+	p := strings.SplitSeq(s, "/")
+	for x := range p {
 		if x == "" {
 			continue
 		}

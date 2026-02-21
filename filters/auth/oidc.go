@@ -125,11 +125,11 @@ type (
 	}
 
 	tokenContainer struct {
-		OAuth2Token *oauth2.Token          `json:"oauth2token"`
-		OIDCIDToken string                 `json:"oidctoken"`
-		UserInfo    *oidc.UserInfo         `json:"userInfo,omitempty"`
-		Subject     string                 `json:"subject"`
-		Claims      map[string]interface{} `json:"claims"`
+		OAuth2Token *oauth2.Token  `json:"oauth2token"`
+		OIDCIDToken string         `json:"oidctoken"`
+		UserInfo    *oidc.UserInfo `json:"userInfo,omitempty"`
+		Subject     string         `json:"subject"`
+		Claims      map[string]any `json:"claims"`
 	}
 
 	cookieCompression interface {
@@ -182,7 +182,7 @@ func NewOAuthOidcAllClaims(secretsFile string, secretsRegistry secrets.Encrypter
 //
 //	oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
 //	"http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2", "<optional>", "<optional>", "<optional>") -> "https://internal.example.org";
-func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *tokenOidcSpec) CreateFilter(args []any) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
 		return nil, err
@@ -301,9 +301,9 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 
 	f.authCodeOptions = make([]oauth2.AuthCodeOption, 0)
 	if len(sargs) > paramAuthCodeOpts && sargs[paramAuthCodeOpts] != "" {
-		extraParameters := strings.Split(sargs[paramAuthCodeOpts], " ")
+		extraParameters := strings.SplitSeq(sargs[paramAuthCodeOpts], " ")
 
-		for _, p := range extraParameters {
+		for p := range extraParameters {
 			splitP := strings.Split(p, "=")
 			log.Debug(splitP)
 			if len(splitP) != 2 {
@@ -322,7 +322,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	if len(sargs) > paramUpstrHeaders && sargs[paramUpstrHeaders] != "" {
 		f.upstreamHeaders = make(map[string]string)
 
-		for _, header := range strings.Split(sargs[paramUpstrHeaders], " ") {
+		for header := range strings.SplitSeq(sargs[paramUpstrHeaders], " ") {
 			k, v, found := strings.Cut(header, ":")
 			if !found || k == "" || v == "" {
 				return nil, fmt.Errorf("%w: malformed filter for upstream headers %s", filters.ErrInvalidFilterParameters, header)
@@ -347,7 +347,7 @@ func (s *tokenOidcSpec) Name() string {
 	return AuthUnknown
 }
 
-func (f *tokenOidcFilter) validateAnyClaims(h map[string]interface{}) bool {
+func (f *tokenOidcFilter) validateAnyClaims(h map[string]any) bool {
 	if len(f.claims) == 0 {
 		return true
 	}
@@ -363,7 +363,7 @@ func (f *tokenOidcFilter) validateAnyClaims(h map[string]interface{}) bool {
 	return false
 }
 
-func (f *tokenOidcFilter) validateAllClaims(h map[string]interface{}) bool {
+func (f *tokenOidcFilter) validateAllClaims(h map[string]any) bool {
 	l := len(f.claims)
 	if l == 0 {
 		return true
@@ -596,7 +596,7 @@ func (f *tokenOidcFilter) validateCookie(cookie *http.Cookie) ([]byte, bool) {
 // 5. Authorization Server sends the End-User back to the Client with an Authorization Code.
 func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 	var (
-		claimsMap   map[string]interface{}
+		claimsMap   map[string]any
 		oauth2Token *oauth2.Token
 		data        []byte
 		resp        tokenContainer
@@ -767,7 +767,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 	f.doDownstreamRedirect(ctx, encryptedData, f.getMaxAge(claimsMap), oauthState.RedirectUrl)
 }
 
-func (f *tokenOidcFilter) getMaxAge(claimsMap map[string]interface{}) time.Duration {
+func (f *tokenOidcFilter) getMaxAge(claimsMap map[string]any) time.Duration {
 	maxAge := f.validity
 	if exp, ok := claimsMap["exp"].(float64); ok {
 		val := time.Until(time.Unix(int64(exp), 0))
@@ -863,7 +863,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	}
 }
 
-func setHeaders(upstreamHeaders map[string]string, ctx filters.FilterContext, container interface{}) (err error) {
+func setHeaders(upstreamHeaders map[string]string, ctx filters.FilterContext, container any) (err error) {
 	oidcInfoJson, err := json.Marshal(container)
 	if err != nil || !gjson.ValidBytes(oidcInfoJson) {
 		return fmt.Errorf("failed to serialize OIDC token info: %w", err)
@@ -889,7 +889,7 @@ func setHeaders(upstreamHeaders map[string]string, ctx filters.FilterContext, co
 	return
 }
 
-func (f *tokenOidcFilter) tokenClaims(ctx filters.FilterContext, oauth2Token *oauth2.Token) (map[string]interface{}, string, error) {
+func (f *tokenOidcFilter) tokenClaims(ctx filters.FilterContext, oauth2Token *oauth2.Token) (map[string]any, string, error) {
 	r := ctx.Request()
 	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
 	if !ok {
@@ -902,7 +902,7 @@ func (f *tokenOidcFilter) tokenClaims(ctx filters.FilterContext, oauth2Token *oa
 		return nil, "", requestErrorf("failed to verify id token: %v", err)
 	}
 
-	tokenMap := make(map[string]interface{})
+	tokenMap := make(map[string]any)
 	if err = idToken.Claims(&tokenMap); err != nil {
 		return nil, "", requestErrorf("failed to deserialize id token: %v", err)
 	}
@@ -998,7 +998,7 @@ func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.Fi
 //		   }
 //	  }
 //	}
-func (f *tokenOidcFilter) handleDistributedClaims(idToken *oidc.IDToken, oauth2Token *oauth2.Token, claimsMap map[string]interface{}) error {
+func (f *tokenOidcFilter) handleDistributedClaims(idToken *oidc.IDToken, oauth2Token *oauth2.Token, claimsMap map[string]any) error {
 	// https://github.com/coreos/go-oidc/issues/171#issuecomment-1044286153
 	var distClaims distributedClaims
 	err := idToken.Claims(&distClaims)
@@ -1020,7 +1020,7 @@ func (f *tokenOidcFilter) handleDistributedClaims(idToken *oidc.IDToken, oauth2T
 			return fmt.Errorf("failed to parse distributed claim endpoint: %w", err)
 		}
 
-		var results []interface{}
+		var results []any
 
 		switch uri.Host {
 		case azureADGraphHost, microsoftGraphHost:
@@ -1040,7 +1040,7 @@ func (f *tokenOidcFilter) handleDistributedClaims(idToken *oidc.IDToken, oauth2T
 // Azure customizations https://docs.microsoft.com/en-us/graph/migrate-azure-ad-graph-overview
 // If the endpoints provided in _claim_source is pointed to the deprecated "graph.windows.net" api
 // replace with handcrafted url to graph.microsoft.com
-func (f *tokenOidcFilter) handleDistributedClaimsAzure(url *url.URL, oauth2Token *oauth2.Token, claimsMap map[string]interface{}) (values []interface{}, err error) {
+func (f *tokenOidcFilter) handleDistributedClaimsAzure(url *url.URL, oauth2Token *oauth2.Token, claimsMap map[string]any) (values []any, err error) {
 	url.Host = microsoftGraphHost
 	// transitiveMemberOf for group names
 	userID, ok := claimsMap["oid"].(string)
@@ -1066,7 +1066,7 @@ func (f *tokenOidcFilter) initClient() *snet.Client {
 	return newCli
 }
 
-func (f *tokenOidcFilter) resolveDistributedClaimAzure(url *url.URL, oauth2Token *oauth2.Token) (values []interface{}, err error) {
+func (f *tokenOidcFilter) resolveDistributedClaimAzure(url *url.URL, oauth2Token *oauth2.Token) (values []any, err error) {
 	var target azureGraphGroups
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
@@ -1130,7 +1130,7 @@ func (f *tokenOidcFilter) resolveDistributedClaimAzure(url *url.URL, oauth2Token
 func newDeflatePoolCompressor(level int) *deflatePoolCompressor {
 	return &deflatePoolCompressor{
 		poolWriter: &sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				w, err := flate.NewWriter(io.Discard, level)
 				if err != nil {
 					log.Errorf("failed to generate new deflate writer: %v", err)

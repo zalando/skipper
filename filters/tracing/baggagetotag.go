@@ -21,7 +21,7 @@ func (baggageToTagSpec) Name() string {
 	return filters.TracingBaggageToTagName
 }
 
-func (baggageToTagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (baggageToTagSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) < 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

@@ -10,13 +10,13 @@ import (
 func Test(t *testing.T) {
 	const spanName = "test-span"
 
-	f, err := NewSpanName().CreateFilter([]interface{}{spanName})
+	f, err := NewSpanName().CreateFilter([]any{spanName})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	var ctx filtertest.Context
-	ctx.FStateBag = make(map[string]interface{})
+	ctx.FStateBag = make(map[string]any)
 
 	f.Request(&ctx)
 	bag := ctx.StateBag()
@@ -30,12 +30,12 @@ func Test(t *testing.T) {
 func TestInvalid(t *testing.T) {
 	const spanName = "test-span"
 
-	_, err := NewSpanName().CreateFilter([]interface{}{spanName, "foo"})
+	_, err := NewSpanName().CreateFilter([]any{spanName, "foo"})
 	if err == nil {
 		t.Fatal(err)
 	}
 
-	_, err = NewSpanName().CreateFilter([]interface{}{3})
+	_, err = NewSpanName().CreateFilter([]any{3})
 	if err == nil {
 		t.Fatal(err)
 	}

@@ -19,7 +19,7 @@ func (*consistentHashBalanceFactor) Name() string {
 	return filters.ConsistentHashBalanceFactorName
 }
 
-func (*consistentHashBalanceFactor) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (*consistentHashBalanceFactor) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

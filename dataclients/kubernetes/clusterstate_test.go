@@ -11,7 +11,7 @@ var dummy2 []string
 
 func benchmarkCachedEndpoints(b *testing.B, n int) {
 	endpoints := make(map[definitions.ResourceID]*endpoint)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		name := "foo-" + strconv.Itoa(i)
 		rid := newResourceID("default", name)
 		ep := &endpoint{

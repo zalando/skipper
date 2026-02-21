@@ -44,7 +44,7 @@ func NewOIDCQueryClaimsFilter() filters.Spec {
 
 // SetOIDCClaims sets OIDC claims in the state bag.
 // Intended for use with the oidcClaimsQuery filter.
-func SetOIDCClaims(ctx filters.FilterContext, claims map[string]interface{}) {
+func SetOIDCClaims(ctx filters.FilterContext, claims map[string]any) {
 	ctx.StateBag()[oidcClaimsCacheKey] = tokenContainer{
 		Claims: claims,
 	}
@@ -58,7 +58,7 @@ func (spec *oidcIntrospectionSpec) Name() string {
 	return AuthUnknown
 }
 
-func (spec *oidcIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (spec *oidcIntrospectionSpec) CreateFilter(args []any) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
 		return nil, err
@@ -154,7 +154,7 @@ func gjsonThisModifier(json, arg string) string {
 	return gjson.Get(json, "[@this].#("+arg+")").Raw
 }
 
-func (filter *oidcIntrospectionFilter) validateClaimsQuery(reqPath string, gotToken map[string]interface{}) bool {
+func (filter *oidcIntrospectionFilter) validateClaimsQuery(reqPath string, gotToken map[string]any) bool {
 	l := len(filter.paths)
 	if l == 0 {
 		return false
@@ -190,7 +190,7 @@ func (p pathQuery) String() string {
 
 // Splits space-delimited GJSON queries ignoring spaces within quoted strings
 func splitQueries(s string) (q []string) {
-	for _, p := range strings.Split(s, " ") {
+	for p := range strings.SplitSeq(s, " ") {
 		if len(q) == 0 || strings.Count(q[len(q)-1], `"`)%2 == 0 {
 			q = append(q, p)
 		} else {

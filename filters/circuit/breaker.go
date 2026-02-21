@@ -31,7 +31,7 @@ type filter struct {
 	settings circuit.BreakerSettings
 }
 
-func getIntArg(a interface{}) (int, error) {
+func getIntArg(a any) (int, error) {
 	if i, ok := a.(int); ok {
 		return i, nil
 	}
@@ -43,7 +43,7 @@ func getIntArg(a interface{}) (int, error) {
 	return 0, filters.ErrInvalidFilterParameters
 }
 
-func getDurationArg(a interface{}) (time.Duration, error) {
+func getDurationArg(a any) (time.Duration, error) {
 	if s, ok := a.(string); ok {
 		return time.ParseDuration(s)
 	}
@@ -94,7 +94,7 @@ func (s *spec) Name() string {
 	}
 }
 
-func consecutiveFilter(args []interface{}) (filters.Filter, error) {
+func consecutiveFilter(args []any) (filters.Filter, error) {
 	if len(args) == 0 || len(args) > 4 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -139,7 +139,7 @@ func consecutiveFilter(args []interface{}) (filters.Filter, error) {
 	}, nil
 }
 
-func rateFilter(args []interface{}) (filters.Filter, error) {
+func rateFilter(args []any) (filters.Filter, error) {
 	if len(args) < 2 || len(args) > 5 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -190,7 +190,7 @@ func rateFilter(args []interface{}) (filters.Filter, error) {
 	}, nil
 }
 
-func disableFilter(args []interface{}) (filters.Filter, error) {
+func disableFilter(args []any) (filters.Filter, error) {
 	if len(args) != 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -202,7 +202,7 @@ func disableFilter(args []interface{}) (filters.Filter, error) {
 	}, nil
 }
 
-func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *spec) CreateFilter(args []any) (filters.Filter, error) {
 	switch s.typ {
 	case circuit.ConsecutiveFailures:
 		return consecutiveFilter(args)

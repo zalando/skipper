@@ -177,7 +177,7 @@ func TestRateBreakerFuzzy(t *testing.T) {
 		close(stop)
 	})
 
-	for i := 0; i < concurrentRequests; i++ {
+	for range concurrentRequests {
 		go runAgent()
 	}
 

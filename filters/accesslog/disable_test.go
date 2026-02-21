@@ -12,37 +12,37 @@ import (
 func TestAccessLogDisabled(t *testing.T) {
 	for _, ti := range []struct {
 		msg    string
-		state  []interface{}
+		state  []any
 		result AccessLogFilter
 		err    error
 	}{
 		{
 			msg:    "false-value-enables-access-log",
-			state:  []interface{}{"false"},
+			state:  []any{"false"},
 			result: AccessLogFilter{Enable: true, Prefixes: nil},
 			err:    nil,
 		},
 		{
 			msg:    "true-value-disables-access-log",
-			state:  []interface{}{"true"},
+			state:  []any{"true"},
 			result: AccessLogFilter{Enable: false, Prefixes: nil},
 			err:    nil,
 		},
 		{
 			msg:    "unknown-argument-leads-to-error",
-			state:  []interface{}{"unknownValue"},
+			state:  []any{"unknownValue"},
 			result: AccessLogFilter{Enable: true, Prefixes: nil},
 			err:    filters.ErrInvalidFilterParameters,
 		},
 		{
 			msg:    "no-arguments-lead-to-error",
-			state:  []interface{}{},
+			state:  []any{},
 			result: AccessLogFilter{Enable: true, Prefixes: nil},
 			err:    filters.ErrInvalidFilterParameters,
 		},
 		{
 			msg:    "multiple-arguments-lead-to-error",
-			state:  []interface{}{"true", "second"},
+			state:  []any{"true", "second"},
 			result: AccessLogFilter{Enable: true, Prefixes: nil},
 			err:    filters.ErrInvalidFilterParameters,
 		},
@@ -60,7 +60,7 @@ func TestAccessLogDisabled(t *testing.T) {
 			}
 
 			var ctx filtertest.Context
-			ctx.FStateBag = make(map[string]interface{})
+			ctx.FStateBag = make(map[string]any)
 
 			f.Request(&ctx)
 			bag := ctx.StateBag()

@@ -18,7 +18,7 @@ const (
 func TestCreate(t *testing.T) {
 	for _, ti := range []struct {
 		msg   string
-		args  []interface{}
+		args  []any
 		check predicate
 		err   bool
 	}{{
@@ -28,57 +28,57 @@ func TestCreate(t *testing.T) {
 		true,
 	}, {
 		"too many args",
-		[]interface{}{.3, "testname", "group", "something"},
+		[]any{.3, "testname", "group", "something"},
 		predicate{},
 		true,
 	}, {
 		"first not number",
-		[]interface{}{"something"},
+		[]any{"something"},
 		predicate{},
 		true,
 	}, {
 		"second not string",
-		[]interface{}{.3, .2},
+		[]any{.3, .2},
 		predicate{},
 		true,
 	}, {
 		"third not string",
-		[]interface{}{.3, "testname", .2},
+		[]any{.3, "testname", .2},
 		predicate{},
 		true,
 	}, {
 		"only chance",
-		[]interface{}{.3},
+		[]any{.3},
 		predicate{chance: .3},
 		false,
 	}, {
 		"0.0 is allowed",
-		[]interface{}{0.0},
+		[]any{0.0},
 		predicate{chance: 0},
 		false,
 	}, {
 		"1.0 is allowed",
-		[]interface{}{1.0},
+		[]any{1.0},
 		predicate{chance: 1},
 		false,
 	}, {
 		"wrong chance, bigger than 1",
-		[]interface{}{1.3},
+		[]any{1.3},
 		predicate{chance: 1.3},
 		true,
 	}, {
 		"wrong chance, less than 0",
-		[]interface{}{-0.3},
+		[]any{-0.3},
 		predicate{chance: -0.3},
 		true,
 	}, {
 		"you have 2 parameters but need to have 1 or 3 parameters",
-		[]interface{}{.3, "foo"},
+		[]any{.3, "foo"},
 		predicate{chance: .3},
 		true,
 	}, {
 		"chance and stickiness",
-		[]interface{}{.3, "testname", "group"},
+		[]any{.3, "testname", "group"},
 		predicate{chance: .3, trafficGroup: "group", trafficGroupCookie: "testname"},
 		false,
 	}} {

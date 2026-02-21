@@ -109,8 +109,8 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 	return info, err
 }
 
-func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map[string]interface{}, error) {
-	var doc map[string]interface{}
+func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map[string]any, error) {
+	var doc map[string]any
 
 	req, err := http.NewRequest("GET", ac.url.String(), nil)
 	if err != nil {

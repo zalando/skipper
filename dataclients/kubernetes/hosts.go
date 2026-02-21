@@ -53,7 +53,7 @@ func hostCatchAllRoutes(hostRoutes map[string][]*eskip.Route, createID func(stri
 				Id: createID(h),
 				Predicates: []*eskip.Predicate{{
 					Name: "Host",
-					Args: []interface{}{createHostRx(h)},
+					Args: []any{createHostRx(h)},
 				}},
 				BackendType: eskip.ShuntBackend,
 			})

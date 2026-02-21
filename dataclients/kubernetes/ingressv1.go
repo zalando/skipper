@@ -27,7 +27,7 @@ func setPathOld(m PathMode, r *eskip.Route, p string) {
 	case PathPrefix:
 		r.Predicates = append(r.Predicates, &eskip.Predicate{
 			Name: "PathSubtree",
-			Args: []interface{}{p},
+			Args: []any{p},
 		})
 	case PathRegexp:
 		r.PathRegexps = []string{p}
@@ -49,12 +49,12 @@ func setPathV1(m PathMode, r *eskip.Route, pathType, path string) {
 	case "Exact":
 		r.Predicates = append(r.Predicates, &eskip.Predicate{
 			Name: "Path",
-			Args: []interface{}{path},
+			Args: []any{path},
 		})
 	case "Prefix":
 		r.Predicates = append(r.Predicates, &eskip.Predicate{
 			Name: "PathSubtree",
-			Args: []interface{}{path},
+			Args: []any{path},
 		})
 	default:
 		setPathOld(m, r, path)

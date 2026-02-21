@@ -47,7 +47,7 @@ func TestBackgroundTaskSystem(t *testing.T) {
 
 		tasks := make([]*BackgroundTask, 3)
 		errs := make([]error, 3)
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			taskNum := i
 			tasks[i], errs[i] = registry.ScheduleBackgroundTask(func() error {
 				time.Sleep(10 * time.Millisecond) // Simulate some work

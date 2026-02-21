@@ -142,7 +142,7 @@ func TestForwardToken(t *testing.T) {
 
 func TestInvalidHeadername(t *testing.T) {
 	ftSpec := NewForwardToken()
-	filterArgs := []interface{}{"test-%header\n"}
+	filterArgs := []any{"test-%header\n"}
 	_, err := ftSpec.CreateFilter(filterArgs)
 	if err == nil {
 		t.Fatalf("bad header name")

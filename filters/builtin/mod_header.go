@@ -25,7 +25,7 @@ func (spec *modRequestHeader) Name() string {
 }
 
 //lint:ignore ST1016 "spec" makes sense here and we reuse the type for the filter
-func (spec *modRequestHeader) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (spec *modRequestHeader) CreateFilter(config []any) (filters.Filter, error) {
 	if len(config) != 3 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -91,7 +91,7 @@ func (spec *modResponseHeader) Name() string {
 }
 
 //lint:ignore ST1016 "spec" makes sense here and we reuse the type for the filter
-func (spec *modResponseHeader) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (spec *modResponseHeader) CreateFilter(config []any) (filters.Filter, error) {
 	if len(config) != 3 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

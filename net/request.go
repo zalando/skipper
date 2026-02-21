@@ -3,6 +3,7 @@ package net
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 )
 
@@ -32,10 +33,8 @@ func (h *RequestMatchHandler) matchesRequest(r *http.Request) bool {
 		if h.matches(name) {
 			return true
 		}
-		for _, value := range values {
-			if h.matches(value) {
-				return true
-			}
+		if slices.ContainsFunc(values, h.matches) {
+			return true
 		}
 	}
 	return false

@@ -23,32 +23,32 @@ import (
 func TestCreate(t *testing.T) {
 	for _, ti := range []struct {
 		msg    string
-		args   []interface{}
+		args   []any
 		filter filter
 		err    bool
 	}{{
 		"0 arguments",
-		[]interface{}{},
+		[]any{},
 		false,
 		true,
 	}, {
 		"too many arguments",
-		[]interface{}{"true", "false"},
+		[]any{"true", "false"},
 		false,
 		true,
 	}, {
 		"wrong argument",
-		[]interface{}{"foo"},
+		[]any{"foo"},
 		false,
 		true,
 	}, {
 		"false",
-		[]interface{}{"false"},
+		[]any{"false"},
 		false,
 		false,
 	}, {
 		"true",
-		[]interface{}{"true"},
+		[]any{"true"},
 		true,
 		false,
 	}} {
@@ -132,7 +132,7 @@ func TestRequest(t *testing.T) {
 			FRequest:      &http.Request{Host: ti.incomingHost},
 			FBackendUrl:   ti.backendUrl,
 			FOutgoingHost: ti.currentOutgoing}
-		f, _ := PreserveHost().CreateFilter([]interface{}{ti.arg})
+		f, _ := PreserveHost().CreateFilter([]any{ti.arg})
 		f.Request(ctx)
 		if ctx.OutgoingHost() != ti.checkHost {
 			t.Error(ti.msg, ctx.OutgoingHost(), ti.checkHost)

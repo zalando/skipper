@@ -101,7 +101,7 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 		"status", "response-size", "referer", "user-agent",
 		"duration", "requested-host", "flow-id", "audit"}
 
-	values := make([]interface{}, len(keys))
+	values := make([]any, len(keys))
 	for i, key := range keys {
 		if s, ok := e.Data[key].(string); ok {
 			values[i] = omitWhitespace(s)
@@ -110,7 +110,7 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 		}
 	}
 
-	return []byte(fmt.Sprintf(f.format, values...)), nil
+	return fmt.Appendf(nil, f.format, values...), nil
 }
 
 func stripQueryString(u string) string {
@@ -144,7 +144,7 @@ func hash(val string) uint64 {
 
 // LogAccess logs an access event in Apache combined log format (with a minor customization with the duration).
 // Additional allows to provide extra data that may be also logged, depending on the specific log format.
-func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
+func LogAccess(entry *AccessEntry, additional map[string]any) {
 	if accessLog == nil || entry == nil {
 		return
 	}

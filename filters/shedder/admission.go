@@ -18,7 +18,7 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
-func getIntArg(a interface{}) (int, error) {
+func getIntArg(a any) (int, error) {
 	if i, ok := a.(int); ok {
 		return i, nil
 	}
@@ -30,14 +30,14 @@ func getIntArg(a interface{}) (int, error) {
 	return 0, filters.ErrInvalidFilterParameters
 }
 
-func getDurationArg(a interface{}) (time.Duration, error) {
+func getDurationArg(a any) (time.Duration, error) {
 	if s, ok := a.(string); ok {
 		return time.ParseDuration(s)
 	}
 	return 0, filters.ErrInvalidFilterParameters
 }
 
-func getFloat64Arg(a interface{}) (float64, error) {
+func getFloat64Arg(a any) (float64, error) {
 	if f, ok := a.(float64); ok {
 		return f, nil
 	}
@@ -45,7 +45,7 @@ func getFloat64Arg(a interface{}) (float64, error) {
 	return 0, filters.ErrInvalidFilterParameters
 }
 
-func getModeArg(a interface{}) (mode, error) {
+func getModeArg(a any) (mode, error) {
 	s, ok := a.(string)
 	if !ok {
 		return 0, filters.ErrInvalidFilterParameters
@@ -243,7 +243,7 @@ func (*AdmissionControlSpec) Name() string { return filters.AdmissionControlName
 // exponent >0, 1: linear, 1/2: quadratic, 1/3: cubic, ..
 //
 // see also https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/admission_control_filter#admission-control
-func (spec *AdmissionControlSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (spec *AdmissionControlSpec) CreateFilter(args []any) (filters.Filter, error) {
 	var err error
 
 	if len(args) != 8 {

@@ -32,7 +32,7 @@ func TestConnManager(t *testing.T) {
 		ts.Start()
 		defer ts.Close()
 
-		for i := 0; i < testRequests; i++ {
+		for range testRequests {
 			resp, err := ts.Client().Get(ts.URL)
 			require.NoError(t, err)
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -103,7 +103,7 @@ func TestConnManager(t *testing.T) {
 		ts.Start()
 		defer ts.Close()
 
-		for i := 0; i < testRequests; i++ {
+		for range testRequests {
 			resp, err := ts.Client().Get(ts.URL)
 			require.NoError(t, err)
 			assert.Equal(t, http.StatusOK, resp.StatusCode)

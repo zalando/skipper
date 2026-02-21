@@ -65,16 +65,16 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 
 	a.resourceList = clrb
 
-	namespaces := make(map[string]map[string][]interface{})
-	all := make(map[string][]interface{})
+	namespaces := make(map[string]map[string][]any)
+	all := make(map[string][]any)
 
-	addObject := func(o map[interface{}]interface{}) error {
+	addObject := func(o map[any]any) error {
 		kind, ok := o["kind"].(string)
 		if !ok {
 			return errInvalidFixture
 		}
 
-		meta, ok := o["metadata"].(map[interface{}]interface{})
+		meta, ok := o["metadata"].(map[any]any)
 		if !ok {
 			return errInvalidFixture
 		}
@@ -90,7 +90,7 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 
 		ns := namespace.(string)
 		if _, ok := namespaces[ns]; !ok {
-			namespaces[ns] = make(map[string][]interface{})
+			namespaces[ns] = make(map[string][]any)
 		}
 
 		namespaces[ns][kind] = append(namespaces[ns][kind], o)
@@ -102,7 +102,7 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 	for _, spec := range specs {
 		d := yaml.NewDecoder(spec)
 		for {
-			var o map[interface{}]interface{}
+			var o map[any]any
 			if err := d.Decode(&o); err == io.EOF || err == nil && len(o) == 0 {
 				break
 			} else if err != nil {
@@ -115,12 +115,12 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 			}
 
 			if kind == "List" {
-				items, ok := o["items"].([]interface{})
+				items, ok := o["items"].([]any)
 				if !ok {
 					return nil, errInvalidFixture
 				}
 				for _, item := range items {
-					o, ok := item.(map[interface{}]interface{})
+					o, ok := item.(map[any]any)
 					if !ok {
 						return nil, errInvalidFixture
 					}
@@ -211,7 +211,7 @@ func parseSelectors(r *http.Request) map[string]string {
 	}
 
 	selectors := map[string]string{}
-	for _, selector := range strings.Split(rawSelector, ",") {
+	for selector := range strings.SplitSeq(rawSelector, ",") {
 		kv := strings.Split(selector, "=")
 		selectors[kv[0]] = kv[1]
 	}
@@ -242,7 +242,7 @@ func serve(w http.ResponseWriter, r *http.Request, resources []byte, name string
 
 	// every resource but top level is deserialized because we need access to the indexed array
 	allItems := struct {
-		Items []interface{} `json:"items"`
+		Items []any `json:"items"`
 	}{}
 
 	if err := json.Unmarshal(resources, &allItems); err != nil {
@@ -267,7 +267,7 @@ func serve(w http.ResponseWriter, r *http.Request, resources []byte, name string
 	}
 
 	// go over each item's label and check if all selectors with their values are present
-	var filteredItems []interface{}
+	var filteredItems []any
 	for idx, item := range itemsMetadata.Items {
 		allMatch := true
 		for k, v := range selectors {
@@ -287,7 +287,7 @@ func serve(w http.ResponseWriter, r *http.Request, resources []byte, name string
 	}
 }
 
-func initNamespace(kinds map[string][]interface{}) (ns namespace, err error) {
+func initNamespace(kinds map[string][]any) (ns namespace, err error) {
 	if err = itemsJSON(&ns.services, kinds["Service"]); err != nil {
 		return
 	}
@@ -315,8 +315,8 @@ func initNamespace(kinds map[string][]interface{}) (ns namespace, err error) {
 	return
 }
 
-func itemsJSON(b *[]byte, o []interface{}) error {
-	items := map[string]interface{}{"items": o}
+func itemsJSON(b *[]byte, o []any) error {
+	items := map[string]any{"items": o}
 
 	// converting back to YAML, because we have YAMLToJSON() for bytes, and
 	// the data in `o` contains YAML parser style keys of type interface{}

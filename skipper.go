@@ -1152,7 +1152,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
-		for _, rf := range strings.Split(o.RoutesFile, ",") {
+		for rf := range strings.SplitSeq(o.RoutesFile, ",") {
 			f, err := eskipfile.Open(rf)
 			if err != nil {
 				return nil, fmt.Errorf("error while opening eskip file: %w", err)
@@ -1163,7 +1163,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 	}
 
 	if o.WatchRoutesFile != "" {
-		for _, rf := range strings.Split(o.WatchRoutesFile, ",") {
+		for rf := range strings.SplitSeq(o.WatchRoutesFile, ",") {
 			clients = append(clients, eskipfile.Watch(rf))
 		}
 	}
@@ -1337,7 +1337,7 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		return nil, fmt.Errorf("number of certificates does not match number of keys")
 	}
 
-	for i := 0; i < len(crts); i++ {
+	for i := range crts {
 		crt, key := crts[i], keys[i]
 		keypair, err := tls.LoadX509KeyPair(crt, key)
 		if err != nil {
@@ -1569,7 +1569,7 @@ func getKubernetesAddrUpdater(kdc *kubernetes.Client, loaded bool, ns, name stri
 
 func joinPort(addrs []string, port int) []string {
 	p := strconv.Itoa(port)
-	for i := 0; i < len(addrs); i++ {
+	for i := range addrs {
 		addrs[i] = net.JoinHostPort(addrs[i], p)
 	}
 	return addrs

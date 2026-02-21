@@ -417,7 +417,7 @@ func TestWithJwtCacheConfig(t *testing.T) {
         		}
     		}`)
 
-	var expected, actual map[string]interface{}
+	var expected, actual map[string]any
 	err = json.Unmarshal(expectedJSON, &expected)
 	if err != nil {
 		panic(err)
@@ -617,7 +617,7 @@ func TestOpaLabelsSetInRuntimeWithDiscovery(t *testing.T) {
 	j, err := ast.JSON(value)
 	assert.NoError(t, err)
 
-	if m, ok := j.(map[string]interface{}); ok {
+	if m, ok := j.(map[string]any); ok {
 		configObject := m["config"]
 		assert.NotNil(t, configObject)
 
@@ -779,7 +779,7 @@ func TestTracing(t *testing.T) {
 
 	recspan := tracer.FindSpan("open-policy-agent")
 	require.NotNil(t, recspan, "No span was created for open policy agent")
-	assert.Equal(t, map[string]interface{}{"opa.bundle_name": "test", "opa.label.id": inst.manager.Labels()["id"], "opa.label.version": inst.manager.Labels()["version"]}, recspan.Tags())
+	assert.Equal(t, map[string]any{"opa.bundle_name": "test", "opa.label.id": inst.manager.Labels()["id"], "opa.label.version": inst.manager.Labels()["version"]}, recspan.Tags())
 }
 
 func TestEval(t *testing.T) {
@@ -876,9 +876,9 @@ func TestResponses(t *testing.T) {
 
 	fc = &filtertest.Context{FMetrics: metrics}
 	inst.ServeResponse(fc, span, &envoyauth.EvalResult{
-		Decision: map[string]interface{}{
+		Decision: map[string]any{
 			"http_status": json.Number(strconv.Itoa(http.StatusOK)),
-			"headers": map[string]interface{}{
+			"headers": map[string]any{
 				"someheader": "somevalue",
 			},
 			"body": "Welcome!",
@@ -895,7 +895,7 @@ func TestResponses(t *testing.T) {
 
 	fc = &filtertest.Context{FMetrics: metrics}
 	inst.ServeResponse(fc, span, &envoyauth.EvalResult{
-		Decision: map[string]interface{}{
+		Decision: map[string]any{
 			"headers": "invalid header type",
 			"body":    "Welcome!",
 		},
@@ -905,8 +905,8 @@ func TestResponses(t *testing.T) {
 
 	fc = &filtertest.Context{FMetrics: metrics}
 	inst.ServeResponse(fc, span, &envoyauth.EvalResult{
-		Decision: map[string]interface{}{
-			"body": map[string]interface{}{
+		Decision: map[string]any{
+			"body": map[string]any{
 				"invalid": "body type",
 			},
 		},
@@ -916,7 +916,7 @@ func TestResponses(t *testing.T) {
 
 	fc = &filtertest.Context{FMetrics: metrics}
 	inst.ServeResponse(fc, span, &envoyauth.EvalResult{
-		Decision: map[string]interface{}{
+		Decision: map[string]any{
 			"http_status": "invalid status code",
 		},
 	})

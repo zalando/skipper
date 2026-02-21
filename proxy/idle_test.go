@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -17,13 +18,7 @@ import (
 )
 
 func hasArg(arg string) bool {
-	for _, a := range os.Args {
-		if a == arg {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(os.Args, arg)
 }
 
 // simple crash test only, use utilities in skptesting
@@ -170,7 +165,7 @@ func TestIdleConns(t *testing.T) {
 			}
 		}
 
-		for i := 0; i < concurrentRequests; i++ {
+		for range concurrentRequests {
 			go runRequests("/s0", d0)
 			go runRequests("/s1", d1)
 		}

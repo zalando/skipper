@@ -56,7 +56,7 @@ func benchmarkPredicateHost(b *testing.B, predicateFmt string) {
 	}
 
 	var routes []*routing.Route
-	for i := 0; i < R; i++ {
+	for i := range R {
 		p := strings.ReplaceAll(predicateFmt, "{i}", fmt.Sprintf("%d", i))
 		def := eskip.MustParse(fmt.Sprintf(`r%d: %s -> <shunt>;`, i, p))
 

@@ -28,6 +28,7 @@ package query
 import (
 	"net/http"
 	"regexp"
+	"slices"
 
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
@@ -54,7 +55,7 @@ func (s *spec) Name() string {
 	return predicates.QueryParamName
 }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []any) (routing.Predicate, error) {
 	if len(args) == 0 || len(args) > 2 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
@@ -93,12 +94,7 @@ func (p *predicate) Match(r *http.Request) bool {
 		if !ok {
 			return false
 		} else {
-			for _, v := range vals {
-				if p.valueExp.MatchString(v) {
-					return true
-				}
-			}
-			return false
+			return slices.ContainsFunc(vals, p.valueExp.MatchString)
 		}
 
 	}

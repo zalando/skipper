@@ -29,7 +29,7 @@ func TestUpdateOnlyChangedRoutes(t *testing.T) {
 
 	assert.EqualValues(t, healthcheckRoutes(false), r, "no healthcheck routes received")
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		update, del, err := k.LoadUpdate()
 		if err != nil {
 			t.Fatal(err)

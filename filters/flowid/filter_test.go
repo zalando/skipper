@@ -18,8 +18,8 @@ const (
 
 var (
 	testFlowIdSpec           = New()
-	filterConfigWithReuse    = []interface{}{ReuseParameterValue}
-	filterConfigWithoutReuse = []interface{}{"dummy"}
+	filterConfigWithReuse    = []any{ReuseParameterValue}
+	filterConfigWithoutReuse = []any{"dummy"}
 )
 
 func TestNewFlowIdGeneration(t *testing.T) {
@@ -67,13 +67,13 @@ func TestFlowIdRejectInvalidReusedFlowId(t *testing.T) {
 }
 
 func TestFlowIdWithInvalidParameters(t *testing.T) {
-	fc := []interface{}{true}
+	fc := []any{true}
 	_, err := testFlowIdSpec.CreateFilter(fc)
 	if err != filters.ErrInvalidFilterParameters {
 		t.Errorf("expected an invalid parameters error, got %v", err)
 	}
 
-	fc = []interface{}{1}
+	fc = []any{1}
 	_, err = testFlowIdSpec.CreateFilter(fc)
 	if err != filters.ErrInvalidFilterParameters {
 		t.Errorf("expected an invalid parameters error, got %v", err)
@@ -83,7 +83,7 @@ func TestFlowIdWithInvalidParameters(t *testing.T) {
 func TestDeprecationNotice(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
-	fc := []interface{}{"", true}
+	fc := []any{"", true}
 	_, err := testFlowIdSpec.CreateFilter(fc)
 	if err == filters.ErrInvalidFilterParameters {
 		t.Error("unexpected error creating a filter")
@@ -108,7 +108,7 @@ func TestFlowIdWithCustomGenerators(t *testing.T) {
 		{"ulid"},
 	} {
 		t.Run(fmt.Sprintf("%v", test), func(t *testing.T) {
-			fc := []interface{}{ReuseParameterValue, test.generatorId}
+			fc := []any{ReuseParameterValue, test.generatorId}
 			f, _ := testFlowIdSpec.CreateFilter(fc)
 			fctx := buildfilterContext()
 			f.Request(fctx)

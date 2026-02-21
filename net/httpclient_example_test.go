@@ -73,7 +73,7 @@ func ExampleClient() {
 
 	u := "http://" + srv.Listener.Addr().String() + "/"
 
-	for i := 0; i < 15; i++ {
+	for range 15 {
 		rsp, err := cli.Get(u)
 		if err != nil {
 			log.Fatalf("Failed to do request: %v", err)
@@ -118,7 +118,7 @@ func ExampleClient_withTransport() {
 
 	u := "http://" + srv.Listener.Addr().String() + "/"
 
-	for i := 0; i < 15; i++ {
+	for range 15 {
 		rsp, err := cli.Get(u)
 		if err != nil {
 			log.Fatalf("Failed to do request: %v", err)
@@ -156,7 +156,7 @@ func ExampleClient_fileSecretsReader() {
 
 	u := "http://" + srv.Listener.Addr().String() + "/"
 
-	for i := 0; i < 15; i++ {
+	for range 15 {
 		rsp, err := cli.Get(u)
 		if err != nil {
 			log.Fatalf("Failed to do request: %v", err)
@@ -189,7 +189,7 @@ func ExampleClient_staticSecret() {
 
 	u := "http://" + srv.Listener.Addr().String() + "/"
 
-	for i := 0; i < 15; i++ {
+	for range 15 {
 		rsp, err := cli.Get(u)
 		if err != nil {
 			log.Fatalf("Failed to do request: %v", err)
@@ -274,7 +274,7 @@ func ExampleClient_staticDelegateSecret() {
 
 	u := "http://" + srv.Listener.Addr().String() + "/"
 
-	for i := 0; i < 15; i++ {
+	for range 15 {
 		rsp, err := cli.Get(u)
 		if err != nil {
 			log.Fatalf("Failed to do request: %v", err)
@@ -317,7 +317,7 @@ func ExampleClient_hostSecret() {
 
 	u := "http://" + srv.Listener.Addr().String() + "/"
 
-	for i := 0; i < 15; i++ {
+	for range 15 {
 		rsp, err := cli.Get(u)
 		if err != nil {
 			log.Fatalf("Failed to do request: %v", err)

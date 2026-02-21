@@ -71,7 +71,7 @@ func testPath(t *testing.T, tree *node, path string, expectPath string, expected
 			t.Error("Got", paramList, "params back, expected", expectedParams)
 		}
 
-		for i := 0; i < len(expectedParams); i++ {
+		for i := range expectedParams {
 			if paramList[i] != expectedParams[i] {
 				t.Error("Got", paramList, "params back, expected", expectedParams)
 			}
@@ -275,7 +275,7 @@ type TestMatcher struct {
 	match bool
 }
 
-func (fm *TestMatcher) Match(value interface{}) (bool, interface{}) {
+func (fm *TestMatcher) Match(value any) (bool, any) {
 	return fm.match, value
 }
 

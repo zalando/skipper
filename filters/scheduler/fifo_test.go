@@ -48,7 +48,7 @@ func TestCreateFifoName(t *testing.T) {
 func TestCreateFifoFilter(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
-		args         []interface{}
+		args         []any
 		wantParseErr bool
 		wantConfig   scheduler.Config
 	}{
@@ -58,14 +58,14 @@ func TestCreateFifoFilter(t *testing.T) {
 		},
 		{
 			name: "fifo 1 arg",
-			args: []interface{}{
+			args: []any{
 				3,
 			},
 			wantParseErr: true,
 		},
 		{
 			name: "fifo 2 args",
-			args: []interface{}{
+			args: []any{
 				3,
 				5,
 			},
@@ -73,7 +73,7 @@ func TestCreateFifoFilter(t *testing.T) {
 		},
 		{
 			name: "fifo simple ok 3 args",
-			args: []interface{}{
+			args: []any{
 				3,
 				5,
 				"1s",
@@ -86,7 +86,7 @@ func TestCreateFifoFilter(t *testing.T) {
 		},
 		{
 			name: "fifo negative value arg1",
-			args: []interface{}{
+			args: []any{
 				-3,
 				5,
 				"1s",
@@ -95,7 +95,7 @@ func TestCreateFifoFilter(t *testing.T) {
 		},
 		{
 			name: "fifo negative value arg2",
-			args: []interface{}{
+			args: []any{
 				3,
 				-5,
 				"1s",
@@ -104,7 +104,7 @@ func TestCreateFifoFilter(t *testing.T) {
 		},
 		{
 			name: "fifo too small value arg3",
-			args: []interface{}{
+			args: []any{
 				3,
 				5,
 				"1ns",
@@ -113,7 +113,7 @@ func TestCreateFifoFilter(t *testing.T) {
 		},
 		{
 			name: "fifo wrong type arg1",
-			args: []interface{}{
+			args: []any{
 				"3",
 				5,
 				"1s",
@@ -122,7 +122,7 @@ func TestCreateFifoFilter(t *testing.T) {
 		},
 		{
 			name: "fifo wrong type arg2",
-			args: []interface{}{
+			args: []any{
 				3,
 				"5",
 				"1s",
@@ -131,7 +131,7 @@ func TestCreateFifoFilter(t *testing.T) {
 		},
 		{
 			name: "fifo wrong time.Duration string arg3",
-			args: []interface{}{
+			args: []any{
 				3,
 				5,
 				"1sa",
@@ -140,7 +140,7 @@ func TestCreateFifoFilter(t *testing.T) {
 		},
 		{
 			name: "fifo wrong type arg3",
-			args: []interface{}{
+			args: []any{
 				3,
 				5,
 				1,
@@ -149,7 +149,7 @@ func TestCreateFifoFilter(t *testing.T) {
 		},
 		{
 			name: "fifo too many args",
-			args: []interface{}{
+			args: []any{
 				3,
 				5,
 				"1s",
@@ -216,33 +216,33 @@ func (sr *slowReader) Read(p []byte) (int, error) {
 func TestFifoWithBody(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
-		args         []interface{}
+		args         []any
 		backendTime  time.Duration
 		responseSize int
 		wantErr      bool
 	}{
 		{
 			name:         "fifoWithBody 1024B with 1 queue should be ok",
-			args:         []interface{}{1, 1, "1s"},
+			args:         []any{1, 1, "1s"},
 			backendTime:  10 * time.Millisecond,
 			responseSize: 1024,
 		},
 		{
 			name:         "fifoWithBody 1024B with 0 queue should fail",
-			args:         []interface{}{1, 0, "10ms"},
+			args:         []any{1, 0, "10ms"},
 			backendTime:  50 * time.Millisecond,
 			responseSize: 1024,
 			wantErr:      true,
 		},
 		{
 			name:         "fifoWithBody 2x 1024B with 1 queue should be ok",
-			args:         []interface{}{1, 1, "1s"},
+			args:         []any{1, 1, "1s"},
 			backendTime:  10 * time.Millisecond,
 			responseSize: 2 * 1024,
 		},
 		{
 			name:         "fifoWithBody 2x 1024B with 0 queue should fail",
-			args:         []interface{}{1, 0, "15ms"},
+			args:         []any{1, 0, "15ms"},
 			backendTime:  10 * time.Millisecond,
 			responseSize: 2 * 1024,
 			wantErr:      true,

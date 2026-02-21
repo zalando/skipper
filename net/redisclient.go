@@ -415,7 +415,7 @@ func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {
 	return res.Val(), res.Err()
 }
 
-func (r *RedisRingClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) (string, error) {
+func (r *RedisRingClient) Set(ctx context.Context, key string, value any, expiration time.Duration) (string, error) {
 	res := r.ring.Set(ctx, key, value, expiration)
 	return res.Result()
 }
@@ -425,7 +425,7 @@ func (r *RedisRingClient) ZAdd(ctx context.Context, key string, val int64, score
 	return res.Val(), res.Err()
 }
 
-func (r *RedisRingClient) ZRem(ctx context.Context, key string, members ...interface{}) (int64, error) {
+func (r *RedisRingClient) ZRem(ctx context.Context, key string, members ...any) (int64, error) {
 	res := r.ring.ZRem(ctx, key, members...)
 	return res.Val(), res.Err()
 }
@@ -445,7 +445,7 @@ func (r *RedisRingClient) ZCard(ctx context.Context, key string) (int64, error) 
 	return res.Val(), res.Err()
 }
 
-func (r *RedisRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, key string, min, max float64, offset, count int64) (interface{}, error) {
+func (r *RedisRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, key string, min, max float64, offset, count int64) (any, error) {
 	opt := redis.ZRangeBy{
 		Min:    fmt.Sprint(min),
 		Max:    fmt.Sprint(max),
@@ -468,6 +468,6 @@ func (r *RedisRingClient) NewScript(source string) *RedisScript {
 	return &RedisScript{redis.NewScript(source)}
 }
 
-func (r *RedisRingClient) RunScript(ctx context.Context, s *RedisScript, keys []string, args ...interface{}) (interface{}, error) {
+func (r *RedisRingClient) RunScript(ctx context.Context, s *RedisScript, keys []string, args ...any) (any, error) {
 	return s.script.Run(ctx, r.ring, keys, args...).Result()
 }

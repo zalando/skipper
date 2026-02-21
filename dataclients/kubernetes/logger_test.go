@@ -56,7 +56,7 @@ func TestLogger(t *testing.T) {
 
 		msg1 := "test message1 %d %s"
 		args1 := []any{1, "qux"}
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			l.Debugf(msg1, args1...)
 			l.Infof(msg1, args1...)
 			l.Errorf(msg1, args1...)
@@ -64,7 +64,7 @@ func TestLogger(t *testing.T) {
 
 		msg2 := "test message2 %d %s"
 		args2 := []any{2, "quux"}
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			l.Debugf(msg2, args2...)
 			l.Infof(msg2, args2...)
 			l.Errorf(msg2, args2...)

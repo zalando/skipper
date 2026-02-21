@@ -35,7 +35,7 @@ func NewInlineContent() filters.Spec {
 
 func (c *inlineContent) Name() string { return filters.InlineContentName }
 
-func stringArg(a interface{}) (s string, err error) {
+func stringArg(a any) (s string, err error) {
 	var ok bool
 	s, ok = a.(string)
 	if !ok {
@@ -45,7 +45,7 @@ func stringArg(a interface{}) (s string, err error) {
 	return
 }
 
-func (c *inlineContent) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (c *inlineContent) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) == 0 || len(args) > 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

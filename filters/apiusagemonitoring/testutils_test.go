@@ -16,7 +16,7 @@ import (
 	"github.com/zalando/skipper/metrics/metricstest"
 )
 
-var defaultArgs = []interface{}{`{
+var defaultArgs = []any{`{
 		"application_id": "my_app",
 		"tag": "my_tag",
 		"api_id": "my_api",
@@ -79,7 +79,7 @@ func testWithFilterModifyContext(
 				FResponse: &http.Response{
 					StatusCode: resStatus,
 				},
-				FStateBag: make(map[string]interface{}),
+				FStateBag: make(map[string]any),
 				FMetrics:  metricsMock,
 			}
 			filter.Request(ctx)
@@ -165,7 +165,7 @@ func testWithFilterConfig(
 				FResponse: &http.Response{
 					StatusCode: resStatus,
 				},
-				FStateBag: make(map[string]interface{}),
+				FStateBag: make(map[string]any),
 				FMetrics:  metricsMock,
 			}
 			filter.Request(ctx)
@@ -184,7 +184,7 @@ func testClientMetrics(t *testing.T, testCase clientMetricsTest) {
 		url:    testCase.url,
 		header: testCase.header,
 		filterCreate: func() (filters.Filter, error) {
-			filterConf := map[string]interface{}{
+			filterConf := map[string]any{
 				"application_id": "my_app",
 				"api_id":         "my_api",
 				"tag":            "my_tag",
@@ -199,7 +199,7 @@ func testClientMetrics(t *testing.T, testCase clientMetricsTest) {
 			if !assert.NoError(t, err) {
 				t.FailNow()
 			}
-			args := []interface{}{string(js)}
+			args := []any{string(js)}
 			spec := NewApiUsageMonitoring(true, testCase.realmKeyName, testCase.clientKeyName, testCase.realmsTrackingPattern)
 			return spec.CreateFilter(args)
 		},
@@ -301,7 +301,7 @@ func testClientMetrics(t *testing.T, testCase clientMetricsTest) {
 	})
 }
 
-func buildFakeJwtWithBody(jwtBodyJson map[string]interface{}) string {
+func buildFakeJwtWithBody(jwtBodyJson map[string]any) string {
 	jwtBodyBytes, err := json.Marshal(jwtBodyJson)
 	if err != nil {
 		panic(err)

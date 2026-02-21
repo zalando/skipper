@@ -18,6 +18,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/zalando/skipper/etcd/etcdtest"
@@ -26,10 +27,8 @@ import (
 var testEtcdUrls []*url.URL
 
 func TestMain(m *testing.M) {
-	for _, arg := range os.Args {
-		if arg == "-test.short=true" {
-			return
-		}
+	if slices.Contains(os.Args, "-test.short=true") {
+		return
 	}
 
 	err := etcdtest.StartProjectRoot("../..")

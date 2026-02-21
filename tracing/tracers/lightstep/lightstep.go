@@ -165,7 +165,7 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 		port = lightstep.DefaultSecurePort
 	}
 
-	tags := map[string]interface{}{
+	tags := map[string]any{
 		lightstep.ComponentNameKey: componentName,
 	}
 

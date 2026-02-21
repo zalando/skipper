@@ -37,7 +37,7 @@ type grantFilter struct {
 
 func (s *grantSpec) Name() string { return filters.OAuthGrantName }
 
-func (s *grantSpec) CreateFilter([]interface{}) (filters.Filter, error) {
+func (s *grantSpec) CreateFilter([]any) (filters.Filter, error) {
 	return &grantFilter{
 		config: s.config,
 	}, nil
@@ -149,7 +149,7 @@ func (f *grantFilter) refreshTokenIfRequired(t *oauth2.Token, ctx filters.Filter
 	}
 }
 
-func (f *grantFilter) setupToken(token *oauth2.Token, tokeninfo map[string]interface{}, ctx filters.FilterContext) error {
+func (f *grantFilter) setupToken(token *oauth2.Token, tokeninfo map[string]any, ctx filters.FilterContext) error {
 	if f.config.AccessTokenHeaderName != "" {
 		ctx.Request().Header.Set(f.config.AccessTokenHeaderName, authHeaderPrefix+token.AccessToken)
 	}

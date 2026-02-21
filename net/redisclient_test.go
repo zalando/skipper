@@ -199,10 +199,10 @@ func TestRedisClientGetSet(t *testing.T) {
 		name    string
 		options *RedisOptions
 		key     string
-		value   interface{}
+		value   any
 		expire  time.Duration
 		wait    time.Duration
-		expect  interface{}
+		expect  any
 		wantErr bool
 	}{
 		{

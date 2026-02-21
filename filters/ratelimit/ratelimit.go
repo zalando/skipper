@@ -187,7 +187,7 @@ func (s *spec) Name() string {
 	return s.filterName
 }
 
-func serviceRatelimitFilter(args []interface{}) (*filter, error) {
+func serviceRatelimitFilter(args []any) (*filter, error) {
 	if !(len(args) == 2 || len(args) == 3) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -218,7 +218,7 @@ func serviceRatelimitFilter(args []interface{}) (*filter, error) {
 	}, nil
 }
 
-func clusterRatelimitFilter(maxShards int, args []interface{}) (*filter, error) {
+func clusterRatelimitFilter(maxShards int, args []any) (*filter, error) {
 	if !(len(args) == 3 || len(args) == 4) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -279,7 +279,7 @@ func getKeyShards(maxHits, maxShards int) int {
 	return 1
 }
 
-func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
+func clusterClientRatelimitFilter(args []any) (*filter, error) {
 	if !(len(args) == 3 || len(args) == 4) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -314,7 +314,7 @@ func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
 		}
 		if strings.Contains(lookuperString, ",") {
 			var lookupers []ratelimit.Lookuper
-			for _, ls := range strings.Split(lookuperString, ",") {
+			for ls := range strings.SplitSeq(lookuperString, ",") {
 				lookupers = append(lookupers, getLookuper(ls))
 			}
 			s.Lookuper = ratelimit.NewTupleLookuper(lookupers...)
@@ -337,7 +337,7 @@ func getLookuper(s string) ratelimit.Lookuper {
 	}
 }
 
-func clientRatelimitFilter(args []interface{}) (*filter, error) {
+func clientRatelimitFilter(args []any) (*filter, error) {
 	if !(len(args) == 2 || len(args) == 3) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -360,7 +360,7 @@ func clientRatelimitFilter(args []interface{}) (*filter, error) {
 		}
 		if strings.Contains(lookuperString, ",") {
 			var lookupers []ratelimit.Lookuper
-			for _, ls := range strings.Split(lookuperString, ",") {
+			for ls := range strings.SplitSeq(lookuperString, ",") {
 				lookupers = append(lookupers, getLookuper(ls))
 			}
 			lookuper = ratelimit.NewTupleLookuper(lookupers...)
@@ -383,7 +383,7 @@ func clientRatelimitFilter(args []interface{}) (*filter, error) {
 	}, nil
 }
 
-func disableFilter([]interface{}) (*filter, error) {
+func disableFilter([]any) (*filter, error) {
 	return &filter{
 		settings: ratelimit.Settings{
 			Type: ratelimit.DisableRatelimit,
@@ -392,7 +392,7 @@ func disableFilter([]interface{}) (*filter, error) {
 	}, nil
 }
 
-func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *spec) CreateFilter(args []any) (filters.Filter, error) {
 	f, err := s.createFilter(args)
 	if f != nil {
 		f.provider = s.provider
@@ -400,7 +400,7 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return f, err
 }
 
-func (s *spec) createFilter(args []interface{}) (*filter, error) {
+func (s *spec) createFilter(args []any) (*filter, error) {
 	switch s.typ {
 	case ratelimit.ServiceRatelimit:
 		return serviceRatelimitFilter(args)
@@ -418,7 +418,7 @@ func (s *spec) createFilter(args []interface{}) (*filter, error) {
 	}
 }
 
-func getIntArg(a interface{}) (int, error) {
+func getIntArg(a any) (int, error) {
 	if i, ok := a.(int); ok {
 		return i, nil
 	}
@@ -430,7 +430,7 @@ func getIntArg(a interface{}) (int, error) {
 	return 0, filters.ErrInvalidFilterParameters
 }
 
-func getStringArg(a interface{}) (string, error) {
+func getStringArg(a any) (string, error) {
 	if s, ok := a.(string); ok {
 		return s, nil
 	}
@@ -438,7 +438,7 @@ func getStringArg(a interface{}) (string, error) {
 	return "", filters.ErrInvalidFilterParameters
 }
 
-func getDurationArg(a interface{}) (time.Duration, error) {
+func getDurationArg(a any) (time.Duration, error) {
 	if s, ok := a.(string); ok {
 		return time.ParseDuration(s)
 	}
@@ -447,7 +447,7 @@ func getDurationArg(a interface{}) (time.Duration, error) {
 	return time.Duration(i) * time.Second, err
 }
 
-func getStatusCodeArg(args []interface{}, index int) (int, error) {
+func getStatusCodeArg(args []any, index int) (int, error) {
 	// status code arg is optional so we return default status code but no error
 	if len(args) <= index {
 		return defaultStatusCode, nil

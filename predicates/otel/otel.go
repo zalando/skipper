@@ -22,7 +22,7 @@ func (*baggageSpec) Name() string {
 }
 
 // Create a predicate instance that always evaluates to baggage
-func (*baggageSpec) Create(args []interface{}) (routing.Predicate, error) {
+func (*baggageSpec) Create(args []any) (routing.Predicate, error) {
 	if len(args) != 1 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}

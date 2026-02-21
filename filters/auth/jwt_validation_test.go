@@ -48,7 +48,7 @@ func createToken(t *testing.T, method jwt.SigningMethod) string {
 func TestToken(t *testing.T) {
 	s := createToken(t, jwt.SigningMethodRS256)
 
-	parsedToken, err := jwt.Parse(s, func(token *jwt.Token) (interface{}, error) {
+	parsedToken, err := jwt.Parse(s, func(token *jwt.Token) (any, error) {
 		return &privateKey.PublicKey, nil
 	})
 
@@ -94,7 +94,7 @@ func TestJWTValidation(t *testing.T) {
 
 	var spec = NewJwtValidationWithOptions(TokenintrospectionOptions{})
 
-	args := []interface{}{issuerServer.URL}
+	args := []any{issuerServer.URL}
 
 	fr := make(filters.Registry)
 	fr.Register(spec)
@@ -163,7 +163,7 @@ func TestJWTValidationJwksError(t *testing.T) {
 	testOidcConfig.JwksURI = issuerServer.URL + "/jwks"
 
 	spec := NewJwtValidationWithOptions(TokenintrospectionOptions{})
-	_, err := spec.CreateFilter([]interface{}{issuerServer.URL})
+	_, err := spec.CreateFilter([]any{issuerServer.URL})
 
 	if err == nil {
 		t.Errorf("It should not be possible to create filter")

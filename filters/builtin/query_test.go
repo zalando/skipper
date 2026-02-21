@@ -9,7 +9,7 @@ import (
 
 func TestDropQuery(t *testing.T) {
 	spec := NewDropQuery()
-	f, err := spec.CreateFilter([]interface{}{"foo"})
+	f, err := spec.CreateFilter([]any{"foo"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -28,7 +28,7 @@ func TestDropQuery(t *testing.T) {
 
 func TestDropQueryWithTemplate(t *testing.T) {
 	spec := NewDropQuery()
-	f, err := spec.CreateFilter([]interface{}{"${param1}"})
+	f, err := spec.CreateFilter([]any{"${param1}"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -50,7 +50,7 @@ func TestDropQueryWithTemplate(t *testing.T) {
 
 func TestSetQuery(t *testing.T) {
 	spec := NewSetQuery()
-	f, err := spec.CreateFilter([]interface{}{"foo", "bar"})
+	f, err := spec.CreateFilter([]any{"foo", "bar"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -69,7 +69,7 @@ func TestSetQuery(t *testing.T) {
 
 func TestSetQueryKeyOnly(t *testing.T) {
 	spec := NewSetQuery()
-	f, err := spec.CreateFilter([]interface{}{"foo"})
+	f, err := spec.CreateFilter([]any{"foo"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -88,7 +88,7 @@ func TestSetQueryKeyOnly(t *testing.T) {
 
 func TestSetQueryWithTemplate(t *testing.T) {
 	spec := NewSetQuery()
-	f, err := spec.CreateFilter([]interface{}{"${param2}", "${param1}"})
+	f, err := spec.CreateFilter([]any{"${param2}", "${param1}"})
 	if err != nil {
 		t.Error(err)
 	}

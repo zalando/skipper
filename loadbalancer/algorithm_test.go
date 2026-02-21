@@ -229,7 +229,7 @@ func TestApply(t *testing.T) {
 	const R = 1000
 	const N = 10
 	eps := make([]string, 0, N)
-	for i := 0; i < N; i++ {
+	for i := range N {
 		ep := fmt.Sprintf("http://127.0.0.1:123%d/foo", i)
 		eps = append(eps, ep)
 	}
@@ -283,7 +283,7 @@ func TestApply(t *testing.T) {
 			}
 
 			h := make(map[string]int)
-			for i := 0; i < R; i++ {
+			for range R {
 				lbe := tt.algorithm.Apply(lbctx)
 				h[lbe.Host] += 1
 			}
@@ -311,7 +311,7 @@ func TestConsistentHashSearch(t *testing.T) {
 		endpointRegistry.Do([]*routing.Route{r})
 
 		ch := newConsistentHash(endpoints).(*consistentHash)
-		ctx := &routing.LBContext{Route: r, LBEndpoints: r.LBEndpoints, Params: map[string]interface{}{ConsistentHashKey: key}}
+		ctx := &routing.LBContext{Route: r, LBEndpoints: r.LBEndpoints, Params: map[string]any{ConsistentHashKey: key}}
 		return endpoints[ch.search(key, ctx)]
 	}
 
@@ -353,13 +353,13 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 		Request:     r,
 		Route:       route,
 		LBEndpoints: route.LBEndpoints,
-		Params:      map[string]interface{}{ConsistentHashBalanceFactor: 1.25},
+		Params:      map[string]any{ConsistentHashBalanceFactor: 1.25},
 	}
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	defer endpointRegistry.Close()
 	endpointRegistry.Do([]*routing.Route{route})
 	noLoad := ch.Apply(ctx)
-	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, LBEndpoints: route.LBEndpoints, Params: map[string]interface{}{}})
+	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, LBEndpoints: route.LBEndpoints, Params: map[string]any{}})
 
 	if noLoad != nonBounded {
 		t.Error("When no endpoints are overloaded, the chosen endpoint should be the same as standard consistentHash")
@@ -401,8 +401,8 @@ func TestConsistentHashKey(t *testing.T) {
 		},
 	}})[0]
 
-	defaultEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: make(map[string]interface{})})
-	remoteHostEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: map[string]interface{}{ConsistentHashKey: net.RemoteHost(r).String()}})
+	defaultEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: make(map[string]any)})
+	remoteHostEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: map[string]any{ConsistentHashKey: net.RemoteHost(r).String()}})
 
 	if defaultEndpoint != remoteHostEndpoint {
 		t.Error("remote host should be used as a default key")
@@ -410,7 +410,7 @@ func TestConsistentHashKey(t *testing.T) {
 
 	for i, ep := range endpoints {
 		key := fmt.Sprintf("%s-%d", ep, 1) // "ep-0" to "ep-99" is the range of keys for this endpoint. If we use this as the hash key it should select endpoint ep.
-		selected := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: map[string]interface{}{ConsistentHashKey: key}})
+		selected := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: map[string]any{ConsistentHashKey: key}})
 		if selected != rt.LBEndpoints[i] {
 			t.Errorf("expected: %v, got %v", rt.LBEndpoints[i], selected)
 		}
@@ -434,13 +434,13 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 		Request:     r,
 		Route:       route,
 		LBEndpoints: route.LBEndpoints,
-		Params:      map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor},
+		Params:      map[string]any{ConsistentHashBalanceFactor: balanceFactor},
 	}
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	defer endpointRegistry.Close()
 	endpointRegistry.Do([]*routing.Route{route})
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		ep := ch.Apply(ctx)
 		ifr0 := route.LBEndpoints[0].Metrics.InflightRequests()
 		ifr1 := route.LBEndpoints[1].Metrics.InflightRequests()
@@ -475,7 +475,7 @@ func TestConsistentHashKeyDistribution(t *testing.T) {
 }
 
 func addInflightRequests(registry *routing.EndpointRegistry, endpoint routing.LBEndpoint, count int) {
-	for i := 0; i < count; i++ {
+	for range count {
 		endpoint.Metrics.IncInflightRequest()
 		registry.GetMetrics(endpoint.Host).IncInflightRequest()
 	}

@@ -48,7 +48,7 @@ func (opa *OpenPolicyAgentInstance) HandleEvaluationError(fc filters.FilterConte
 			"message", err.Error(),
 		)
 
-		opa.Logger().WithFields(map[string]interface{}{
+		opa.Logger().WithFields(map[string]any{
 			"decision":    result.Decision,
 			"err":         err,
 			"decision_id": result.DecisionID,
@@ -59,7 +59,7 @@ func (opa *OpenPolicyAgentInstance) HandleEvaluationError(fc filters.FilterConte
 			"message", err.Error(),
 		)
 
-		opa.Logger().WithFields(map[string]interface{}{
+		opa.Logger().WithFields(map[string]any{
 			"err": err,
 		}).Info("Rejecting request because of an error")
 	}

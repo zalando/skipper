@@ -33,7 +33,7 @@ func (f *pluginFlag) Set(value string) error {
 	return nil
 }
 
-func (f *pluginFlag) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (f *pluginFlag) UnmarshalYAML(unmarshal func(any) error) error {
 	var value map[string][]string
 	if err := unmarshal(&value); err != nil {
 		return err

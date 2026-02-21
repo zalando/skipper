@@ -61,7 +61,7 @@ func ExampleContext() {
 	filter := &customFilter{}
 
 	// create a test context:
-	ctx := &filtertest.Context{FStateBag: make(map[string]interface{})}
+	ctx := &filtertest.Context{FStateBag: make(map[string]any)}
 
 	// call the request handler method of the filter:
 	filter.Request(ctx)

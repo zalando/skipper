@@ -13,14 +13,14 @@ func Test_copySpec_CreateFilter(t *testing.T) {
 	tests := []struct {
 		name    string
 		newSpec func() filters.Spec
-		args    []interface{}
+		args    []any
 		want    filters.Filter
 		wantErr bool
 	}{
 		{
 			name:    "test request copy filter create filter",
 			newSpec: NewCopyRequestHeader,
-			args:    []interface{}{"X-Src", "X-Dst"},
+			args:    []any{"X-Src", "X-Dst"},
 			want: &headerFilter{
 				typ:   copyRequestHeader,
 				key:   "X-Src",
@@ -30,7 +30,7 @@ func Test_copySpec_CreateFilter(t *testing.T) {
 		}, {
 			name:    "test response copy filter create filter",
 			newSpec: NewCopyResponseHeader,
-			args:    []interface{}{"X-Src", "X-Dst"},
+			args:    []any{"X-Src", "X-Dst"},
 			want: &headerFilter{
 				typ:   copyResponseHeader,
 				key:   "X-Src",
@@ -40,17 +40,17 @@ func Test_copySpec_CreateFilter(t *testing.T) {
 		}, {
 			name:    "test wrong args create filter",
 			newSpec: NewCopyResponseHeader,
-			args:    []interface{}{5, "X-Dst"},
+			args:    []any{5, "X-Dst"},
 			wantErr: true,
 		}, {
 			name:    "test wrong args 2 create filter",
 			newSpec: NewCopyResponseHeader,
-			args:    []interface{}{"X-Dst", 5},
+			args:    []any{"X-Dst", 5},
 			wantErr: true,
 		}, {
 			name:    "test wrong args 3 create filter",
 			newSpec: NewCopyResponseHeader,
-			args:    []interface{}{"X-foo"},
+			args:    []any{"X-foo"},
 			wantErr: true,
 		},
 	}
@@ -110,7 +110,7 @@ func Test_copyFilter_Request(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f, _ := NewCopyRequestHeader().CreateFilter([]interface{}{
+			f, _ := NewCopyRequestHeader().CreateFilter([]any{
 				tt.fields.src,
 				tt.fields.dst,
 			})
@@ -152,7 +152,7 @@ func Test_copyFilter_Response(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f, _ := NewCopyResponseHeader().CreateFilter([]interface{}{
+			f, _ := NewCopyResponseHeader().CreateFilter([]any{
 				tt.fields.src,
 				tt.fields.dst,
 			})

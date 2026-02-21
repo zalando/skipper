@@ -25,7 +25,7 @@ func TestRouteString(t *testing.T) {
 		expected: []*eskip.Route{{
 			Filters: []*eskip.Filter{{
 				Name: "static",
-				Args: []interface{}{
+				Args: []any{
 					"/",
 					"/var/www",
 				},
@@ -40,7 +40,7 @@ func TestRouteString(t *testing.T) {
 			Id: "static_content",
 			Filters: []*eskip.Filter{{
 				Name: "static",
-				Args: []interface{}{
+				Args: []any{
 					"/",
 					"/var/www",
 				},
@@ -58,7 +58,7 @@ func TestRouteString(t *testing.T) {
 			Id: "static_content",
 			Filters: []*eskip.Filter{{
 				Name: "static",
-				Args: []interface{}{
+				Args: []any{
 					"/",
 					"/var/www",
 				},
@@ -71,7 +71,7 @@ func TestRouteString(t *testing.T) {
 			Path:   "/register",
 			Filters: []*eskip.Filter{{
 				Name: "setPath",
-				Args: []interface{}{
+				Args: []any{
 					"/",
 				},
 			}},

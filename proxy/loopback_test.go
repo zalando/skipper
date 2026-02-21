@@ -22,9 +22,9 @@ type (
 	returnState struct{}
 )
 
-func (f *returnPathParam) Name() string                                       { return "returnParam" }
-func (f *returnPathParam) CreateFilter([]interface{}) (filters.Filter, error) { return f, nil }
-func (f *returnPathParam) Request(filters.FilterContext)                      {}
+func (f *returnPathParam) Name() string                               { return "returnParam" }
+func (f *returnPathParam) CreateFilter([]any) (filters.Filter, error) { return f, nil }
+func (f *returnPathParam) Request(filters.FilterContext)              {}
 
 func (f *returnPathParam) Response(ctx filters.FilterContext) {
 	ctx.Response().Header.Add("X-Path-Param", ctx.PathParam("param"))
@@ -32,7 +32,7 @@ func (f *returnPathParam) Response(ctx filters.FilterContext) {
 
 func (s *setState) Name() string { return "setState" }
 
-func (s *setState) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *setState) CreateFilter(args []any) (filters.Filter, error) {
 	return &setState{args[0].(string), args[1].(string)}, nil
 }
 
@@ -42,9 +42,9 @@ func (s *setState) Request(ctx filters.FilterContext) {
 
 func (s *setState) Response(filters.FilterContext) {}
 
-func (c *returnState) Name() string                                       { return "returnState" }
-func (c *returnState) CreateFilter([]interface{}) (filters.Filter, error) { return c, nil }
-func (c *returnState) Request(filters.FilterContext)                      {}
+func (c *returnState) Name() string                               { return "returnState" }
+func (c *returnState) CreateFilter([]any) (filters.Filter, error) { return c, nil }
+func (c *returnState) Request(filters.FilterContext)              {}
 
 func (c *returnState) Response(ctx filters.FilterContext) {
 	for k, v := range ctx.StateBag() {

@@ -128,7 +128,7 @@ func TestHistogramRequestLatency(t *testing.T) {
 				nSamples = 20_000
 				epsilon  = 0.1
 			)
-			for i := 0; i < nSamples; i++ {
+			for range nSamples {
 				f.Request(nil)
 			}
 

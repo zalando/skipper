@@ -37,7 +37,7 @@ func TestFifoChanges(t *testing.T) {
 	spec := filterScheduler.NewFifo()
 	fr := builtin.MakeRegistry()
 	fr.Register(spec)
-	args := []interface{}{
+	args := []any{
 		2,
 		2,
 		"2s",
@@ -100,7 +100,7 @@ func TestFifoChanges(t *testing.T) {
 	N := 4
 	var wg sync.WaitGroup
 	wg.Add(N)
-	for i := 0; i < N; i++ {
+	for range N {
 		go func() {
 			f(t, errCH, req, http.StatusOK)
 			wg.Done()

@@ -118,7 +118,7 @@ func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routin
 	}
 	for i, ep := range endpoints {
 		endpointStartIndex := hashesPerEndpoint * i
-		for j := 0; j < hashesPerEndpoint; j++ {
+		for j := range hashesPerEndpoint {
 			ch.hashRing[endpointStartIndex+j] = endpointHash{i, hash(fmt.Sprintf("%s-%d", ep, j))}
 		}
 	}

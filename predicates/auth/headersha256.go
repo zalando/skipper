@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"slices"
 
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
@@ -27,7 +28,7 @@ func (*headerSha256Spec) Name() string {
 }
 
 // Create a predicate instance matching SHA256 hash of the header value
-func (*headerSha256Spec) Create(args []interface{}) (routing.Predicate, error) {
+func (*headerSha256Spec) Create(args []any) (routing.Predicate, error) {
 	if len(args) < 2 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
@@ -66,11 +67,5 @@ func (p *headerSha256Predicate) Match(r *http.Request) bool {
 
 	valueHash := sha256.Sum256([]byte(value))
 
-	for _, hash := range p.hashes {
-		if valueHash == hash {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(p.hashes, valueHash)
 }

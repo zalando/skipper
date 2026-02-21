@@ -214,7 +214,7 @@ func (spec *headerFilter) Name() string {
 }
 
 //lint:ignore ST1016 "spec" makes sense here and we reuse the type for the filter
-func (spec *headerFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (spec *headerFilter) CreateFilter(config []any) (filters.Filter, error) {
 	switch spec.typ {
 	case dropRequestHeader, dropResponseHeader:
 		if len(config) != 1 {

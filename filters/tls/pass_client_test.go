@@ -186,14 +186,13 @@ func TestPassTLSClientCert_PEM(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
 			spec := New()
 			assert.Equal(t, spec.Name(), filters.TLSName)
 
-			f, err := spec.CreateFilter([]interface{}{})
+			f, err := spec.CreateFilter([]any{})
 			require.NoError(t, err)
 
 			req, err := http.NewRequest(http.MethodGet, "http://example.com/foo", nil)
@@ -258,7 +257,6 @@ WqeUSNGYV//RunTeuRDAf5OxehERb1srzBXhRZ3cZdzXbgR/`,
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 

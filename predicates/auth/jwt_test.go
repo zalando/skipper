@@ -57,25 +57,25 @@ func Test_spec_Create(t *testing.T) {
 	tests := []struct {
 		name    string
 		spec    routing.PredicateSpec
-		args    []interface{}
+		args    []any
 		want    routing.Predicate
 		wantErr bool
 	}{{
 		name:    "invalid number of args",
 		spec:    NewJWTPayloadAllKV(),
-		args:    []interface{}{"foo"},
+		args:    []any{"foo"},
 		want:    nil,
 		wantErr: true,
 	}, {
 		name:    "invalid type of args",
 		spec:    NewJWTPayloadAllKV(),
-		args:    []interface{}{3, 5},
+		args:    []any{3, 5},
 		want:    nil,
 		wantErr: true,
 	}, {
 		name: "one valid kv pair of args",
 		spec: NewJWTPayloadAllKV(),
-		args: []interface{}{"uid", "sszuecs"},
+		args: []any{"uid", "sszuecs"},
 		want: &predicate{
 			kv: map[string][]valueMatcher{
 				"uid": {exact("sszuecs")},
@@ -86,7 +86,7 @@ func Test_spec_Create(t *testing.T) {
 	}, {
 		name: "one valid kv pair of args",
 		spec: NewJWTPayloadAnyKV(),
-		args: []interface{}{"uid", "sszuecs"},
+		args: []any{"uid", "sszuecs"},
 		want: &predicate{
 			kv: map[string][]valueMatcher{
 				"uid": {exact("sszuecs")},
@@ -97,7 +97,7 @@ func Test_spec_Create(t *testing.T) {
 	}, {
 		name: "valid kv pair of args of the same key",
 		spec: NewJWTPayloadAnyKV(),
-		args: []interface{}{"uid", "sszuecs", "uid", "foo"},
+		args: []any{"uid", "sszuecs", "uid", "foo"},
 		want: &predicate{
 			kv: map[string][]valueMatcher{
 				"uid": {exact("sszuecs"), exact("foo")},
@@ -108,7 +108,7 @@ func Test_spec_Create(t *testing.T) {
 	}, {
 		name: "many valid kv pair of args",
 		spec: NewJWTPayloadAllKV(),
-		args: []interface{}{"uid", "sszuecs", "claim1", "claimValue1", "claim2", "claimValue2"},
+		args: []any{"uid", "sszuecs", "claim1", "claimValue1", "claim2", "claimValue2"},
 		want: &predicate{
 			kv: map[string][]valueMatcher{
 				"uid":    {exact("sszuecs")},
@@ -121,7 +121,7 @@ func Test_spec_Create(t *testing.T) {
 	}, {
 		name: "many valid kv pair of args",
 		spec: NewJWTPayloadAnyKV(),
-		args: []interface{}{"uid", "sszuecs", "claim1", "claimValue1", "claim2", "claimValue2"},
+		args: []any{"uid", "sszuecs", "claim1", "claimValue1", "claim2", "claimValue2"},
 		want: &predicate{
 			kv: map[string][]valueMatcher{
 				"uid":    {exact("sszuecs")},
@@ -134,7 +134,7 @@ func Test_spec_Create(t *testing.T) {
 	}, {
 		name: "many valid kv pair of args, regexp matching",
 		spec: NewJWTPayloadAllKVRegexp(),
-		args: []interface{}{"uid", "sszuecs", "claim1", "claimValue1", "claim2", "claimValue2"},
+		args: []any{"uid", "sszuecs", "claim1", "claimValue1", "claim2", "claimValue2"},
 		want: &predicate{
 			kv: map[string][]valueMatcher{
 				"uid":    {regex("sszuecs")},
@@ -147,7 +147,7 @@ func Test_spec_Create(t *testing.T) {
 	}, {
 		name: "many valid kv pair of args, regexp matching",
 		spec: NewJWTPayloadAnyKVRegexp(),
-		args: []interface{}{"uid", "sszuecs", "claim1", "claimValue1", "claim2", "claimValue2"},
+		args: []any{"uid", "sszuecs", "claim1", "claimValue1", "claim2", "claimValue2"},
 		want: &predicate{
 			kv: map[string][]valueMatcher{
 				"uid":    {regex("sszuecs")},
@@ -160,13 +160,13 @@ func Test_spec_Create(t *testing.T) {
 	}, {
 		name:    "many kv pair of args, one missing",
 		spec:    NewJWTPayloadAllKV(),
-		args:    []interface{}{"uid", "sszuecs", "claim1", "claimValue1", "claim2"},
+		args:    []any{"uid", "sszuecs", "claim1", "claimValue1", "claim2"},
 		want:    nil,
 		wantErr: true,
 	}, {
 		name:    "many kv pair of args",
 		spec:    NewJWTPayloadAnyKV(),
-		args:    []interface{}{"uid", "sszuecs", "claim1", "claimValue1", "claim2"},
+		args:    []any{"uid", "sszuecs", "claim1", "claimValue1", "claim2"},
 		want:    nil,
 		wantErr: true,
 	}}
@@ -415,7 +415,7 @@ func Test_allMatch(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		kv   map[string][]valueMatcher
-		h    map[string]interface{}
+		h    map[string]any
 		want bool
 	}{
 		{
@@ -423,7 +423,7 @@ func Test_allMatch(t *testing.T) {
 			want: true,
 		}, {
 			name: "no kv, but h",
-			h: map[string]interface{}{
+			h: map[string]any{
 				"foo": "bar",
 			},
 			want: true,
@@ -439,7 +439,7 @@ func Test_allMatch(t *testing.T) {
 				"foo": {exact("bar")},
 				"x":   {exact("y")},
 			},
-			h: map[string]interface{}{
+			h: map[string]any{
 				"foo": "bar",
 				"x":   "y",
 			},
@@ -450,7 +450,7 @@ func Test_allMatch(t *testing.T) {
 				"foo": {regex("^b")},
 				"x":   {regex("y")},
 			},
-			h: map[string]interface{}{
+			h: map[string]any{
 				"foo": "bar",
 				"x":   "y",
 			},
@@ -461,7 +461,7 @@ func Test_allMatch(t *testing.T) {
 				"foo": {exact("bar")},
 				"x":   {exact("y")},
 			},
-			h: map[string]interface{}{
+			h: map[string]any{
 				"foo": "bar",
 				"x":   "a",
 			},
@@ -480,7 +480,7 @@ func Test_anyMatch(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		kv   map[string][]valueMatcher
-		h    map[string]interface{}
+		h    map[string]any
 		want bool
 	}{
 		{
@@ -488,7 +488,7 @@ func Test_anyMatch(t *testing.T) {
 			want: true,
 		}, {
 			name: "no kv, but h",
-			h: map[string]interface{}{
+			h: map[string]any{
 				"foo": "bar",
 			},
 			want: true,
@@ -504,7 +504,7 @@ func Test_anyMatch(t *testing.T) {
 				"foo": {exact("bar")},
 				"x":   {exact("y")},
 			},
-			h: map[string]interface{}{
+			h: map[string]any{
 				"foo": "bar",
 				"x":   "y",
 			},
@@ -515,7 +515,7 @@ func Test_anyMatch(t *testing.T) {
 				"foo": {exact("bar")},
 				"x":   {exact("y")},
 			},
-			h: map[string]interface{}{
+			h: map[string]any{
 				"foo": "bar",
 				"x":   "a",
 			},
@@ -526,7 +526,7 @@ func Test_anyMatch(t *testing.T) {
 				"foo": {regex("^b")},
 				"x":   {regex("^y$")},
 			},
-			h: map[string]interface{}{
+			h: map[string]any{
 				"foo": "bar",
 				"x":   "y",
 			},
@@ -537,7 +537,7 @@ func Test_anyMatch(t *testing.T) {
 				"foo": {regex("^b")},
 				"x":   {regex("^y$")},
 			},
-			h: map[string]interface{}{
+			h: map[string]any{
 				"foo": "bar",
 				"x":   "a",
 			},
@@ -621,7 +621,7 @@ s: JWTPayloadAnyKVRegexp("https://identity.zalando.com/managed-id", "^ssz") -> s
 
 func BenchmarkJWTPayloadAnyKV(b *testing.B) {
 	sp := NewJWTPayloadAnyKV()
-	p, err := sp.Create([]interface{}{"https://identity.zalando.com/managed-id", "foo", "iss", "https://identity.zalando.com"})
+	p, err := sp.Create([]any{"https://identity.zalando.com/managed-id", "foo", "iss", "https://identity.zalando.com"})
 	if err != nil {
 		b.Fatalf("Failed to create predicate: %v", err)
 	}
@@ -630,7 +630,7 @@ func BenchmarkJWTPayloadAnyKV(b *testing.B) {
 
 func BenchmarkJWTPayloadAllKV(b *testing.B) {
 	sp := NewJWTPayloadAllKV()
-	p, err := sp.Create([]interface{}{"https://identity.zalando.com/managed-id", "sszuecs", "iss", "https://identity.zalando.com"})
+	p, err := sp.Create([]any{"https://identity.zalando.com/managed-id", "sszuecs", "iss", "https://identity.zalando.com"})
 	if err != nil {
 		b.Fatalf("Failed to create predicate: %v", err)
 	}
@@ -639,7 +639,7 @@ func BenchmarkJWTPayloadAllKV(b *testing.B) {
 
 func BenchmarkJWTPayloadAnyKVRegexp(b *testing.B) {
 	sp := NewJWTPayloadAnyKVRegexp()
-	p, err := sp.Create([]interface{}{"https://identity.zalando.com/managed-id", "^ssz", "https://identity.zalando.com/token", "^Bear"})
+	p, err := sp.Create([]any{"https://identity.zalando.com/managed-id", "^ssz", "https://identity.zalando.com/token", "^Bear"})
 	if err != nil {
 		b.Fatalf("Failed to create predicate: %v", err)
 	}
@@ -648,7 +648,7 @@ func BenchmarkJWTPayloadAnyKVRegexp(b *testing.B) {
 
 func BenchmarkJWTPayloadAllKVRegexp(b *testing.B) {
 	sp := NewJWTPayloadAllKVRegexp()
-	p, err := sp.Create([]interface{}{"https://identity.zalando.com/managed-id", "^ssz", "https://identity.zalando.com/token", "^Bear"})
+	p, err := sp.Create([]any{"https://identity.zalando.com/managed-id", "^ssz", "https://identity.zalando.com/token", "^Bear"})
 	if err != nil {
 		b.Fatalf("Failed to create predicate: %v", err)
 	}

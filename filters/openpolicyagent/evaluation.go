@@ -21,19 +21,19 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 
 	decisionId, err := opa.idGenerator.Generate()
 	if err != nil {
-		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to generate decision ID.")
+		opa.Logger().WithFields(map[string]any{"err": err}).Error("Unable to generate decision ID.")
 		return nil, err
 	}
 
 	err = setDecisionIdInRequest(req, decisionId)
 	if err != nil {
-		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to set decision ID in Request.")
+		opa.Logger().WithFields(map[string]any{"err": err}).Error("Unable to set decision ID in Request.")
 		return nil, err
 	}
 
 	result, stopeval, err := envoyauth.NewEvalResult(withDecisionID(decisionId))
 	if err != nil {
-		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to generate new result with decision ID.")
+		opa.Logger().WithFields(map[string]any{"err": err}).Error("Unable to generate new result with decision ID.")
 		return nil, err
 	}
 
@@ -42,7 +42,7 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 		span.SetTag("opa.decision_id", result.DecisionID)
 	}
 
-	var input map[string]interface{}
+	var input map[string]any
 	defer func() {
 		stopeval()
 		if topdown.IsCancel(err) {
@@ -52,7 +52,7 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 
 		err := opa.logDecision(ctx, input, result, err)
 		if err != nil {
-			opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
+			opa.Logger().WithFields(map[string]any{"err": err}).Error("Unable to log decision to control plane.")
 		}
 	}()
 
@@ -60,7 +60,7 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 		return nil, fmt.Errorf("check request timed out before query execution: %w", ctx.Err())
 	}
 
-	logger := opa.Logger().WithFields(map[string]interface{}{"decision-id": result.DecisionID})
+	logger := opa.Logger().WithFields(map[string]any{"decision-id": result.DecisionID})
 	input, err = envoyauth.RequestToInput(req, logger, nil, opa.EnvoyPluginConfig().SkipRequestBodyParse)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert request to input: %w", err)
@@ -96,13 +96,13 @@ func setDecisionIdInRequest(req *ext_authz_v3.CheckRequest, decisionId string) e
 
 func FormOpenPolicyAgentMetaDataObject(decisionId string) (*pbstruct.Struct, error) {
 
-	innerFields := make(map[string]interface{})
+	innerFields := make(map[string]any)
 	innerFields["decision_id"] = decisionId
 
 	return pbstruct.NewStruct(innerFields)
 }
 
-func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input interface{}, result *envoyauth.EvalResult, err error) error {
+func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input any, result *envoyauth.EvalResult, err error) error {
 	info := &server.Info{
 		Timestamp: time.Now(),
 		Input:     &input,

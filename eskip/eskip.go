@@ -768,7 +768,7 @@ func GenerateIfNeeded(existingId string) string {
 	var sb strings.Builder
 	sb.WriteString("route")
 
-	for i := 0; i < randomIdLength; i++ {
+	for range randomIdLength {
 		ai := rand.IntN(len(alphabet)) // #nosec
 		sb.WriteByte(alphabet[ai])
 	}

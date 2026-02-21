@@ -45,7 +45,7 @@ func TestSwarm(t *testing.T) {
 	const delay = 300 * time.Millisecond
 	time.Sleep(delay)
 
-	checkValues := func(s []*Swarm, key string, expected map[string]interface{}) {
+	checkValues := func(s []*Swarm, key string, expected map[string]any) {
 		for _, si := range s {
 			got := si.Values(key)
 			if !cmp.Equal(got, expected) {
@@ -55,12 +55,12 @@ func TestSwarm(t *testing.T) {
 		}
 	}
 
-	checkValues([]*Swarm{first, second, third}, "foo", map[string]interface{}{
+	checkValues([]*Swarm{first, second, third}, "foo", map[string]any{
 		first.Local().Name:  1,
 		second.Local().Name: 2,
 	})
 
-	checkValues([]*Swarm{first, second, third}, "bar", map[string]interface{}{
+	checkValues([]*Swarm{first, second, third}, "bar", map[string]any{
 		second.Local().Name: 3,
 		third.Local().Name:  4,
 	})

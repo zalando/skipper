@@ -41,7 +41,7 @@ func (f filter) Name() string {
 	return filters.XforwardName
 }
 
-func (f filter) CreateFilter([]interface{}) (filters.Filter, error) {
+func (f filter) CreateFilter([]any) (filters.Filter, error) {
 	return filter(f), nil
 }
 

@@ -147,25 +147,25 @@ type apiUsageMonitoringSpec struct {
 	quitCH chan struct{}
 }
 
-func (s *apiUsageMonitoringSpec) errorf(format string, args ...interface{}) {
+func (s *apiUsageMonitoringSpec) errorf(format string, args ...any) {
 	s.sometimes.Do(func() {
 		log.Errorf(format, args...)
 	})
 }
 
-func (s *apiUsageMonitoringSpec) warnf(format string, args ...interface{}) {
+func (s *apiUsageMonitoringSpec) warnf(format string, args ...any) {
 	s.sometimes.Do(func() {
 		log.Warnf(format, args...)
 	})
 }
 
-func (s *apiUsageMonitoringSpec) infof(format string, args ...interface{}) {
+func (s *apiUsageMonitoringSpec) infof(format string, args ...any) {
 	s.sometimes.Do(func() {
 		log.Infof(format, args...)
 	})
 }
 
-func (s *apiUsageMonitoringSpec) debugf(format string, args ...interface{}) {
+func (s *apiUsageMonitoringSpec) debugf(format string, args ...any) {
 	s.sometimes.Do(func() {
 		log.Debugf(format, args...)
 	})
@@ -175,7 +175,7 @@ func (s *apiUsageMonitoringSpec) Name() string {
 	return filters.ApiUsageMonitoringName
 }
 
-func keyFromArgs(args []interface{}) (string, error) {
+func keyFromArgs(args []any) (string, error) {
 	var sb strings.Builder
 	for _, a := range args {
 		s, ok := a.(string)
@@ -193,7 +193,7 @@ func (s *apiUsageMonitoringSpec) Close() error {
 	return nil
 }
 
-func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *apiUsageMonitoringSpec) CreateFilter(args []any) (filters.Filter, error) {
 	key, err := keyFromArgs(args)
 	// cache lookup
 	if err == nil {
@@ -229,7 +229,7 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filters.Filte
 	return f, nil
 }
 
-func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*apiConfig {
+func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []any) []*apiConfig {
 	apis := make([]*apiConfig, 0, len(args))
 	for i, a := range args {
 		rawJsonConfiguration, ok := a.(string)

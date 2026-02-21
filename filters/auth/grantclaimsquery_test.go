@@ -21,8 +21,8 @@ func TestGrantClaimsQuery(t *testing.T) {
 		return newAuthProxy(t, config, []*eskip.Route{{
 			Filters: []*eskip.Filter{
 				{Name: filters.OAuthGrantName},
-				{Name: filters.GrantClaimsQueryName, Args: []interface{}{query}},
-				{Name: filters.StatusName, Args: []interface{}{http.StatusNoContent}},
+				{Name: filters.GrantClaimsQueryName, Args: []any{query}},
+				{Name: filters.StatusName, Args: []any{http.StatusNoContent}},
 			},
 			BackendType: eskip.ShuntBackend,
 		}})

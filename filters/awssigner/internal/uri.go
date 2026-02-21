@@ -12,7 +12,7 @@ import (
 var noEscape [256]bool
 
 func InitializeEscape() {
-	for i := 0; i < len(noEscape); i++ {
+	for i := range len(noEscape) {
 		// AWS expects every character except these to be escaped
 		noEscape[i] = (i >= 'A' && i <= 'Z') ||
 			(i >= 'a' && i <= 'z') ||
@@ -79,14 +79,14 @@ func GetURIPath(u *url.URL) string {
 //
 // Copied from the Go 1.8 standard library (net/url)
 func stripPort(hostport string) string {
-	colon := strings.IndexByte(hostport, ':')
-	if colon == -1 {
+	before, _, ok := strings.Cut(hostport, ":")
+	if !ok {
 		return hostport
 	}
-	if i := strings.IndexByte(hostport, ']'); i != -1 {
-		return strings.TrimPrefix(hostport[:i], "[")
+	if before, _, ok := strings.Cut(hostport, "]"); ok {
+		return strings.TrimPrefix(before, "[")
 	}
-	return hostport[:colon]
+	return before
 }
 
 // Returns true if the specified URI is using the standard port

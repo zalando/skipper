@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/zalando/skipper/filters"
@@ -83,7 +84,7 @@ func (err *requestError) Error() string {
 	return err.err.Error()
 }
 
-func requestErrorf(f string, args ...interface{}) error {
+func requestErrorf(f string, args ...any) error {
 	return &requestError{
 		err: fmt.Errorf(f, args...),
 	}
@@ -145,7 +146,7 @@ func authorized(ctx filters.FilterContext, username string) {
 	ctx.StateBag()[logfilter.AuthUserKey] = username
 }
 
-func getStrings(args []interface{}) ([]string, error) {
+func getStrings(args []any) ([]string, error) {
 	s := make([]string, len(args))
 	var ok bool
 	for i, a := range args {
@@ -163,11 +164,8 @@ func getStrings(args []interface{}) ([]string, error) {
 func all(left, right []string) bool {
 	for _, l := range left {
 		var found bool
-		for _, r := range right {
-			if l == r {
-				found = true
-				break
-			}
+		if slices.Contains(right, l) {
+			found = true
 		}
 		if !found {
 			return false

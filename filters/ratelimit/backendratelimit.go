@@ -20,7 +20,7 @@ func (*BackendRatelimit) Name() string {
 	return filters.BackendRateLimitName
 }
 
-func (*BackendRatelimit) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (*BackendRatelimit) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 3 && len(args) != 4 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

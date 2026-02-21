@@ -5,7 +5,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -38,9 +38,9 @@ type requestCheck struct {
 	check func(r *http.Request) bool
 }
 
-func (rc *requestCheck) Name() string                                         { return requestCheckName }
-func (rc *requestCheck) CreateFilter(_ []interface{}) (filters.Filter, error) { return rc, nil }
-func (rc *requestCheck) Response(_ filters.FilterContext)                     {}
+func (rc *requestCheck) Name() string                                 { return requestCheckName }
+func (rc *requestCheck) CreateFilter(_ []any) (filters.Filter, error) { return rc, nil }
+func (rc *requestCheck) Response(_ filters.FilterContext)             {}
 
 func (rc *requestCheck) Request(ctx filters.FilterContext) {
 	if !rc.check(ctx.Request()) {
@@ -108,7 +108,7 @@ func checkMessage(expect messageExp, start time.Time, body io.Reader) error {
 func TestRandomArgs(t *testing.T) {
 	for _, ti := range []struct {
 		msg  string
-		args []interface{}
+		args []any
 		err  bool
 	}{{
 		"no args",
@@ -116,15 +116,15 @@ func TestRandomArgs(t *testing.T) {
 		true,
 	}, {
 		"too many args",
-		[]interface{}{float64(1), float64(2)},
+		[]any{float64(1), float64(2)},
 		true,
 	}, {
 		"not a number",
-		[]interface{}{"foo"},
+		[]any{"foo"},
 		true,
 	}, {
 		"ok",
-		[]interface{}{float64(42)},
+		[]any{float64(42)},
 		false,
 	}} {
 		_, err := NewRandom().CreateFilter(ti.args)
@@ -156,7 +156,7 @@ func TestRandom(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Parallel()
 			p := proxytest.New(filters.Registry{filters.RandomContentName: &randomSpec{}}, &eskip.Route{
-				Filters: []*eskip.Filter{{Name: filters.RandomContentName, Args: []interface{}{float64(ti.len)}}},
+				Filters: []*eskip.Filter{{Name: filters.RandomContentName, Args: []any{float64(ti.len)}}},
 				Shunt:   true})
 			defer p.Close()
 
@@ -258,7 +258,7 @@ func TestThrottleArgs(t *testing.T) {
 	for _, ti := range []struct {
 		msg  string
 		spec func() filters.Spec
-		args []interface{}
+		args []any
 		err  bool
 	}{{
 		msg:  "latency, zero args",
@@ -267,31 +267,31 @@ func TestThrottleArgs(t *testing.T) {
 	}, {
 		msg:  "latency, too many args",
 		spec: NewLatency,
-		args: []interface{}{float64(1), float64(2)},
+		args: []any{float64(1), float64(2)},
 		err:  true,
 	}, {
 		msg:  "latency, not a number/duration string",
 		spec: NewLatency,
-		args: []interface{}{"foo"},
+		args: []any{"foo"},
 		err:  true,
 	}, {
 		msg:  "latency, negative number",
 		spec: NewLatency,
-		args: []interface{}{float64(-1)},
+		args: []any{float64(-1)},
 		err:  true,
 	}, {
 		msg:  "latency, negative duration string",
 		spec: NewLatency,
-		args: []interface{}{"-42us"},
+		args: []any{"-42us"},
 		err:  true,
 	}, {
 		msg:  "latency, ok number",
 		spec: NewLatency,
-		args: []interface{}{float64(1)},
+		args: []any{float64(1)},
 	}, {
 		msg:  "latency, ok duration string",
 		spec: NewLatency,
-		args: []interface{}{"42us"},
+		args: []any{"42us"},
 	}, {
 		msg:  "backend latency, zero args",
 		spec: NewBackendLatency,
@@ -299,27 +299,27 @@ func TestThrottleArgs(t *testing.T) {
 	}, {
 		msg:  "backend latency, too many args",
 		spec: NewBackendLatency,
-		args: []interface{}{float64(1), float64(2)},
+		args: []any{float64(1), float64(2)},
 		err:  true,
 	}, {
 		msg:  "backend latency, not a number/duration string",
 		spec: NewBackendLatency,
-		args: []interface{}{"foo"},
+		args: []any{"foo"},
 		err:  true,
 	}, {
 		msg:  "backend latency, negative number",
 		spec: NewBackendLatency,
-		args: []interface{}{float64(-1)},
+		args: []any{float64(-1)},
 		err:  true,
 	}, {
 		msg:  "backend latency, negative duration string",
 		spec: NewBackendLatency,
-		args: []interface{}{"-42us"},
+		args: []any{"-42us"},
 		err:  true,
 	}, {
 		msg:  "backend latency, ok",
 		spec: NewBackendLatency,
-		args: []interface{}{float64(1)},
+		args: []any{float64(1)},
 	}, {
 		msg:  "bandwidth, zero args",
 		spec: NewBandwidth,
@@ -327,27 +327,27 @@ func TestThrottleArgs(t *testing.T) {
 	}, {
 		msg:  "bandwidth, too many args",
 		spec: NewBandwidth,
-		args: []interface{}{float64(1), float64(2)},
+		args: []any{float64(1), float64(2)},
 		err:  true,
 	}, {
 		msg:  "bandwidth, not a number",
 		spec: NewBandwidth,
-		args: []interface{}{"foo"},
+		args: []any{"foo"},
 		err:  true,
 	}, {
 		msg:  "bandwidth, zero",
 		spec: NewBandwidth,
-		args: []interface{}{float64(0)},
+		args: []any{float64(0)},
 		err:  true,
 	}, {
 		msg:  "bandwidth, negative number",
 		spec: NewBandwidth,
-		args: []interface{}{float64(-1)},
+		args: []any{float64(-1)},
 		err:  true,
 	}, {
 		msg:  "bandwidth, ok",
 		spec: NewBandwidth,
-		args: []interface{}{float64(1)},
+		args: []any{float64(1)},
 	}, {
 		msg:  "backend bandwidth, zero args",
 		spec: NewBackendBandwidth,
@@ -355,123 +355,123 @@ func TestThrottleArgs(t *testing.T) {
 	}, {
 		msg:  "backend bandwidth, too many args",
 		spec: NewBackendBandwidth,
-		args: []interface{}{float64(1), float64(2)},
+		args: []any{float64(1), float64(2)},
 		err:  true,
 	}, {
 		msg:  "backend bandwidth, not a number",
 		spec: NewBackendBandwidth,
-		args: []interface{}{"foo"},
+		args: []any{"foo"},
 		err:  true,
 	}, {
 		msg:  "backend bandwidth, zero",
 		spec: NewBackendBandwidth,
-		args: []interface{}{float64(0)},
+		args: []any{float64(0)},
 		err:  true,
 	}, {
 		msg:  "backend bandwidth, negative number",
 		spec: NewBackendBandwidth,
-		args: []interface{}{float64(-1)},
+		args: []any{float64(-1)},
 		err:  true,
 	}, {
 		msg:  "backend bandwidth, ok",
 		spec: NewBackendBandwidth,
-		args: []interface{}{float64(1)},
+		args: []any{float64(1)},
 	}, {
 		msg:  "chunks, too few args",
 		spec: NewChunks,
-		args: []interface{}{float64(1)},
+		args: []any{float64(1)},
 		err:  true,
 	}, {
 		msg:  "chunks, too many args",
 		spec: NewChunks,
-		args: []interface{}{float64(1), float64(2), float64(3)},
+		args: []any{float64(1), float64(2), float64(3)},
 		err:  true,
 	}, {
 		msg:  "chunks, size not a number",
 		spec: NewChunks,
-		args: []interface{}{"foo", float64(2)},
+		args: []any{"foo", float64(2)},
 		err:  true,
 	}, {
 		msg:  "chunks, delay not a number/duration string",
 		spec: NewChunks,
-		args: []interface{}{float64(1), "foo"},
+		args: []any{float64(1), "foo"},
 		err:  true,
 	}, {
 		msg:  "chunks, size zero",
 		spec: NewChunks,
-		args: []interface{}{float64(0), float64(2)},
+		args: []any{float64(0), float64(2)},
 		err:  true,
 	}, {
 		msg:  "chunks, size negative",
 		spec: NewChunks,
-		args: []interface{}{float64(-1), float64(2)},
+		args: []any{float64(-1), float64(2)},
 		err:  true,
 	}, {
 		msg:  "chunks, delay negative",
 		spec: NewChunks,
-		args: []interface{}{float64(1), float64(-2)},
+		args: []any{float64(1), float64(-2)},
 		err:  true,
 	}, {
 		msg:  "chunks, delay negative duration string",
 		spec: NewChunks,
-		args: []interface{}{float64(1), "-42us"},
+		args: []any{float64(1), "-42us"},
 		err:  true,
 	}, {
 		msg:  "chunks, ok",
 		spec: NewChunks,
-		args: []interface{}{float64(1), float64(2)},
+		args: []any{float64(1), float64(2)},
 	}, {
 		msg:  "chunks, ok duration string",
 		spec: NewChunks,
-		args: []interface{}{float64(1), "42us"},
+		args: []any{float64(1), "42us"},
 	}, {
 		msg:  "backend chunks, too few args",
 		spec: NewBackendChunks,
-		args: []interface{}{float64(1)},
+		args: []any{float64(1)},
 		err:  true,
 	}, {
 		msg:  "backend chunks, too many args",
 		spec: NewBackendChunks,
-		args: []interface{}{float64(1), float64(2), float64(3)},
+		args: []any{float64(1), float64(2), float64(3)},
 		err:  true,
 	}, {
 		msg:  "backend chunks, size not a number",
 		spec: NewBackendChunks,
-		args: []interface{}{"foo", float64(2)},
+		args: []any{"foo", float64(2)},
 		err:  true,
 	}, {
 		msg:  "backend chunks, delay not a number/duration string",
 		spec: NewBackendChunks,
-		args: []interface{}{float64(1), "foo"},
+		args: []any{float64(1), "foo"},
 		err:  true,
 	}, {
 		msg:  "backend chunks, size zero",
 		spec: NewBackendChunks,
-		args: []interface{}{float64(0), float64(2)},
+		args: []any{float64(0), float64(2)},
 		err:  true,
 	}, {
 		msg:  "backend chunks, size negative",
 		spec: NewBackendChunks,
-		args: []interface{}{float64(-1), float64(2)},
+		args: []any{float64(-1), float64(2)},
 		err:  true,
 	}, {
 		msg:  "backend chunks, delay negative",
 		spec: NewBackendChunks,
-		args: []interface{}{float64(1), float64(-2)},
+		args: []any{float64(1), float64(-2)},
 		err:  true,
 	}, {
 		msg:  "backend chunks, delay negative duration string",
 		spec: NewBackendChunks,
-		args: []interface{}{float64(1), "-42us"},
+		args: []any{float64(1), "-42us"},
 		err:  true,
 	}, {
 		msg:  "backend chunks, ok",
 		spec: NewBackendChunks,
-		args: []interface{}{float64(1), float64(2)},
+		args: []any{float64(1), float64(2)},
 	}, {
 		msg:  "backend chunks, ok duration string",
 		spec: NewBackendChunks,
-		args: []interface{}{float64(1), "42us"},
+		args: []any{float64(1), "42us"},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Parallel()
@@ -497,73 +497,73 @@ func TestThrottle(t *testing.T) {
 		backendExpect messageExp
 	}{{
 		msg:          "zero latency",
-		filters:      []*eskip.Filter{{Name: filters.LatencyName, Args: []interface{}{float64(0)}}},
+		filters:      []*eskip.Filter{{Name: filters.LatencyName, Args: []any{float64(0)}}},
 		clientExpect: messageExp{header: time.Millisecond},
 	}, {
 		msg:          "latency",
-		filters:      []*eskip.Filter{{Name: filters.LatencyName, Args: []interface{}{float64(smallDelay)}}},
+		filters:      []*eskip.Filter{{Name: filters.LatencyName, Args: []any{float64(smallDelay)}}},
 		clientExpect: messageExp{header: smallDelay * time.Millisecond},
 	}, {
 		msg:          "high latency",
-		filters:      []*eskip.Filter{{Name: filters.LatencyName, Args: []interface{}{float64(highDelay)}}},
+		filters:      []*eskip.Filter{{Name: filters.LatencyName, Args: []any{float64(highDelay)}}},
 		clientExpect: messageExp{header: highDelay * time.Millisecond},
 	}, {
 		msg:           "zero backend latency",
-		filters:       []*eskip.Filter{{Name: filters.BackendLatencyName, Args: []interface{}{float64(0)}}},
+		filters:       []*eskip.Filter{{Name: filters.BackendLatencyName, Args: []any{float64(0)}}},
 		backendExpect: messageExp{header: time.Millisecond},
 	}, {
 		msg:           "backend latency",
-		filters:       []*eskip.Filter{{Name: filters.BackendLatencyName, Args: []interface{}{float64(smallDelay)}}},
+		filters:       []*eskip.Filter{{Name: filters.BackendLatencyName, Args: []any{float64(smallDelay)}}},
 		backendExpect: messageExp{header: smallDelay * time.Millisecond},
 	}, {
 		msg:           "high backend latency",
-		filters:       []*eskip.Filter{{Name: filters.BackendLatencyName, Args: []interface{}{float64(highDelay)}}},
+		filters:       []*eskip.Filter{{Name: filters.BackendLatencyName, Args: []any{float64(highDelay)}}},
 		backendExpect: messageExp{header: highDelay * time.Millisecond},
 	}, {
 		msg:          "bandwidth",
-		filters:      []*eskip.Filter{{Name: filters.BandwidthName, Args: []interface{}{float64(12)}}},
+		filters:      []*eskip.Filter{{Name: filters.BandwidthName, Args: []any{float64(12)}}},
 		clientExpect: messageExp{kbps: 12},
 	}, {
 		msg:     "very high bandwidth",
-		filters: []*eskip.Filter{{Name: filters.BandwidthName, Args: []interface{}{float64(12000000000)}}},
+		filters: []*eskip.Filter{{Name: filters.BandwidthName, Args: []any{float64(12000000000)}}},
 	}, {
 		msg: "bandwidth, adjust",
 		filters: []*eskip.Filter{{
 			Name: filters.BandwidthName,
-			Args: []interface{}{float64(12)},
+			Args: []any{float64(12)},
 		}, {
 			Name: filters.BandwidthName,
-			Args: []interface{}{float64(36)},
+			Args: []any{float64(36)},
 		}},
 		clientExpect: messageExp{kbps: 12},
 	}, {
 		msg:           "backend bandwidth",
-		filters:       []*eskip.Filter{{Name: filters.BackendBandwidthName, Args: []interface{}{float64(12)}}},
+		filters:       []*eskip.Filter{{Name: filters.BackendBandwidthName, Args: []any{float64(12)}}},
 		backendExpect: messageExp{kbps: 12},
 	}, {
 		msg:     "backend, very high bandwidth",
-		filters: []*eskip.Filter{{Name: filters.BackendBandwidthName, Args: []interface{}{float64(12000000000)}}},
+		filters: []*eskip.Filter{{Name: filters.BackendBandwidthName, Args: []any{float64(12000000000)}}},
 	}, {
 		msg: "backend bandwidth, adjust",
 		filters: []*eskip.Filter{{
 			Name: filters.BackendBandwidthName,
-			Args: []interface{}{float64(36)},
+			Args: []any{float64(36)},
 		}, {
 			Name: filters.BackendBandwidthName,
-			Args: []interface{}{float64(12)},
+			Args: []any{float64(12)},
 		}},
 		backendExpect: messageExp{kbps: 12},
 	}, {
 		msg:          "single chunk",
-		filters:      []*eskip.Filter{{Name: filters.ChunksName, Args: []interface{}{float64(2 * testDataLen), float64(smallDelay)}}},
+		filters:      []*eskip.Filter{{Name: filters.ChunksName, Args: []any{float64(2 * testDataLen), float64(smallDelay)}}},
 		clientExpect: messageExp{chunks: []testChunk{{2 * testDataLen, time.Duration(smallDelay) * time.Millisecond}}},
 	}, {
 		msg:          "single chunk, long delay",
-		filters:      []*eskip.Filter{{Name: filters.ChunksName, Args: []interface{}{float64(2 * testDataLen), float64(highDelay)}}},
+		filters:      []*eskip.Filter{{Name: filters.ChunksName, Args: []any{float64(2 * testDataLen), float64(highDelay)}}},
 		clientExpect: messageExp{chunks: []testChunk{{2 * testDataLen, time.Duration(highDelay) * time.Millisecond}}},
 	}, {
 		msg:     "multiple chunks",
-		filters: []*eskip.Filter{{Name: filters.ChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(smallDelay)}}},
+		filters: []*eskip.Filter{{Name: filters.ChunksName, Args: []any{float64(testDataLen/4 + testDataLen/8), float64(smallDelay)}}},
 		clientExpect: messageExp{chunks: []testChunk{{
 			testDataLen/4 + testDataLen/8, time.Duration(smallDelay) * time.Millisecond,
 		}, {
@@ -573,7 +573,7 @@ func TestThrottle(t *testing.T) {
 		}}},
 	}, {
 		msg:     "multiple chunks, long delay",
-		filters: []*eskip.Filter{{Name: filters.ChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(highDelay)}}},
+		filters: []*eskip.Filter{{Name: filters.ChunksName, Args: []any{float64(testDataLen/4 + testDataLen/8), float64(highDelay)}}},
 		clientExpect: messageExp{chunks: []testChunk{{
 			testDataLen/4 + testDataLen/8, time.Duration(highDelay) * time.Millisecond,
 		}, {
@@ -583,15 +583,15 @@ func TestThrottle(t *testing.T) {
 		}}},
 	}, {
 		msg:           "single chunk, backend",
-		filters:       []*eskip.Filter{{Name: filters.BackendChunksName, Args: []interface{}{float64(2 * testDataLen), float64(smallDelay)}}},
+		filters:       []*eskip.Filter{{Name: filters.BackendChunksName, Args: []any{float64(2 * testDataLen), float64(smallDelay)}}},
 		backendExpect: messageExp{chunks: []testChunk{{2 * testDataLen, time.Duration(smallDelay) * time.Millisecond}}},
 	}, {
 		msg:           "single chunk, long delay, backend",
-		filters:       []*eskip.Filter{{Name: filters.BackendChunksName, Args: []interface{}{float64(2 * testDataLen), float64(highDelay)}}},
+		filters:       []*eskip.Filter{{Name: filters.BackendChunksName, Args: []any{float64(2 * testDataLen), float64(highDelay)}}},
 		backendExpect: messageExp{chunks: []testChunk{{2 * testDataLen, time.Duration(highDelay) * time.Millisecond}}},
 	}, {
 		msg:     "multiple chunks, backend",
-		filters: []*eskip.Filter{{Name: filters.BackendChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(smallDelay)}}},
+		filters: []*eskip.Filter{{Name: filters.BackendChunksName, Args: []any{float64(testDataLen/4 + testDataLen/8), float64(smallDelay)}}},
 		backendExpect: messageExp{chunks: []testChunk{{
 			testDataLen/4 + testDataLen/8, time.Duration(smallDelay) * time.Millisecond,
 		}, {
@@ -601,7 +601,7 @@ func TestThrottle(t *testing.T) {
 		}}},
 	}, {
 		msg:     "multiple chunks, long delay, backend",
-		filters: []*eskip.Filter{{Name: filters.BackendChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(highDelay)}}},
+		filters: []*eskip.Filter{{Name: filters.BackendChunksName, Args: []any{float64(testDataLen/4 + testDataLen/8), float64(highDelay)}}},
 		backendExpect: messageExp{chunks: []testChunk{{
 			testDataLen/4 + testDataLen/8, time.Duration(highDelay) * time.Millisecond,
 		}, {
@@ -620,7 +620,7 @@ func TestThrottle(t *testing.T) {
 			testServer := proxytest.New(r, &eskip.Route{
 				Filters: []*eskip.Filter{
 					{Name: requestCheckName, Args: nil},
-					{Name: filters.RandomContentName, Args: []interface{}{float64(testDataLen)}}},
+					{Name: filters.RandomContentName, Args: []any{float64(testDataLen)}}},
 				Shunt: true})
 			defer testServer.Close()
 
@@ -685,7 +685,7 @@ func TestLatencyArgs(t *testing.T) {
 	for _, ti := range []struct {
 		msg  string
 		spec func() filters.Spec
-		args []interface{}
+		args []any
 		err  bool
 	}{
 		{
@@ -696,32 +696,32 @@ func TestLatencyArgs(t *testing.T) {
 		}, {
 			"uniform request latency, false number of args 3",
 			NewUniformRequestLatency,
-			[]interface{}{"1s", "1s", 0.4},
+			[]any{"1s", "1s", 0.4},
 			true,
 		}, {
 			"uniform request latency, false number of args 4",
 			NewUniformRequestLatency,
-			[]interface{}{"1s", "1s", 0.5, 0.1},
+			[]any{"1s", "1s", 0.5, 0.1},
 			true,
 		}, {
 			"uniform request latency, ok duration string",
 			NewUniformRequestLatency,
-			[]interface{}{"1s", "120ms"},
+			[]any{"1s", "120ms"},
 			false,
 		}, {
 			"normal request latency ok",
 			NewNormalRequestLatency,
-			[]interface{}{"1s", "1s"},
+			[]any{"1s", "1s"},
 			false,
 		}, {
 			"response uniform latency, ok duration string",
 			NewUniformResponseLatency,
-			[]interface{}{"1s", "120ms"},
+			[]any{"1s", "120ms"},
 			false,
 		}, {
 			"response normal latency ok",
 			NewNormalResponseLatency,
-			[]interface{}{"1s", "1s"},
+			[]any{"1s", "1s"},
 			false,
 		}} {
 
@@ -747,14 +747,14 @@ func TestRequestLatency(t *testing.T) {
 	for _, ti := range []struct {
 		msg                     string
 		spec                    func() filters.Spec
-		args                    []interface{}
+		args                    []any
 		p10, p25, p50, p75, p90 time.Duration
 		epsilon                 time.Duration
 	}{
 		{
 			msg:     "test uniform latency",
 			spec:    NewUniformRequestLatency,
-			args:    []interface{}{"10ms", "5ms"},
+			args:    []any{"10ms", "5ms"},
 			p10:     6 * time.Millisecond,
 			p25:     8 * time.Millisecond,
 			p50:     11 * time.Millisecond,
@@ -765,7 +765,7 @@ func TestRequestLatency(t *testing.T) {
 		{
 			msg:     "test normal latency",
 			spec:    NewNormalRequestLatency,
-			args:    []interface{}{"10ms", "5ms"},
+			args:    []any{"10ms", "5ms"},
 			p10:     4 * time.Millisecond,
 			p25:     7 * time.Millisecond,
 			p50:     11 * time.Millisecond,
@@ -786,13 +786,11 @@ func TestRequestLatency(t *testing.T) {
 			res := make([]time.Duration, 0, N)
 			SetSleep(f, func(d time.Duration) { res = append(res, d) })
 
-			for i := 0; i < N; i++ {
+			for range N {
 				f.Request(nil)
 			}
 
-			sort.Slice(res, func(i, j int) bool {
-				return res[i] < res[j]
-			})
+			slices.Sort(res)
 			normalN := N / 100
 			p10 := res[10*normalN]
 			if ti.p10 < p10-ti.epsilon || ti.p10 > p10+ti.epsilon {
@@ -826,14 +824,14 @@ func TestResponseLatency(t *testing.T) {
 	for _, ti := range []struct {
 		msg                     string
 		spec                    func() filters.Spec
-		args                    []interface{}
+		args                    []any
 		p10, p25, p50, p75, p90 time.Duration
 		epsilon                 time.Duration
 	}{
 		{
 			msg:     "test response uniform latency",
 			spec:    NewUniformResponseLatency,
-			args:    []interface{}{"10ms", "5ms"},
+			args:    []any{"10ms", "5ms"},
 			p10:     7 * time.Millisecond,
 			p25:     8 * time.Millisecond,
 			p50:     11 * time.Millisecond,
@@ -844,7 +842,7 @@ func TestResponseLatency(t *testing.T) {
 		{
 			msg:     "test response normal latency",
 			spec:    NewNormalResponseLatency,
-			args:    []interface{}{"10ms", "5ms"},
+			args:    []any{"10ms", "5ms"},
 			p10:     4 * time.Millisecond,
 			p25:     7 * time.Millisecond,
 			p50:     11 * time.Millisecond,
@@ -865,13 +863,11 @@ func TestResponseLatency(t *testing.T) {
 			res := make([]time.Duration, 0, N)
 			SetSleep(f, func(d time.Duration) { res = append(res, d) })
 
-			for i := 0; i < N; i++ {
+			for range N {
 				f.Response(nil)
 			}
 
-			sort.Slice(res, func(i, j int) bool {
-				return res[i] < res[j]
-			})
+			slices.Sort(res)
 			normalN := N / 100
 			p10 := res[10*normalN]
 			if ti.p10 < p10-ti.epsilon || ti.p10 > p10+ti.epsilon {

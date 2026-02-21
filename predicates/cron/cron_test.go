@@ -10,7 +10,7 @@ import (
 func TestCreate(t *testing.T) {
 	testCases := []struct {
 		msg     string
-		args    []interface{}
+		args    []any
 		isError bool
 	}{
 		{
@@ -20,22 +20,22 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			"wrong number of arguments",
-			[]interface{}{"* * * * *", "unexpected argument"},
+			[]any{"* * * * *", "unexpected argument"},
 			true,
 		},
 		{
 			"argument with mismatched type",
-			[]interface{}{1},
+			[]any{1},
 			true,
 		},
 		{
 			"invalid cron-like expression",
-			[]interface{}{"a * * * *"},
+			[]any{"a * * * *"},
 			true,
 		},
 		{
 			"valid arguments",
-			[]interface{}{"* * * * *"},
+			[]any{"* * * * *"},
 			false,
 		},
 	}
@@ -60,13 +60,13 @@ func TestPredicateName(t *testing.T) {
 func TestPredicateMatch(t *testing.T) {
 	testCases := []struct {
 		msg     string
-		args    []interface{}
+		args    []any
 		matches bool
 		clock   clock
 	}{
 		{
 			"match everything",
-			[]interface{}{"* * * * *"},
+			[]any{"* * * * *"},
 			true,
 			time.Now,
 		},

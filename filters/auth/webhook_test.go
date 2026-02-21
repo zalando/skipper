@@ -94,7 +94,7 @@ func TestWebhook(t *testing.T) {
 
 			spec := NewWebhook(d)
 
-			args := []interface{}{
+			args := []any{
 				"http://" + authServer.Listener.Addr().String(),
 			}
 

@@ -31,7 +31,7 @@ func TestBaggageItemNameToTag(t *testing.T) {
 			req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
 			ctx := &filtertest.Context{FRequest: req}
 
-			f, err := NewBaggageToTagFilter().CreateFilter([]interface{}{ti.baggageItemName, ti.tagName})
+			f, err := NewBaggageToTagFilter().CreateFilter([]any{ti.baggageItemName, ti.tagName})
 			if err != nil {
 				t.Error(err)
 				return
@@ -68,11 +68,11 @@ func TestCreateFilter(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			var err error
 			if ti.tagName == "" {
-				_, err = NewBaggageToTagFilter().CreateFilter([]interface{}{
+				_, err = NewBaggageToTagFilter().CreateFilter([]any{
 					ti.baggageItemName,
 				})
 			} else {
-				_, err = NewBaggageToTagFilter().CreateFilter([]interface{}{
+				_, err = NewBaggageToTagFilter().CreateFilter([]any{
 					ti.baggageItemName,
 					ti.tagName,
 				})
@@ -108,7 +108,7 @@ func TestFallbackToBaggageNameForTag(t *testing.T) {
 			req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
 			ctx := &filtertest.Context{FRequest: req}
 
-			f, err := NewBaggageToTagFilter().CreateFilter([]interface{}{ti.baggageItemName})
+			f, err := NewBaggageToTagFilter().CreateFilter([]any{ti.baggageItemName})
 			if err != nil {
 				t.Error(err)
 				return

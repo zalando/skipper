@@ -21,8 +21,8 @@ import (
 func TestCreateOIDCQueryClaimsFilter(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
-		args    []interface{}
-		want    interface{}
+		args    []any
+		want    any
 		wantErr assert.ErrorAssertionFunc
 	}{
 		{
@@ -32,17 +32,17 @@ func TestCreateOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			name:    "bogus formatted",
-			args:    []interface{}{"s"},
+			args:    []any{"s"},
 			wantErr: assert.Error,
 		},
 		{
 			name:    "several bogus formatted",
-			args:    []interface{}{"s", "d", "easdf:"},
+			args:    []any{"s", "d", "easdf:"},
 			wantErr: assert.Error,
 		},
 		{
 			name: "one path query",
-			args: []interface{}{"/:[@this].#(sub==\"somesub\")"},
+			args: []any{"/:[@this].#(sub==\"somesub\")"},
 			want: &oidcIntrospectionFilter{
 				typ: checkOIDCQueryClaims,
 				paths: []pathQuery{
@@ -56,7 +56,7 @@ func TestCreateOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			name: "one path query with whitespace",
-			args: []interface{}{`/:[@this].#(sub=="white space")`},
+			args: []any{`/:[@this].#(sub=="white space")`},
 			want: &oidcIntrospectionFilter{
 				typ: checkOIDCQueryClaims,
 				paths: []pathQuery{
@@ -70,7 +70,7 @@ func TestCreateOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			name: "several path queries",
-			args: []interface{}{
+			args: []any{
 				"/some/path:[@this].#(sub==\"somesub\")",
 				"/another/path:groups.#(%\"CD-*\")",
 				"/asdf/:groups.#(%\"CD-*\") 'groups.#(%\"*-Test-Users\")' groups.#(%\"Purchasing-Department\")",
@@ -107,7 +107,7 @@ func TestCreateOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			name: "several path queries with whitespaces",
-			args: []interface{}{
+			args: []any{
 				`/asdf/:groups.#(%"white space") 'groups.#(%"two white spaces")' groups.#(%"consecutive   whitespaces") groups.#(%"nowhitespace")`,
 			},
 			want: &oidcIntrospectionFilter{
@@ -143,12 +143,12 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		path         string
 		expected     int
 		expectErr    bool
-		args         []interface{}
+		args         []any
 		removeClaims []string
 	}{
 		{
 			msg: "secure sub/path not permitted",
-			args: []interface{}{
+			args: []any{
 				"/login:groups.#[==\"appY-Tester\"]",
 				"/:@_:email%\"*@example.org\"",
 			},
@@ -158,7 +158,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			msg: "secure sub/path is permitted",
-			args: []interface{}{
+			args: []any{
 				"/login:groups.#[==\"AppX-Test-Users\"]",
 				"/:@_:email%\"*@example.org\"",
 			},
@@ -168,7 +168,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			msg: "missing sub claim is not permitted",
-			args: []interface{}{
+			args: []any{
 				"/login:groups.#[==\"AppX-Test-Users\"]",
 				"/:@_:email%\"*@example.org\"",
 			},
@@ -179,7 +179,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			msg: "generic user path permitted",
-			args: []interface{}{
+			args: []any{
 				"/login:groups.#[==\"Arbitrary-Group\"]",
 				"/:@_:email%\"*@example.org\"",
 			},
@@ -189,7 +189,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			msg: "using modifier, path matching",
-			args: []interface{}{
+			args: []any{
 				`/path:@_:sub=="somesub"`,
 			},
 			path:      "/path/asdf",
@@ -198,7 +198,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			msg: "using escape character",
-			args: []interface{}{
+			args: []any{
 				"/path:@_:sub==\"somesub\"",
 			},
 			path:      "/path/asdf",
@@ -207,7 +207,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			msg: "path / permitted for group Purchasing-Department",
-			args: []interface{}{
+			args: []any{
 				"/:groups.#(%\"Purchasing-Department\")",
 			},
 			path:      "/",
@@ -216,7 +216,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			msg: "path / permitted for group with whitespace",
-			args: []interface{}{
+			args: []any{
 				`/:groups.#(%"white space")`,
 			},
 			path:      "/",
@@ -225,7 +225,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			msg: "path /some/path permitted",
-			args: []interface{}{
+			args: []any{
 				"/some/path:groups.#(%\"Purchasing-Department\")",
 			},
 			path:      "/some/path/down/there",
@@ -234,7 +234,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			msg: "path /some/otherpath denied",
-			args: []interface{}{
+			args: []any{
 				"/some/path:groups.#(%\"Purchasing-Department\")",
 			},
 			path:      "/some/otherpath",
@@ -243,7 +243,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			msg: "wrong group denied",
-			args: []interface{}{
+			args: []any{
 				"/some/path:groups.#(%\"Shipping-Department\")",
 			},
 			path:      "/some/path",
@@ -252,7 +252,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			msg: "several queries, path matching",
-			args: []interface{}{
+			args: []any{
 				"/some/path:[@this].#(sub==\"somesub\")",
 				"/another/path:groups.#(%\"CD-*\")",
 				"/asdf/:groups.#(%\"CD-*\") 'groups.#(%\"*-Test-Users\")' groups.#(%\"Purchasing-Department\")",
@@ -264,7 +264,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		},
 		{
 			msg: "several queries, no path matching",
-			args: []interface{}{
+			args: []any{
 				"/some/path:[@this].#(sub==\"somesub\")",
 				"/another/path:groups.#(%\"CD-*\")",
 				"/asdf/:groups.#(%\"CD-*\") 'groups.#(%\"*-Test-Users\")' groups.#(%\"Purchasing-Department\")",
@@ -309,7 +309,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 			defer oidcServer.Close()
 			t.Logf("oidc/auth server URL: %s", oidcServer.URL)
 			// create filter
-			sargs := []interface{}{
+			sargs := []any{
 				oidcServer.URL,
 				validClient,
 				"mysec",

@@ -9,7 +9,7 @@ import (
 
 func TestShutdown(t *testing.T) {
 	s, sigs := newShutdown()
-	p, err := s.Create([]interface{}{})
+	p, err := s.Create([]any{})
 	if err != nil {
 		t.Fatal(err)
 	}

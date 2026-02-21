@@ -49,7 +49,7 @@ func (lf *listFlag) Set(value string) error {
 	return nil
 }
 
-func (lf *listFlag) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (lf *listFlag) UnmarshalYAML(unmarshal func(any) error) error {
 	var values []string
 	if err := unmarshal(&values); err != nil {
 		return err

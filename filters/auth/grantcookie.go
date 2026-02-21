@@ -61,7 +61,7 @@ func (ce *EncryptedCookieEncoder) Read(request *http.Request) (*oauth2.Token, er
 type cookie struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token"`
-	Expiry       time.Time `json:"expiry,omitempty"`
+	Expiry       time.Time `json:"expiry"`
 	Domain       string    `json:"domain,omitempty"`
 }
 

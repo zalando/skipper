@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"testing"
 	"time"
 
@@ -81,7 +82,7 @@ func TestPredicateList(t *testing.T) {
 			Id: "test",
 			Predicates: []*eskip.Predicate{{
 				Name: "Header",
-				Args: []interface{}{
+				Args: []any{
 					"X-Test",
 					"foo",
 				},
@@ -112,7 +113,7 @@ func TestPredicateList(t *testing.T) {
 			Id: "test",
 			Predicates: []*eskip.Predicate{{
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/foo",
 				},
 			}},
@@ -139,7 +140,7 @@ func TestPredicateList(t *testing.T) {
 			Id: "one",
 			Predicates: []*eskip.Predicate{{
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/foo/:one/:two",
 				},
 			}},
@@ -162,12 +163,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "one",
 			Predicates: []*eskip.Predicate{{
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/foo/:one",
 				},
 			}, {
 				Name: "Header",
-				Args: []interface{}{
+				Args: []any{
 					"X-Test",
 					"one",
 				},
@@ -177,12 +178,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "two",
 			Predicates: []*eskip.Predicate{{
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/foo/:two",
 				},
 			}, {
 				Name: "Header",
-				Args: []interface{}{
+				Args: []any{
 					"X-Test",
 					"two",
 				},
@@ -222,7 +223,7 @@ func TestPredicateList(t *testing.T) {
 			},
 			Predicates: []*eskip.Predicate{{
 				Name: "Header",
-				Args: []interface{}{
+				Args: []any{
 					"X-Test-New",
 					"foo",
 				},
@@ -238,7 +239,7 @@ func TestPredicateList(t *testing.T) {
 			Id: "testNewOnly",
 			Predicates: []*eskip.Predicate{{
 				Name: "Header",
-				Args: []interface{}{
+				Args: []any{
 					"X-Test-New",
 					"foo",
 				},
@@ -288,7 +289,7 @@ func TestPredicateList(t *testing.T) {
 			},
 			Predicates: []*eskip.Predicate{{
 				Name: "Header",
-				Args: []interface{}{
+				Args: []any{
 					"X-Test",
 					"bar",
 				},
@@ -304,7 +305,7 @@ func TestPredicateList(t *testing.T) {
 			Id: "testNewOnly",
 			Predicates: []*eskip.Predicate{{
 				Name: "Header",
-				Args: []interface{}{
+				Args: []any{
 					"X-Test",
 					"bar",
 				},
@@ -352,7 +353,7 @@ func TestPredicateList(t *testing.T) {
 			Path: "/foo",
 			Predicates: []*eskip.Predicate{{
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/bar",
 				},
 			}},
@@ -365,7 +366,7 @@ func TestPredicateList(t *testing.T) {
 			Id: "testNewOnly",
 			Predicates: []*eskip.Predicate{{
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/bar",
 				},
 			}},
@@ -396,20 +397,20 @@ func TestPredicateList(t *testing.T) {
 			Id: "star",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{"^foo[.]example[.]org$"},
+				Args: []any{"^foo[.]example[.]org$"},
 			}, {
 				Name: "Path",
-				Args: []interface{}{"/*p1"},
+				Args: []any{"/*p1"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}, {
 			Id: "subtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{"^bar[.]example[.]org$"},
+				Args: []any{"^bar[.]example[.]org$"},
 			}, {
 				Name: "PathSubtree",
-				Args: []interface{}{"/"},
+				Args: []any{"/"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}},
@@ -459,17 +460,17 @@ func TestPredicateList(t *testing.T) {
 			Id: "path",
 			Predicates: []*eskip.Predicate{{
 				Name: "Path",
-				Args: []interface{}{"/foo"},
+				Args: []any{"/foo"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}, {
 			Id: "pathSubtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "Method",
-				Args: []interface{}{"GET"},
+				Args: []any{"GET"},
 			}, {
 				Name: "PathSubtree",
-				Args: []interface{}{"/foo"},
+				Args: []any{"/foo"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}},
@@ -492,17 +493,17 @@ func TestPredicateList(t *testing.T) {
 			Id: "path",
 			Predicates: []*eskip.Predicate{{
 				Name: "Method",
-				Args: []interface{}{"GET"},
+				Args: []any{"GET"},
 			}, {
 				Name: "Path",
-				Args: []interface{}{"/foo"},
+				Args: []any{"/foo"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}, {
 			Id: "pathSubtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "PathSubtree",
-				Args: []interface{}{"/foo"},
+				Args: []any{"/foo"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}},
@@ -526,20 +527,20 @@ func TestPredicateList(t *testing.T) {
 			Id: "star",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{"^foo[.]example[.]org$"},
+				Args: []any{"^foo[.]example[.]org$"},
 			}, {
 				Name: "Path",
-				Args: []interface{}{"/*p1"},
+				Args: []any{"/*p1"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}, {
 			Id: "subtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{"^bar[.]example[.]org$"},
+				Args: []any{"^bar[.]example[.]org$"},
 			}, {
 				Name: "PathSubtree",
-				Args: []interface{}{"/"},
+				Args: []any{"/"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}},
@@ -587,20 +588,20 @@ func TestPredicateList(t *testing.T) {
 			Id: "star",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{"^foo[.]example[.]org$"},
+				Args: []any{"^foo[.]example[.]org$"},
 			}, {
 				Name: "Path",
-				Args: []interface{}{"/api/*p1"},
+				Args: []any{"/api/*p1"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}, {
 			Id: "subtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{"^bar[.]example[.]org$"},
+				Args: []any{"^bar[.]example[.]org$"},
 			}, {
 				Name: "PathSubtree",
-				Args: []interface{}{"/api"},
+				Args: []any{"/api"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}},
@@ -651,20 +652,20 @@ func TestPredicateList(t *testing.T) {
 			Id: "star",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{"^foo[.]example[.]org$"},
+				Args: []any{"^foo[.]example[.]org$"},
 			}, {
 				Name: "Path",
-				Args: []interface{}{"/api/*p1"},
+				Args: []any{"/api/*p1"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}, {
 			Id: "subtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{"^bar[.]example[.]org$"},
+				Args: []any{"^bar[.]example[.]org$"},
 			}, {
 				Name: "PathSubtree",
-				Args: []interface{}{"/api"},
+				Args: []any{"/api"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}},
@@ -712,12 +713,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "star",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^foo.example.org$",
 				},
 			}, {
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/api/*p1",
 				},
 			}},
@@ -726,12 +727,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "subtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^bar.example.org$",
 				},
 			}, {
 				Name: "PathSubtree",
-				Args: []interface{}{
+				Args: []any{
 					"/api/*p2",
 				},
 			}},
@@ -758,12 +759,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "star",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^foo.example.org$",
 				},
 			}, {
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/api/*p1",
 				},
 			}},
@@ -772,12 +773,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "subtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^bar.example.org$",
 				},
 			}, {
 				Name: "PathSubtree",
-				Args: []interface{}{
+				Args: []any{
 					"/api",
 				},
 			}},
@@ -804,12 +805,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "star",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^foo.example.org$",
 				},
 			}, {
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/api/**",
 				},
 			}},
@@ -818,12 +819,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "subtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^bar.example.org$",
 				},
 			}, {
 				Name: "PathSubtree",
-				Args: []interface{}{
+				Args: []any{
 					"/api/*p2",
 				},
 			}},
@@ -850,12 +851,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "star",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^foo.example.org$",
 				},
 			}, {
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/api/*p1",
 				},
 			}},
@@ -864,12 +865,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "subtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^bar.example.org$",
 				},
 			}, {
 				Name: "PathSubtree",
-				Args: []interface{}{
+				Args: []any{
 					"/api/**",
 				},
 			}},
@@ -896,12 +897,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "star",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^foo.example.org$",
 				},
 			}, {
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/*p1",
 				},
 			}},
@@ -910,12 +911,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "subtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^bar.example.org$",
 				},
 			}, {
 				Name: "PathSubtree",
-				Args: []interface{}{
+				Args: []any{
 					"/*p2",
 				},
 			}},
@@ -942,12 +943,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "star",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^foo.example.org$",
 				},
 			}, {
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/*p1",
 				},
 			}},
@@ -956,12 +957,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "subtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^bar.example.org$",
 				},
 			}, {
 				Name: "PathSubtree",
-				Args: []interface{}{
+				Args: []any{
 					"/",
 				},
 			}},
@@ -988,12 +989,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "star",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^foo.example.org$",
 				},
 			}, {
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/**",
 				},
 			}},
@@ -1002,12 +1003,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "subtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^bar.example.org$",
 				},
 			}, {
 				Name: "PathSubtree",
-				Args: []interface{}{
+				Args: []any{
 					"/*p2",
 				},
 			}},
@@ -1034,12 +1035,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "star",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^foo.example.org$",
 				},
 			}, {
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					"/*p1",
 				},
 			}},
@@ -1048,12 +1049,12 @@ func TestPredicateList(t *testing.T) {
 			Id: "subtree",
 			Predicates: []*eskip.Predicate{{
 				Name: "Host",
-				Args: []interface{}{
+				Args: []any{
 					"^bar.example.org$",
 				},
 			}, {
 				Name: "PathSubtree",
-				Args: []interface{}{
+				Args: []any{
 					"/**",
 				},
 			}},
@@ -1080,7 +1081,7 @@ func TestPredicateList(t *testing.T) {
 			Id: "foo",
 			Predicates: []*eskip.Predicate{{
 				Name: "PathRegexp",
-				Args: []interface{}{"^/foo/bar/baz-[0-9-]+/$"},
+				Args: []any{"^/foo/bar/baz-[0-9-]+/$"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}},
@@ -1097,7 +1098,7 @@ func TestPredicateList(t *testing.T) {
 			Id: "foo",
 			Predicates: []*eskip.Predicate{{
 				Name: "PathRegexp",
-				Args: []interface{}{"^/foo/bar/baz-[0-9-]+/$"},
+				Args: []any{"^/foo/bar/baz-[0-9-]+/$"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}},
@@ -1158,11 +1159,8 @@ func TestPredicateList(t *testing.T) {
 
 					if check.expectedID == "" {
 						var found bool
-						for i := range check.allowedIDs {
-							if r.Id == check.allowedIDs[i] {
-								found = true
-								break
-							}
+						if slices.Contains(check.allowedIDs, r.Id) {
+							found = true
 						}
 
 						if !found {

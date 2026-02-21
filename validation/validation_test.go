@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -522,9 +523,7 @@ func newIngressPayload(modifier func(metadata map[string]any)) map[string]any {
 func collectPositiveInvalidRouteKeys(metricsMock *metricstest.MockMetrics) []string {
 	gauges := make(map[string]float64)
 	metricsMock.WithGauges(func(g map[string]float64) {
-		for key, value := range g {
-			gauges[key] = value
-		}
+		maps.Copy(gauges, g)
 	})
 
 	var keys []string

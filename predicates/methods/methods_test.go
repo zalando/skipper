@@ -10,7 +10,7 @@ import (
 func TestMethodsArgs(t *testing.T) {
 	for _, ti := range []struct {
 		msg  string
-		args []interface{}
+		args []any
 		err  bool
 	}{{
 		"no args",
@@ -18,24 +18,24 @@ func TestMethodsArgs(t *testing.T) {
 		true,
 	}, {
 		"empty args",
-		[]interface{}{},
+		[]any{},
 		true,
 	}, {
 		"invalid type",
-		[]interface{}{float64(1)},
+		[]any{float64(1)},
 		true,
 	}, {
 		"invalid method",
-		[]interface{}{"name", "name2"},
+		[]any{"name", "name2"},
 		true,
 	}, {
 		"ok",
-		[]interface{}{http.MethodGet, http.MethodPost},
+		[]any{http.MethodGet, http.MethodPost},
 		false,
 	},
 		{
 			"ok case-insensitive",
-			[]interface{}{"GeT", "post", "oPtiOnS"},
+			[]any{"GeT", "post", "oPtiOnS"},
 			false,
 		}} {
 		func() {
@@ -59,7 +59,7 @@ func TestMethodsArgs(t *testing.T) {
 
 func TestMethodsMatch(t *testing.T) {
 	msg := "match multiple case-insensitive"
-	args := []interface{}{"gEt", "post", "DELETE", "ConnEct"}
+	args := []any{"gEt", "post", "DELETE", "ConnEct"}
 	match := map[string]bool{
 		"GeT":     true,
 		"POST":    true,

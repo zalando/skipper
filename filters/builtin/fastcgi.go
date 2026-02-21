@@ -28,7 +28,7 @@ func NewSetFastCgiFilename() filters.Spec { return &setFastCgiFilenameSpec{} }
 
 func (s *setFastCgiFilenameSpec) Name() string { return filters.SetFastCgiFilenameName }
 
-func (s *setFastCgiFilenameSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *setFastCgiFilenameSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

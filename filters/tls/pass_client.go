@@ -19,7 +19,7 @@ func (*tlsSpec) Name() string {
 	return filters.TLSName
 }
 
-func (c *tlsSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (c *tlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

@@ -96,7 +96,7 @@ func (stripQuery) Response(filters.FilterContext) {}
 
 // Creates instances of the stripQuery filter. Accepts one optional parameter:
 // "true", in order to preserve the stripped parameters in the request header.
-func (stripQuery) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (stripQuery) CreateFilter(config []any) (filters.Filter, error) {
 	var preserveAsHeader = false
 	if len(config) == 1 {
 		preserveAsHeaderString, ok := config[0].(string)

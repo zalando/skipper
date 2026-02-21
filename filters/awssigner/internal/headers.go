@@ -174,7 +174,7 @@ func BuildCanonicalHeaders(host string, rule Rule, header http.Header, length in
 	var canonicalHeaders strings.Builder
 	n := len(headers)
 	const colon = ':'
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if headers[i] == hostHeader {
 			canonicalHeaders.WriteString(hostHeader)
 			canonicalHeaders.WriteRune(colon)

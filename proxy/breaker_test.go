@@ -595,7 +595,7 @@ func TestBreakerMultipleHostsAndRouteBasedSettings(t *testing.T) {
 			}},
 			"bar": {{
 				Name: filters.RateBreakerName,
-				Args: []interface{}{
+				Args: []any{
 					testRateFailures,
 					testRateWindow,
 				},

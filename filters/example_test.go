@@ -31,7 +31,7 @@ func (s *customSpec) Name() string {
 }
 
 // a specification can be used to create filter instances with different config
-func (s *customSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (s *customSpec) CreateFilter(config []any) (filters.Filter, error) {
 	if len(config) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

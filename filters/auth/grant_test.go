@@ -242,7 +242,7 @@ func newSimpleGrantAuthProxy(t *testing.T, config *auth.OAuthConfig, hosts ...st
 	return newAuthProxy(t, config, []*eskip.Route{{
 		Filters: []*eskip.Filter{
 			{Name: filters.OAuthGrantName},
-			{Name: filters.StatusName, Args: []interface{}{http.StatusNoContent}},
+			{Name: filters.StatusName, Args: []any{http.StatusNoContent}},
 		},
 		BackendType: eskip.ShuntBackend,
 	}}, hosts...)

@@ -3,6 +3,7 @@ package swarm
 import (
 	"bytes"
 	"encoding/gob"
+	"maps"
 )
 
 type messageType int
@@ -16,7 +17,7 @@ type message struct {
 	Type   messageType
 	Source string
 	Key    string
-	Value  interface{}
+	Value  any
 }
 
 type outgoingMessage struct {
@@ -26,7 +27,7 @@ type outgoingMessage struct {
 
 type Message struct {
 	Source string
-	Value  interface{}
+	Value  any
 }
 
 type reqOutgoing struct {
@@ -42,11 +43,11 @@ type mlDelegate struct {
 	incoming chan<- []byte
 }
 
-type sharedValues map[string]map[string]interface{}
+type sharedValues map[string]map[string]any
 
 type valueReq struct {
 	key string
-	ret chan map[string]interface{}
+	ret chan map[string]any
 }
 
 // NodeMeta implements a memberlist delegate
@@ -85,12 +86,10 @@ func (d *mlDelegate) MergeRemoteState(buf []byte, join bool) {}
 
 // the top level map is used internally, we can use it as mutable
 // the leaf maps are shared, we need to clone those
-func (sv sharedValues) set(source, key string, value interface{}) {
+func (sv sharedValues) set(source, key string, value any) {
 	prev := sv[key]
-	sv[key] = make(map[string]interface{})
-	for s, v := range prev {
-		sv[key][s] = v
-	}
+	sv[key] = make(map[string]any)
+	maps.Copy(sv[key], prev)
 
 	sv[key][source] = value
 }

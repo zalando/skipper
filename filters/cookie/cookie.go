@@ -102,7 +102,7 @@ func (d *dropCookie) Name() string {
 	return "unknown"
 }
 
-func (d *dropCookie) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (d *dropCookie) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -195,7 +195,7 @@ func NewJSCookie() filters.Spec {
 
 func (s *spec) Name() string { return s.filterName }
 
-func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *spec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) < 2 || (len(args) > 2 && s.typ == request) || len(args) > 4 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

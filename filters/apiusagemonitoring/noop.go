@@ -10,7 +10,7 @@ func (*noopSpec) Name() string {
 	return filters.ApiUsageMonitoringName
 }
 
-func (s *noopSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (s *noopSpec) CreateFilter(config []any) (filters.Filter, error) {
 	return s.filter, nil
 }
 

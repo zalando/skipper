@@ -9,16 +9,16 @@ import (
 func TestHostAnyArgs(t *testing.T) {
 	s := NewAny()
 	for _, tc := range []struct {
-		args []interface{}
+		args []any
 	}{
 		{
-			args: []interface{}{},
+			args: []any{},
 		},
 		{
-			args: []interface{}{1.2},
+			args: []any{1.2},
 		},
 		{
-			args: []interface{}{"example.org", 3.4},
+			args: []any{"example.org", 3.4},
 		},
 	} {
 		if _, err := s.Create(tc.args); err == nil {
@@ -31,67 +31,67 @@ func TestHostAnyMatch(t *testing.T) {
 	s := NewAny()
 	for _, tc := range []struct {
 		host  string
-		args  []interface{}
+		args  []any
 		match bool
 	}{
 		{
 			host:  "example.org",
-			args:  []interface{}{"example.com"},
+			args:  []any{"example.com"},
 			match: false,
 		},
 		{
 			host:  "example.org",
-			args:  []interface{}{"example.com", "example.net"},
+			args:  []any{"example.com", "example.net"},
 			match: false,
 		},
 		{
 			host:  "example.org",
-			args:  []interface{}{"www.example.org"},
+			args:  []any{"www.example.org"},
 			match: false,
 		},
 		{
 			host:  "www.example.org",
-			args:  []interface{}{"example.org"},
+			args:  []any{"example.org"},
 			match: false,
 		},
 		{
 			host:  "example.org.",
-			args:  []interface{}{"example.org"},
+			args:  []any{"example.org"},
 			match: false,
 		},
 		{
 			host:  "example.org:8080",
-			args:  []interface{}{"example.org"},
+			args:  []any{"example.org"},
 			match: false,
 		},
 		{
 			host:  "example.org.:8080",
-			args:  []interface{}{"example.org"},
+			args:  []any{"example.org"},
 			match: false,
 		},
 		{
 			host:  "example.org",
-			args:  []interface{}{"example.org"},
+			args:  []any{"example.org"},
 			match: true,
 		},
 		{
 			host:  "example.org:8080",
-			args:  []interface{}{"example.org:8080"},
+			args:  []any{"example.org:8080"},
 			match: true,
 		},
 		{
 			host:  "example.org",
-			args:  []interface{}{"example.org", "example.com"},
+			args:  []any{"example.org", "example.com"},
 			match: true,
 		},
 		{
 			host:  "example.org",
-			args:  []interface{}{"example.com", "example.org"},
+			args:  []any{"example.com", "example.org"},
 			match: true,
 		},
 		{
 			host:  "example.org:8080",
-			args:  []interface{}{"example.org", "example.org:8080"},
+			args:  []any{"example.org", "example.org:8080"},
 			match: true,
 		},
 	} {
@@ -114,7 +114,7 @@ func BenchmarkHostAny(b *testing.B) {
 		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
 			s := NewAny()
 			args := make([]any, n)
-			for i := 0; i < n; i++ {
+			for i := range n {
 				args[i] = fmt.Sprintf("example%d.org", i)
 			}
 			p, err := s.Create(args)

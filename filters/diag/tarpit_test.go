@@ -17,7 +17,7 @@ import (
 func TestTarpit(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
-		args          []interface{}
+		args          []any
 		status        int
 		clientTimeout time.Duration
 		want          error
@@ -28,40 +28,40 @@ func TestTarpit(t *testing.T) {
 		},
 		{
 			name: "test wrong arg return error",
-			args: []interface{}{"no-time-duration"},
+			args: []any{"no-time-duration"},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name: "test no string arg return error",
-			args: []interface{}{0x0a},
+			args: []any{0x0a},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name: "test wrong number of args return error",
-			args: []interface{}{"10s", "10ms"},
+			args: []any{"10s", "10ms"},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name:          "test 10ms and 1s client timeout",
-			args:          []interface{}{"10ms"},
+			args:          []any{"10ms"},
 			clientTimeout: time.Second,
 			want:          nil,
 		},
 		{
 			name:          "test 1s and 1s client timeout",
-			args:          []interface{}{"1s"},
+			args:          []any{"1s"},
 			clientTimeout: time.Second,
 			want:          nil,
 		},
 		{
 			name:          "test 1s and 100ms client timeout",
-			args:          []interface{}{"100ms"},
+			args:          []any{"100ms"},
 			clientTimeout: time.Second,
 			want:          nil,
 		},
 		{
 			name:          "test 1s and 3s client timeout",
-			args:          []interface{}{"1s"},
+			args:          []any{"1s"},
 			clientTimeout: 3 * time.Second,
 			want:          nil,
 		}} {
@@ -95,7 +95,7 @@ func TestTarpit(t *testing.T) {
 			defer p.Close()
 
 			N := 1
-			for i := 0; i < N; i++ {
+			for range N {
 				ctx, done := context.WithTimeout(context.Background(), tt.clientTimeout)
 				defer done()
 				req, err := http.NewRequestWithContext(ctx, "GET", p.URL, nil)

@@ -83,7 +83,7 @@ func (ls *luaScript) Name() string {
 }
 
 // CreateFilter creates the lua script filter.
-func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (ls *luaScript) CreateFilter(config []any) (filters.Filter, error) {
 	if len(ls.sources) == 0 {
 		return nil, errLuaSourcesDisabled
 	}
@@ -630,7 +630,7 @@ func setStateBag(f filters.FilterContext) func(*lua.LState) int {
 	return func(s *lua.LState) int {
 		fld := s.ToString(-2)
 		val := s.Get(-1)
-		var res interface{}
+		var res any
 		switch val.Type() {
 		case lua.LTString:
 			res = string(val.(lua.LString))

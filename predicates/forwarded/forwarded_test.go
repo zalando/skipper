@@ -169,7 +169,7 @@ func TestForwardedHost(t *testing.T) {
 		t.Run(tc.msg, func(t *testing.T) {
 			spec := NewForwardedHost()
 
-			p, err := spec.Create([]interface{}{tc.host})
+			p, err := spec.Create([]any{tc.host})
 			hasError := err != nil
 			if hasError || tc.isError {
 				if !tc.isError {
@@ -335,7 +335,7 @@ func TestForwardedProto(t *testing.T) {
 		t.Run(tc.msg, func(t *testing.T) {
 			spec := NewForwardedProto()
 
-			p, err := spec.Create([]interface{}{tc.proto})
+			p, err := spec.Create([]any{tc.proto})
 			hasError := err != nil
 			if hasError || tc.isError {
 				if !tc.isError {
@@ -421,7 +421,7 @@ func TestForwardedDocumentationExamples(t *testing.T) {
 			if tc.proto != "" {
 				protoSpec := NewForwardedProto()
 
-				p, _ := protoSpec.Create([]interface{}{tc.proto})
+				p, _ := protoSpec.Create([]any{tc.proto})
 
 				r, err := newRequest(tc.r)
 				if err != nil {
@@ -434,7 +434,7 @@ func TestForwardedDocumentationExamples(t *testing.T) {
 			if tc.host != "" {
 				hostSpec := NewForwardedHost()
 
-				p, _ := hostSpec.Create([]interface{}{tc.host})
+				p, _ := hostSpec.Create([]any{tc.host})
 
 				r, err := newRequest(tc.r)
 				if err != nil {

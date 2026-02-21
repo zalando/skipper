@@ -25,7 +25,7 @@ func (*contentLengthBetweenSpec) Name() string {
 }
 
 // Create a predicate instance that evaluates content length header value range
-func (*contentLengthBetweenSpec) Create(args []interface{}) (routing.Predicate, error) {
+func (*contentLengthBetweenSpec) Create(args []any) (routing.Predicate, error) {
 	if len(args) != 2 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}

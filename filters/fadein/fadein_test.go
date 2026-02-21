@@ -15,15 +15,15 @@ import (
 
 type createTestItem struct {
 	name   string
-	args   []interface{}
-	expect interface{}
+	args   []any
+	expect any
 	fail   bool
 }
 
 func (test createTestItem) run(
 	t *testing.T,
 	init func() filters.Spec,
-	box func(filters.Filter) interface{},
+	box func(filters.Filter) any,
 ) {
 	f, err := init().CreateFilter(test.args)
 	if test.fail {
@@ -49,46 +49,46 @@ func TestCreateFadeIn(t *testing.T) {
 		fail: true,
 	}, {
 		name: "too many args",
-		args: []interface{}{1, 2, 3},
+		args: []any{1, 2, 3},
 		fail: true,
 	}, {
 		name: "wrong duration string",
-		args: []interface{}{"foo"},
+		args: []any{"foo"},
 		fail: true,
 	}, {
 		name: "wrong exponent type",
-		args: []interface{}{"3m", "foo"},
+		args: []any{"3m", "foo"},
 		fail: true,
 	}, {
 		name:   "duration as int",
-		args:   []interface{}{1000},
+		args:   []any{1000},
 		expect: fadeIn{duration: time.Second, exponent: 1},
 	}, {
 		name:   "duration as float",
-		args:   []interface{}{float64(1000)},
+		args:   []any{float64(1000)},
 		expect: fadeIn{duration: time.Second, exponent: 1},
 	}, {
 		name:   "duration as string",
-		args:   []interface{}{"1s"},
+		args:   []any{"1s"},
 		expect: fadeIn{duration: time.Second, exponent: 1},
 	}, {
 		name:   "duration as time.Duration",
-		args:   []interface{}{time.Second},
+		args:   []any{time.Second},
 		expect: fadeIn{duration: time.Second, exponent: 1},
 	}, {
 		name:   "exponent as int",
-		args:   []interface{}{"3m", 2},
+		args:   []any{"3m", 2},
 		expect: fadeIn{duration: 3 * time.Minute, exponent: 2},
 	}, {
 		name:   "exponent as float",
-		args:   []interface{}{"3m", 2.0},
+		args:   []any{"3m", 2.0},
 		expect: fadeIn{duration: 3 * time.Minute, exponent: 2},
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			test.run(
 				t,
 				NewFadeIn,
-				func(f filters.Filter) interface{} { return f.(fadeIn) },
+				func(f filters.Filter) any { return f.(fadeIn) },
 			)
 		})
 	}
@@ -117,66 +117,66 @@ func TestCreateEndpointCreated(t *testing.T) {
 		fail: true,
 	}, {
 		name: "few args",
-		args: []interface{}{"http://10.0.0.1:8080"},
+		args: []any{"http://10.0.0.1:8080"},
 		fail: true,
 	}, {
 		name: "too many args",
-		args: []interface{}{"http://10.0.0.1:8080", now, "foo"},
+		args: []any{"http://10.0.0.1:8080", now, "foo"},
 		fail: true,
 	}, {
 		name: "address not string",
-		args: []interface{}{42, now},
+		args: []any{42, now},
 		fail: true,
 	}, {
 		name: "address not url",
-		args: []interface{}{string(rune(' ' - 1)), now},
+		args: []any{string(rune(' ' - 1)), now},
 		fail: true,
 	}, {
 		name: "invalid host",
-		args: []interface{}{"http://::1", now},
+		args: []any{"http://::1", now},
 		fail: true,
 	}, {
 		name: "invalid time string",
-		args: []interface{}{"http://10.0.0.1:8080", "foo"},
+		args: []any{"http://10.0.0.1:8080", "foo"},
 		fail: true,
 	}, {
 		name: "invalid time type",
-		args: []interface{}{"http://10.0.0.1:8080", struct{}{}},
+		args: []any{"http://10.0.0.1:8080", struct{}{}},
 		fail: true,
 	}, {
 		name:   "future time",
-		args:   []interface{}{"http://10.0.0.1:8080", now.Add(time.Hour)},
+		args:   []any{"http://10.0.0.1:8080", now.Add(time.Hour)},
 		expect: endpointCreated{which: "http://10.0.0.1:8080", when: time.Time{}},
 	}, {
 		name:   "auto 80",
-		args:   []interface{}{"http://10.0.0.1", now},
+		args:   []any{"http://10.0.0.1", now},
 		expect: endpointCreated{which: "http://10.0.0.1:80", when: now},
 	}, {
 		name:   "auto 443",
-		args:   []interface{}{"https://10.0.0.1", now},
+		args:   []any{"https://10.0.0.1", now},
 		expect: endpointCreated{which: "https://10.0.0.1:443", when: now},
 	}, {
 		name:   "time as int",
-		args:   []interface{}{"http://10.0.0.1:8080", 42},
+		args:   []any{"http://10.0.0.1:8080", 42},
 		expect: endpointCreated{which: "http://10.0.0.1:8080", when: time.Unix(42, 0)},
 	}, {
 		name:   "time as float",
-		args:   []interface{}{"http://10.0.0.1:8080", 42.0},
+		args:   []any{"http://10.0.0.1:8080", 42.0},
 		expect: endpointCreated{which: "http://10.0.0.1:8080", when: time.Unix(42, 0)},
 	}, {
 		name:   "time as string",
-		args:   []interface{}{"http://10.0.0.1:8080", nows()},
+		args:   []any{"http://10.0.0.1:8080", nows()},
 		expect: endpointCreated{which: "http://10.0.0.1:8080", when: now},
 	}, {
 		name:   "time as time.Time",
-		args:   []interface{}{"http://10.0.0.1:8080", now},
+		args:   []any{"http://10.0.0.1:8080", now},
 		expect: endpointCreated{which: "http://10.0.0.1:8080", when: now},
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			test.run(
 				t,
 				NewEndpointCreated,
-				func(f filters.Filter) interface{} { return f.(endpointCreated) },
+				func(f filters.Filter) any { return f.(endpointCreated) },
 			)
 		})
 	}

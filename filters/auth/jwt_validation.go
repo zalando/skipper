@@ -47,7 +47,7 @@ func (s *jwtValidationSpec) Name() string {
 	return filters.JwtValidationName
 }
 
-func (s *jwtValidationSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *jwtValidationSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -158,7 +158,7 @@ func (f *jwtValidationFilter) Request(ctx filters.FilterContext) {
 
 func (f *jwtValidationFilter) Response(filters.FilterContext) {}
 
-func parseToken(token string, jwksUri string) (map[string]interface{}, error) {
+func parseToken(token string, jwksUri string) (map[string]any, error) {
 	jwks := getKeyFunction(jwksUri)
 
 	var claims jwt.MapClaims

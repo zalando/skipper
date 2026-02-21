@@ -922,7 +922,7 @@ func newFilter(opts LuaOptions, script string, params ...string) (filters.Filter
 	if err != nil {
 		return nil, err
 	}
-	args := []interface{}{script}
+	args := []any{script}
 	for _, p := range params {
 		args = append(args, p)
 	}
@@ -944,7 +944,7 @@ func runFilter(opts LuaOptions, test *testContext) (filters.FilterContext, error
 	}
 	fc := &filtertest.Context{
 		FParams:       test.pathParams,
-		FStateBag:     make(map[string]interface{}),
+		FStateBag:     make(map[string]any),
 		FRequest:      req,
 		FOutgoingHost: "www.example.com",
 	}
@@ -1003,7 +1003,7 @@ func (f *exampleLogFormatter) Format(entry *log.Entry) ([]byte, error) {
 		b = &bytes.Buffer{}
 	}
 
-	for _, line := range strings.Split(entry.Message, "\n") {
+	for line := range strings.SplitSeq(entry.Message, "\n") {
 		// escape \r to use testable examples
 		line = strings.ReplaceAll(line, "\r", `\r`)
 		line = strings.TrimRight(line, " ")

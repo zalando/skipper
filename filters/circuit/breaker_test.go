@@ -10,7 +10,7 @@ import (
 )
 
 func TestArgs(t *testing.T) {
-	test := func(s filters.Spec, fail bool, args ...interface{}) func(*testing.T) {
+	test := func(s filters.Spec, fail bool, args ...any) func(*testing.T) {
 		return func(t *testing.T) {
 			if _, err := s.CreateFilter(args); fail && err == nil {
 				t.Error("failed to fail")
@@ -20,8 +20,8 @@ func TestArgs(t *testing.T) {
 		}
 	}
 
-	testOK := func(s filters.Spec, args ...interface{}) func(*testing.T) { return test(s, false, args...) }
-	testErr := func(s filters.Spec, args ...interface{}) func(*testing.T) { return test(s, true, args...) }
+	testOK := func(s filters.Spec, args ...any) func(*testing.T) { return test(s, false, args...) }
+	testErr := func(s filters.Spec, args ...any) func(*testing.T) { return test(s, true, args...) }
 
 	t.Run("consecutive", func(t *testing.T) {
 		s := NewConsecutiveBreaker()
@@ -64,7 +64,7 @@ func TestBreaker(t *testing.T) {
 	test := func(
 		s func() filters.Spec,
 		expect circuit.BreakerSettings,
-		args ...interface{},
+		args ...any,
 	) func(*testing.T) {
 		return func(t *testing.T) {
 			s := s()
@@ -75,7 +75,7 @@ func TestBreaker(t *testing.T) {
 			}
 
 			ctx := &filtertest.Context{
-				FStateBag: make(map[string]interface{}),
+				FStateBag: make(map[string]any),
 			}
 
 			f.Request(ctx)

@@ -18,7 +18,7 @@ func (comment) Name() string {
 	return filters.CommentName
 }
 
-func (c comment) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (c comment) CreateFilter(args []any) (filters.Filter, error) {
 	return c, nil
 }
 

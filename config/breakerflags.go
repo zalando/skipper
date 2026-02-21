@@ -38,8 +38,8 @@ func (b breakerFlags) String() string {
 func (b *breakerFlags) Set(value string) error {
 	var s circuit.BreakerSettings
 
-	vs := strings.Split(value, ",")
-	for _, vi := range vs {
+	vs := strings.SplitSeq(value, ",")
+	for vi := range vs {
 		k, v, found := strings.Cut(vi, "=")
 		if !found {
 			return errInvalidBreakerConfig
@@ -107,7 +107,7 @@ func (b *breakerFlags) Set(value string) error {
 	return nil
 }
 
-func (b *breakerFlags) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (b *breakerFlags) UnmarshalYAML(unmarshal func(any) error) error {
 	var breakerSettings circuit.BreakerSettings
 	if err := unmarshal(&breakerSettings); err != nil {
 		return err

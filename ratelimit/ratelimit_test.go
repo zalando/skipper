@@ -295,17 +295,15 @@ func TestRoundRobinLookuper(t *testing.T) {
 func testRoundRobinLookuper(lookuper Lookuper, concurrency, iterations int) map[string]int {
 	ch := make(chan map[string]int, concurrency)
 	var wg sync.WaitGroup
-	for c := 0; c < concurrency; c++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range concurrency {
+		wg.Go(func() {
 			buckets := make(map[string]int)
-			for i := 0; i < iterations; i++ {
+			for range iterations {
 				r, _ := http.NewRequest("GET", "/foo", nil)
 				buckets[lookuper.Lookup(r)]++
 			}
 			ch <- buckets
-		}()
+		})
 	}
 	wg.Wait()
 	close(ch)
@@ -375,7 +373,7 @@ func BenchmarkLocalRatelimitClients1000(b *testing.B) {
 	client := "foo"
 	count := 1000
 	clients := make([]string, 0, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		clients = append(clients, fmt.Sprintf("%s-%d", client, i))
 	}
 
@@ -396,7 +394,7 @@ func BenchmarkLocalRatelimitWithCleanerClients1000(b *testing.B) {
 	client := "foo"
 	count := 1000
 	clients := make([]string, 0, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		clients = append(clients, fmt.Sprintf("%s-%d", client, i))
 	}
 
@@ -573,7 +571,7 @@ func TestVoidRatelimit(t *testing.T) {
 	defer l.Close()
 	l.Resize("s", 5) // should do nothing
 	now := time.Now()
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		if l.Allow(context.Background(), "s") != true {
 			t.Error("voidratelimit should always allow")
 		}
@@ -593,7 +591,7 @@ func TestZeroRatelimit(t *testing.T) {
 	defer l.Close()
 	l.Resize("s", 5) // should do nothing
 	now := time.Now()
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		if l.Allow(context.Background(), "s") != false {
 			t.Error("zerolimit should always deny")
 		}
@@ -622,7 +620,7 @@ func TestRatelimitImpl(t *testing.T) {
 	defer rl.Close()
 	rl.Resize("", 5)
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		if rl.Allow(context.Background(), "") != true {
 			t.Error("service ratelimit should allow 5")
 		}

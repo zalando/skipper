@@ -10,7 +10,7 @@ import (
 )
 
 func TestSedDelim(t *testing.T) {
-	args := func(a ...interface{}) []interface{} { return a }
+	args := func(a ...any) []any { return a }
 	for _, test := range []testItem{{
 		title:  "no match",
 		args:   args("foo", "bar", "\n"),
@@ -82,7 +82,7 @@ func TestSedDelim(t *testing.T) {
 }
 
 func TestSedDelimNoDelim(t *testing.T) {
-	args := func(a ...interface{}) []interface{} { return a }
+	args := func(a ...any) []any { return a }
 	for _, test := range []testItem{{
 		title: "empty body",
 		args:  args("foo", "bar", "\n"),
@@ -153,7 +153,7 @@ func TestSedDelimLongStream(t *testing.T) {
 		return b
 	}
 
-	baseArgs := []interface{}{pattern, outputString, "\n"}
+	baseArgs := []any{pattern, outputString, "\n"}
 
 	t.Run("below max buffer size", testResponse(filters.SedDelimName, testItem{
 		args:       append(baseArgs, bodySize*2),

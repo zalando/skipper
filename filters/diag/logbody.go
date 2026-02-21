@@ -22,7 +22,7 @@ func (logBody) Name() string {
 	return filters.LogBodyName
 }
 
-func (logBody) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (logBody) CreateFilter(args []any) (filters.Filter, error) {
 	var (
 		request  = false
 		response = false

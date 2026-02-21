@@ -24,13 +24,13 @@ import (
 )
 
 func TestBackendIsProxyFilter(t *testing.T) {
-	expectedStateBag := map[string]interface{}{
+	expectedStateBag := map[string]any{
 		filters.BackendIsProxyKey: struct{}{},
 	}
 
 	ctx := &filtertest.Context{
 		FRequest:  &http.Request{},
-		FStateBag: map[string]interface{}{},
+		FStateBag: map[string]any{},
 	}
 
 	f, _ := NewBackendIsProxy().CreateFilter(nil)

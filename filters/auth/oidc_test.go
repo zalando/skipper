@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"math/rand"
 	"net"
 	"net/http"
@@ -244,9 +245,7 @@ func createOIDCServer(cb, client, clientsecret string, extraClaims jwt.MapClaims
 					"exp":   time.Now().Add(tokenExp).UTC().Unix(),
 					"email": "someone@example.org",
 				}
-				for k, v := range extraClaims {
-					claims[k] = v
-				}
+				maps.Copy(claims, extraClaims)
 
 				for _, k := range removeClaims {
 					delete(claims, k)
@@ -454,15 +453,15 @@ func TestOidcValidateAllClaims(t *testing.T) {
 	oidcFilter, err := makeTestingFilter([]string{"uid", "email"})
 	assert.NoError(t, err, "error creating test filter")
 	assert.True(t, oidcFilter.validateAllClaims(
-		map[string]interface{}{"uid": "test", "email": "test@example.org"}),
+		map[string]any{"uid": "test", "email": "test@example.org"}),
 		"claims should be valid but filter returned false.")
 	assert.False(t, oidcFilter.validateAllClaims(
-		map[string]interface{}{}), "claims are invalid but filter returned true.")
+		map[string]any{}), "claims are invalid but filter returned true.")
 	assert.False(t, oidcFilter.validateAllClaims(
-		map[string]interface{}{"uid": "test"}),
+		map[string]any{"uid": "test"}),
 		"claims are not enough but filter returned true.")
 	assert.False(t, oidcFilter.validateAllClaims(
-		map[string]interface{}{}),
+		map[string]any{}),
 		"no claims but filter returned true.")
 }
 
@@ -470,15 +469,15 @@ func TestOidcValidateAnyClaims(t *testing.T) {
 	oidcFilter, err := makeTestingFilter([]string{"uid", "test", "email"})
 	assert.NoError(t, err, "error creating test filter")
 	assert.True(t, oidcFilter.validateAnyClaims(
-		map[string]interface{}{"uid": "test", "email": "test@example.org"}),
+		map[string]any{"uid": "test", "email": "test@example.org"}),
 		"claims should be valid but filter returned false.")
 	assert.False(t, oidcFilter.validateAnyClaims(
-		map[string]interface{}{}), "claims are invalid but filter returned true.")
+		map[string]any{}), "claims are invalid but filter returned true.")
 	assert.True(t, oidcFilter.validateAnyClaims(
-		map[string]interface{}{"foo": "test", "email": "test@example.org"}),
+		map[string]any{"foo": "test", "email": "test@example.org"}),
 		"claims are valid but filter returned false.")
 	assert.True(t, oidcFilter.validateAnyClaims(
-		map[string]interface{}{"uid": "test", "email": "test@example.org", "hd": "something.com", "empty": ""}),
+		map[string]any{"uid": "test", "email": "test@example.org", "hd": "something.com", "empty": ""}),
 		"claims are valid but filter returned false.")
 }
 
@@ -581,7 +580,7 @@ func TestCreateFilterOIDC(t *testing.T) {
 
 	for _, tt := range []struct {
 		name    string
-		args    []interface{}
+		args    []any
 		wantErr bool
 	}{
 		{
@@ -591,27 +590,27 @@ func TestCreateFilterOIDC(t *testing.T) {
 		},
 		{
 			name:    "test wrong number of args",
-			args:    []interface{}{"s"},
+			args:    []any{"s"},
 			wantErr: true,
 		},
 		{
 			name:    "test wrong number of args",
-			args:    []interface{}{"s", "d"},
+			args:    []any{"s", "d"},
 			wantErr: true,
 		},
 		{
 			name:    "test wrong number of args",
-			args:    []interface{}{"s", "d", "a"},
+			args:    []any{"s", "d", "a"},
 			wantErr: true,
 		},
 		{
 			name:    "test wrong args",
-			args:    []interface{}{"s", "d", "a", "f"},
+			args:    []any{"s", "d", "a", "f"},
 			wantErr: true,
 		},
 		{
 			name: "test minimal args",
-			args: []interface{}{
+			args: []any{
 				oidcServer.URL,               // provider/issuer
 				"",                           // client ID
 				"",                           // client secret
@@ -623,7 +622,7 @@ func TestCreateFilterOIDC(t *testing.T) {
 		},
 		{
 			name: "wrong provider",
-			args: []interface{}{
+			args: []any{
 				"invalid url",                  // provider/issuer
 				"",                             // client ID
 				"",                             // client secret
@@ -635,7 +634,7 @@ func TestCreateFilterOIDC(t *testing.T) {
 		},
 		{
 			name: "invalid auth code option",
-			args: []interface{}{
+			args: []any{
 				oidcServer.URL,               // provider/issuer
 				"",                           // client ID
 				"",                           // client secret
@@ -648,7 +647,7 @@ func TestCreateFilterOIDC(t *testing.T) {
 		},
 		{
 			name: "unparsable value of subdomainsToRemove",
-			args: []interface{}{
+			args: []any{
 				oidcServer.URL,               // provider/issuer
 				"",                           // client ID
 				"",                           // client secret
@@ -663,7 +662,7 @@ func TestCreateFilterOIDC(t *testing.T) {
 		},
 		{
 			name: "negative value of subdomainsToRemove",
-			args: []interface{}{
+			args: []any{
 				oidcServer.URL,               // provider/issuer
 				"",                           // client ID
 				"",                           // client secret
@@ -678,7 +677,7 @@ func TestCreateFilterOIDC(t *testing.T) {
 		},
 		{
 			name: "missing claims result in error",
-			args: []interface{}{
+			args: []any{
 				oidcServer.URL, // provider/issuer
 				"cliendId",
 				"clientSecret",
@@ -1063,7 +1062,7 @@ func TestChunkAndMergerCookie(t *testing.T) {
 	emptyCookie := tinyCookie
 	emptyCookie.Value = ""
 	largeCookie := tinyCookie
-	for i := 0; i < 5*cookieMaxSize; i++ {
+	for i := range 5 * cookieMaxSize {
 		largeCookie.Value += string(rune(r.Intn('Z'-'A') + 'A' + i%2*32))
 	}
 	oneCookie := largeCookie
@@ -1152,7 +1151,7 @@ func Benchmark_deflatePoolCompressor(b *testing.B) {
 
 func Test_tokenOidcFilter_getMaxAge(t *testing.T) {
 	type args struct {
-		claimsMap map[string]interface{}
+		claimsMap map[string]any
 	}
 	tests := []struct {
 		name string
@@ -1162,7 +1161,7 @@ func Test_tokenOidcFilter_getMaxAge(t *testing.T) {
 		{
 			name: "Success",
 			args: args{
-				claimsMap: map[string]interface{}{
+				claimsMap: map[string]any{
 					"exp": float64(time.Now().Add(2 * time.Hour).Unix()),
 				},
 			},
@@ -1176,7 +1175,7 @@ func Test_tokenOidcFilter_getMaxAge(t *testing.T) {
 		{
 			name: "Wrong exp type",
 			args: args{
-				claimsMap: map[string]interface{}{
+				claimsMap: map[string]any{
 					"exp": int64(time.Now().Add(2 * time.Hour).Unix()),
 				},
 			},
@@ -1185,7 +1184,7 @@ func Test_tokenOidcFilter_getMaxAge(t *testing.T) {
 		{
 			name: "Exp too early",
 			args: args{
-				claimsMap: map[string]interface{}{
+				claimsMap: map[string]any{
 					"exp": float64(time.Now().Add(10 * time.Second).Unix()),
 				},
 			},

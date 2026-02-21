@@ -123,7 +123,7 @@ func TestServerShutdownHTTP(t *testing.T) {
 	}()
 
 	// make sure we started all listeners correctly
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		var (
 			err error
 			rsp *http.Response

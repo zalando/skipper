@@ -16,12 +16,12 @@ func TestBackendRatelimit(t *testing.T) {
 		t.Error("wrong name")
 	}
 
-	f, err := spec.CreateFilter([]interface{}{"api", 22, "7s"})
+	f, err := spec.CreateFilter([]any{"api", 22, "7s"})
 	if err != nil {
 		t.Fatal("failed to create filter")
 	}
 
-	c := &filtertest.Context{FRequest: &http.Request{}, FStateBag: make(map[string]interface{})}
+	c := &filtertest.Context{FRequest: &http.Request{}, FStateBag: make(map[string]any)}
 	f.Request(c)
 
 	limit, ok := c.FStateBag[filters.BackendRatelimit].(*BackendRatelimit)
@@ -42,7 +42,7 @@ func TestBackendRatelimit(t *testing.T) {
 	}
 
 	// second filter overwrites
-	f, _ = spec.CreateFilter([]interface{}{"api2", 355, "113s", 429})
+	f, _ = spec.CreateFilter([]any{"api2", 355, "113s", 429})
 	f.Request(c)
 
 	limit, ok = c.FStateBag[filters.BackendRatelimit].(*BackendRatelimit)

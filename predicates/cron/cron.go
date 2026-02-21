@@ -27,7 +27,7 @@ func (*spec) Name() string {
 	return predicates.CronName
 }
 
-func (*spec) Create(args []interface{}) (routing.Predicate, error) {
+func (*spec) Create(args []any) (routing.Predicate, error) {
 	if len(args) != 1 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}

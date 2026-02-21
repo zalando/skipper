@@ -89,7 +89,7 @@ func (m luaModule) preload(L *lua.LState) {
 
 func printToLog(L *lua.LState) int {
 	top := L.GetTop()
-	args := make([]interface{}, 0, top)
+	args := make([]any, 0, top)
 	for i := 1; i <= top; i++ {
 		args = append(args, L.ToStringMeta(L.Get(i)).String())
 	}

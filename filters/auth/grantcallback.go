@@ -22,7 +22,7 @@ type grantCallbackFilter struct {
 
 func (*grantCallbackSpec) Name() string { return filters.GrantCallbackName }
 
-func (s *grantCallbackSpec) CreateFilter([]interface{}) (filters.Filter, error) {
+func (s *grantCallbackSpec) CreateFilter([]any) (filters.Filter, error) {
 	return &grantCallbackFilter{
 		config: s.config,
 	}, nil

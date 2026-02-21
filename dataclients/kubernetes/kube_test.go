@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -83,7 +84,7 @@ func testEndpoints(namespace, name string, labels map[string]string, base string
 			})
 		}
 
-		for i := 0; i < n; i++ {
+		for i := range n {
 			addr := &address{
 				IP:   fmt.Sprintf("%s.%d", base, i),
 				Node: fmt.Sprintf("node-%d", i),
@@ -337,11 +338,8 @@ func checkIDs(t *testing.T, got []string, expected ...string) {
 
 	for _, id := range got {
 		var found bool
-		for _, eid := range expected {
-			if eid == id {
-				found = true
-				break
-			}
+		if slices.Contains(expected, id) {
+			found = true
 		}
 
 		if !found {
@@ -380,7 +378,7 @@ func newTestAPIWithEndpoints(t *testing.T, s *serviceList, i *definitions.Ingres
 	return api
 }
 
-func respondJSON(w io.Writer, v interface{}) error {
+func respondJSON(w io.Writer, v any) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -400,7 +398,7 @@ func labelsMatch(labelSelectors []string, labels map[string]string) bool {
 	return true
 }
 
-func filterIngressByLabels(labelSelectors []string, ingresses *definitions.IngressV1List) interface{} {
+func filterIngressByLabels(labelSelectors []string, ingresses *definitions.IngressV1List) any {
 	if len(labelSelectors) == 0 {
 		return ingresses
 	}
@@ -414,7 +412,7 @@ func filterIngressByLabels(labelSelectors []string, ingresses *definitions.Ingre
 	return result
 }
 
-func filterServicesByLabels(labelSelectors []string, services *serviceList) interface{} {
+func filterServicesByLabels(labelSelectors []string, services *serviceList) any {
 	if len(labelSelectors) == 0 {
 		return services
 	}
@@ -428,7 +426,7 @@ func filterServicesByLabels(labelSelectors []string, services *serviceList) inte
 	return result
 }
 
-func filterEndpointsByLabels(labelSelectors []string, endpoints *endpointList) interface{} {
+func filterEndpointsByLabels(labelSelectors []string, endpoints *endpointList) any {
 	if len(labelSelectors) == 0 {
 		return endpoints
 	}
@@ -442,7 +440,7 @@ func filterEndpointsByLabels(labelSelectors []string, endpoints *endpointList) i
 	return result
 }
 
-func filterSecretsByLabels(labelSelectors []string, secrets *secretList) interface{} {
+func filterSecretsByLabels(labelSelectors []string, secrets *secretList) any {
 	if len(labelSelectors) == 0 {
 		return secrets
 	}
@@ -2117,7 +2115,7 @@ func generateSSCert() []byte {
 	return rootCertPEM
 }
 
-func createCert(template, parent *x509.Certificate, pub interface{}, parentPriv interface{}) (
+func createCert(template, parent *x509.Certificate, pub any, parentPriv any) (
 	cert *x509.Certificate, certPEM []byte, err error) {
 
 	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, pub, parentPriv)

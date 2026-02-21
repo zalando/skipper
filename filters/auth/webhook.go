@@ -59,7 +59,7 @@ func (*webhookSpec) Name() string {
 //
 //	s.CreateFilter("https://my-auth-service.example.org/auth")
 //	s.CreateFilter("https://my-auth-service.example.org/auth", "X-Auth-User,X-Auth-User-Roles")
-func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (ws *webhookSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if l := len(args); l == 0 || l > 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -79,9 +79,9 @@ func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) 
 			return nil, filters.ErrInvalidFilterParameters
 		}
 
-		headerKeys := strings.Split(headerKeysOption, ",")
+		headerKeys := strings.SplitSeq(headerKeysOption, ",")
 
-		for _, header := range headerKeys {
+		for header := range headerKeys {
 			valid := httpguts.ValidHeaderFieldName(header)
 			if !valid {
 				return nil, fmt.Errorf("header %s is invalid", header)

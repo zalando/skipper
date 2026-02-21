@@ -46,7 +46,7 @@ func (s *spec) Name() string {
 	return s.name
 }
 
-func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *spec) CreateFilter(args []any) (filters.Filter, error) {
 	var err error
 
 	if len(args) < 1 {

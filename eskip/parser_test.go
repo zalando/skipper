@@ -15,6 +15,7 @@
 package eskip
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -162,13 +163,7 @@ func TestParseDocument(t *testing.T) {
 	}
 
 	some := func(r []*parsedRoute, f func(*parsedRoute) bool) bool {
-		for _, ri := range r {
-			if f(ri) {
-				return true
-			}
-		}
-
-		return false
+		return slices.ContainsFunc(r, f)
 	}
 
 	mkidcheck := func(n string) func(*parsedRoute) bool {

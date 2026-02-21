@@ -27,7 +27,7 @@ func Test_bearerInjectorSpec_Name(t *testing.T) {
 func Test_bearerInjectorSpec_CreateFilter(t *testing.T) {
 	tests := []struct {
 		name    string
-		args    []interface{}
+		args    []any
 		want    *bearerInjectorFilter
 		wantErr bool
 	}{
@@ -37,17 +37,17 @@ func Test_bearerInjectorSpec_CreateFilter(t *testing.T) {
 		},
 		{
 			name:    "too many args",
-			args:    []interface{}{"foo", "bar"},
+			args:    []any{"foo", "bar"},
 			wantErr: true,
 		},
 		{
 			name:    "wrong args",
-			args:    []interface{}{3},
+			args:    []any{3},
 			wantErr: true,
 		},
 		{
 			name:    "a secretname",
-			args:    []interface{}{"foo"},
+			args:    []any{"foo"},
 			want:    &bearerInjectorFilter{secretName: "foo"},
 			wantErr: false,
 		},
@@ -132,7 +132,7 @@ func Test_bearerInjectorFilter_Request(t *testing.T) {
 			fr := make(filters.Registry)
 
 			spec := NewBearerInjector(tt.secretsReader)
-			filterArgs := []interface{}{tt.secretName}
+			filterArgs := []any{tt.secretName}
 			_, err := spec.CreateFilter(filterArgs)
 			if err != nil {
 				t.Fatalf("error in creating filter")

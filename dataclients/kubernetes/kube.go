@@ -66,7 +66,7 @@ const (
 
 const maxFileSize = 1024 * 1024 // 1MB
 
-var internalIPs = []interface{}{
+var internalIPs = []any{
 	"10.0.0.0/8",
 	"192.168.0.0/16",
 	"172.16.0.0/12",
@@ -315,7 +315,7 @@ func New(o Options) (*Client, error) {
 	)
 
 	if len(o.WhitelistedHealthCheckCIDR) > 0 {
-		whitelistCIDRS := make([]interface{}, len(o.WhitelistedHealthCheckCIDR))
+		whitelistCIDRS := make([]any, len(o.WhitelistedHealthCheckCIDR))
 		for i, v := range o.WhitelistedHealthCheckCIDR {
 			whitelistCIDRS[i] = v
 		}
@@ -475,11 +475,11 @@ func shuntRoute(r *eskip.Route) {
 	r.Filters = []*eskip.Filter{
 		{
 			Name: filters.StatusName,
-			Args: []interface{}{502.0},
+			Args: []any{502.0},
 		},
 		{
 			Name: filters.InlineContentName,
-			Args: []interface{}{"no endpoints"},
+			Args: []any{"no endpoints"},
 		},
 	}
 	r.BackendType = eskip.ShuntBackend

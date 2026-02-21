@@ -40,7 +40,7 @@ func TestParseOptions(t *testing.T) {
 					Port: lightstep.DefaultSecurePort,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 				},
 				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
@@ -63,7 +63,7 @@ func TestParseOptions(t *testing.T) {
 					Port: 8888,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 				},
 				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
@@ -86,7 +86,7 @@ func TestParseOptions(t *testing.T) {
 					Port: lightstep.DefaultSecurePort,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: "skipper-ingress",
 				},
 				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
@@ -109,7 +109,7 @@ func TestParseOptions(t *testing.T) {
 					Port: lightstep.DefaultSecurePort,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: "skipper-ingress",
 				},
 				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
@@ -132,7 +132,7 @@ func TestParseOptions(t *testing.T) {
 					Port: lightstep.DefaultSecurePort,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 				},
 				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
@@ -164,7 +164,7 @@ func TestParseOptions(t *testing.T) {
 					Port: lightstep.DefaultSecurePort,
 				},
 				UseGRPC: false,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 				},
 				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
@@ -187,7 +187,7 @@ func TestParseOptions(t *testing.T) {
 					Port: lightstep.DefaultSecurePort,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 				},
 				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
@@ -322,7 +322,7 @@ func TestParseOptions(t *testing.T) {
 					Port: lightstep.DefaultSecurePort,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 				},
 				GRPCMaxCallSendMsgSizeBytes: 8192,
@@ -355,7 +355,7 @@ func TestParseOptions(t *testing.T) {
 					Port: lightstep.DefaultSecurePort,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 				},
 				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
@@ -409,7 +409,7 @@ func TestParseOptions(t *testing.T) {
 					Port: lightstep.DefaultSecurePort,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 					"foo":                      "bar",
 					"teapot":                   "418",
@@ -443,7 +443,7 @@ func TestParseOptions(t *testing.T) {
 					Port: lightstep.DefaultSecurePort,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 					"foo":                      "",
 				},
@@ -469,7 +469,7 @@ func TestParseOptions(t *testing.T) {
 					Plaintext: true,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 				},
 				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
@@ -502,7 +502,7 @@ func TestParseOptions(t *testing.T) {
 					Port: 8888,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 				},
 				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
@@ -526,7 +526,7 @@ func TestParseOptions(t *testing.T) {
 					Port: 8888,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 				},
 				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
@@ -577,7 +577,7 @@ func TestParseOptions(t *testing.T) {
 					Port: lightstep.DefaultSecurePort,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 					lightstep.CommandLineKey:   "hello world",
 				},
@@ -601,7 +601,7 @@ func TestParseOptions(t *testing.T) {
 					Port: lightstep.DefaultSecurePort,
 				},
 				UseGRPC: true,
-				Tags: map[string]interface{}{
+				Tags: map[string]any{
 					lightstep.ComponentNameKey: defComponentName,
 				},
 				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,

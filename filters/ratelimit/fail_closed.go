@@ -70,7 +70,7 @@ func (*failClosedSpec) Name() string {
 	return filters.RatelimitFailClosedName
 }
 
-func (*failClosedSpec) CreateFilter([]interface{}) (filters.Filter, error) {
+func (*failClosedSpec) CreateFilter([]any) (filters.Filter, error) {
 	return &failClosed{}, nil
 }
 

@@ -300,7 +300,7 @@ func TestAdmissionControlChainOnlyBackendErrorPass(t *testing.T) {
 		testRand: true,
 	}).(*AdmissionControlSpec)
 
-	argsLeaf := make([]interface{}, 0, 6)
+	argsLeaf := make([]any, 0, 6)
 	argsLeaf = append(argsLeaf, "testmetric-leaf", "active", "5ms", 5, 5, 0.9, 0.95, 1.0)
 	fLeaf, err := spec.CreateFilter(argsLeaf)
 	if err != nil {
@@ -309,7 +309,7 @@ func TestAdmissionControlChainOnlyBackendErrorPass(t *testing.T) {
 	}
 	defer fLeaf.(*admissionControl).Close()
 
-	args := make([]interface{}, 0, 6)
+	args := make([]any, 0, 6)
 	args = append(args, "testmetric", "active", "50ms", 10, 10, 0.9, 0.95, 1.0)
 	f, err := spec.CreateFilter(args)
 	if err != nil {
@@ -348,7 +348,7 @@ func TestAdmissionControlChainOnlyBackendErrorPass(t *testing.T) {
 	wg.Add(N)
 	lim := rate.NewLimiter(50, 50)
 	now := time.Now()
-	for i := 0; i < N; i++ {
+	for i := range N {
 		r := lim.Reserve()
 		for !r.OK() {
 			time.Sleep(10 * time.Microsecond)
@@ -439,7 +439,7 @@ func TestAdmissionControlCleanupModes(t *testing.T) {
 			preProcessor := spec.PreProcessor()
 			postProcessor := spec.PostProcessor()
 
-			args := make([]interface{}, 0, 6)
+			args := make([]any, 0, 6)
 			args = append(args, "testmetric", ti.mode, "10ms", 5, 1, 0.1, 0.95, 0.5)
 			f, err := spec.CreateFilter(args)
 			if err != nil {
@@ -653,7 +653,7 @@ func TestAdmissionControlSetsSpansTags(t *testing.T) {
 	preProcessor := spec.PreProcessor()
 	postProcessor := spec.PostProcessor()
 
-	args := make([]interface{}, 0, 6)
+	args := make([]any, 0, 6)
 	args = append(args, "testmetric", "active", "10ms", 5, 1, 0.1, 0.95, 0.5)
 	f, err := spec.CreateFilter(args)
 	if err != nil {
@@ -749,11 +749,4 @@ func (vpp *validationPostProcessorNumberOfFilters) Do(routes []*routing.Route) [
 	}
 	go func() { vpp.ch <- routes }()
 	return routes
-}
-
-func max(i, j int) int {
-	if i > j {
-		return i
-	}
-	return j
 }

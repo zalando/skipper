@@ -29,6 +29,6 @@ func NewHealthCheck() filters.Spec { return &healthCheck{} }
 // "healthcheck"
 func (h *healthCheck) Name() string { return filters.HealthCheckName }
 
-func (h *healthCheck) CreateFilter(_ []interface{}) (filters.Filter, error) { return h, nil }
-func (h *healthCheck) Request(ctx filters.FilterContext)                    {}
-func (h *healthCheck) Response(ctx filters.FilterContext)                   { ctx.Response().StatusCode = http.StatusOK }
+func (h *healthCheck) CreateFilter(_ []any) (filters.Filter, error) { return h, nil }
+func (h *healthCheck) Request(ctx filters.FilterContext)            {}
+func (h *healthCheck) Response(ctx filters.FilterContext)           { ctx.Response().StatusCode = http.StatusOK }

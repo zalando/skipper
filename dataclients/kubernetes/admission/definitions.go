@@ -26,7 +26,7 @@ type objectMeta struct {
 
 type partialObjectMetadata struct {
 	typeMeta   `json:",inline"`
-	objectMeta `json:"metadata,omitempty"`
+	objectMeta `json:"metadata"`
 }
 
 type admissionReview struct {

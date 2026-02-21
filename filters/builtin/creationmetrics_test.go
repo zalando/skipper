@@ -20,7 +20,7 @@ var time1 = time0.Add(time.Second)
 var timeNow = time1.Add(time.Second)
 
 func TestRouteCreationMetrics_reportRouteCreationTimes(t *testing.T) {
-	f, _ := NewOriginMarkerSpec().CreateFilter([]interface{}{"origin", "config1", time0})
+	f, _ := NewOriginMarkerSpec().CreateFilter([]any{"origin", "config1", time0})
 	for _, tt := range []struct {
 		name            string
 		routes          []*routing.Route

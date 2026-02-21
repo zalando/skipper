@@ -33,13 +33,13 @@ func NewOriginMarkerSpec() filters.Spec {
 func NewOriginMarker(origin string, id string, created time.Time) *eskip.Filter {
 	return &eskip.Filter{
 		Name: filters.OriginMarkerName,
-		Args: []interface{}{origin, id, created},
+		Args: []any{origin, id, created},
 	}
 }
 
 func (s *originMarkerSpec) Name() string { return filters.OriginMarkerName }
 
-func (s *originMarkerSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *originMarkerSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 3 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

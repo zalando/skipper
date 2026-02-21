@@ -14,7 +14,7 @@ import (
 func TestInlineContentArgs(t *testing.T) {
 	for _, test := range []struct {
 		title        string
-		args         []interface{}
+		args         []any
 		expectedText string
 		expectedMime string
 		fail         bool
@@ -23,24 +23,24 @@ func TestInlineContentArgs(t *testing.T) {
 		fail:  true,
 	}, {
 		title: "too many args",
-		args:  []interface{}{"foo", "bar", "baz"},
+		args:  []any{"foo", "bar", "baz"},
 		fail:  true,
 	}, {
 		title: "not string for text",
-		args:  []interface{}{42, "bar"},
+		args:  []any{42, "bar"},
 		fail:  true,
 	}, {
 		title: "not string for mime",
-		args:  []interface{}{"foo", 42},
+		args:  []any{"foo", 42},
 		fail:  true,
 	}, {
 		title:        "text only",
-		args:         []interface{}{"foo"},
+		args:         []any{"foo"},
 		expectedText: "foo",
 		expectedMime: "text/plain",
 	}, {
 		title:        "html, detected",
-		args:         []interface{}{`<!doctype html><html>foo</html>`},
+		args:         []any{`<!doctype html><html>foo</html>`},
 		expectedText: `<!doctype html><html>foo</html>`,
 		expectedMime: "text/html",
 	}} {

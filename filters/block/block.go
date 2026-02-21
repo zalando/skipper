@@ -52,7 +52,7 @@ func (bs *blockSpec) Name() string {
 	return filters.BlockName
 }
 
-func (bs *blockSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (bs *blockSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -85,7 +85,6 @@ func (bs *blockSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 func blockMatcher(m metrics.Metrics, matches []toBlockKeys) func(b []byte) (int, error) {
 	return func(b []byte) (int, error) {
 		for _, s := range matches {
-			s := s
 			if bytes.Contains(b, s.Str) {
 				m.IncCounter("blocked.requests")
 				return 0, skpio.ErrBlocked

@@ -89,10 +89,7 @@ func (tb *teeBody) Write(b []byte) (int, error) {
 		return tb.buffer.Write(b)
 	}
 
-	wl := len(b)
-	if wl >= tb.maxTee {
-		wl = tb.maxTee
-	}
+	wl := min(len(b), tb.maxTee)
 
 	n, err := tb.buffer.Write(b[:wl])
 	if err != nil {
@@ -121,7 +118,7 @@ func (al *auditLog) Name() string { return filters.AuditLogName }
 
 // CreateFilter has no arguments. It creates the filter if the user
 // specifies auditLog() in their route.
-func (al *auditLog) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (al *auditLog) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -188,14 +185,14 @@ func (ual *unverifiedAuditLogSpec) Name() string { return filters.UnverifiedAudi
 
 // CreateFilter has no arguments. It creates the filter if the user
 // specifies unverifiedAuditLog() in their route.
-func (ual *unverifiedAuditLogSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (ual *unverifiedAuditLogSpec) CreateFilter(args []any) (filters.Filter, error) {
 	var len = len(args)
 	if len == 0 {
 		return &unverifiedAuditLogFilter{TokenKeys: []string{defaultUnverifiedAuditLogKey}}, nil
 	}
 
 	keys := make([]string, len)
-	for i := 0; i < len; i++ {
+	for i := range len {
 		keyName, ok := args[i].(string)
 		if !ok {
 			return nil, filters.ErrInvalidFilterParameters

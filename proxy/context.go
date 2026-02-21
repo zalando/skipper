@@ -5,6 +5,7 @@ import (
 	stdlibcontext "context"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"time"
@@ -35,7 +36,7 @@ type context struct {
 	servedWithResponse   bool // to support the deprecated way independently
 	successfulUpgrade    bool
 	pathParams           map[string]string
-	stateBag             map[string]interface{}
+	stateBag             map[string]any
 	originalRequest      *http.Request
 	originalResponse     *http.Response
 	outgoingHost         string
@@ -127,9 +128,7 @@ func appendParams(to, from map[string]string) map[string]string {
 		to = make(map[string]string)
 	}
 
-	for k, v := range from {
-		to[k] = v
-	}
+	maps.Copy(to, from)
 
 	return to
 }
@@ -142,7 +141,7 @@ func newContext(
 	c := &context{
 		responseWriter: w,
 		request:        r,
-		stateBag:       make(map[string]interface{}),
+		stateBag:       make(map[string]any),
 		outgoingHost:   r.Host,
 		metrics:        &filterMetrics{impl: p.metrics},
 		proxy:          p,
@@ -207,7 +206,7 @@ func (c *context) Response() *http.Response            { return c.response }
 func (c *context) MarkServed()                         { c.deprecatedServed = true }
 func (c *context) Served() bool                        { return c.deprecatedServed || c.servedWithResponse }
 func (c *context) PathParam(key string) string         { return c.pathParams[key] }
-func (c *context) StateBag() map[string]interface{}    { return c.stateBag }
+func (c *context) StateBag() map[string]any            { return c.stateBag }
 func (c *context) BackendUrl() string                  { return c.route.Backend }
 func (c *context) OriginalRequest() *http.Request      { return c.originalRequest }
 func (c *context) OriginalResponse() *http.Response    { return c.originalResponse }
@@ -282,7 +281,7 @@ func (c *context) Split() (filters.FilterContext, error) {
 		return nil, errors.New("context: cannot split the context that contains an upgrade request")
 	}
 	cc := c.clone()
-	cc.stateBag = map[string]interface{}{}
+	cc.stateBag = map[string]any{}
 	cc.responseWriter = noopFlushedResponseWriter{}
 	cc.metrics = &filterMetrics{
 		prefix: cc.metrics.prefix,

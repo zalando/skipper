@@ -230,7 +230,7 @@ func NewNormalResponseLatency() filters.Spec { return &jitter{typ: normalRespons
 
 func (r *randomSpec) Name() string { return filters.RandomContentName }
 
-func (r *randomSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (r *randomSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -243,7 +243,7 @@ func (r *randomSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 }
 
 func (r *random) Read(p []byte) (int, error) {
-	for i := 0; i < len(p); i++ {
+	for i := range p {
 		p[i] = randomChars[r.rand.IntN(len(randomChars))]
 	}
 	return len(p), nil
@@ -266,7 +266,7 @@ func (r *repeatSpec) Name() string {
 	}
 }
 
-func (r *repeatSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (r *repeatSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -335,7 +335,7 @@ func (w *wrapSpec) Name() string {
 	}
 }
 
-func (w *wrapSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (w *wrapSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -414,7 +414,7 @@ func (t *throttle) Name() string {
 	}
 }
 
-func parseDuration(v interface{}) (time.Duration, error) {
+func parseDuration(v any) (time.Duration, error) {
 	var d time.Duration
 
 	switch vt := v.(type) {
@@ -435,7 +435,7 @@ func parseDuration(v interface{}) (time.Duration, error) {
 	return d, nil
 }
 
-func parseLatencyArgs(args []interface{}) (int, time.Duration, error) {
+func parseLatencyArgs(args []any) (int, time.Duration, error) {
 	if len(args) != 1 {
 		return 0, 0, filters.ErrInvalidFilterParameters
 	}
@@ -444,7 +444,7 @@ func parseLatencyArgs(args []interface{}) (int, time.Duration, error) {
 	return 0, d, err
 }
 
-func parseBandwidthArgs(args []interface{}) (int, time.Duration, error) {
+func parseBandwidthArgs(args []any) (int, time.Duration, error) {
 	if len(args) != 1 {
 		return 0, 0, filters.ErrInvalidFilterParameters
 	}
@@ -458,7 +458,7 @@ func parseBandwidthArgs(args []interface{}) (int, time.Duration, error) {
 	return defaultChunkSize, time.Duration(float64(defaultChunkSize)/bpms) * time.Millisecond, nil
 }
 
-func parseChunksArgs(args []interface{}) (int, time.Duration, error) {
+func parseChunksArgs(args []any) (int, time.Duration, error) {
 	if len(args) != 2 {
 		return 0, 0, filters.ErrInvalidFilterParameters
 	}
@@ -472,7 +472,7 @@ func parseChunksArgs(args []interface{}) (int, time.Duration, error) {
 	return int(size), d, err
 }
 
-func (t *throttle) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (t *throttle) CreateFilter(args []any) (filters.Filter, error) {
 	var (
 		chunkSize int
 		delay     time.Duration
@@ -607,7 +607,7 @@ func (j *jitter) Name() string {
 	return "unknown"
 }
 
-func (j *jitter) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (j *jitter) CreateFilter(args []any) (filters.Filter, error) {
 	var (
 		mean  time.Duration
 		delta time.Duration

@@ -25,7 +25,7 @@ var (
 	clientTrackingPatternJustSomeUsers = s(`(joe|sabine)`)
 	headerUsersJoe                     = http.Header{
 		authorizationHeaderName: {
-			"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+			"Bearer " + buildFakeJwtWithBody(map[string]any{
 				"realm":  "users",
 				"client": "joe",
 			}),
@@ -93,7 +93,7 @@ func Test_Filter_ClientMetrics_MatchOneOfClientKeyName(t *testing.T) {
 		clientTrackingPattern: s(".*"),
 		header: http.Header{
 			authorizationHeaderName: {
-				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+				"Bearer " + buildFakeJwtWithBody(map[string]any{
 					"realm": "services",
 					"sub":   "payments",
 				}),
@@ -113,7 +113,7 @@ func Test_Filter_ClientMetrics_MatchOneOfClientKeyName_UseFirstMatching(t *testi
 		clientTrackingPattern: s(".*"),
 		header: http.Header{
 			authorizationHeaderName: {
-				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+				"Bearer " + buildFakeJwtWithBody(map[string]any{
 					"realm":  "services",
 					"sub":    "payments",
 					"client": "but_I_should_come_first",
@@ -145,7 +145,7 @@ func Test_Filter_ClientMetrics_Realm1User0(t *testing.T) {
 		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
 		header: http.Header{
 			authorizationHeaderName: {
-				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+				"Bearer " + buildFakeJwtWithBody(map[string]any{
 					"realm":  "users",
 					"client": "berta",
 				}),
@@ -164,7 +164,7 @@ func Test_Filter_ClientMetrics_Realm0User1(t *testing.T) {
 		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
 		header: http.Header{
 			authorizationHeaderName: {
-				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+				"Bearer " + buildFakeJwtWithBody(map[string]any{
 					"realm":  "nobodies",
 					"client": "sabine",
 				}),
@@ -183,7 +183,7 @@ func Test_Filter_ClientMetrics_Realm0User0(t *testing.T) {
 		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
 		header: http.Header{
 			authorizationHeaderName: {
-				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+				"Bearer " + buildFakeJwtWithBody(map[string]any{
 					"realm":  "nobodies",
 					"client": "david",
 				}),
@@ -202,7 +202,7 @@ func Test_Filter_ClientMetrics_AuthDoesNotHaveBearerPrefix(t *testing.T) {
 		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
 		header: http.Header{
 			authorizationHeaderName: {
-				/* no bearer */ buildFakeJwtWithBody(map[string]interface{}{
+				/* no bearer */ buildFakeJwtWithBody(map[string]any{
 					"realm":  "users",
 					"client": "joe",
 				}),
@@ -279,7 +279,7 @@ func Test_Filter_ClientMetrics_JWTBodyHasNoRealm(t *testing.T) {
 		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
 		header: http.Header{
 			authorizationHeaderName: {
-				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+				"Bearer " + buildFakeJwtWithBody(map[string]any{
 					// no realm
 					"client": "david",
 				}),
@@ -298,7 +298,7 @@ func Test_Filter_ClientMetrics_JWTBodyHasNoClient_ShouldTrackRealm(t *testing.T)
 		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
 		header: http.Header{
 			authorizationHeaderName: {
-				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+				"Bearer " + buildFakeJwtWithBody(map[string]any{
 					"realm": "users",
 					// no client ID
 				}),
@@ -339,7 +339,7 @@ func Test_Filter_ClientMetrics_DefaultClientTrackingPattern_NoClientTrackingPatt
 		clientTrackingPattern: nil, // no client tracking in route's filter configuration
 		header: http.Header{
 			authorizationHeaderName: {
-				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+				"Bearer " + buildFakeJwtWithBody(map[string]any{
 					"realm":  "users",
 					"client": "joe",
 				}),
@@ -358,7 +358,7 @@ func Test_Filter_ClientMetrics_DefaultClientTrackingPattern_NoClientTrackingPatt
 		clientTrackingPattern: nil, // no client tracking in route's filter configuration
 		header: http.Header{
 			authorizationHeaderName: {
-				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+				"Bearer " + buildFakeJwtWithBody(map[string]any{
 					"realm":  "services",
 					"client": "my_app",
 				}),
@@ -377,7 +377,7 @@ func Test_Filter_ClientMetrics_EmptyClientTrackingPatternInRouteFilterJSON(t *te
 		clientTrackingPattern: s(""), // no client tracking in route's filter configuration
 		header: http.Header{
 			authorizationHeaderName: {
-				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+				"Bearer " + buildFakeJwtWithBody(map[string]any{
 					"realm":  "users",
 					"client": "joe",
 				}),
@@ -397,7 +397,7 @@ func Test_Filter_ClientMetricsCache_ConcurrentAccess(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(concurrencyLevel)
-	for i := 0; i < concurrencyLevel; i++ {
+	for i := range concurrencyLevel {
 		go func(i int) {
 			getClientMetricsNames("services.service_id_"+strconv.Itoa(i), pathInfo)
 			wg.Done()

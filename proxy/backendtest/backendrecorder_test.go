@@ -16,7 +16,7 @@ func TestServerShouldCloseWhenAllRequestsAreFulfilled(t *testing.T) {
 	recorder := NewBackendRecorder(10 * time.Millisecond)
 
 	var g errgroup.Group
-	for i := 0; i < expectedRequests; i++ {
+	for range expectedRequests {
 		g.Go(func() error {
 			resp, err := http.Get(recorder.GetURL())
 			if err != nil {

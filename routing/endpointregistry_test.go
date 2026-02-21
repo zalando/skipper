@@ -303,15 +303,13 @@ func benchmarkIncInflightRequests(b *testing.B, name string, goroutines int) {
 		wg := sync.WaitGroup{}
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < goroutines; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range goroutines {
+			wg.Go(func() {
 				metrics := r.GetMetrics(key)
 				for n := 0; n < b.N/goroutines; n++ {
 					metrics.IncInflightRequest()
 				}
-			}()
+			})
 		}
 		wg.Wait()
 
@@ -343,15 +341,13 @@ func benchmarkGetInflightRequests(b *testing.B, name string, goroutines int) {
 		wg := sync.WaitGroup{}
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < goroutines; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range goroutines {
+			wg.Go(func() {
 				metrics := r.GetMetrics(key)
 				for n := 0; n < b.N/goroutines; n++ {
 					dummy = metrics.InflightRequests()
 				}
-			}()
+			})
 		}
 		dummy++
 		wg.Wait()
@@ -384,15 +380,13 @@ func benchmarkGetDetectedTime(b *testing.B, name string, goroutines int) {
 		wg := sync.WaitGroup{}
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < goroutines; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range goroutines {
+			wg.Go(func() {
 				metrics := r.GetMetrics(key)
 				for n := 0; n < b.N/goroutines; n++ {
 					dummy = metrics.DetectedTime()
 				}
-			}()
+			})
 		}
 		dummy = dummy.Add(time.Second)
 		wg.Wait()

@@ -16,9 +16,9 @@ import (
 
 type truePredicate struct{}
 
-func (tp *truePredicate) Name() string                                 { return "True" }
-func (tp *truePredicate) Create(args []interface{}) (Predicate, error) { return tp, nil }
-func (tp *truePredicate) Match(r *http.Request) bool                   { return true }
+func (tp *truePredicate) Name() string                         { return "True" }
+func (tp *truePredicate) Create(args []any) (Predicate, error) { return tp, nil }
+func (tp *truePredicate) Match(r *http.Request) bool           { return true }
 
 const (
 	benchmarkingCountPhase1 = 1
@@ -175,7 +175,7 @@ func initGenericMatcher() {
 func generatePaths(pg *pathgen.PathGenerator, count int) []string {
 	paths := make([]string, count)
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		paths[i] = pg.Next()
 	}
 
@@ -200,7 +200,7 @@ func generateRoutes(paths []string) []*Route {
 // generate requests based on a set of paths
 func generateRequests(paths []string) ([]*http.Request, error) {
 	requests := make([]*http.Request, len(paths))
-	for i := 0; i < len(paths); i++ {
+	for i := range paths {
 		u, err := url.Parse(fmt.Sprintf("https://example.org%s", paths[i]))
 		if err != nil {
 			return nil, err
@@ -1138,7 +1138,7 @@ func TestExtractWildcardParamNames(t *testing.T) {
 				t.Error("actual", actual, "expected", expected)
 				return
 			}
-			for i := 0; i < len(actual); i++ {
+			for i := range actual {
 				if actual[i] != expected[i] {
 					t.Error("actual", actual, "expected", expected)
 					return

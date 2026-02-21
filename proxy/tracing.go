@@ -85,7 +85,7 @@ func (t *proxyTracing) logEvent(span ot.Span, eventName, eventValue string) {
 	span.LogKV(eventName, ensureUTF8(eventValue))
 }
 
-func (t *proxyTracing) setTag(span ot.Span, key string, value interface{}) *proxyTracing {
+func (t *proxyTracing) setTag(span ot.Span, key string, value any) *proxyTracing {
 	if span == nil {
 		return t
 	}

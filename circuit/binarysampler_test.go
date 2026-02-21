@@ -48,7 +48,7 @@ func TestBinarySampler(t *testing.T) {
 		const size = 314
 		s := newBinarySampler(size)
 
-		for i := 0; i < size+size/2; i++ {
+		for range size + size/2 {
 			s.tick(true)
 		}
 
@@ -58,7 +58,7 @@ func TestBinarySampler(t *testing.T) {
 	t.Run("uses the right 'amount of memory'", func(t *testing.T) {
 		const size = 314
 		s := newBinarySampler(size)
-		for i := 0; i < size+size/2; i++ {
+		for range size + size/2 {
 			s.tick(true)
 		}
 

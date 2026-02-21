@@ -640,7 +640,7 @@ func (config *OpenPolicyAgentInstanceConfig) interpolateConfigTemplate(bundleNam
 
 	tpl := template.Must(template.New("opa-config").Parse(string(config.configTemplate)))
 
-	binding := make(map[string]interface{})
+	binding := make(map[string]any)
 	binding["bundlename"] = bundleName
 	binding["Env"] = envVariablesMap()
 
@@ -689,7 +689,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
 
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
-	logger = logger.WithFields(map[string]interface{}{"bundle-name": bundleName})
+	logger = logger.WithFields(map[string]any{"bundle-name": bundleName})
 
 	var configHooks []hooks.Hook
 	if registry.enableCustomControlLoop {
@@ -816,7 +816,7 @@ func (opa *OpenPolicyAgentInstance) start(ctx context.Context, timeout time.Dura
 	if err != nil {
 		for pluginName, status := range opa.manager.PluginStatus() {
 			if status != nil && status.State != plugins.StateOK {
-				opa.Logger().WithFields(map[string]interface{}{
+				opa.Logger().WithFields(map[string]any{
 					"plugin_name":   pluginName,
 					"plugin_state":  status.State,
 					"error_message": status.Message,
@@ -901,7 +901,7 @@ func (opa *OpenPolicyAgentInstance) isRetryable(err error) bool {
 	var httpError download.HTTPError
 
 	if errors.As(err, &httpError) {
-		opa.Logger().WithFields(map[string]interface{}{
+		opa.Logger().WithFields(map[string]any{
 			"error": httpError.Error(),
 		}).Warn("Triggering bundles failed. Response code %v, Retrying.", httpError.StatusCode)
 		return httpError.StatusCode == 429 || httpError.StatusCode >= 500
@@ -911,7 +911,7 @@ func (opa *OpenPolicyAgentInstance) isRetryable(err error) bool {
 	if errors.As(err, &urlError) {
 		retry := strings.Contains(urlError.Error(), "net/http: timeout awaiting response headers")
 		if retry {
-			opa.Logger().WithFields(map[string]interface{}{
+			opa.Logger().WithFields(map[string]any{
 				"error": urlError.Error(),
 			}).Warn("Triggering bundles failed. Retrying.")
 		}
@@ -924,7 +924,7 @@ func (opa *OpenPolicyAgentInstance) verifyAllPluginsStarted() error {
 	allPluginsReady := true
 	for pluginName, status := range opa.manager.PluginStatus() {
 		if status != nil && status.State != plugins.StateOK {
-			opa.Logger().WithFields(map[string]interface{}{
+			opa.Logger().WithFields(map[string]any{
 				"plugin_name":   pluginName,
 				"plugin_state":  status.State,
 				"error_message": status.Message,
@@ -1232,7 +1232,7 @@ type QuietLogger struct {
 	target logging.Logger
 }
 
-func (l *QuietLogger) WithFields(fields map[string]interface{}) logging.Logger {
+func (l *QuietLogger) WithFields(fields map[string]any) logging.Logger {
 	return &QuietLogger{target: l.target.WithFields(fields)}
 }
 
@@ -1244,19 +1244,19 @@ func (l *QuietLogger) GetLevel() logging.Level {
 	return l.target.GetLevel()
 }
 
-func (l *QuietLogger) Debug(fmt string, a ...interface{}) {
+func (l *QuietLogger) Debug(fmt string, a ...any) {
 	l.target.Debug(fmt, a...)
 }
 
-func (l *QuietLogger) Info(fmt string, a ...interface{}) {
+func (l *QuietLogger) Info(fmt string, a ...any) {
 	l.target.Debug(fmt, a...)
 }
 
-func (l *QuietLogger) Error(fmt string, a ...interface{}) {
+func (l *QuietLogger) Error(fmt string, a ...any) {
 	l.target.Error(fmt, a...)
 }
 
-func (l *QuietLogger) Warn(fmt string, a ...interface{}) {
+func (l *QuietLogger) Warn(fmt string, a ...any) {
 	l.target.Warn(fmt, a...)
 }
 

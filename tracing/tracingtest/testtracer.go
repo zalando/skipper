@@ -4,6 +4,7 @@ Package tracingtest provides an OpenTracing implementation for testing purposes.
 package tracingtest
 
 import (
+	"maps"
 	"net/http"
 	"time"
 
@@ -41,7 +42,7 @@ type Span struct {
 	FinishTime time.Time
 
 	operationName string
-	Tags          map[string]interface{}
+	Tags          map[string]any
 	baggage       map[string]string
 	tracer        *Tracer
 }
@@ -50,7 +51,7 @@ type Span struct {
 func NewSpan(operation string) *Span {
 	return &Span{
 		operationName: operation,
-		Tags:          make(map[string]interface{}),
+		Tags:          make(map[string]any),
 		baggage:       make(map[string]string),
 	}
 }
@@ -90,7 +91,7 @@ func (t *Tracer) createSpanBase() *Span {
 		Trace:     t.TraceContent,
 		StartTime: time.Now(),
 		tracer:    t,
-		Tags:      make(map[string]interface{}),
+		Tags:      make(map[string]any),
 		baggage:   make(map[string]string),
 	}
 }
@@ -105,9 +106,7 @@ func (t *Tracer) StartSpan(operationName string, opts ...tracing.StartSpanOption
 	s := t.createSpanBase()
 	s.operationName = operationName
 	s.Refs = sso.References
-	for k, v := range sso.Tags {
-		s.Tags[k] = v
-	}
+	maps.Copy(s.Tags, sso.Tags)
 	return s
 }
 
@@ -115,7 +114,7 @@ func (t *Tracer) StartSpan(operationName string, opts ...tracing.StartSpanOption
 // propagation within `carrier`.
 //
 // It sets the X-Trace-Header to the value of TraceContent.
-func (t *Tracer) Inject(sm tracing.SpanContext, format interface{}, carrier interface{}) error {
+func (t *Tracer) Inject(sm tracing.SpanContext, format any, carrier any) error {
 	http.Header(carrier.(tracing.HTTPHeadersCarrier)).Set("X-Trace-Header", t.TraceContent)
 	return nil
 }
@@ -123,7 +122,7 @@ func (t *Tracer) Inject(sm tracing.SpanContext, format interface{}, carrier inte
 // Extract() returns a SpanContext instance given `format` and `carrier`.
 //
 // It copies the X-Trace-Header value to the TraceContent field.
-func (t *Tracer) Extract(format interface{}, carrier interface{}) (tracing.SpanContext, error) {
+func (t *Tracer) Extract(format any, carrier any) (tracing.SpanContext, error) {
 	val := http.Header(carrier.(tracing.HTTPHeadersCarrier)).Get("X-Trace-Header")
 	if val != "" {
 		t.TraceContent = val
@@ -169,7 +168,7 @@ func (s *Span) SetOperationName(operationName string) tracing.Span {
 }
 
 // Adds a tag to the span.
-func (s *Span) SetTag(key string, value interface{}) tracing.Span {
+func (s *Span) SetTag(key string, value any) tracing.Span {
 	s.Tags[key] = value
 	return s
 }
@@ -182,7 +181,7 @@ func (*Span) LogFields(...log.Field) {}
 // LogKV is a concise, readable way to record key:value logging data about
 // a Span, though unfortunately this also makes it less efficient and less
 // type-safe than LogFields().
-func (*Span) LogKV(...interface{}) {}
+func (*Span) LogKV(...any) {}
 
 // SetBaggageItem sets a key:value pair on this Span and its SpanContext
 // that also propagates to descendants of this Span.
@@ -206,7 +205,7 @@ func (s *Span) Tracer() tracing.Tracer {
 func (*Span) LogEvent(string) {}
 
 // Deprecated: use LogFields or LogKV
-func (*Span) LogEventWithPayload(string, interface{}) {}
+func (*Span) LogEventWithPayload(string, any) {}
 
 // Deprecated: use LogFields or LogKV
 func (*Span) Log(tracing.LogData) {}

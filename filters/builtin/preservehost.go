@@ -38,7 +38,7 @@ func PreserveHost() filters.Spec { return &spec{} }
 
 func (s *spec) Name() string { return filters.PreserveHostName }
 
-func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *spec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

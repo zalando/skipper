@@ -48,7 +48,7 @@ type (
 		secure  bool
 	}
 
-	tokenIntrospectionInfo map[string]interface{}
+	tokenIntrospectionInfo map[string]any
 
 	tokenintrospectFilter struct {
 		typ        roleCheckType
@@ -252,7 +252,7 @@ func (s *tokenIntrospectionSpec) Name() string {
 	return AuthUnknown
 }
 
-func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *tokenIntrospectionSpec) CreateFilter(args []any) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
 		return nil, err
@@ -366,7 +366,7 @@ func (f *tokenintrospectFilter) String() string {
 
 func (f *tokenintrospectFilter) validateAnyClaims(info tokenIntrospectionInfo) bool {
 	for _, wantedClaim := range f.claims {
-		if claims, ok := info["claims"].(map[string]interface{}); ok {
+		if claims, ok := info["claims"].(map[string]any); ok {
 			if _, ok2 := claims[wantedClaim]; ok2 {
 				return true
 			}
@@ -377,7 +377,7 @@ func (f *tokenintrospectFilter) validateAnyClaims(info tokenIntrospectionInfo) b
 
 func (f *tokenintrospectFilter) validateAllClaims(info tokenIntrospectionInfo) bool {
 	for _, v := range f.claims {
-		if claims, ok := info["claims"].(map[string]interface{}); !ok {
+		if claims, ok := info["claims"].(map[string]any); !ok {
 			return false
 		} else {
 			if _, ok := claims[v]; !ok {

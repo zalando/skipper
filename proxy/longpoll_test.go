@@ -241,7 +241,7 @@ func testCancelDuringStreamingRequestBody(t *testing.T, p initProxy) {
 		t.Error("backend failed to receive the request on time")
 	}
 
-	for i := 0; i < 64*1024; i++ {
+	for range 64 * 1024 {
 		if _, err := bodyWriter.Write([]byte("foobar")); err != nil {
 			t.Fatal(err)
 		}
@@ -363,7 +363,7 @@ func testCancelDuringStreamingResponseBody(t *testing.T, p initProxy) {
 
 	defer rsp.response.Body.Close()
 	buf := make([]byte, 4)
-	for i := 0; i < 64*1024; i++ {
+	for range 64 * 1024 {
 		if _, err := rsp.response.Body.Read(buf); err != nil {
 			t.Fatal(err)
 		}

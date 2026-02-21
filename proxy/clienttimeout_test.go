@@ -83,7 +83,7 @@ func TestClientCancellation(t *testing.T) {
 	addr := ps.Listener.Addr().String()
 
 	const N = 100
-	for i := 0; i < N; i++ {
+	for range N {
 		if err := postTruncated(addr); err != nil {
 			t.Fatal(err)
 		}

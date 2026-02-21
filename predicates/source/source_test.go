@@ -26,7 +26,7 @@ func TestName(t *testing.T) {
 func TestCreate(t *testing.T) {
 	for _, ti := range []struct {
 		msg  string
-		args []interface{}
+		args []any
 		err  bool
 	}{{
 		"no args",
@@ -34,39 +34,39 @@ func TestCreate(t *testing.T) {
 		true,
 	}, {
 		"arg 1 not string",
-		[]interface{}{1},
+		[]any{1},
 		true,
 	}, {
 		"arg 2 not string",
-		[]interface{}{"127.0.0.1/32", 1},
+		[]any{"127.0.0.1/32", 1},
 		true,
 	}, {
 		"one invalid IP",
-		[]interface{}{"1.2.3.4.5/16", "1000.2.3.4"},
+		[]any{"1.2.3.4.5/16", "1000.2.3.4"},
 		true,
 	}, {
 		"arg 1 not netmask, silently ignored",
-		[]interface{}{"all the things"},
+		[]any{"all the things"},
 		true,
 	}, {
 		"one valid netmask",
-		[]interface{}{"1.2.3.4/32"},
+		[]any{"1.2.3.4/32"},
 		false,
 	}, {
 		"two valid netmasks",
-		[]interface{}{"1.2.3.4/32", "1.2.3.4/32"},
+		[]any{"1.2.3.4/32", "1.2.3.4/32"},
 		false,
 	}, {
 		"no net mask should default to /32",
-		[]interface{}{"1.2.3.4"},
+		[]any{"1.2.3.4"},
 		false,
 	}, {
 		"should handle IPv6 addresses",
-		[]interface{}{"C0:FF::EE"},
+		[]any{"C0:FF::EE"},
 		false,
 	}, {
 		"should handle IPv6 with mask",
-		[]interface{}{"C0:FF::EE/32"},
+		[]any{"C0:FF::EE/32"},
 		false,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
@@ -89,62 +89,62 @@ func TestCreate(t *testing.T) {
 func TestMatching(t *testing.T) {
 	for _, ti := range []struct {
 		msg     string
-		args    []interface{}
+		args    []any
 		req     *http.Request
 		matches bool
 	}{{
 		"happy case",
-		[]interface{}{"127.0.0.1"},
+		[]any{"127.0.0.1"},
 		&http.Request{RemoteAddr: "127.0.0.1"},
 		true,
 	}, {
 		"sad case",
-		[]interface{}{"127.0.0.1"},
+		[]any{"127.0.0.1"},
 		&http.Request{RemoteAddr: "127.0.0.2"},
 		false,
 	}, {
 		"should match on netmask",
-		[]interface{}{"127.0.0.1/30"},
+		[]any{"127.0.0.1/30"},
 		&http.Request{RemoteAddr: "127.0.0.2"},
 		true,
 	}, {
 		"should correctly handle netmask",
-		[]interface{}{"127.0.0.0/31"},
+		[]any{"127.0.0.0/31"},
 		&http.Request{RemoteAddr: "127.0.0.2"},
 		false,
 	}, {
 		"should correctly handle netmask",
-		[]interface{}{"127.0.0.0/30"},
+		[]any{"127.0.0.0/30"},
 		&http.Request{RemoteAddr: "127.0.0.2"},
 		true,
 	}, {
 		"should consider multiple masks",
-		[]interface{}{"127.0.0.1", "8.8.8.8/24"},
+		[]any{"127.0.0.1", "8.8.8.8/24"},
 		&http.Request{RemoteAddr: "8.8.8.127"},
 		true,
 	}, {
 		"if available, should use X-Forwarded-For for matching",
-		[]interface{}{"8.8.8.8"},
+		[]any{"8.8.8.8"},
 		&http.Request{RemoteAddr: "127.0.0.1", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8"}}},
 		true,
 	}, {
 		"should use first X-Forwarded-For host (source instead of proxies) for matching",
-		[]interface{}{"8.8.8.8"},
+		[]any{"8.8.8.8"},
 		&http.Request{RemoteAddr: "127.0.0.1", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8, 7.7.7.7, 6.6.6.6"}}},
 		true,
 	}, {
 		"should work for IPv6",
-		[]interface{}{"C0:FF::EE"},
+		[]any{"C0:FF::EE"},
 		&http.Request{RemoteAddr: "[C0:FF::EE]:5123"},
 		true,
 	}, {
 		"should work for IPv6 with mask - pass",
-		[]interface{}{"C0:FF::EE/127"},
+		[]any{"C0:FF::EE/127"},
 		&http.Request{RemoteAddr: "[C0:FF::EF]:5123"},
 		true,
 	}, {
 		"should work for IPv6 with mask - reject",
-		[]interface{}{"C0:FF::EE/127"},
+		[]any{"C0:FF::EE/127"},
 		&http.Request{RemoteAddr: "[C0:FF::EC]:5123"},
 		false,
 	}} {
@@ -165,62 +165,62 @@ func TestMatching(t *testing.T) {
 func TestMatchingFromLast(t *testing.T) {
 	for _, ti := range []struct {
 		msg     string
-		args    []interface{}
+		args    []any
 		req     *http.Request
 		matches bool
 	}{{
 		"happy case",
-		[]interface{}{"127.0.0.1"},
+		[]any{"127.0.0.1"},
 		&http.Request{RemoteAddr: "127.0.0.1"},
 		true,
 	}, {
 		"sad case",
-		[]interface{}{"127.0.0.1"},
+		[]any{"127.0.0.1"},
 		&http.Request{RemoteAddr: "127.0.0.2"},
 		false,
 	}, {
 		"should match on netmask",
-		[]interface{}{"127.0.0.1/30"},
+		[]any{"127.0.0.1/30"},
 		&http.Request{RemoteAddr: "127.0.0.2"},
 		true,
 	}, {
 		"should correctly handle netmask",
-		[]interface{}{"127.0.0.0/31"},
+		[]any{"127.0.0.0/31"},
 		&http.Request{RemoteAddr: "127.0.0.2"},
 		false,
 	}, {
 		"should correctly handle netmask",
-		[]interface{}{"127.0.0.0/30"},
+		[]any{"127.0.0.0/30"},
 		&http.Request{RemoteAddr: "127.0.0.2"},
 		true,
 	}, {
 		"should consider multiple masks",
-		[]interface{}{"127.0.0.1", "8.8.8.8/24"},
+		[]any{"127.0.0.1", "8.8.8.8/24"},
 		&http.Request{RemoteAddr: "8.8.8.127"},
 		true,
 	}, {
 		"if available, should use X-Forwarded-For for matching",
-		[]interface{}{"8.8.8.8"},
+		[]any{"8.8.8.8"},
 		&http.Request{RemoteAddr: "127.0.0.1", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8"}}},
 		true,
 	}, {
 		"should use first X-Forwarded-For host (source instead of proxies) for matching",
-		[]interface{}{"6.6.6.6"},
+		[]any{"6.6.6.6"},
 		&http.Request{RemoteAddr: "127.0.0.1", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8, 7.7.7.7, 6.6.6.6"}}},
 		true,
 	}, {
 		"should work for IPv6",
-		[]interface{}{"C0:FF::EE"},
+		[]any{"C0:FF::EE"},
 		&http.Request{RemoteAddr: "[C0:FF::EE]:4123"},
 		true,
 	}, {
 		"should work for IPv6 with mask - pass",
-		[]interface{}{"C0:FF::EE/127"},
+		[]any{"C0:FF::EE/127"},
 		&http.Request{RemoteAddr: "[C0:FF::EF]:4123"},
 		true,
 	}, {
 		"should work for IPv6 with mask - reject",
-		[]interface{}{"C0:FF::EE/127"},
+		[]any{"C0:FF::EE/127"},
 		&http.Request{RemoteAddr: "[C0:FF::EC]:4123"},
 		false,
 	}} {
@@ -241,62 +241,62 @@ func TestMatchingFromLast(t *testing.T) {
 func TestMatchingClientIP(t *testing.T) {
 	for _, ti := range []struct {
 		msg     string
-		args    []interface{}
+		args    []any
 		req     *http.Request
 		matches bool
 	}{{
 		"happy case",
-		[]interface{}{"127.0.0.1"},
+		[]any{"127.0.0.1"},
 		&http.Request{RemoteAddr: "127.0.0.1:1234"},
 		true,
 	}, {
 		"sad case",
-		[]interface{}{"127.0.0.1"},
+		[]any{"127.0.0.1"},
 		&http.Request{RemoteAddr: "127.0.0.2:51234"},
 		false,
 	}, {
 		"should match on netmask",
-		[]interface{}{"127.0.0.1/30"},
+		[]any{"127.0.0.1/30"},
 		&http.Request{RemoteAddr: "127.0.0.2:1234"},
 		true,
 	}, {
 		"should correctly handle netmask",
-		[]interface{}{"127.0.0.0/31"},
+		[]any{"127.0.0.0/31"},
 		&http.Request{RemoteAddr: "127.0.0.2:1234"},
 		false,
 	}, {
 		"should correctly handle netmask",
-		[]interface{}{"127.0.0.0/30"},
+		[]any{"127.0.0.0/30"},
 		&http.Request{RemoteAddr: "127.0.0.2:1234"},
 		true,
 	}, {
 		"should consider multiple masks",
-		[]interface{}{"127.0.0.1", "8.8.8.8/24"},
+		[]any{"127.0.0.1", "8.8.8.8/24"},
 		&http.Request{RemoteAddr: "8.8.8.127:1234"},
 		true,
 	}, {
 		"if available, should not use X-Forwarded-For for matching,match",
-		[]interface{}{"127.0.0.1"},
+		[]any{"127.0.0.1"},
 		&http.Request{RemoteAddr: "127.0.0.1:1234", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8"}}},
 		true,
 	}, {
 		"if available, should not use X-Forwarded-For for matching, no match",
-		[]interface{}{"8.8.8.8"},
+		[]any{"8.8.8.8"},
 		&http.Request{RemoteAddr: "127.0.0.1:1234", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8"}}},
 		false,
 	}, {
 		"should work for IPv6",
-		[]interface{}{"C0:FF::EE"},
+		[]any{"C0:FF::EE"},
 		&http.Request{RemoteAddr: "[C0:FF::EE]:1234"},
 		true,
 	}, {
 		"should work for IPv6 with mask - pass",
-		[]interface{}{"C0:FF::EE/127"},
+		[]any{"C0:FF::EE/127"},
 		&http.Request{RemoteAddr: "[C0:FF::EF]:1234"},
 		true,
 	}, {
 		"should work for IPv6 with mask - reject",
-		[]interface{}{"C0:FF::EE/127"},
+		[]any{"C0:FF::EE/127"},
 		&http.Request{RemoteAddr: "[C0:FF::EC]:1234"},
 		false,
 	}} {
@@ -329,7 +329,7 @@ func generateIPCidr() string {
 
 func generateIPCidrStrings(n int) []string {
 	a := make([]string, 0)
-	for i := 0; i < n; i++ {
+	for range n {
 		a = append(a, generateIPCidr())
 	}
 	return a
@@ -383,8 +383,8 @@ func BenchmarkSourceFromLast100k(b *testing.B) {
 	benchSource(b, 100_000, NewFromLast())
 }
 
-func stringsToArgs(a []string) []interface{} {
-	res := make([]interface{}, 0, len(a))
+func stringsToArgs(a []string) []any {
+	res := make([]any, 0, len(a))
 	for _, s := range a {
 		var e any = s
 		res = append(res, e)

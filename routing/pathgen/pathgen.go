@@ -97,7 +97,7 @@ func (pg *PathGenerator) char() byte {
 func (pg *PathGenerator) Str(min, max int) string {
 	len := pg.Between(min, max)
 	s := make([]byte, len)
-	for i := 0; i < len; i++ {
+	for i := range len {
 		s[i] = pg.char()
 	}
 
@@ -107,7 +107,7 @@ func (pg *PathGenerator) Str(min, max int) string {
 func (pg *PathGenerator) Strs(min, max, minLength, maxLength int) []string {
 	len := pg.Between(min, max)
 	s := make([]string, len)
-	for i := 0; i < len; i++ {
+	for i := range len {
 		s[i] = pg.Str(minLength, maxLength)
 	}
 
@@ -124,7 +124,7 @@ func (pg *PathGenerator) Name() string {
 func (pg *PathGenerator) Names() []string {
 	len := pg.Between(pg.options.MinNamesInPath, pg.options.MaxNamesInPath)
 	names := make([]string, len)
-	for i := 0; i < len; i++ {
+	for i := range len {
 		names[i] = pg.Name()
 	}
 

@@ -9,7 +9,7 @@ import (
 
 func TestHeaderToQueryFilter_Request(t *testing.T) {
 	spec := NewHeaderToQuery()
-	f, err := spec.CreateFilter([]interface{}{"X-Foo-Header", "foo-query-param"})
+	f, err := spec.CreateFilter([]any{"X-Foo-Header", "foo-query-param"})
 	if err != nil {
 		t.Error(err)
 	}

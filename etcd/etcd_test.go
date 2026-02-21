@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,10 +17,8 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	for _, arg := range os.Args {
-		if arg == "-test.short=true" {
-			return
-		}
+	if slices.Contains(os.Args, "-test.short=true") {
+		return
 	}
 
 	err := etcdtest.StartProjectRoot("..")
@@ -56,7 +55,7 @@ func checkInitial(d []*eskip.Route) bool {
 		return false
 	}
 
-	checkFilter := func(f *eskip.Filter, name string, args ...interface{}) bool {
+	checkFilter := func(f *eskip.Filter, name string, args ...any) bool {
 		if f.Name != name {
 			return false
 		}
@@ -100,13 +99,7 @@ func checkBackend(d []*eskip.Route, routeId, backend string) bool {
 }
 
 func checkDeleted(ids []string, routeId string) bool {
-	for _, id := range ids {
-		if id == routeId {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(ids, routeId)
 }
 
 func TestEndpointErrorsString(t *testing.T) {

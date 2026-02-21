@@ -27,13 +27,13 @@ func TestPreProcessorBundleExtraction(t *testing.T) {
 				{
 					Id: "route1",
 					Filters: []*eskip.Filter{
-						{Name: "opaAuthorizeRequest", Args: []interface{}{"bundle1"}},
+						{Name: "opaAuthorizeRequest", Args: []any{"bundle1"}},
 					},
 				},
 				{
 					Id: "route2",
 					Filters: []*eskip.Filter{
-						{Name: "opaServeResponse", Args: []interface{}{"bundle2"}},
+						{Name: "opaServeResponse", Args: []any{"bundle2"}},
 					},
 				},
 			},
@@ -45,13 +45,13 @@ func TestPreProcessorBundleExtraction(t *testing.T) {
 				{
 					Id: "route1",
 					Filters: []*eskip.Filter{
-						{Name: "opaAuthorizeRequest", Args: []interface{}{"bundle1"}},
+						{Name: "opaAuthorizeRequest", Args: []any{"bundle1"}},
 					},
 				},
 				{
 					Id: "route2",
 					Filters: []*eskip.Filter{
-						{Name: "opaAuthorizeRequest", Args: []interface{}{"bundle1"}},
+						{Name: "opaAuthorizeRequest", Args: []any{"bundle1"}},
 					},
 				},
 			},
@@ -63,9 +63,9 @@ func TestPreProcessorBundleExtraction(t *testing.T) {
 				{
 					Id: "route1",
 					Filters: []*eskip.Filter{
-						{Name: "requestHeader", Args: []interface{}{"X-Test", "value"}},
-						{Name: "opaAuthorizeRequest", Args: []interface{}{"bundle1"}},
-						{Name: "responseHeader", Args: []interface{}{"X-Response", "value"}},
+						{Name: "requestHeader", Args: []any{"X-Test", "value"}},
+						{Name: "opaAuthorizeRequest", Args: []any{"bundle1"}},
+						{Name: "responseHeader", Args: []any{"X-Response", "value"}},
 					},
 				},
 			},
@@ -77,7 +77,7 @@ func TestPreProcessorBundleExtraction(t *testing.T) {
 				{
 					Id: "route1",
 					Filters: []*eskip.Filter{
-						{Name: "requestHeader", Args: []interface{}{"X-Test", "value"}},
+						{Name: "requestHeader", Args: []any{"X-Test", "value"}},
 					},
 				},
 			},
@@ -89,7 +89,7 @@ func TestPreProcessorBundleExtraction(t *testing.T) {
 				{
 					Id: "route1",
 					Filters: []*eskip.Filter{
-						{Name: "opaAuthorizeRequest", Args: []interface{}{}},
+						{Name: "opaAuthorizeRequest", Args: []any{}},
 					},
 				},
 			},
@@ -117,8 +117,8 @@ func TestPreprocessorRoutesUnchanged(t *testing.T) {
 		{
 			Id: "test-route",
 			Filters: []*eskip.Filter{
-				{Name: "requestHeader", Args: []interface{}{"X-Test", "value"}},
-				{Name: "opaAuthorizeRequest", Args: []interface{}{"test-bundle"}},
+				{Name: "requestHeader", Args: []any{"X-Test", "value"}},
+				{Name: "opaAuthorizeRequest", Args: []any{"test-bundle"}},
 			},
 		},
 	}

@@ -3,6 +3,7 @@ package routing
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
 	"sync"
 	"time"
@@ -151,9 +152,7 @@ func mergeDefs(defsByClient map[DataClient]routeDefs) mergedDefs {
 	mergeByID := make(routeDefs)
 	for c, defs := range defsByClient {
 		clients[c] = struct{}{}
-		for id, def := range defs {
-			mergeByID[id] = def
-		}
+		maps.Copy(mergeByID, defs)
 	}
 
 	all := make([]*eskip.Route, 0, len(mergeByID))
@@ -356,7 +355,7 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 	return c, nil
 }
 
-func parseWeightPredicateArgs(args []interface{}) (int, error) {
+func parseWeightPredicateArgs(args []any) (int, error) {
 	if len(args) != 1 {
 		return 0, errInvalidWeightParams
 	}
@@ -445,7 +444,7 @@ func validTreePredicates(predicateList []*eskip.Predicate) bool {
 func processTreePredicates(r *Route, predicateList []*eskip.Predicate) error {
 	// backwards compatibility
 	if r.Path != "" {
-		predicateList = append(predicateList, &eskip.Predicate{Name: predicates.PathName, Args: []interface{}{r.Path}})
+		predicateList = append(predicateList, &eskip.Predicate{Name: predicates.PathName, Args: []any{r.Path}})
 	}
 
 	if !validTreePredicates(predicateList) {

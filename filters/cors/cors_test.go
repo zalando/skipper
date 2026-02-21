@@ -9,7 +9,7 @@ import (
 
 func TestWithMissingOrigins(t *testing.T) {
 	spec := NewOrigin()
-	f, err := spec.CreateFilter([]interface{}{})
+	f, err := spec.CreateFilter([]any{})
 	if err != nil {
 		t.Error(err)
 	}
@@ -25,7 +25,7 @@ func TestWithMissingOrigins(t *testing.T) {
 
 func TestWithMissingOriginHeader(t *testing.T) {
 	spec := NewOrigin()
-	f, err := spec.CreateFilter([]interface{}{"https://www.example.org"})
+	f, err := spec.CreateFilter([]any{"https://www.example.org"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -46,7 +46,7 @@ func TestWithMissingOriginHeader(t *testing.T) {
 
 func TestWithOriginHeader(t *testing.T) {
 	spec := NewOrigin()
-	f, err := spec.CreateFilter([]interface{}{"https://www.example.org"})
+	f, err := spec.CreateFilter([]any{"https://www.example.org"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -69,7 +69,7 @@ func TestWithOriginHeader(t *testing.T) {
 
 func TestSingleHeader(t *testing.T) {
 	spec := NewOrigin()
-	f, err := spec.CreateFilter([]interface{}{"https://www.example.org"})
+	f, err := spec.CreateFilter([]any{"https://www.example.org"})
 	if err != nil {
 		t.Error(err)
 	}

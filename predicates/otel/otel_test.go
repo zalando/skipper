@@ -50,7 +50,7 @@ func TestOTelBaggage(t *testing.T) {
 
 	for _, tt := range []struct {
 		name   string
-		args   []interface{}
+		args   []any
 		member []baggage.Member
 		want   bool
 		err    error
@@ -61,12 +61,12 @@ func TestOTelBaggage(t *testing.T) {
 		},
 		{
 			name: "test faulty args",
-			args: []interface{}{5},
+			args: []any{5},
 			err:  predicates.ErrInvalidPredicateParameters,
 		},
 		{
 			name: "test no match member without property",
-			args: []interface{}{"no-match"},
+			args: []any{"no-match"},
 			member: []baggage.Member{
 				member,
 			},
@@ -74,7 +74,7 @@ func TestOTelBaggage(t *testing.T) {
 		},
 		{
 			name: "test no match member with key property",
-			args: []interface{}{"no-match"},
+			args: []any{"no-match"},
 			member: []baggage.Member{
 				memberWithKeyProperty,
 			},
@@ -82,7 +82,7 @@ func TestOTelBaggage(t *testing.T) {
 		},
 		{
 			name: "test no match member with key-val property",
-			args: []interface{}{"no-match"},
+			args: []any{"no-match"},
 			member: []baggage.Member{
 				memberWithKeyValProperty,
 			},
@@ -90,7 +90,7 @@ func TestOTelBaggage(t *testing.T) {
 		},
 		{
 			name: "test no match member with multiple properties",
-			args: []interface{}{"no-match"},
+			args: []any{"no-match"},
 			member: []baggage.Member{
 				noMatchMemberWithProperties,
 			},
@@ -98,7 +98,7 @@ func TestOTelBaggage(t *testing.T) {
 		},
 		{
 			name: "test no match member with multiple matching properties",
-			args: []interface{}{"no-match"},
+			args: []any{"no-match"},
 			member: []baggage.Member{
 				noMatchMemberWithMatchingProperties,
 			},
@@ -106,7 +106,7 @@ func TestOTelBaggage(t *testing.T) {
 		},
 		{
 			name: "test match member without property",
-			args: []interface{}{"exists"},
+			args: []any{"exists"},
 			member: []baggage.Member{
 				member,
 			},
@@ -114,7 +114,7 @@ func TestOTelBaggage(t *testing.T) {
 		},
 		{
 			name: "test match member with key property",
-			args: []interface{}{"exists"},
+			args: []any{"exists"},
 			member: []baggage.Member{
 				memberWithKeyProperty,
 			},
@@ -122,7 +122,7 @@ func TestOTelBaggage(t *testing.T) {
 		},
 		{
 			name: "test match member with key-val property",
-			args: []interface{}{"exists"},
+			args: []any{"exists"},
 			member: []baggage.Member{
 				memberWithKeyValProperty,
 			},

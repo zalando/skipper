@@ -750,7 +750,7 @@ func findSpanByRouteID(tracer *tracingtest.MockTracer, routeID string) (*tracing
 	return nil, false
 }
 
-func verifyTag(t *testing.T, span *tracingtest.MockSpan, name string, expected interface{}) {
+func verifyTag(t *testing.T, span *tracingtest.MockSpan, name string, expected any) {
 	t.Helper()
 	if got := span.Tag(name); got != expected {
 		t.Errorf("unexpected '%s' tag value: '%v' != '%v'", name, got, expected)

@@ -24,7 +24,7 @@ func (s *loopbackIfStatusSpec) Name() string {
 	return filters.LoopbackIfStatus
 }
 
-func (s *loopbackIfStatusSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *loopbackIfStatusSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) < 2 || len(args) > 3 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

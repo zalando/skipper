@@ -36,8 +36,8 @@ func (m *mapFlags) Set(value string) error {
 
 	m.values = make(map[string]string)
 
-	vs := strings.Split(value, ",")
-	for _, vi := range vs {
+	vs := strings.SplitSeq(value, ",")
+	for vi := range vs {
 		k, v, found := strings.Cut(vi, "=")
 		if !found {
 			return fmt.Errorf(formatErrorString, vi)
@@ -56,7 +56,7 @@ func (m *mapFlags) Set(value string) error {
 	return nil
 }
 
-func (m *mapFlags) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (m *mapFlags) UnmarshalYAML(unmarshal func(any) error) error {
 	var values = make(map[string]string)
 	if err := unmarshal(&values); err != nil {
 		return err

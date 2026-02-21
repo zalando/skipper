@@ -52,7 +52,7 @@ const (
 // RatelimitType defines the type of  the used ratelimit
 type RatelimitType int
 
-func (rt *RatelimitType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (rt *RatelimitType) UnmarshalYAML(unmarshal func(any) error) error {
 	var value string
 	if err := unmarshal(&value); err != nil {
 		return err

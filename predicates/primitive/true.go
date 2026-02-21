@@ -24,7 +24,7 @@ func (*trueSpec) Name() string {
 }
 
 // Create a predicate instance that always evaluates to true
-func (*trueSpec) Create(args []interface{}) (routing.Predicate, error) {
+func (*trueSpec) Create(args []any) (routing.Predicate, error) {
 	return &truePredicate{}, nil
 }
 

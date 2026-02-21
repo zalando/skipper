@@ -27,7 +27,7 @@ func New() routing.PredicateSpec { return &spec{} }
 
 func (s *spec) Name() string { return predicates.TeeName }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []any) (routing.Predicate, error) {
 	if len(args) != 1 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}

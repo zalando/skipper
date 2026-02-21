@@ -728,7 +728,7 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 				}),
 			)
 
-			config := []byte(fmt.Sprintf(`{
+			config := fmt.Appendf(nil, `{
 				"services": {
 					"test": {
 						"url": %q
@@ -769,7 +769,7 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 						  }
 					}
 			}
-			}`, opaControlPlane.URL(), ti.discoveryPath, s3Server.URL))
+			}`, opaControlPlane.URL(), ti.discoveryPath, s3Server.URL)
 
 			fr := make(filters.Registry)
 
@@ -836,10 +836,10 @@ func TestCreateFilterArguments(t *testing.T) {
 
 	ftSpec := NewOpaAuthorizeRequestSpec(opaRegistry)
 
-	_, err = ftSpec.CreateFilter([]interface{}{})
+	_, err = ftSpec.CreateFilter([]any{})
 	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
 
-	_, err = ftSpec.CreateFilter([]interface{}{"a bundle", "extra: value", "superfluous argument"})
+	_, err = ftSpec.CreateFilter([]any{"a bundle", "extra: value", "superfluous argument"})
 	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
 }
 
@@ -1027,7 +1027,7 @@ func isHeadersAbsent(t *testing.T, unwantedHeaders http.Header, headers http.Hea
 func assertDecisionLogJSON(t *testing.T, body []byte) {
 	t.Helper()
 
-	var decisionLog map[string]interface{}
+	var decisionLog map[string]any
 	err := json.Unmarshal(body, &decisionLog)
 	assert.NoError(t, err, "Expected valid JSON in decision log")
 

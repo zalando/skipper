@@ -761,7 +761,7 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 		return fmt.Errorf("invalid arguments: %s", c.Flags.Args())
 	}
 
-	configKeys := make(map[string]interface{})
+	configKeys := make(map[string]any)
 	if c.ConfigFile != "" {
 		yamlFile, err := os.ReadFile(c.ConfigFile)
 		if err != nil {
@@ -1265,8 +1265,8 @@ func (c *Config) parseHistogramBuckets(bucketString string, defaultBuckets []flo
 	}
 
 	var result []float64
-	thresholds := strings.Split(bucketString, ",")
-	for _, v := range thresholds {
+	thresholds := strings.SplitSeq(bucketString, ",")
+	for v := range thresholds {
 		bucket, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse histogram-metric-buckets: %w", err)
@@ -1319,7 +1319,7 @@ func (c *Config) parseEnv() {
 	}
 }
 
-func (c *Config) checkDeprecated(configKeys map[string]interface{}, options ...string) {
+func (c *Config) checkDeprecated(configKeys map[string]any, options ...string) {
 	flagKeys := make(map[string]bool)
 	c.Flags.Visit(func(f *flag.Flag) { flagKeys[f.Name] = true })
 

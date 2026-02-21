@@ -54,7 +54,7 @@ func TestMetricsUncompressed(t *testing.T) {
 
 	const N = 10
 
-	for i := 0; i < N; i++ {
+	for range N {
 		rsp, body, err := client.GetBody(p.URL + "/test")
 		require.NoError(t, err)
 

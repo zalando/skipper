@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 
@@ -39,9 +40,7 @@ func (tt *teeTie) Close() error { return nil }
 // Returns the cloned request and the tee body to be used on the main request.
 func cloneRequestForSplit(u *url.URL, req *http.Request) (*http.Request, io.ReadCloser, error) {
 	h := make(http.Header)
-	for k, v := range req.Header {
-		h[k] = v
-	}
+	maps.Copy(h, req.Header)
 
 	var teeBody io.ReadCloser
 	mainBody := req.Body

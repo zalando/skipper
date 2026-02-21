@@ -52,10 +52,7 @@ func newMatcher(
 	mbh MaxBufferHandling,
 ) *matcher {
 
-	rsize := defaultReadBufferSize
-	if maxBufferSize < rsize {
-		rsize = maxBufferSize
-	}
+	rsize := min(maxBufferSize, defaultReadBufferSize)
 
 	return &matcher{
 		ctx:               ctx,
@@ -72,7 +69,7 @@ func newMatcher(
 
 func (m *matcher) readNTimes(times int) (bool, error) {
 	var consumedInput bool
-	for i := 0; i < times; i++ {
+	for range times {
 		n, err := m.input.Read(m.readBuffer)
 		_, err2 := m.pending.Write(m.readBuffer[:n])
 

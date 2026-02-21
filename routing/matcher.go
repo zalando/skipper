@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -18,7 +19,7 @@ type leafRequestMatcher struct {
 	exactPath string
 }
 
-func (m *leafRequestMatcher) Match(value interface{}) (bool, interface{}) {
+func (m *leafRequestMatcher) Match(value any) (bool, any) {
 	v, ok := value.(*pathMatcher)
 	if !ok {
 		return false, nil
@@ -144,8 +145,8 @@ func extractWildcardParamNames(r *Route) []string {
 	path = httppath.Clean(path)
 
 	var wildcards []string
-	pathTokens := strings.Split(path, "/")
-	for _, token := range pathTokens {
+	pathTokens := strings.SplitSeq(path, "/")
+	for token := range pathTokens {
 		if len(token) > 1 && (token[0] == ':' || token[0] == '*') {
 			//prepend
 			wildcards = append([]string{token[1:]}, wildcards...)
@@ -369,10 +370,7 @@ func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (ma
 		params = append([]string{""}, params...)
 	}
 
-	l := len(params)
-	if l > len(lm.wildcardParamNames) {
-		l = len(lm.wildcardParamNames)
-	}
+	l := min(len(params), len(lm.wildcardParamNames))
 
 	paramsMap := make(map[string]string)
 	for i := 0; i < l; i += 1 {
@@ -403,13 +401,7 @@ func matchHeader(h http.Header, key string, check func(string) bool) bool {
 		return false
 	}
 
-	for _, val := range vals {
-		if check(val) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(vals, check)
 }
 
 // matches a set of request headers to the fix and regexp header conditions

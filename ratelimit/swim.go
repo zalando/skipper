@@ -15,9 +15,9 @@ import (
 // ratelimit.ClusterClientRatelimit.
 type Swarmer interface {
 	// ShareValue is used to share the local information with its peers.
-	ShareValue(string, interface{}) error
+	ShareValue(string, any) error
 	// Values is used to get global information about current rates.
-	Values(string) map[string]interface{}
+	Values(string) map[string]any
 }
 
 // clusterLimitSwim stores all data required for the cluster ratelimit.
@@ -112,7 +112,7 @@ func (c *clusterLimitSwim) Allow(ctx context.Context, clearText string) bool {
 	return result
 }
 
-func (c *clusterLimitSwim) calcTotalRequestRate(now int64, swarmValues map[string]interface{}) float64 {
+func (c *clusterLimitSwim) calcTotalRequestRate(now int64, swarmValues map[string]any) float64 {
 	var requestRate float64
 	maxNodeHits := math.Max(1.0, float64(c.maxHits)/(float64(len(swarmValues))))
 

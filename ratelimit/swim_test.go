@@ -17,7 +17,7 @@ var fakeRand *rand.Rand = rand.New(rand.NewSource(23))
 func newFakeSwarm(nodeName string, leaveTimeout time.Duration) (*swarm.Swarm, error) {
 	var sw *swarm.Swarm
 	var err error
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// create port >= 1025 and < 40000
 		port := uint16((fakeRand.Int() % (40000 - 1025)) + 1025)
 		sw, err = swarm.NewSwarm(&swarm.Options{FakeSwarm: true, FakeSwarmLocalNode: fmt.Sprintf("%s-%d", nodeName, port), LeaveTimeout: leaveTimeout, MaxMessageBuffer: 1024, SwarmPort: port})
@@ -156,12 +156,12 @@ func Test_calcTotalRequestRate_ManyHitsSmallTimeWindow(t *testing.T) {
 
 	for _, ti := range []struct {
 		name        string
-		swarmValues map[string]interface{}
+		swarmValues map[string]any
 		epsilon     float64
 		expected    float64
 	}{{
 		name: "800ms both to reach 50",
-		swarmValues: map[string]interface{}{
+		swarmValues: map[string]any{
 			"n1": now - int64(800*time.Millisecond),
 			"n2": now - int64(800*time.Millisecond),
 		},
@@ -171,7 +171,7 @@ func Test_calcTotalRequestRate_ManyHitsSmallTimeWindow(t *testing.T) {
 		epsilon:  0.1,
 	}, {
 		name: "800ms one, other 200ms to reach 50",
-		swarmValues: map[string]interface{}{
+		swarmValues: map[string]any{
 			"n1": now - int64(800*time.Millisecond),
 			"n2": now - int64(200*time.Millisecond),
 		},
@@ -181,7 +181,7 @@ func Test_calcTotalRequestRate_ManyHitsSmallTimeWindow(t *testing.T) {
 		epsilon:  0.1,
 	}, {
 		name: "800ms one, other 3200ms to reach 50",
-		swarmValues: map[string]interface{}{
+		swarmValues: map[string]any{
 			"n1": now - int64(800*time.Millisecond),
 			"n2": now - int64(3200*time.Millisecond),
 		},
@@ -191,7 +191,7 @@ func Test_calcTotalRequestRate_ManyHitsSmallTimeWindow(t *testing.T) {
 		epsilon:  0.1,
 	}, {
 		name: "3200ms one, other 800ms to reach 50",
-		swarmValues: map[string]interface{}{
+		swarmValues: map[string]any{
 			"n1": now - int64(3200*time.Millisecond),
 			"n2": now - int64(800*time.Millisecond),
 		},
@@ -235,7 +235,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 	now := time.Now().UTC().UnixNano()
 	for _, ti := range []struct {
 		name        string
-		swarmValues map[string]interface{}
+		swarmValues map[string]any
 		epsilon     float64
 		expected    float64
 	}{{
@@ -244,7 +244,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 		epsilon:  0.1,
 	}, {
 		name: "both have swarmValues, one has a hit, the other no hit",
-		swarmValues: map[string]interface{}{
+		swarmValues: map[string]any{
 			"n1": now - int64(59*time.Minute),
 			"n2": int64(0),
 		},
@@ -254,7 +254,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 		epsilon:  0.1,
 	}, {
 		name: "both have swarmValues, both have too many hits",
-		swarmValues: map[string]interface{}{
+		swarmValues: map[string]any{
 			"n1": now - int64(59*time.Minute),
 			"n2": now - int64(59*time.Minute),
 		},
@@ -264,7 +264,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 		epsilon:  0.1,
 	}, {
 		name: "both have swarmValues, one has a too many hits",
-		swarmValues: map[string]interface{}{
+		swarmValues: map[string]any{
 			"n1": now - int64(20*time.Minute),
 			"n2": int64(0),
 		},
@@ -274,7 +274,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 		epsilon:  0.1,
 	}, {
 		name: "one has swarmValue the other not, one has a too many hits",
-		swarmValues: map[string]interface{}{
+		swarmValues: map[string]any{
 			"n1": now - int64(20*time.Minute),
 		},
 		// 10 req in 20min --> 30req/h shared state
@@ -283,7 +283,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 		epsilon:  0.1,
 	}, {
 		name: "one has swarmValue the other not, one has an ok rate",
-		swarmValues: map[string]interface{}{
+		swarmValues: map[string]any{
 			"n1": now - int64(61*time.Minute),
 		},
 		// 10 req in 61min --> 9.83req/h shared state
@@ -292,7 +292,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 		epsilon:  0.1,
 	}, {
 		name: "both have swarmValues, both have an ok rate",
-		swarmValues: map[string]interface{}{
+		swarmValues: map[string]any{
 			"n1": now - int64(61*time.Minute),
 			"n2": now - int64(61*time.Minute),
 		},
@@ -302,7 +302,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 		epsilon:  0.1,
 	}, {
 		name: "both have swarmValues, one has an ok rate the other not, together ok",
-		swarmValues: map[string]interface{}{
+		swarmValues: map[string]any{
 			"n1": now - int64(65*time.Minute),
 			"n2": now - int64(59*time.Minute),
 		},
@@ -310,7 +310,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 		epsilon:  0.1,
 	}, {
 		name: "both have swarmValues, one has an ok rate the other not, together they are not ok",
-		swarmValues: map[string]interface{}{
+		swarmValues: map[string]any{
 			"n1": now - int64(65*time.Minute),
 			"n2": now - int64(40*time.Minute),
 		},

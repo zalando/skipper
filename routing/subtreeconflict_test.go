@@ -3,6 +3,7 @@ package routing_test
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"testing"
 	"time"
 
@@ -184,11 +185,9 @@ func TestSubtreeConflict(t *testing.T) {
 				t.Run(def.name, func(t *testing.T) {
 					defer log.Reset()
 
-					for _, skip := range req.skipRouting {
-						if skip == def.name {
-							t.Skip()
-							return
-						}
+					if slices.Contains(req.skipRouting, def.name) {
+						t.Skip()
+						return
 					}
 
 					dc, err := testdataclient.NewDoc(def.routes)

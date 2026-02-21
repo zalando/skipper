@@ -257,7 +257,7 @@ func (c *clusterClient) createRequest(uri string, body io.Reader) (*http.Request
 	return req, nil
 }
 
-func (c *clusterClient) getJSON(uri string, a interface{}) error {
+func (c *clusterClient) getJSON(uri string, a any) error {
 	log.Tracef("making request to: %s", uri)
 
 	req, err := c.createRequest(uri, nil)
@@ -342,7 +342,7 @@ func (c *clusterClient) filterIngressesV1ByClass(items []*definitions.IngressV1I
 	return validIngs
 }
 
-func sortByMetadata(slice interface{}, getMetadata func(int) *definitions.Metadata) {
+func sortByMetadata(slice any, getMetadata func(int) *definitions.Metadata) {
 	sort.Slice(slice, func(i, j int) bool {
 		mI := getMetadata(i)
 		mJ := getMetadata(j)

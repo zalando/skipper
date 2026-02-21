@@ -240,7 +240,7 @@ func (s *tokeninfoSpec) Name() string {
 // access only to tokens, that have scopes read-x and write-y:
 //
 //	s.CreateFilter("read-x", "write-y")
-func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *tokeninfoSpec) CreateFilter(args []any) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
 		return nil, err
@@ -302,7 +302,7 @@ func (f *tokeninfoFilter) String() string {
 	return AuthUnknown
 }
 
-func (f *tokeninfoFilter) validateAnyScopes(h map[string]interface{}) bool {
+func (f *tokeninfoFilter) validateAnyScopes(h map[string]any) bool {
 	if len(f.scopes) == 0 {
 		return true
 	}
@@ -311,7 +311,7 @@ func (f *tokeninfoFilter) validateAnyScopes(h map[string]interface{}) bool {
 	if !ok {
 		return false
 	}
-	v, ok := vI.([]interface{})
+	v, ok := vI.([]any)
 	if !ok {
 		return false
 	}
@@ -324,7 +324,7 @@ func (f *tokeninfoFilter) validateAnyScopes(h map[string]interface{}) bool {
 	return false
 }
 
-func (f *tokeninfoFilter) validateAllScopes(h map[string]interface{}) bool {
+func (f *tokeninfoFilter) validateAllScopes(h map[string]any) bool {
 	if len(f.scopes) == 0 {
 		return true
 	}
@@ -333,7 +333,7 @@ func (f *tokeninfoFilter) validateAllScopes(h map[string]interface{}) bool {
 	if !ok {
 		return false
 	}
-	v, ok := vI.([]interface{})
+	v, ok := vI.([]any)
 	if !ok {
 		return false
 	}
@@ -346,7 +346,7 @@ func (f *tokeninfoFilter) validateAllScopes(h map[string]interface{}) bool {
 	return true
 }
 
-func (f *tokeninfoFilter) validateAnyKV(h map[string]interface{}) bool {
+func (f *tokeninfoFilter) validateAnyKV(h map[string]any) bool {
 	for k, v := range f.kv {
 		for _, res := range v {
 			if v2, ok := h[k].(string); ok {
@@ -359,7 +359,7 @@ func (f *tokeninfoFilter) validateAnyKV(h map[string]interface{}) bool {
 	return false
 }
 
-func (f *tokeninfoFilter) validateAllKV(h map[string]interface{}) bool {
+func (f *tokeninfoFilter) validateAllKV(h map[string]any) bool {
 	if len(h) < len(f.kv) {
 		return false
 	}
@@ -374,7 +374,7 @@ func (f *tokeninfoFilter) validateAllKV(h map[string]interface{}) bool {
 	return true
 }
 
-func contains(vals []interface{}, s string) bool {
+func contains(vals []any, s string) bool {
 	for _, v := range vals {
 		if v == s {
 			return true
@@ -387,7 +387,7 @@ func contains(vals []interface{}, s string) bool {
 func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 	r := ctx.Request()
 
-	var authMap map[string]interface{}
+	var authMap map[string]any
 	authMapTemp, ok := ctx.StateBag()[tokeninfoCacheKey]
 	if !ok {
 		token, ok := getToken(r)
@@ -410,7 +410,7 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 	} else {
-		authMap = authMapTemp.(map[string]interface{})
+		authMap = authMapTemp.(map[string]any)
 	}
 
 	uid, _ := authMap[uidKey].(string) // uid can be empty string, but if not we set the who for auditlogging

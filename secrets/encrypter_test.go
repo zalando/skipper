@@ -206,8 +206,7 @@ func TestGetEncrypter(t *testing.T) {
 	}
 
 	for range 10 {
-		wg.Add(1)
-		go func() {
+		wg.Go(func() {
 			enc, err := reg.GetEncrypter(time.Second, fd.Name())
 			if err != nil {
 				t.Errorf("Failed to get encrypter: %v", err)
@@ -234,8 +233,7 @@ func TestGetEncrypter(t *testing.T) {
 			if s := string(decText); s != clearText {
 				t.Errorf("Failed to decrypt cipher text: %s != %s", s, clearText)
 			}
-			wg.Done()
-		}()
+		})
 	}
 	wg.Wait()
 }

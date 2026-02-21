@@ -32,7 +32,7 @@ func TestStatic(t *testing.T) {
 
 	for _, ti := range []struct {
 		msg             string
-		args            []interface{}
+		args            []any
 		content         string
 		removeFile      bool
 		path            string
@@ -46,39 +46,39 @@ func TestStatic(t *testing.T) {
 		expectedStatus: http.StatusNotFound,
 	}, {
 		msg:            "not string web root",
-		args:           []interface{}{3.14, "/tmp"},
+		args:           []any{3.14, "/tmp"},
 		content:        testData,
 		path:           "/static/static-test",
 		expectedStatus: http.StatusNotFound,
 	}, {
 		msg:            "not string fs root",
-		args:           []interface{}{"/static", 3.14},
+		args:           []any{"/static", 3.14},
 		content:        testData,
 		path:           "/static/static-test",
 		expectedStatus: http.StatusNotFound,
 	}, {
 		msg:            "web root cannot be clipped",
-		args:           []interface{}{"/static", "/tmp"},
+		args:           []any{"/static", "/tmp"},
 		content:        testData,
 		path:           "/a",
 		expectedStatus: http.StatusNotFound,
 	}, {
 		msg:            "not found",
-		args:           []interface{}{"/static", "/tmp"},
+		args:           []any{"/static", "/tmp"},
 		content:        testData,
 		removeFile:     true,
 		path:           "/static/static-test",
 		expectedStatus: http.StatusNotFound,
 	}, {
 		msg:             "found",
-		args:            []interface{}{"/static", "/tmp"},
+		args:            []any{"/static", "/tmp"},
 		content:         testData,
 		path:            "/static/static-test",
 		expectedStatus:  http.StatusOK,
 		expectedContent: testData,
 	}, {
 		msg:             "found, empty",
-		args:            []interface{}{"/static", "/tmp"},
+		args:            []any{"/static", "/tmp"},
 		content:         "",
 		path:            "/static/static-test",
 		expectedStatus:  http.StatusOK,
@@ -143,11 +143,11 @@ func TestSameFileMultipleTimes(t *testing.T) {
 	fr := make(filters.Registry)
 	fr.Register(NewStatic())
 	pr := proxytest.New(fr, &eskip.Route{
-		Filters: []*eskip.Filter{{Name: filters.StaticName, Args: []interface{}{"/static", "/tmp"}}},
+		Filters: []*eskip.Filter{{Name: filters.StaticName, Args: []any{"/static", "/tmp"}}},
 		Shunt:   true})
 	defer pr.Close()
 
-	for i := 0; i < n; i++ {
+	for range n {
 		rsp, err := http.Get(pr.URL + "/static/static-test")
 		if err != nil {
 			t.Error(err)
@@ -173,7 +173,7 @@ func TestMultipleRanges(t *testing.T) {
 	fr := make(filters.Registry)
 	fr.Register(NewStatic())
 	pr := proxytest.New(fr, &eskip.Route{
-		Filters: []*eskip.Filter{{Name: filters.StaticName, Args: []interface{}{"/static", "/tmp"}}},
+		Filters: []*eskip.Filter{{Name: filters.StaticName, Args: []any{"/static", "/tmp"}}},
 		Shunt:   true})
 	defer pr.Close()
 

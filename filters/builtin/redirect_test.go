@@ -125,11 +125,11 @@ func TestRedirect(t *testing.T) {
 			filters.RedirectToName,
 		}} {
 			t.Run(fmt.Sprintf("%s/%s", ti.msg, tii.name), func(t *testing.T) {
-				var args []interface{}
+				var args []any
 				if ti.skipLocationArg {
-					args = []interface{}{float64(ti.code)}
+					args = []any{float64(ti.code)}
 				} else {
-					args = []interface{}{float64(ti.code), ti.filterLocation}
+					args = []any{float64(ti.code), ti.filterLocation}
 				}
 				dc := testdataclient.New([]*eskip.Route{{
 					Shunt: true,
@@ -217,7 +217,7 @@ func TestRedirectLower(t *testing.T) {
 					Shunt: true,
 					Filters: []*eskip.Filter{{
 						Name: tii.name,
-						Args: []interface{}{float64(ti.code), ti.filterLocation}}}},
+						Args: []any{float64(ti.code), ti.filterLocation}}}},
 				})
 				defer dc.Close()
 

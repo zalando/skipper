@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -146,7 +147,7 @@ func (l *testLog) Count(exp string) int {
 
 func (cors *preserveOriginalSpec) Name() string { return "preserveOriginal" }
 
-func (cors *preserveOriginalSpec) CreateFilter(_ []interface{}) (filters.Filter, error) {
+func (cors *preserveOriginalSpec) CreateFilter(_ []any) (filters.Filter, error) {
 	return &preserveOriginalFilter{}, nil
 }
 
@@ -266,13 +267,7 @@ func (tp *testProxy) close() {
 }
 
 func hasArg(arg string) bool {
-	for _, a := range os.Args {
-		if a == arg {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(os.Args, arg)
 }
 
 func voidCheck(*http.Request) {}
@@ -453,7 +448,7 @@ func TestRetries(t *testing.T) {
 			// To avoid guessing which endpoint round robin picks first,
 			// make two requests and compare response codes ignoring request order
 			var codes []int
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				req, err := http.NewRequest(tt.method, ps.URL, tt.body())
 				require.NoError(t, err)
 
@@ -509,27 +504,27 @@ func TestSetRequestUrlForDynamicBackend(t *testing.T) {
 	for _, ti := range []struct {
 		msg         string
 		expectedUrl *url.URL
-		stateBag    map[string]interface{}
+		stateBag    map[string]any
 	}{{
 		"DynamicBackendURLKey is set",
 		&url.URL{Scheme: "https", Host: "example.com"},
-		map[string]interface{}{filters.DynamicBackendURLKey: "https://example.com"},
+		map[string]any{filters.DynamicBackendURLKey: "https://example.com"},
 	}, {
 		"DynamicBackendURLKey is set with not url",
 		&url.URL{},
-		map[string]interface{}{filters.DynamicBackendURLKey: "some string"},
+		map[string]any{filters.DynamicBackendURLKey: "some string"},
 	}, {
 		"DynamicBackendHostKey is set",
 		&url.URL{Host: "example.com"},
-		map[string]interface{}{filters.DynamicBackendHostKey: "example.com"},
+		map[string]any{filters.DynamicBackendHostKey: "example.com"},
 	}, {
 		"DynamicBackendSchemeKey is set",
 		&url.URL{Scheme: "http"},
-		map[string]interface{}{filters.DynamicBackendSchemeKey: "http"},
+		map[string]any{filters.DynamicBackendSchemeKey: "http"},
 	}, {
 		"All keys are set, DynamicBackendURLKey has priority",
 		&url.URL{Scheme: "https", Host: "priority.com"},
-		map[string]interface{}{
+		map[string]any{
 			filters.DynamicBackendSchemeKey: "http",
 			filters.DynamicBackendHostKey:   "example.com",
 			filters.DynamicBackendURLKey:    "https://priority.com"},
@@ -955,10 +950,10 @@ type shunter struct {
 	resp *http.Response
 }
 
-func (b *shunter) Request(c filters.FilterContext)                       { c.Serve(b.resp) }
-func (*shunter) Response(filters.FilterContext)                          {}
-func (b *shunter) CreateFilter(fc []interface{}) (filters.Filter, error) { return b, nil }
-func (*shunter) Name() string                                            { return "shunter" }
+func (b *shunter) Request(c filters.FilterContext)               { c.Serve(b.resp) }
+func (*shunter) Response(filters.FilterContext)                  {}
+func (b *shunter) CreateFilter(fc []any) (filters.Filter, error) { return b, nil }
+func (*shunter) Name() string                                    { return "shunter" }
 
 func TestBreakFilterChain(t *testing.T) {
 	s := startTestServer([]byte("Hello World!"), 0, func(r *http.Request) {
@@ -1020,8 +1015,8 @@ func TestBreakFilterChain(t *testing.T) {
 
 type nilFilterSpec struct{}
 
-func (*nilFilterSpec) Name() string                                              { return "nilFilter" }
-func (*nilFilterSpec) CreateFilter(config []interface{}) (filters.Filter, error) { return nil, nil }
+func (*nilFilterSpec) Name() string                                      { return "nilFilter" }
+func (*nilFilterSpec) CreateFilter(config []any) (filters.Filter, error) { return nil, nil }
 
 func TestFilterPanic(t *testing.T) {
 	testLog := NewTestLog()
@@ -1082,7 +1077,7 @@ func TestFilterPanicPrintStackRate(t *testing.T) {
 		stacksPrinted = 3 // see Proxy.onPanicSometimes
 	)
 
-	for i := 0; i < panicsCaused; i++ {
+	for range panicsCaused {
 		r := httptest.NewRequest("GET", "/", nil)
 		w := httptest.NewRecorder()
 
