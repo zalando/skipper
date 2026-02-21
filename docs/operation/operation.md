@@ -1555,8 +1555,8 @@ Skipper can be configured to add [`X-Forwarded-*` headers](https://en.wikipedia.
         comma separated list of headers to add to the incoming request before routing
         X-Forwarded-For sets or appends with comma the remote IP of the request to the X-Forwarded-For header value
         X-Forwarded-Host sets X-Forwarded-Host value to the request host
-        X-Forwarded-Port=<port> sets X-Forwarded-Port value
-        X-Forwarded-Proto=<http|https> sets X-Forwarded-Proto value
+        X-Forwarded-Port=<port> sets X-Forwarded-Port value, or set to auto to use the port of the listener
+        X-Forwarded-Proto=<http|https|auto> sets X-Forwarded-Proto value, or set to auto to use http or https depending on the listener tls state
   -forwarded-headers-exclude-cidrs value
         disables addition of forwarded headers for the remote host IPs from the comma separated list of CIDRs
 ```

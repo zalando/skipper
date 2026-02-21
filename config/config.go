@@ -502,8 +502,8 @@ func NewConfig() *Config {
 		"X-Forwarded-Host sets X-Forwarded-Host value to the request host\n"+
 		"X-Forwarded-Method sets X-Forwarded-Method value to the request method\n"+
 		"X-Forwarded-Uri sets X-Forwarded-Uri value to the requestURI\n"+
-		"X-Forwarded-Port=<port> sets X-Forwarded-Port value\n"+
-		"X-Forwarded-Proto=<http|https> sets X-Forwarded-Proto value")
+		"X-Forwarded-Port=<port|auto> sets X-Forwarded-Port value, use 'auto' to detect from the listener address\n"+
+		"X-Forwarded-Proto=<http|https|auto> sets X-Forwarded-Proto value, use 'auto' to detect from TLS state")
 	flag.Var(cfg.ForwardedHeadersExcludeCIDRList, "forwarded-headers-exclude-cidrs", "disables addition of forwarded headers for the remote host IPs from the comma separated list of CIDRs")
 
 	flag.BoolVar(&cfg.NormalizeHost, "normalize-host", false, "converts request host to lowercase and removes port and trailing dot if any")
@@ -1294,6 +1294,8 @@ func (c *Config) parseForwardedHeaders() error {
 			c.ForwardedHeaders.Proto = "http"
 		case header == "X-Forwarded-Proto=https":
 			c.ForwardedHeaders.Proto = "https"
+		case header == "X-Forwarded-Proto=auto":
+			c.ForwardedHeaders.Proto = "auto"
 		default:
 			return fmt.Errorf("invalid forwarded header: %s", header)
 		}

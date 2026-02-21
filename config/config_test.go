@@ -347,6 +347,60 @@ func Test_Validate(t *testing.T) {
 	}
 }
 
+func Test_parseForwardedHeadersAutoDetect(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		headers   []string
+		wantProto string
+		wantPort  string
+		wantErr   bool
+	}{
+		{
+			name:      "X-Forwarded-Proto=auto sets proto to auto",
+			headers:   []string{"X-Forwarded-Proto=auto"},
+			wantProto: "auto",
+		},
+		{
+			name:      "X-Forwarded-Proto=http sets static proto",
+			headers:   []string{"X-Forwarded-Proto=http"},
+			wantProto: "http",
+		},
+		{
+			name:      "X-Forwarded-Proto=https sets static proto",
+			headers:   []string{"X-Forwarded-Proto=https"},
+			wantProto: "https",
+		},
+		{
+			name:     "X-Forwarded-Port=auto sets port to auto",
+			headers:  []string{"X-Forwarded-Port=auto"},
+			wantPort: "auto",
+		},
+		{
+			name:     "X-Forwarded-Port=8080 sets static port",
+			headers:  []string{"X-Forwarded-Port=8080"},
+			wantPort: "8080",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			cfg.ForwardedHeadersList = commaListFlag(tt.headers...)
+			for _, h := range tt.headers {
+				cfg.ForwardedHeadersList.Set(h)
+			}
+			err := validate(cfg)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("config.NewConfig() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if cfg.ForwardedHeaders.Proto != tt.wantProto {
+				t.Errorf("Failed to get wanted Proto, got: %v, want: %v", cfg.ForwardedHeaders.Proto, tt.wantProto)
+			}
+			if cfg.ForwardedHeaders.Port != tt.wantPort {
+				t.Errorf("Failed to get wanted Port, got: %v, want: %v", cfg.ForwardedHeaders.Port, tt.wantPort)
+			}
+		})
+	}
+}
+
 func Test_NewConfigWithArgs(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
