@@ -3,6 +3,7 @@ package proxy
 import (
 	ot "github.com/opentracing/opentracing-go"
 
+	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/tracing"
 )
 
@@ -24,19 +25,30 @@ const (
 	SpanKindTag           = "span.kind"
 
 	ClientRequestCanceled = "canceled"
-	SpanKindClient        = "client"
+	SpanKindClient        = net.SpanKindClient
 	SpanKindServer        = "server"
 
-	EndEvent           = "end"
-	StartEvent         = "start"
+	EndEvent           = net.EndEvent
+	StartEvent         = net.StartEvent
 	StreamHeadersEvent = "stream_Headers"
 	StreamBodyEvent    = "streamBody.byte"
 	StreamBodyError    = "streamBody error"
+
+	ClientTraceDNS            = net.ClientTraceDNS
+	ClientTraceConnect        = net.ClientTraceConnect
+	ClientTraceTLS            = net.ClientTraceTLS
+	ClientTraceGetConn        = net.ClientTraceGetConn
+	ClientTraceGot100Continue = net.ClientTraceGot100Continue
+	ClientTraceWroteHeaders   = net.ClientTraceWroteHeaders
+	ClientTraceWroteRequest   = net.ClientTraceWroteRequest
+	ClientTraceGotFirstByte   = net.ClientTraceGotFirstByte
+	ClientTraceHTTPRoundTrip  = "http_roundtrip"
 )
 
 type proxyTracing struct {
 	tracer                   ot.Tracer
 	initialOperationName     string
+	clientTraceByTag         bool
 	disableFilterSpans       bool
 	logFilterLifecycleEvents bool
 	logStreamEvents          bool
@@ -70,6 +82,7 @@ func newProxyTracing(p *OpenTracingParams) *proxyTracing {
 	return &proxyTracing{
 		tracer:                   p.Tracer,
 		initialOperationName:     p.InitialSpan,
+		clientTraceByTag:         p.ClientTraceByTag,
 		disableFilterSpans:       p.DisableFilterSpans,
 		logFilterLifecycleEvents: p.LogFilterEvents,
 		logStreamEvents:          p.LogStreamEvents,

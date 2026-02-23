@@ -21,6 +21,10 @@ type WebhookOptions struct {
 	Timeout      time.Duration
 	MaxIdleConns int
 	Tracer       opentracing.Tracer
+
+	// OpenTracingClientTraceByTag instead of events use span Tags
+	// to measure client connection pool actions
+	OpenTracingClientTraceByTag bool
 }
 
 type (
@@ -93,7 +97,7 @@ func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) 
 	var ac *authClient
 	var err error
 	if ac, ok = webhookAuthClient[s]; !ok {
-		ac, err = newAuthClient(s, webhookSpanName, ws.options.Timeout, ws.options.MaxIdleConns, ws.options.Tracer)
+		ac, err = newAuthClient(s, webhookSpanName, ws.options.Timeout, ws.options.MaxIdleConns, ws.options.Tracer, ws.options.OpenTracingClientTraceByTag)
 		if err != nil {
 			return nil, filters.ErrInvalidFilterParameters
 		}

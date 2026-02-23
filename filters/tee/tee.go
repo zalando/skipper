@@ -54,6 +54,9 @@ type Options struct {
 	// Tracer is the opentracing tracer to use in the client
 	Tracer opentracing.Tracer
 
+	// OpenTracingClientTraceByTag instead of events use span Tags/Attributes
+	OpenTracingClientTraceByTag bool
+
 	// MaxIdleConns defaults to 100
 	MaxIdleConns int
 

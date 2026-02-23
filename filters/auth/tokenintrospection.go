@@ -39,6 +39,10 @@ type TokenintrospectionOptions struct {
 	Timeout      time.Duration
 	Tracer       opentracing.Tracer
 	MaxIdleConns int
+
+	// OpenTracingClientTraceByTag instead of events use span Tags
+	// to measure client connection pool actions
+	OpenTracingClientTraceByTag bool
 }
 
 type (
@@ -288,7 +292,7 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	var ac *authClient
 	var ok bool
 	if ac, ok = issuerAuthClient[issuerURL]; !ok {
-		ac, err = newAuthClient(cfg.IntrospectionEndpoint, tokenIntrospectionSpanName, s.options.Timeout, s.options.MaxIdleConns, s.options.Tracer)
+		ac, err = newAuthClient(cfg.IntrospectionEndpoint, tokenIntrospectionSpanName, s.options.Timeout, s.options.MaxIdleConns, s.options.Tracer, s.options.OpenTracingClientTraceByTag)
 		if err != nil {
 			return nil, filters.ErrInvalidFilterParameters
 		}

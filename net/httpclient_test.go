@@ -1,9 +1,12 @@
 package net
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -11,6 +14,7 @@ import (
 	"time"
 
 	"github.com/AlexanderYastrebov/noleak"
+	"github.com/google/go-cmp/cmp"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/secrets"
@@ -425,4 +429,77 @@ func TestClientClosesIdleConnections(t *testing.T) {
 		t.Fatalf("unexpected status code: %s", rsp.Status)
 	}
 	rsp.Body.Close()
+}
+
+func TestClientOTSpan(t *testing.T) {
+	tracer := tracingtest.NewTracer()
+	spanName := "foo"
+	componentTagValue := "my-component"
+	opt := Options{
+		Tracer:                  tracer,
+		OpentracingComponentTag: componentTagValue,
+		OpentracingSpanName:     spanName,
+	}
+	requestString := `{"foo": "bar", "int": 5}`
+	responseString := "Everything is fine"
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srvBody, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("Failed to read request body by server: %v", err)
+		}
+		if s := string(srvBody); s != requestString {
+			t.Errorf("Failed to get the expected request body: %q", cmp.Diff(requestString, s))
+		}
+		r.Body.Close()
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(responseString))
+
+	}))
+	defer backend.Close()
+
+	cli := NewClient(opt)
+	if cli == nil {
+		t.Fatal("NewClient returned nil")
+	}
+	defer cli.Close()
+	defer cli.CloseIdleConnections()
+
+	u := "http://" + backend.Listener.Addr().String() + "/"
+
+	body := bytes.NewBufferString(requestString)
+	rsp, err := cli.Post(u, textproto.CanonicalMIMEHeaderKey("application/json"), body)
+	if err != nil {
+		t.Fatalf("Failed to do GET request error = %v", err)
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != 200 {
+		t.Fatalf("Failed to get expected (200) response: %d", rsp.StatusCode)
+	}
+	rspBody, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		t.Fatalf("no body send, but expected: %q, got: %q", responseString, string(rspBody))
+	}
+
+	span := tracer.FindSpan(spanName)
+	if span == nil {
+		t.Fatalf("Failed to find span %q", spanName)
+	}
+	verifyTag(t, span, "http.method", "POST")
+	verifyTagHasNonZeroValue(t, span, "connect")
+}
+
+func verifyTag(t *testing.T, span *tracingtest.MockSpan, name string, expected interface{}) {
+	t.Helper()
+	if got := span.Tag(name); got != expected {
+		t.Errorf("unexpected %q tag value: %q != %q", name, got, expected)
+	}
+}
+
+func verifyTagHasNonZeroValue(t *testing.T, span *tracingtest.MockSpan, name string) {
+	t.Helper()
+	if got := span.Tag(name); got != nil && got != "" {
+		t.Errorf("unexpected %q tag value: %q", name, got)
+	}
 }

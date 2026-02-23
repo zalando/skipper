@@ -35,6 +35,10 @@ type TokeninfoOptions struct {
 	Tracer       opentracing.Tracer
 	Metrics      metrics.Metrics
 
+	// OpenTracingClientTraceByTag instead of events use span Tags
+	// to measure client connection pool actions
+	OpenTracingClientTraceByTag bool
+
 	// CacheSize configures the maximum number of cached tokens.
 	// The cache periodically evicts random items when number of cached tokens exceeds CacheSize.
 	// Zero value disables tokeninfo cache.
@@ -96,7 +100,7 @@ func (o *TokeninfoOptions) getTokeninfoClient() (tokeninfoClient, error) {
 func (o *TokeninfoOptions) newTokeninfoClient() (tokeninfoClient, error) {
 	var c tokeninfoClient
 
-	c, err := newAuthClient(o.URL, tokenInfoSpanName, o.Timeout, o.MaxIdleConns, o.Tracer)
+	c, err := newAuthClient(o.URL, tokenInfoSpanName, o.Timeout, o.MaxIdleConns, o.Tracer, o.OpenTracingClientTraceByTag)
 	if err != nil {
 		return nil, err
 	}

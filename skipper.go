@@ -762,6 +762,13 @@ type Options struct {
 	// times when response headers & payload are streamed to the client
 	OpenTracingLogStreamEvents bool
 
+	// OpenTracingClientTraceByTag is used to propagate measurements by
+	// OT/OTel Tags/attributes instead of span events. Span events
+	// is the default. Some tracing providers have higher costs
+	// for events, others for attributes, so choose based on your
+	// needs and provider.
+	OpenTracingClientTraceByTag bool
+
 	// OpenTracingBackendNameTag enables an additional tracing tag containing a backend name
 	// for a route when it's available (e.g. for RouteGroups)
 	OpenTracingBackendNameTag bool
@@ -1750,29 +1757,33 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	o.CustomFilters = append(o.CustomFilters,
 		// tee()
 		teefilters.WithOptions(teefilters.Options{
-			Tracer:   tracer,
-			NoFollow: false,
+			Tracer:                      tracer,
+			NoFollow:                    false,
+			OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
 		}),
 		// teenf()
 		teefilters.WithOptions(teefilters.Options{
-			NoFollow: true,
-			Tracer:   tracer,
+			NoFollow:                    true,
+			Tracer:                      tracer,
+			OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
 		}),
 		// teeResponse()
 		teefilters.NewTeeResponse(teefilters.Options{
-			Tracer: tracer,
+			Tracer:                      tracer,
+			OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
 		}),
 	)
 
 	if o.OAuthTokeninfoURL != "" {
 		tio := auth.TokeninfoOptions{
-			URL:          o.OAuthTokeninfoURL,
-			Timeout:      o.OAuthTokeninfoTimeout,
-			MaxIdleConns: o.IdleConnectionsPerHost,
-			Tracer:       tracer,
-			Metrics:      mtr,
-			CacheSize:    o.OAuthTokeninfoCacheSize,
-			CacheTTL:     o.OAuthTokeninfoCacheTTL,
+			URL:                         o.OAuthTokeninfoURL,
+			Timeout:                     o.OAuthTokeninfoTimeout,
+			MaxIdleConns:                o.IdleConnectionsPerHost,
+			Tracer:                      tracer,
+			Metrics:                     mtr,
+			CacheSize:                   o.OAuthTokeninfoCacheSize,
+			CacheTTL:                    o.OAuthTokeninfoCacheTTL,
+			OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
 		}
 
 		o.CustomFilters = append(o.CustomFilters,
@@ -1798,19 +1809,22 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	tio := auth.TokenintrospectionOptions{
-		Timeout:      o.OAuthTokenintrospectionTimeout,
-		MaxIdleConns: o.IdleConnectionsPerHost,
-		Tracer:       tracer,
+		Timeout:                     o.OAuthTokenintrospectionTimeout,
+		MaxIdleConns:                o.IdleConnectionsPerHost,
+		Tracer:                      tracer,
+		OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
 	}
 
 	who := auth.WebhookOptions{
-		Timeout:      o.WebhookTimeout,
-		MaxIdleConns: o.IdleConnectionsPerHost,
-		Tracer:       tracer,
+		Timeout:                     o.WebhookTimeout,
+		MaxIdleConns:                o.IdleConnectionsPerHost,
+		Tracer:                      tracer,
+		OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
 	}
 
 	admissionControlFilter := shedder.NewAdmissionControl(shedder.Options{
-		Tracer: tracer,
+		Tracer:                      tracer,
+		OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
 	})
 	admissionControlSpec, ok := admissionControlFilter.(*shedder.AdmissionControlSpec)
 	if !ok {
@@ -1848,13 +1862,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		oidcClientId, _ := os.LookupEnv("OIDC_CLIENT_ID")
 		oidcClientSecret, _ := os.LookupEnv("OIDC_CLIENT_SECRET")
 		opts := auth.OidcOptions{
-			CookieRemoveSubdomains: &o.OIDCCookieRemoveSubdomains,
-			CookieValidity:         o.OIDCCookieValidity,
-			Timeout:                o.OIDCDistributedClaimsTimeout,
-			MaxIdleConns:           o.IdleConnectionsPerHost,
-			Tracer:                 tracer,
-			OidcClientId:           oidcClientId,
-			OidcClientSecret:       oidcClientSecret,
+			CookieRemoveSubdomains:      &o.OIDCCookieRemoveSubdomains,
+			CookieValidity:              o.OIDCCookieValidity,
+			Timeout:                     o.OIDCDistributedClaimsTimeout,
+			MaxIdleConns:                o.IdleConnectionsPerHost,
+			Tracer:                      tracer,
+			OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
+			OidcClientId:                oidcClientId,
+			OidcClientSecret:            oidcClientSecret,
 		}
 
 		o.CustomFilters = append(o.CustomFilters,
@@ -2071,6 +2086,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			oauthConfig.SecretsProvider = grantSecrets
 			oauthConfig.Tracer = tracer
+			oauthConfig.OpenTracingClientTraceByTag = o.OpenTracingClientTraceByTag
 
 			if err := oauthConfig.Init(); err != nil {
 				log.Errorf("Failed to initialize oauth grant filter: %v.", err)
@@ -2370,6 +2386,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		Tracer:             tracer,
 		InitialSpan:        o.OpenTracingInitialSpan,
 		ExcludeTags:        o.OpenTracingExcludedProxyTags,
+		ClientTraceByTag:   o.OpenTracingClientTraceByTag,
 		DisableFilterSpans: o.OpenTracingDisableFilterSpans,
 		LogFilterEvents:    o.OpenTracingLogFilterLifecycleEvents,
 		LogStreamEvents:    o.OpenTracingLogStreamEvents,
