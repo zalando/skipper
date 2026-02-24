@@ -330,8 +330,8 @@ type Options struct {
 	// instead using Kubernetes Services.
 	KubernetesForceService bool
 
-	// KubernetesIngressStatusFromService, when set to <namespace>/<name>, updates ingress status addresses from this Service.
-	KubernetesIngressStatusFromService string
+	// KubernetesStatusFromService, when set to <namespace>/<name>, updates ingress status addresses from this Service.
+	KubernetesStatusFromService string
 
 	// KubernetesBackendTrafficAlgorithm specifies the algorithm to calculate the backend traffic
 	KubernetesBackendTrafficAlgorithm kubernetes.BackendTrafficAlgorithm
@@ -1097,7 +1097,7 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		DefaultLoadBalancerAlgorithm:                   o.KubernetesDefaultLoadBalancerAlgorithm,
 		ForwardBackendURL:                              o.ForwardBackendURL,
 		TopologyZone:                                   o.KubernetesTopologyZone,
-		IngressStatusFromService:                       o.KubernetesIngressStatusFromService,
+		IngressStatusFromService:                       o.KubernetesStatusFromService,
 	}
 }
 
