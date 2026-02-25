@@ -2,6 +2,9 @@ package net
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -20,6 +23,8 @@ func TestForwardedHeaders(t *testing.T) {
 		header     http.Header
 		forwarded  ForwardedHeaders
 		expected   http.Header
+		tls        bool
+		localAddr  string
 	}{
 		{
 			name:       "no change when disabled",
@@ -133,6 +138,48 @@ func TestForwardedHeaders(t *testing.T) {
 				"X-Forwarded-Proto": []string{"https"},
 			},
 		},
+		{
+			name:       "proto auto detect with TLS",
+			remoteAddr: "1.2.3.4:56",
+			header:     http.Header{},
+			forwarded:  ForwardedHeaders{Proto: "auto"},
+			tls:        true,
+			expected: http.Header{
+				"X-Forwarded-Proto": []string{"https"},
+			},
+		},
+		{
+			name:       "proto auto detect without TLS",
+			remoteAddr: "1.2.3.4:56",
+			header:     http.Header{},
+			forwarded:  ForwardedHeaders{Proto: "auto"},
+			tls:        false,
+			expected: http.Header{
+				"X-Forwarded-Proto": []string{"http"},
+			},
+		},
+		{
+			name:       "port auto detect",
+			remoteAddr: "1.2.3.4:56",
+			header:     http.Header{},
+			forwarded:  ForwardedHeaders{Port: "auto"},
+			localAddr:  "0.0.0.0:8443",
+			expected: http.Header{
+				"X-Forwarded-Port": []string{"8443"},
+			},
+		},
+		{
+			name:       "proto and port auto detect together",
+			remoteAddr: "1.2.3.4:56",
+			header:     http.Header{},
+			forwarded:  ForwardedHeaders{Proto: "auto", Port: "auto"},
+			tls:        true,
+			localAddr:  "0.0.0.0:443",
+			expected: http.Header{
+				"X-Forwarded-Proto": []string{"https"},
+				"X-Forwarded-Port":  []string{"443"},
+			},
+		},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
 			r := &http.Request{
@@ -141,6 +188,16 @@ func TestForwardedHeaders(t *testing.T) {
 				Header:     ti.header,
 				Method:     ti.method,
 				RequestURI: ti.requestURI,
+			}
+
+			if ti.tls {
+				r.TLS = &tls.ConnectionState{}
+			}
+
+			if ti.localAddr != "" {
+				addr, _ := net.ResolveTCPAddr("tcp", ti.localAddr)
+				ctx := context.WithValue(r.Context(), http.LocalAddrContextKey, addr)
+				r = r.WithContext(ctx)
 			}
 
 			ti.forwarded.Set(r)
