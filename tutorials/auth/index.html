@@ -1,0 +1,2507 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://opensource.zalando.com/skipper/tutorials/auth/">
+      
+      
+        <link rel="prev" href="../common-use-cases/">
+      
+      
+        <link rel="next" href="../ratelimit/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../favicon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+    
+    
+      
+        <title>Authentication and Authorization - Skipper</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#basic-auth" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Skipper" class="md-header__button md-logo" aria-label="Skipper" data-md-component="logo">
+      
+  <img src="../../skipper-h180.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Skipper
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Authentication and Authorization
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/zalando/skipper/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Skipper" class="md-nav__button md-logo" aria-label="Skipper" data-md-component="logo">
+      
+  <img src="../../skipper-h180.png" alt="logo">
+
+    </a>
+    Skipper
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/zalando/skipper/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/filters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/predicates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Predicates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/egress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Egress
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/routing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Routing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_10" id="__nav_2_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Clients
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data Clients
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/eskip-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Eskip File
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/eskip-remote/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Remote Eskip
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/route-string/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Route String
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/kubernetes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/etcd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Etcd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_11" id="__nav_2_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Operation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operation/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operation/operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Kubernetes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/ingress-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingress Controller Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/ingress-usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingress Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/ingress-backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingress Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/routegroups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RouteGroups
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/routegroup-crd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RouteGroup CRD Semantics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/routegroup-validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RouteGroup Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/east-west-usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    East-West aka svc-to-svc
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/external-addresses/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Addresses aka External Name
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/migrate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorials
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorials
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../basics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Basics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../common-use-cases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Common Use Cases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication and Authorization
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication and Authorization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#basic-auth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic auth
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#token-service-to-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Token service-to-service
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Token service-to-service">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tokeninfo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tokeninfo
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tokenintrospection-rfc7662" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tokenintrospection RFC7662
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#openid-connect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenID Connect
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="OpenID Connect">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#authz-and-access-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AuthZ and access control
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#oauth2-authorization-grant-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth2 authorization grant flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="OAuth2 authorization grant flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#encrypted-cookie-tokens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Encrypted cookie tokens
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#token-refresh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Token refresh
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#instructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Instructions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Instructions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configure-oauth2-credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure OAuth2 credentials
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configure-the-grant-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure the grant filters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-filters-to-your-routes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add filters to your routes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional-authz-and-access-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        (Optional) AuthZ and access control
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-policy-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open Policy Agent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Open Policy Agent">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configuration-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration File
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#input-structures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Input Structures
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#passing-context-to-the-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Passing context to the policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision-id-in-policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision ID in Policies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Start
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ratelimit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ratelimits
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../shadow-traffic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shadow Traffic
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../built-your-own/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built Your Own Proxy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#basic-auth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic auth
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#token-service-to-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Token service-to-service
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Token service-to-service">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tokeninfo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tokeninfo
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tokenintrospection-rfc7662" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tokenintrospection RFC7662
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#openid-connect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenID Connect
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="OpenID Connect">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#authz-and-access-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AuthZ and access control
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#oauth2-authorization-grant-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth2 authorization grant flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="OAuth2 authorization grant flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#encrypted-cookie-tokens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Encrypted cookie tokens
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#token-refresh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Token refresh
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#instructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Instructions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Instructions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configure-oauth2-credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure OAuth2 credentials
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configure-the-grant-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure the grant filters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-filters-to-your-routes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add filters to your routes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional-authz-and-access-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        (Optional) AuthZ and access control
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-policy-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open Policy Agent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Open Policy Agent">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configuration-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration File
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#input-structures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Input Structures
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#passing-context-to-the-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Passing context to the policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decision-id-in-policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision ID in Policies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Start
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+  <h1>Authentication and Authorization</h1>
+
+<h2 id="basic-auth">Basic auth<a class="headerlink" href="#basic-auth" title="Permanent link">&para;</a></h2>
+<p>Basic Auth is defined in <a href="https://tools.ietf.org/html/rfc7617">RFC7617</a>.</p>
+<p>Install htpasswd command line tool, we assume Debian based
+system. Please refer the documentation of your Operating System or
+package management vendor how to install <code>htpasswd</code>:</p>
+<div class="highlight"><pre><span></span><code>apt-get<span class="w"> </span>install<span class="w"> </span>apache2-utils
+</code></pre></div>
+<p>Create a htpasswd file <code>foo.passwd</code> and use <code>captain</code> with password <code>apassword</code>:</p>
+<div class="highlight"><pre><span></span><code>htpasswd<span class="w"> </span>-bcB<span class="w"> </span>foo.passwd<span class="w"> </span>captain<span class="w"> </span>apassword
+</code></pre></div>
+<p>Start skipper with a <code>basicAuth</code> filter referencing the just created
+htpasswd file:</p>
+<div class="highlight"><pre><span></span><code>./bin/skipper<span class="w"> </span>-address<span class="w"> </span>:8080<span class="w"> </span>-inline-routes<span class="w"> </span><span class="s1">&#39;r: * -&gt; basicAuth(&quot;foo.passwd&quot;) -&gt; status(200) -&gt; &lt;shunt&gt;&#39;</span>
+</code></pre></div>
+<p>A client request without login credentials or wrong credentials:</p>
+<div class="highlight"><pre><span></span><code>%<span class="w"> </span>curl<span class="w"> </span>localhost:8080/<span class="w"> </span>-v
+*<span class="w">   </span>Trying<span class="w"> </span>::1...
+*<span class="w"> </span>Connected<span class="w"> </span>to<span class="w"> </span>localhost<span class="w"> </span><span class="o">(</span>::1<span class="o">)</span><span class="w"> </span>port<span class="w"> </span><span class="m">8080</span><span class="w"> </span><span class="o">(</span><span class="c1">#0)</span>
+&gt;<span class="w"> </span>GET<span class="w"> </span>/<span class="w"> </span>HTTP/1.1
+&gt;<span class="w"> </span>Host:<span class="w"> </span>localhost:8080
+&gt;<span class="w"> </span>User-Agent:<span class="w"> </span>curl/7.49.0
+&gt;<span class="w"> </span>Accept:<span class="w"> </span>*/*
+&gt;
+&lt;<span class="w"> </span>HTTP/1.1<span class="w"> </span><span class="m">401</span><span class="w"> </span>Unauthorized
+&lt;<span class="w"> </span>Server:<span class="w"> </span>Skipper
+&lt;<span class="w"> </span>Www-Authenticate:<span class="w"> </span>Basic<span class="w"> </span><span class="nv">realm</span><span class="o">=</span><span class="s2">&quot;Basic Realm&quot;</span>
+&lt;<span class="w"> </span>Date:<span class="w"> </span>Thu,<span class="w"> </span><span class="m">01</span><span class="w"> </span>Nov<span class="w"> </span><span class="m">2018</span><span class="w"> </span><span class="m">21</span>:27:18<span class="w"> </span>GMT
+&lt;<span class="w"> </span>Content-Length:<span class="w"> </span><span class="m">0</span>
+&lt;
+*<span class="w"> </span>Connection<span class="w"> </span><span class="c1">#0 to host localhost left intact</span>
+</code></pre></div>
+<p>A client request with the correct credentials:</p>
+<div class="highlight"><pre><span></span><code>%<span class="w"> </span>curl<span class="w"> </span>captain:apassword@localhost:8080/<span class="w"> </span>-v
+*<span class="w">   </span>Trying<span class="w"> </span>::1...
+*<span class="w"> </span>Connected<span class="w"> </span>to<span class="w"> </span>localhost<span class="w"> </span><span class="o">(</span>::1<span class="o">)</span><span class="w"> </span>port<span class="w"> </span><span class="m">8080</span><span class="w"> </span><span class="o">(</span><span class="c1">#0)</span>
+*<span class="w"> </span>Server<span class="w"> </span>auth<span class="w"> </span>using<span class="w"> </span>Basic<span class="w"> </span>with<span class="w"> </span>user<span class="w"> </span><span class="s1">&#39;captain&#39;</span>
+&gt;<span class="w"> </span>GET<span class="w"> </span>/<span class="w"> </span>HTTP/1.1
+&gt;<span class="w"> </span>Host:<span class="w"> </span>localhost:8080
+&gt;<span class="w"> </span>Authorization:<span class="w"> </span>Basic<span class="w"> </span><span class="nv">Y2FwdGFpbjphcGFzc3dvcmQ</span><span class="o">=</span>
+&gt;<span class="w"> </span>User-Agent:<span class="w"> </span>curl/7.49.0
+&gt;<span class="w"> </span>Accept:<span class="w"> </span>*/*
+&gt;
+&lt;<span class="w"> </span>HTTP/1.1<span class="w"> </span><span class="m">200</span><span class="w"> </span>OK
+&lt;<span class="w"> </span>Server:<span class="w"> </span>Skipper
+&lt;<span class="w"> </span>Date:<span class="w"> </span>Thu,<span class="w"> </span><span class="m">01</span><span class="w"> </span>Nov<span class="w"> </span><span class="m">2018</span><span class="w"> </span><span class="m">21</span>:29:21<span class="w"> </span>GMT
+&lt;<span class="w"> </span>Content-Length:<span class="w"> </span><span class="m">0</span>
+&lt;
+*<span class="w"> </span>Connection<span class="w"> </span><span class="c1">#0 to host localhost left intact</span>
+</code></pre></div>
+<h2 id="token-service-to-service">Token service-to-service<a class="headerlink" href="#token-service-to-service" title="Permanent link">&para;</a></h2>
+<p>Service to service authentication and authorization is often done by
+using the HTTP Authorization header with the content prefix &ldquo;Bearer &ldquo;,
+for example &ldquo;Authorization: Bearer mytoken&rdquo;.</p>
+<p>Supported token formats</p>
+<ul>
+<li><a href="https://tools.ietf.org/html/rfc6750">OAuth2 access tokens</a></li>
+<li><a href="https://tools.ietf.org/html/rfc7519">JWT</a></li>
+</ul>
+<h3 id="tokeninfo">Tokeninfo<a class="headerlink" href="#tokeninfo" title="Permanent link">&para;</a></h3>
+<p>Tokeninfo is a common, but not specified protocol, only supporting
+Bearer tokens in the Authorization header.</p>
+<p>In most cases you would have to have your own OAuth2 token
+infrastructure, that can return JWT or OAuth2 access tokens to authenticated parties
+and validate tokens with their custom tokeninfo endpoint. In case of
+JWT the access token is signed and can be validated without a central
+tokeninfo endpoint.</p>
+<p>Example route:</p>
+<div class="highlight"><pre><span></span><code>all:<span class="w"> </span>Path<span class="o">(</span><span class="s2">&quot;/&quot;</span><span class="o">)</span>
+<span class="w">     </span>-&gt;<span class="w"> </span>oauthTokeninfoAnyScope<span class="o">(</span><span class="s2">&quot;read-X&quot;</span>,<span class="w"> </span><span class="s2">&quot;readwrite-X&quot;</span><span class="o">)</span>
+<span class="w">     </span>-&gt;<span class="w"> </span><span class="s2">&quot;http://localhost:9090/&quot;</span>
+</code></pre></div>
+<p>The access token should be passed from the client as Bearer token in
+the Authorization header. Skipper will send this token unchanged as
+Bearer token in the Authorization header to the Tokeninfo endpoint.
+The request flow with a Tokeninfo setup is shown in the following
+picture:</p>
+<p><img alt="Skipper with Tokeninfo" src="../../img/svc-to-svc-tokeninfo.svg" /></p>
+<h3 id="tokenintrospection-rfc7662">Tokenintrospection RFC7662<a class="headerlink" href="#tokenintrospection-rfc7662" title="Permanent link">&para;</a></h3>
+<p>Tokenintrospection service to service authentication and authorization
+is specified by <a href="https://tools.ietf.org/html/rfc7662">RFC7662</a>.
+Skipper uses <a href="https://tools.ietf.org/html/draft-ietf-oauth-discovery-06">RFC Draft for discovering token infrastructure
+configuration</a>,
+to find the <code>introspection_endpoint</code>.</p>
+<p>Example route:</p>
+<div class="highlight"><pre><span></span><code>all:<span class="w"> </span>*
+<span class="w">        </span>-&gt;<span class="w"> </span>oauthTokenintrospectionAnyKV<span class="o">(</span><span class="s2">&quot;https://identity.example.com/managed-id&quot;</span>,<span class="w"> </span><span class="s2">&quot;jdoe&quot;</span><span class="o">)</span>
+<span class="w">        </span>-&gt;<span class="w"> </span><span class="s2">&quot;http://localhost:9090/&quot;</span><span class="p">;</span>
+</code></pre></div>
+<p>The access token should be passed from the client as Bearer token in
+the Authorization header. Skipper will send this token as
+defined in <a href="https://tools.ietf.org/html/rfc7662#section-2.1">RFC7662</a>
+in a POST request &ldquo;application/x-www-form-urlencoded&rdquo; as value for key
+<code>token</code> to the Tokenintrospection endpoint.
+The request flow with Tokenintrospection setup is shown in the
+following picture:</p>
+<p><img alt="Skipper with Tokenintrospection" src="../../img/svc-to-svc-tokenintrospection.svg" /></p>
+<h2 id="openid-connect">OpenID Connect<a class="headerlink" href="#openid-connect" title="Permanent link">&para;</a></h2>
+<p>OpenID Connect is an OAuth2.0 based authentication and authorization mechanism supported by
+several providers. Skipper can act as a proxy for backend server which requires authenticated clients.
+Skipper handles the authentication with the provider and upon successful completion of authentication
+passes subsequent requests to the backend server.</p>
+<p>Skipper&rsquo;s implementation of OpenID Connect Client works as follows:</p>
+<ol>
+<li>Filter is initialized with the following parameters:<ol>
+<li>Secrets file with keys used for encrypting the token in a cookie and also for generating shared secret.</li>
+<li>OpenID Connect Provider URL</li>
+<li>The Client ID</li>
+<li>The Client Secret</li>
+<li>The Callback URL for the client when a user successfully authenticates and is
+    returned.</li>
+<li>The Scopes to be requested along with the <code>openid</code> scope</li>
+<li>The claims that should be present in the token or the fields need in the user
+    information.</li>
+</ol>
+</li>
+<li>The user makes a request to a backend which is covered by an OpenID filter.</li>
+<li>Skipper checks if a cookie is set with any previous successfully completed OpenID authentication.</li>
+<li>If the cookie is valid then Skipper passes the request to the backend.</li>
+<li>If the cookie is not valid then Skipper redirects the user to the OpenID provider with its Client ID and a callback URL.</li>
+<li>When the user successfully completes authentication the provider redirects the user to the callback URL with a token.</li>
+<li>Skipper receives this token and makes a backend channel call to get an ID token
+    and other required information.</li>
+<li>If all the user information/claims are present then it encrypts this and sets a cookie
+    which is encrypted and redirects the user to the originally requested URL.</li>
+</ol>
+<p>To use OpenID define a filter for a backend which needs to be covered by OpenID Connection authentication.</p>
+<div class="highlight"><pre><span></span><code>oauthOidcAllClaims<span class="o">(</span><span class="s2">&quot;https://accounts.identity-provider.com&quot;</span>,<span class="w"> </span><span class="s2">&quot;some-client-id&quot;</span>,
+<span class="w">    </span><span class="s2">&quot;some-client-secret&quot;</span>,<span class="w"> </span><span class="s2">&quot;http://callback.com/auth/provider/callback&quot;</span>,<span class="w"> </span><span class="s2">&quot;scope1 scope2&quot;</span>,
+<span class="w">    </span><span class="s2">&quot;claim1 claim2&quot;</span><span class="o">)</span><span class="w"> </span>-&gt;<span class="w"> </span><span class="s2">&quot;https://internal.example.org&quot;</span><span class="p">;</span>
+</code></pre></div>
+<p>Here <code>scope1 scope2</code> are the scopes that should be included which requesting authentication from the OpenID provider.
+Any number of scopes can be specified here. The <code>openid</code> scope is added automatically by the filter. The other fields
+which need to be specified are the URL of the provider which in the above example is
+<code>https://accounts.identity-provider.com</code>. The client ID and the client secret. The callback URL which is specified
+while generating the client id and client secret. Then the scopes and finally the claims which should be present along
+with the return id token.</p>
+<div class="highlight"><pre><span></span><code>oauthOidcUserInfo<span class="o">(</span><span class="s2">&quot;https://oidc-provider.example.com&quot;</span>,<span class="w"> </span><span class="s2">&quot;client_id&quot;</span>,<span class="w"> </span><span class="s2">&quot;client_secret&quot;</span>,
+<span class="w">    </span><span class="s2">&quot;http://target.example.com/subpath/callback&quot;</span>,<span class="w"> </span><span class="s2">&quot;email profile&quot;</span>,
+<span class="w">    </span><span class="s2">&quot;name email picture&quot;</span><span class="o">)</span><span class="w"> </span>-&gt;<span class="w"> </span><span class="s2">&quot;https://internal.example.org&quot;</span><span class="p">;</span>
+</code></pre></div>
+<p>This filter is similar but it verifies that the token has certain user information
+information fields accessible with the token return by the provider. The fields can
+be specified at the end like in the example above where the fields <code>name</code>, <code>email</code>
+and <code>picture</code> are requested.</p>
+<p>Upon successful authentication Skipper will start allowing the user requests through
+to the backend. Along with the original request to the backend Skipper will include
+information which it obtained from the provider. The information is in <code>JSON</code> format
+with the header name <code>Skipper-Oidc-Info</code>. In the case of the claims container the
+header value is in the format.</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;oauth2token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;xxx&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;claims&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;claim1&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;val1&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;claim2&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;val2&quot;</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;subject&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;subj&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>In the case of a user info filter the payload is in the format:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;oauth2token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;xxx&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;userInfo&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;sub&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sub&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;profile&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;prof&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;email&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abc@example.com&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;email_verified&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abc@example.com&quot;</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;subject&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;subj&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Skipper encrypts the cookies and also generates a nonce during the OAuth2.0 flow
+for which it needs a secret key. This key is in a file which can be rotated periodically
+because it is reread by Skipper. The path to this file must be passed with the flag
+<code>-oidc-secrets-file</code> when Skipper is started.</p>
+<h3 id="authz-and-access-control">AuthZ and access control<a class="headerlink" href="#authz-and-access-control" title="Permanent link">&para;</a></h3>
+<p>Authorization validation and access control is available by means of a subsequent filter <a href="../../reference/filters/#oidcclaimsquery">oidcClaimsQuery</a>. It inspects the ID token, which exists after a successful <code>oauthOidc*</code> filter step, and validates the defined query with the request path.</p>
+<p>Given following example ID token:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;email&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;someone@example.org&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;groups&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">&quot;CD-xyz&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;appX-Tester&quot;</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Some One&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Access to path <code>/</code> would be granted to everyone in <code>example.org</code>, however path <code>/login</code> only to those being member of <code>group "appX-Tester"</code>:</p>
+<div class="highlight"><pre><span></span><code>oauthOidcAnyClaims(...) -&gt; oidcClaimsQuery(&quot;/login:groups.#[==\&quot;appX-Tester\&quot;]&quot;, &quot;/:@_:email%\&quot;*@example.org\&quot;&quot;)
+</code></pre></div>
+<h2 id="oauth2-authorization-grant-flow">OAuth2 authorization grant flow<a class="headerlink" href="#oauth2-authorization-grant-flow" title="Permanent link">&para;</a></h2>
+<p><a href="https://tools.ietf.org/html/rfc6749#section-1.3">Authorization grant flow</a> is a mechanism
+to coordinate between a user-agent, a client, and an authorization server to obtain an OAuth2
+access token for a user. Skipper supports the flow with the <code>oauthGrant()</code> filter.
+It works as follows:</p>
+<ol>
+<li>A user makes a request to a route with <code>oauthGrant()</code>.</li>
+<li>The filter checks whether the request has a cookie called <code>oauth-grant</code><sup><a href="#grant-note-1">1</a></sup>. If it does not, or
+   if the cookie and its tokens are invalid, it redirects the user to the OAuth2 provider&rsquo;s
+   authorization endpoint<sup><a href="#grant-note-2">2</a></sup>.</li>
+<li>The user logs into the external OAuth2 provider, e.g. by providing a username and password.</li>
+<li>The provider redirects the user back to Skipper with an authorization code, using the
+   <code>redirect_uri</code> URL parameter which was part of the previous redirect<sup><a href="#grant-note-2">2</a></sup>. The callback route must
+   have a <code>grantCallback()</code> filter defined. Skipper automatically adds this callback route for you
+   when the OAuth2 authorization grant flow feature is enabled. Note that the automatically added
+     callback route does not apply <a href="../../operation/operation/#default-filters">default filters</a>.
+     If you need default filters to be applied to the callback route as well, please register
+     the route manually in your routes files.</li>
+<li>Skipper calls the provider&rsquo;s token URL with the authorization code, and receives a response
+   with the access and refresh tokens.</li>
+<li>Skipper stores the tokens in an <code>oauth-grant</code><sup><a href="#grant-note-1">1</a></sup> cookie which is stored in the user&rsquo;s browser.</li>
+<li>Subsequent calls to any route with an <code>oauthGrant()</code> filter will now pass as long as the
+   access token is valid.</li>
+</ol>
+<p><sup><a name="grant-note-1">1</a></sup> The name of this cookie can be changed by providing the <code>-oauth2-token-cookie-name</code> parameter.</p>
+<p><sup><a name="grant-note-2">2</a></sup> The value of <code>redirect_uri</code> parameter of the authorization flow could be set by providing <code>-oauth2-auth-url-parameters=redirect_uri=https://example.org/oauth-callback</code>.
+   If not set Skipper will automatically determine it based on the initial request hostname and <code>-oauth2-callback-path</code> flag value.</p>
+<p>Please note that it is not currently possible to use multiple OAuth2 providers with Skipper.</p>
+<h3 id="encrypted-cookie-tokens">Encrypted cookie tokens<a class="headerlink" href="#encrypted-cookie-tokens" title="Permanent link">&para;</a></h3>
+<p>The cookie set by the <code>oauthGrant()</code> filter contains the OAuth2 access and refresh tokens in
+encrypted form. This means Skipper does not need to persist any session information about users,
+while also not exposing the tokens to users.</p>
+<h3 id="token-refresh">Token refresh<a class="headerlink" href="#token-refresh" title="Permanent link">&para;</a></h3>
+<p>The <code>oauthGrant()</code> filter also supports token refreshing. Once the access token expires and
+the user makes another request, the filter automatically refreshes the token and sets the
+updated cookie in the response.</p>
+<h3 id="instructions">Instructions<a class="headerlink" href="#instructions" title="Permanent link">&para;</a></h3>
+<p>To use authorization grant flow, you need to:</p>
+<ol>
+<li><a href="#configure-oauth2-credentials">Configure OAuth2 credentials.</a></li>
+<li><a href="#configure-the-grant-filters">Configure the grant filters with OAuth2 URLs.</a></li>
+<li><a href="#add-filters-to-your-routes">Add the OAuth2 grant filters to routes.</a></li>
+</ol>
+<h4 id="configure-oauth2-credentials">Configure OAuth2 credentials<a class="headerlink" href="#configure-oauth2-credentials" title="Permanent link">&para;</a></h4>
+<p>Before you start, you need to register your application with the OAuth2 provider.
+If your provider asks you for the callback URL, provide the URL that you set
+as the <code>-oauth2-callback-path</code> parameter. If you did not provide a value, use the default
+route : <code>/.well-known/oauth2-callback</code>.</p>
+<p>Skipper must be configured with the following credentials and secrets:</p>
+<ol>
+<li>OAuth2 client ID for authenticating with the OAuth2 provider.</li>
+<li>OAuth2 client secret for authenticating with the OAuth2 provider.</li>
+<li>Cookie encryption secret for encrypting and decrypting token cookies.</li>
+</ol>
+<p>You can load all of these secrets from separate files, in which case they get automatically
+reloaded to support secret rotation.
+You can provide the paths to the files containing each secret as follows:</p>
+<div class="highlight"><pre><span></span><code>skipper<span class="w"> </span>-oauth2-client-id-file<span class="o">=</span>/path/to/client_id<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-oauth2-client-secret-file<span class="o">=</span>/path/to/client_secret<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-oauth2-secret-file<span class="o">=</span>/path/to/cookie_encryption_secret<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-credentials-update-interval<span class="o">=</span>30s
+</code></pre></div>
+<p>Paths may contain <code>{host}</code> placeholder which will be replaced by the request host.
+This is used to define separate credentials for different hosts.</p>
+<p>Care must be taken when used in conjunction with <code>-credentials-paths</code> option because files
+from <code>-credentials-paths</code> are available to <code>bearerinjector</code> filter.
+That is <code>-credentials-paths=/path/to</code> in above example will expose grant files to <code>bearerinjector</code> filter.</p>
+<p>You can modify the secret update interval using the <code>-credentials-update-interval</code> argument. In
+example above, the interval is configured to reload the secrets from the files every 30
+seconds.</p>
+<p>If you prefer, you can provide the client ID and secret values directly as arguments to
+Skipper instead of loading them from files. In that case, call Skipper with:</p>
+<div class="highlight"><pre><span></span><code>skipper<span class="w"> </span>-oauth2-client-id<span class="o">=</span>&lt;CLIENT_ID&gt;<span class="w"> </span>-oauth2-client-secret<span class="o">=</span>&lt;CLIENT_SECRET&gt;
+</code></pre></div>
+<h4 id="configure-the-grant-filters">Configure the grant filters<a class="headerlink" href="#configure-the-grant-filters" title="Permanent link">&para;</a></h4>
+<p>The grant filters need to be enabled and configured with your OAuth2 provider&rsquo;s
+authorization, token, and tokeninfo endpoints. This can be achieved by providing Skipper
+with the following arguments:</p>
+<div class="highlight"><pre><span></span><code>skipper<span class="w"> </span>-enable-oauth2-grant-flow<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-oauth2-auth-url<span class="o">=</span>&lt;OAUTH2_AUTHORIZE_ENDPOINT&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-oauth2-token-url<span class="o">=</span>&lt;OAUTH2_TOKEN_ENDPOINT&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-oauth2-revoke-token-url<span class="o">=</span>&lt;OAUTH2_REVOKE_TOKEN_ENDPOINT&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-oauth2-tokeninfo-url<span class="o">=</span>&lt;OAUTH2_TOKENINFO_ENDPOINT&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-oauth2-callback-path<span class="o">=</span>/oauth/callback
+</code></pre></div>
+<p>The <code>-oauth2-revoke-token-url</code> is optional, and should be supplied if you plan
+to use the <a href="../../reference/filters/#grantlogout">grantLogout</a> filter to revoke tokens.</p>
+<p>You can configure the <code>oauthGrant()</code> filter further for your needs. See the
+<a href="../../reference/filters/#oauthgrant">oauthGrant</a> filter reference for more details.</p>
+<h4 id="add-filters-to-your-routes">Add filters to your routes<a class="headerlink" href="#add-filters-to-your-routes" title="Permanent link">&para;</a></h4>
+<p>You can protect any number of routes with the <code>oauthGrant()</code> filter. Unauthenticated users
+will be refused access and redirected to log in.</p>
+<p>Skipper will automatically add a callback route for you with the <code>grantCallback</code> filter registered
+on it. The path for this route can be configured with the <code>-oauth2-callback-path</code> parameter.
+If the parameter is not given, it will be <code>/.well-known/oauth2-callback</code></p>
+<p>You can optionally add a <code>grantLogout()</code> filter to delete token cookie.
+If <code>-oauth2-revoke-token-url</code> is set it will revoke access and refresh tokens:</p>
+<div class="highlight"><pre><span></span><code>foo:
+<span class="w">    </span>Path<span class="o">(</span><span class="s2">&quot;/foo&quot;</span><span class="o">)</span>
+<span class="w">    </span>-&gt;<span class="w"> </span>oauthGrant<span class="o">()</span>
+<span class="w">    </span>-&gt;<span class="w"> </span><span class="s2">&quot;http://localhost:9090&quot;</span><span class="p">;</span>
+
+logout:
+<span class="w">    </span>Path<span class="o">(</span><span class="s2">&quot;/logout)</span>
+<span class="s2">    -&gt; grantLogout()</span>
+<span class="s2">    -&gt; redirectTo(302)</span>
+<span class="s2">    -&gt; &lt;shunt&gt;;</span>
+</code></pre></div>
+<h4 id="optional-authz-and-access-control">(Optional) AuthZ and access control<a class="headerlink" href="#optional-authz-and-access-control" title="Permanent link">&para;</a></h4>
+<p>You can add a <a href="../../reference/filters/#grantclaimsquery">grantClaimsQuery</a> filter
+after a <a href="../../reference/filters/#oauthgrant">oauthGrant</a> to control access based
+on any OAuth2 claim. A claim is any property returned by the tokeninfo endpoint.
+The filter works exactly like the <a href="../../reference/filters/#oidcclaimsquery">oidcClaimsQuery</a>
+filter (it is actually just an alias for it).</p>
+<p>For example, if your tokeninfo endpoint returns the following JSON:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;scope&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;email&quot;</span><span class="p">],</span>
+<span class="w">    </span><span class="nt">&quot;username&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;foo&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>you could limit the access to a given route only to users that have the <code>email</code>
+scope by doing the following:</p>
+<ol>
+<li>Append a <code>grantClaimsQuery</code> filter to the <code>oauthGrant</code> filter with the following
+   query:
+    <div class="highlight"><pre><span></span><code>-&gt;<span class="w"> </span>oauthGrant<span class="o">()</span><span class="w"> </span>-&gt;<span class="w"> </span>grantClaimsQuery<span class="o">(</span><span class="s2">&quot;/path:scope.#[==\&quot;email\&quot;]&quot;</span><span class="o">)</span>
+</code></pre></div></li>
+<li>Provide the name of the claim that corresponds to the OAuth2 subject in the
+   tokeninfo payload as an argument to Skipper:
+   <div class="highlight"><pre><span></span><code>skipper<span class="w"> </span>-oauth2-tokeninfo-subject-key<span class="o">=</span>username
+</code></pre></div></li>
+</ol>
+<blockquote>
+<p>The subject is the field that identifies the user and is often called <code>sub</code>,
+especially in the context of OpenID Connect. In the example above, it is <code>username</code>.</p>
+</blockquote>
+<h2 id="open-policy-agent">Open Policy Agent<a class="headerlink" href="#open-policy-agent" title="Permanent link">&para;</a></h2>
+<p>To enable <a href="https://www.openpolicyagent.org/">Open Policy Agent</a> filter, use the <code>-enable-open-policy-agent</code> command line flag.</p>
+<p>Open Policy Agent is integrated as a Go library so no extra setup is needed to run. Every filter creates a virtual OPA instance in memory that is configured using a configuration file in the same <a href="https://www.openpolicyagent.org/docs/latest/configuration/">configuration format</a> that a standalone OPA would use. To allow for configurability, the configuration file is interpolated using Go Templates to allow every virtual instance to pull different bundles. This template file is passed using the <code>-open-policy-agent-config-template</code> flag.</p>
+<h3 id="configuration-file">Configuration File<a class="headerlink" href="#configuration-file" title="Permanent link">&para;</a></h3>
+<p>As an example, the following initial config can be used</p>
+<div class="highlight"><pre><span></span><code><span class="nt">services</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bundle-service</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://my-example-opa-bucket.s3.eu-central-1.amazonaws.com</span>
+<span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">s3_signing</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">environment_credentials</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<span class="nt">labels</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">production</span>
+<span class="nt">discovery</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">discovery</span>
+<span class="w">  </span><span class="nt">prefix</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/applications/{{</span><span class="nv"> </span><span class="s">.bundlename</span><span class="nv"> </span><span class="s">}}&quot;</span>
+</code></pre></div>
+<p>The variable <code>.bundlename</code> is the first argument in the following filters and can be in any format that OPA can understand, so for example application IDs from a registry, uuids, &hellip;</p>
+<h3 id="input-structures">Input Structures<a class="headerlink" href="#input-structures" title="Permanent link">&para;</a></h3>
+<p>Input structures to policies follow those that are used by the <a href="https://github.com/open-policy-agent/opa-envoy-plugin">opa-envoy-plugin</a>, the existing <a href="https://www.openpolicyagent.org/docs/envoy/primer#example-input">examples and documentation</a> apply also to Skipper. Please note that the filters in Skipper always generate v3 input structures.</p>
+<h3 id="passing-context-to-the-policy">Passing context to the policy<a class="headerlink" href="#passing-context-to-the-policy" title="Permanent link">&para;</a></h3>
+<p>Generally there are two ways to pass context to a policy:</p>
+<ol>
+<li>as part of the labels in Open Policy Agent (configured in the configuration file, see below) that should be used for deployment level taxonomy,</li>
+<li>as part of so called context extensions that are part of the Envoy external auth specification.</li>
+</ol>
+<p>This context can be passed as second argument to filters:</p>
+<p><code>opaAuthorizeRequest("my-app-id", "com.mycompany.myprop: myvalue")</code>
+or <code>opaAuthorizeRequest("my-app-id", "{'com.mycompany.myprop': 'my value'}")</code></p>
+<p>The second argument is parsed as YAML, cannot be nested and values need to be strings.</p>
+<p>In Rego this can be used like this <code>input.attributes.contextExtensions["com.mycompany.myprop"] == "my value"</code></p>
+<h3 id="decision-id-in-policies">Decision ID in Policies<a class="headerlink" href="#decision-id-in-policies" title="Permanent link">&para;</a></h3>
+<p>Each evaluation yields a distinct decision, identifiable by its unique decision ID.
+This decision ID can be located within the input at:
+<code>input.attributes.metadataContext.filterMetadata.open_policy_agent.decision_id</code>
+Typical use cases are either propagation of the decision ID to downstream systems or returning it as part of the response. As an example this can allow to trouble shoot deny requests by looking up details using the full decision in a control plane.</p>
+<h3 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h3>
+<p>Create a directory called <code>bundles/my-application/</code>. </p>
+<p>Paste the following content into a file called <code>bundles/my-application/policy.rego</code>:</p>
+<div class="highlight"><pre><span></span><code># For more information see:
+#
+#   * Rego Rules: https://www.openpolicyagent.org/docs/latest/#rules
+
+package envoy.http.public
+
+# If neither of the rules below match, `allow` is `false`.
+default allow := false
+
+allow if {
+    input.attributes.request.http.method == &quot;GET&quot;
+    input.attributes.request.http.path == &quot;/&quot;
+}
+
+allow if input.attributes.request.http.headers.authorization == &quot;Basic charlie&quot;
+</code></pre></div>
+<p>Build the bundle with <code>opa build -b ./bundles/my-application/ -o bundles/my-application.tar.gz</code>.</p>
+<p>Run an https server to serve the bundle: <code>python3 -m http.server 8000 --directory bundles/</code></p>
+<p>Place the following file in your local directory with the name <code>opaconfig.yaml</code></p>
+<div class="highlight"><pre><span></span><code><span class="nt">bundles</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">play</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">.bundlename</span><span class="nv"> </span><span class="s">}}.tar.gz&quot;</span>
+<span class="w">    </span><span class="nt">polling</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">long_polling_timeout_seconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">45</span>
+<span class="nt">services</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">play</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:8000/</span>
+<span class="nt">plugins</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">envoy_ext_authz_grpc</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># This needs to match the package, defaulting to envoy/authz/allow</span>
+<span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">envoy/http/public/allow</span>
+<span class="w">    </span><span class="nt">dry-run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="nt">decision_logs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">console</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">status</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">console</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</code></pre></div>
+<p>Start Skipper with</p>
+<div class="highlight"><pre><span></span><code>skipper -enable-open-policy-agent -open-policy-agent-config-template opaconfig.yaml --metrics-flavour=prometheus \
+  -inline-routes &#39;notfound: * -&gt; opaAuthorizeRequest(&quot;my-application&quot;) -&gt; inlineContent(&quot;&lt;h1&gt;Authorized Hello&lt;/h1&gt;&quot;) -&gt; &lt;shunt&gt;&#39;
+</code></pre></div>
+<p>You can test the policy with</p>
+<ul>
+<li>Authorized: <code>curl http://localhost:9090/ -i</code></li>
+<li>Authorized: <code>curl http://localhost:9090/foobar -H "Authorization: Basic charlie" -i</code></li>
+<li>Forbidden: <code>curl http://localhost:9090/foobar -i</code></li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

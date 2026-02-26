@@ -1,0 +1,2245 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://opensource.zalando.com/skipper/reference/plugins/">
+      
+      
+        <link rel="prev" href="../scripts/">
+      
+      
+        <link rel="next" href="../architecture/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../favicon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+    
+    
+      
+        <title>Plugins - Skipper</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#skipper-plugins" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Skipper" class="md-header__button md-logo" aria-label="Skipper" data-md-component="logo">
+      
+  <img src="../../skipper-h180.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Skipper
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Plugins
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/zalando/skipper/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Skipper" class="md-nav__button md-logo" aria-label="Skipper" data-md-component="logo">
+      
+  <img src="../../skipper-h180.png" alt="logo">
+
+    </a>
+    Skipper
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/zalando/skipper/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../filters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../predicates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Predicates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../egress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Egress
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugins
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#plugin-directories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin directories
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-a-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building a plugin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-a-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use a plugin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filter-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter plugins
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Filter plugins">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-filter-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example filter plugin
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#predicate-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Predicate plugins
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Predicate plugins">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-predicate-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example predicate plugin
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dataclient-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DataClient plugins
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multitype-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MultiType plugins
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opentracing-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenTracing plugins
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../routing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Routing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_10" id="__nav_2_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Clients
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data Clients
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/eskip-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Eskip File
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/eskip-remote/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Remote Eskip
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/route-string/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Route String
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/kubernetes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/etcd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Etcd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_11" id="__nav_2_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Operation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operation/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operation/operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Kubernetes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/ingress-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingress Controller Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/ingress-usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingress Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/ingress-backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingress Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/routegroups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RouteGroups
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/routegroup-crd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RouteGroup CRD Semantics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/routegroup-validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RouteGroup Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/east-west-usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    East-West aka svc-to-svc
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/external-addresses/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Addresses aka External Name
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/migrate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorials
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorials
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/basics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Basics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/common-use-cases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Common Use Cases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication and Authorization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/ratelimit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ratelimits
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/shadow-traffic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shadow Traffic
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/built-your-own/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built Your Own Proxy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#plugin-directories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin directories
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-a-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building a plugin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-a-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use a plugin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filter-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter plugins
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Filter plugins">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-filter-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example filter plugin
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#predicate-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Predicate plugins
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Predicate plugins">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-predicate-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example predicate plugin
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dataclient-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DataClient plugins
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multitype-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MultiType plugins
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opentracing-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenTracing plugins
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="skipper-plugins">Skipper plugins<a class="headerlink" href="#skipper-plugins" title="Permanent link">&para;</a></h1>
+<p>Skipper may be extended with functionality not present in the core.
+These additions can be built as go plugin, so they do not have to
+be present in the main skipper repository.</p>
+<p>Note the warning from Go&rsquo;s plugin.go:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1">// The plugin support is currently incomplete, only supports Linux,</span>
+<span class="c1">// and has known bugs. Please report any issues.</span>
+</code></pre></div>
+
+<p>Note the known problem of using plugins together with vendoring, best
+described here:</p>
+<p><a href="https://github.com/golang/go/issues/20481">https://github.com/golang/go/issues/20481</a></p>
+<h2 id="plugin-directories">Plugin directories<a class="headerlink" href="#plugin-directories" title="Permanent link">&para;</a></h2>
+<p>Plugins are loaded from sub directories of the plugin directories. By default
+the plugin directory is set to <code>./plugins</code> (i.e. relative to skipper&rsquo;s working
+directory). An additional directory may be given with the <code>-plugindir=/path/to/dir</code>
+option to skipper.</p>
+<p>Any file with the suffix <code>.so</code> found below the plugin directories (also in sub
+directories) is attempted to load without any arguments. When a plugin needs an
+argument, this must be explicitly loaded and the arguments passed, e.g. with
+<code>-filter-plugin geoip,db=/path/to/db</code>.</p>
+<h2 id="building-a-plugin">Building a plugin<a class="headerlink" href="#building-a-plugin" title="Permanent link">&para;</a></h2>
+<p>Each plugin should be built with Go version &gt;= 1.11, enabled Go
+modules support similar to the following build command line:</p>
+<div class="highlight"><pre><span></span><code>go<span class="w"> </span>build<span class="w"> </span>-buildmode<span class="o">=</span>plugin<span class="w"> </span>-o<span class="w"> </span>example.so<span class="w"> </span>example.go
+</code></pre></div>
+<p>There are some pitfalls:</p>
+<ul>
+<li>packages which are shared between skipper and the plugin <strong>must not</strong> be in
+  a <code>vendor/</code> directory; otherwise, the plugin will fail to load or in some
+  cases give wrong results (e.g. an opentracing span cannot be found in the
+  context even if it is present). This also means:
+  Do not vendor skipper in a plugin repo&hellip;</li>
+<li>plugins must be rebuilt when skipper is rebuilt</li>
+<li>do not attempt to rebuild a module and copy it over a loaded plugin, that
+  will crash skipper immediately&hellip;</li>
+</ul>
+<h2 id="use-a-plugin">Use a plugin<a class="headerlink" href="#use-a-plugin" title="Permanent link">&para;</a></h2>
+<p>In this example we use a geoip database, that you need to find and download.
+We expect that you did a <code>git clone git@github.com:zalando/skipper.git</code> and
+entered the directory.</p>
+<p>Build skipper:</p>
+<div class="highlight"><pre><span></span><code>%<span class="w"> </span>make<span class="w"> </span>skipper
+</code></pre></div>
+<p>Install filter plugins:</p>
+<div class="highlight"><pre><span></span><code>%<span class="w"> </span>mkdir<span class="w"> </span>plugins
+%<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>git@github.com:skipper-plugins/filters.git<span class="w"> </span>plugins/filters
+%<span class="w"> </span>ls<span class="w"> </span>plugins/filters
+geoip/<span class="w">  </span>glide.lock<span class="w">  </span>glide.yaml<span class="w">  </span>ldapauth/<span class="w">  </span>Makefile<span class="w">  </span>noop/<span class="w">  </span>plugin_test.go
+%<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>plugins/filters/geoip
+%<span class="w"> </span>go<span class="w"> </span>build<span class="w"> </span>-buildmode<span class="o">=</span>plugin<span class="w"> </span>-o<span class="w"> </span>geoip.so<span class="w"> </span>geoip.go
+%<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>-
+~/go/src/github.com/zalando/skipper
+</code></pre></div>
+<p>Start a pseudo backend that shows all headers in plain:</p>
+<div class="highlight"><pre><span></span><code>%<span class="w"> </span>nc<span class="w"> </span>-l<span class="w"> </span><span class="m">9000</span>
+</code></pre></div>
+<p>Run the proxy with geoip database:</p>
+<div class="highlight"><pre><span></span><code>%<span class="w"> </span>./bin/skipper<span class="w"> </span>-filter-plugin<span class="w"> </span>geoip,db<span class="o">=</span><span class="nv">$HOME</span>/Downloads/GeoLite2-City_20181127/GeoLite2-City.mmdb<span class="w"> </span>-inline-routes<span class="w"> </span><span class="s1">&#39;* -&gt; geoip() -&gt; &quot;http://127.0.0.1:9000&quot;&#39;</span>
+<span class="o">[</span>APP<span class="o">]</span>INFO<span class="o">[</span><span class="m">0000</span><span class="o">]</span><span class="w"> </span>found<span class="w"> </span>plugin<span class="w"> </span>geoip<span class="w"> </span>at<span class="w"> </span>plugins/filters/geoip/geoip.so
+<span class="o">[</span>APP<span class="o">]</span>INFO<span class="o">[</span><span class="m">0000</span><span class="o">]</span><span class="w"> </span>loaded<span class="w"> </span>plugin<span class="w"> </span>geoip<span class="w"> </span><span class="o">(</span>geoip<span class="o">)</span><span class="w"> </span>from<span class="w"> </span>plugins/filters/geoip/geoip.so
+<span class="o">[</span>APP<span class="o">]</span>INFO<span class="o">[</span><span class="m">0000</span><span class="o">]</span><span class="w"> </span>attempting<span class="w"> </span>to<span class="w"> </span>load<span class="w"> </span>plugin<span class="w"> </span>from<span class="w"> </span>plugins/filters/geoip/geoip.so
+<span class="o">[</span>APP<span class="o">]</span>INFO<span class="o">[</span><span class="m">0000</span><span class="o">]</span><span class="w"> </span>plugin<span class="w"> </span>geoip<span class="w"> </span>already<span class="w"> </span>loaded<span class="w"> </span>with<span class="w"> </span>InitFilter
+<span class="o">[</span>APP<span class="o">]</span>INFO<span class="o">[</span><span class="m">0000</span><span class="o">]</span><span class="w"> </span>Expose<span class="w"> </span>metrics<span class="w"> </span><span class="k">in</span><span class="w"> </span>codahale<span class="w"> </span>format
+<span class="o">[</span>APP<span class="o">]</span>INFO<span class="o">[</span><span class="m">0000</span><span class="o">]</span><span class="w"> </span>support<span class="w"> </span>listener<span class="w"> </span>on<span class="w"> </span>:9911
+<span class="o">[</span>APP<span class="o">]</span>INFO<span class="o">[</span><span class="m">0000</span><span class="o">]</span><span class="w"> </span>proxy<span class="w"> </span>listener<span class="w"> </span>on<span class="w"> </span>:9090
+<span class="o">[</span>APP<span class="o">]</span>INFO<span class="o">[</span><span class="m">0000</span><span class="o">]</span><span class="w"> </span>route<span class="w"> </span>settings,<span class="w"> </span>reset,<span class="w"> </span>route:<span class="w"> </span>:<span class="w"> </span>*<span class="w"> </span>-&gt;<span class="w"> </span>geoip<span class="o">()</span><span class="w"> </span>-&gt;<span class="w"> </span><span class="s2">&quot;http://127.0.0.1:9000&quot;</span>
+<span class="o">[</span>APP<span class="o">]</span>INFO<span class="o">[</span><span class="m">0000</span><span class="o">]</span><span class="w"> </span>certPathTLS<span class="w"> </span>or<span class="w"> </span>keyPathTLS<span class="w"> </span>not<span class="w"> </span>found,<span class="w"> </span>defaulting<span class="w"> </span>to<span class="w"> </span>HTTP
+<span class="o">[</span>APP<span class="o">]</span>INFO<span class="o">[</span><span class="m">0000</span><span class="o">]</span><span class="w"> </span>route<span class="w"> </span>settings<span class="w"> </span>received
+<span class="o">[</span>APP<span class="o">]</span>INFO<span class="o">[</span><span class="m">0000</span><span class="o">]</span><span class="w"> </span>route<span class="w"> </span>settings<span class="w"> </span>applied
+</code></pre></div>
+<p>Or passing a yaml file via <code>config-file</code> flag:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">inline-routes</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;*</span><span class="nv"> </span><span class="s">-&gt;</span><span class="nv"> </span><span class="s">geoip()</span><span class="nv"> </span><span class="s">-&gt;</span><span class="nv"> </span><span class="s">&quot;http://127.0.0.1:9000&quot;&#39;</span>
+<span class="nt">filter-plugin</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">geoip</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db=$HOME/Downloads/GeoLite2-City_20181127/GeoLite2-City.mmdb</span>
+</code></pre></div>
+<p>Use a client to lookup geoip:</p>
+<div class="highlight"><pre><span></span><code>%<span class="w"> </span>curl<span class="w"> </span>-H<span class="s2">&quot;X-Forwarded-For: 107.12.53.5&quot;</span><span class="w"> </span>localhost:9090/
+^C
+</code></pre></div>
+<p>pseudo backend should show X-Geoip-Country header:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># nc -l 9000</span>
+GET<span class="w"> </span>/<span class="w"> </span>HTTP/1.1
+Host:<span class="w"> </span><span class="m">127</span>.0.0.1:9000
+User-Agent:<span class="w"> </span>curl/7.49.0
+Accept:<span class="w"> </span>*/*
+X-Forwarded-For:<span class="w"> </span><span class="m">107</span>.12.53.5
+X-Geoip-Country:<span class="w"> </span>US
+Accept-Encoding:<span class="w"> </span>gzip
+^C
+</code></pre></div>
+<p>skipper should show additional log lines, because of the CTRL-C:</p>
+<div class="highlight"><pre><span></span><code><span class="o">[</span>APP<span class="o">]</span>ERRO<span class="o">[</span><span class="m">0082</span><span class="o">]</span><span class="w"> </span>error<span class="w"> </span><span class="k">while</span><span class="w"> </span>proxying,<span class="w"> </span>route<span class="w">  </span>with<span class="w"> </span>backend<span class="w"> </span>http://127.0.0.1:9000,<span class="w"> </span>status<span class="w"> </span>code<span class="w"> </span><span class="m">500</span>:<span class="w"> </span>dialing<span class="w"> </span>failed<span class="w"> </span>false:<span class="w"> </span>EOF
+<span class="m">107</span>.12.53.5<span class="w"> </span>-<span class="w"> </span>-<span class="w"> </span><span class="o">[</span><span class="m">28</span>/Nov/2018:14:39:40<span class="w"> </span>+0100<span class="o">]</span><span class="w"> </span><span class="s2">&quot;GET / HTTP/1.1&quot;</span><span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="m">22</span><span class="w"> </span><span class="s2">&quot;-&quot;</span><span class="w"> </span><span class="s2">&quot;curl/7.49.0&quot;</span><span class="w"> </span><span class="m">2753</span><span class="w"> </span>localhost:9090<span class="w"> </span>-<span class="w"> </span>-
+</code></pre></div>
+<h2 id="filter-plugins">Filter plugins<a class="headerlink" href="#filter-plugins" title="Permanent link">&para;</a></h2>
+<p>All plugins must have a function named <code>InitFilter</code> with the following signature</p>
+<div class="codehilite"><pre><span></span><code>func([]string) (filters.Spec, error)
+</code></pre></div>
+
+<p>The parameters passed are all arguments for the plugin, i.e. everything after the first
+word from skipper&rsquo;s <code>-filter-plugin</code> parameter. E.g. when the <code>-filter-plugin</code>
+parameter is</p>
+<div class="codehilite"><pre><span></span><code>myfilter,datafile=/path/to/file,foo=bar
+</code></pre></div>
+
+<p>the <code>myfilter</code> plugin will receive</p>
+<div class="codehilite"><pre><span></span><code>[]string{&quot;datafile=/path/to/file&quot;, &quot;foo=bar&quot;}
+</code></pre></div>
+
+<p>as arguments.</p>
+<p>The filter plugin implementation is responsible to parse the received arguments.</p>
+<p>Filter plugins can be found in the <a href="https://github.com/skipper-plugins/filters">filter repo</a></p>
+<h3 id="example-filter-plugin">Example filter plugin<a class="headerlink" href="#example-filter-plugin" title="Permanent link">&para;</a></h3>
+<p>An example <code>noop</code> plugin looks like</p>
+<div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">&quot;github.com/zalando/skipper/filters&quot;</span>
+<span class="p">)</span>
+
+<span class="kd">type</span><span class="w"> </span><span class="nx">noopSpec</span><span class="w"> </span><span class="kd">struct</span><span class="p">{}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">InitFilter</span><span class="p">(</span><span class="nx">opts</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">filters</span><span class="p">.</span><span class="nx">Spec</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">noopSpec</span><span class="p">{},</span><span class="w"> </span><span class="kc">nil</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">s</span><span class="w"> </span><span class="nx">noopSpec</span><span class="p">)</span><span class="w"> </span><span class="nx">Name</span><span class="p">()</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="s">&quot;noop&quot;</span>
+<span class="p">}</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">s</span><span class="w"> </span><span class="nx">noopSpec</span><span class="p">)</span><span class="w"> </span><span class="nx">CreateFilter</span><span class="p">(</span><span class="nx">config</span><span class="w"> </span><span class="p">[]</span><span class="kd">interface</span><span class="p">{})</span><span class="w"> </span><span class="p">(</span><span class="nx">filters</span><span class="p">.</span><span class="nx">Filter</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">noopFilter</span><span class="p">{},</span><span class="w"> </span><span class="kc">nil</span>
+<span class="p">}</span>
+
+<span class="kd">type</span><span class="w"> </span><span class="nx">noopFilter</span><span class="w"> </span><span class="kd">struct</span><span class="p">{}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="nx">noopFilter</span><span class="p">)</span><span class="w"> </span><span class="nx">Request</span><span class="p">(</span><span class="nx">filters</span><span class="p">.</span><span class="nx">FilterContext</span><span class="p">)</span><span class="w">  </span><span class="p">{}</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="nx">noopFilter</span><span class="p">)</span><span class="w"> </span><span class="nx">Response</span><span class="p">(</span><span class="nx">filters</span><span class="p">.</span><span class="nx">FilterContext</span><span class="p">)</span><span class="w"> </span><span class="p">{}</span>
+</code></pre></div>
+<h2 id="predicate-plugins">Predicate plugins<a class="headerlink" href="#predicate-plugins" title="Permanent link">&para;</a></h2>
+<p>All plugins must have a function named <code>InitPredicate</code> with the following signature</p>
+<div class="codehilite"><pre><span></span><code>func([]string) (routing.PredicateSpec, error)
+</code></pre></div>
+
+<p>The parameters passed are all arguments for the plugin, i.e. everything after the first
+word from skipper&rsquo;s <code>-predicate-plugin</code> parameter. E.g. when the <code>-predicate-plugin</code>
+parameter is</p>
+<div class="codehilite"><pre><span></span><code>mypred,datafile=/path/to/file,foo=bar
+</code></pre></div>
+
+<p>the <code>mypred</code> plugin will receive</p>
+<div class="codehilite"><pre><span></span><code>[]string{&quot;datafile=/path/to/file&quot;, &quot;foo=bar&quot;}
+</code></pre></div>
+
+<p>as arguments.</p>
+<p>The predicate plugin implementation is responsible to parse the received arguments.</p>
+<p>Predicate plugins can be found in the <a href="https://github.com/skipper-plugins/predicates">predicate repo</a></p>
+<h3 id="example-predicate-plugin">Example predicate plugin<a class="headerlink" href="#example-predicate-plugin" title="Permanent link">&para;</a></h3>
+<p>An example <code>MatchAll</code> plugin looks like</p>
+<div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">&quot;github.com/zalando/skipper/routing&quot;</span>
+<span class="w">    </span><span class="s">&quot;net/http&quot;</span>
+<span class="p">)</span>
+
+<span class="kd">type</span><span class="w"> </span><span class="nx">noopSpec</span><span class="w"> </span><span class="kd">struct</span><span class="p">{}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">InitPredicate</span><span class="p">(</span><span class="nx">opts</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">routing</span><span class="p">.</span><span class="nx">PredicateSpec</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">noopSpec</span><span class="p">{},</span><span class="w"> </span><span class="kc">nil</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">s</span><span class="w"> </span><span class="nx">noopSpec</span><span class="p">)</span><span class="w"> </span><span class="nx">Name</span><span class="p">()</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="s">&quot;MatchAll&quot;</span>
+<span class="p">}</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">s</span><span class="w"> </span><span class="nx">noopSpec</span><span class="p">)</span><span class="w"> </span><span class="nx">Create</span><span class="p">(</span><span class="nx">config</span><span class="w"> </span><span class="p">[]</span><span class="kd">interface</span><span class="p">{})</span><span class="w"> </span><span class="p">(</span><span class="nx">routing</span><span class="p">.</span><span class="nx">Predicate</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">noopPredicate</span><span class="p">{},</span><span class="w"> </span><span class="kc">nil</span>
+<span class="p">}</span>
+
+<span class="kd">type</span><span class="w"> </span><span class="nx">noopPredicate</span><span class="w"> </span><span class="kd">struct</span><span class="p">{}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">p</span><span class="w"> </span><span class="nx">noopPredicate</span><span class="p">)</span><span class="w"> </span><span class="nx">Match</span><span class="p">(</span><span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="dataclient-plugins">DataClient plugins<a class="headerlink" href="#dataclient-plugins" title="Permanent link">&para;</a></h2>
+<p>Similar to the above predicate and filter plugins. The command line option for data
+client plugins is <code>-dataclient-plugin</code>. The module must have a <code>InitDataClient</code>
+function with the signature</p>
+<div class="codehilite"><pre><span></span><code>func([]string) (routing.DataClient, error)
+</code></pre></div>
+
+<p>A <code>noop</code> data client looks like</p>
+<div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">&quot;github.com/zalando/skipper/eskip&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/zalando/skipper/routing&quot;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">InitDataClient</span><span class="p">([]</span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">routing</span><span class="p">.</span><span class="nx">DataClient</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">dc</span><span class="w"> </span><span class="nx">DataClient</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;&quot;</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">dc</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+<span class="p">}</span>
+
+<span class="kd">type</span><span class="w"> </span><span class="nx">DataClient</span><span class="w"> </span><span class="kt">string</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">dc</span><span class="w"> </span><span class="nx">DataClient</span><span class="p">)</span><span class="w"> </span><span class="nx">LoadAll</span><span class="p">()</span><span class="w"> </span><span class="p">([]</span><span class="o">*</span><span class="nx">eskip</span><span class="p">.</span><span class="nx">Route</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">eskip</span><span class="p">.</span><span class="nx">Parse</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">dc</span><span class="p">))</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">dc</span><span class="w"> </span><span class="nx">DataClient</span><span class="p">)</span><span class="w"> </span><span class="nx">LoadUpdate</span><span class="p">()</span><span class="w"> </span><span class="p">([]</span><span class="o">*</span><span class="nx">eskip</span><span class="p">.</span><span class="nx">Route</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="multitype-plugins">MultiType plugins<a class="headerlink" href="#multitype-plugins" title="Permanent link">&para;</a></h2>
+<p>Sometimes it is necessary to combine multiple plugin types into one module. This can
+be done with this kind of plugin. Note that these modules are not auto loaded, these
+need an explicit <code>-multi-plugin name,arg1,arg2</code> command line switch for skipper.</p>
+<p>The module must have a <code>InitPlugin</code> function with the signature</p>
+<div class="codehilite"><pre><span></span><code>func([]string) ([]filters.Spec, []routing.PredicateSpec, []routing.DataClient, error)
+</code></pre></div>
+
+<p>Any of the returned types may be nil, so you can have e.g. a combined filter / data client
+plugin or share a filter and a predicate, e.g. like</p>
+<div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">&quot;fmt&quot;</span>
+<span class="w">    </span><span class="s">&quot;net&quot;</span>
+<span class="w">    </span><span class="s">&quot;net/http&quot;</span>
+<span class="w">    </span><span class="s">&quot;strconv&quot;</span>
+<span class="w">    </span><span class="s">&quot;strings&quot;</span>
+
+<span class="w">    </span><span class="nx">ot</span><span class="w"> </span><span class="s">&quot;github.com/opentracing/opentracing-go&quot;</span>
+<span class="w">    </span><span class="nx">maxminddb</span><span class="w"> </span><span class="s">&quot;github.com/oschwald/maxminddb-golang&quot;</span>
+
+<span class="w">    </span><span class="s">&quot;github.com/zalando/skipper/filters&quot;</span>
+<span class="w">    </span><span class="nx">snet</span><span class="w"> </span><span class="s">&quot;github.com/zalando/skipper/net&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/zalando/skipper/predicates&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/zalando/skipper/routing&quot;</span>
+<span class="p">)</span>
+
+<span class="kd">type</span><span class="w"> </span><span class="nx">geoipSpec</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">db</span><span class="w">   </span><span class="o">*</span><span class="nx">maxminddb</span><span class="p">.</span><span class="nx">Reader</span>
+<span class="w">    </span><span class="nx">name</span><span class="w"> </span><span class="kt">string</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">InitPlugin</span><span class="p">(</span><span class="nx">opts</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">([]</span><span class="nx">filters</span><span class="p">.</span><span class="nx">Spec</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="nx">routing</span><span class="p">.</span><span class="nx">PredicateSpec</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="nx">routing</span><span class="p">.</span><span class="nx">DataClient</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">db</span><span class="w"> </span><span class="kt">string</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">o</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">opts</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">switch</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="nx">strings</span><span class="p">.</span><span class="nx">HasPrefix</span><span class="p">(</span><span class="nx">o</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;db=&quot;</span><span class="p">):</span>
+<span class="w">            </span><span class="nx">db</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">o</span><span class="p">[</span><span class="mi">3</span><span class="p">:]</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">db</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;missing db= parameter for geoip plugin&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">reader</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">maxminddb</span><span class="p">.</span><span class="nx">Open</span><span class="p">(</span><span class="nx">db</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;failed to open db %s: %s&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">db</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">[]</span><span class="nx">filters</span><span class="p">.</span><span class="nx">Spec</span><span class="p">{</span><span class="o">&amp;</span><span class="nx">geoipSpec</span><span class="p">{</span><span class="nx">db</span><span class="p">:</span><span class="w"> </span><span class="nx">reader</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;geoip&quot;</span><span class="p">}},</span>
+<span class="w">        </span><span class="p">[]</span><span class="nx">routing</span><span class="p">.</span><span class="nx">PredicateSpec</span><span class="p">{</span><span class="o">&amp;</span><span class="nx">geoipSpec</span><span class="p">{</span><span class="nx">db</span><span class="p">:</span><span class="w"> </span><span class="nx">reader</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;GeoIP&quot;</span><span class="p">}},</span>
+<span class="w">        </span><span class="kc">nil</span><span class="p">,</span>
+<span class="w">        </span><span class="kc">nil</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">s</span><span class="w"> </span><span class="o">*</span><span class="nx">geoipSpec</span><span class="p">)</span><span class="w"> </span><span class="nx">Name</span><span class="p">()</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">s</span><span class="p">.</span><span class="nx">name</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">s</span><span class="w"> </span><span class="o">*</span><span class="nx">geoipSpec</span><span class="p">)</span><span class="w"> </span><span class="nx">CreateFilter</span><span class="p">(</span><span class="nx">config</span><span class="w"> </span><span class="p">[]</span><span class="kd">interface</span><span class="p">{})</span><span class="w"> </span><span class="p">(</span><span class="nx">filters</span><span class="p">.</span><span class="nx">Filter</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">fromLast</span><span class="w"> </span><span class="kt">bool</span>
+<span class="w">    </span><span class="nx">header</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;X-GeoIP-Country&quot;</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="kt">error</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">config</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">s</span><span class="p">,</span><span class="w"> </span><span class="nx">ok</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">c</span><span class="p">.(</span><span class="kt">string</span><span class="p">);</span><span class="w"> </span><span class="nx">ok</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">switch</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="nx">strings</span><span class="p">.</span><span class="nx">HasPrefix</span><span class="p">(</span><span class="nx">s</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;from_last=&quot;</span><span class="p">):</span>
+<span class="w">                </span><span class="nx">fromLast</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">strconv</span><span class="p">.</span><span class="nx">ParseBool</span><span class="p">(</span><span class="nx">s</span><span class="p">[</span><span class="mi">10</span><span class="p">:])</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">filters</span><span class="p">.</span><span class="nx">ErrInvalidFilterParameters</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="nx">strings</span><span class="p">.</span><span class="nx">HasPrefix</span><span class="p">(</span><span class="nx">s</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;header=&quot;</span><span class="p">):</span>
+<span class="w">                </span><span class="nx">header</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">s</span><span class="p">[</span><span class="mi">7</span><span class="p">:]</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">geoip</span><span class="p">{</span><span class="nx">db</span><span class="p">:</span><span class="w"> </span><span class="nx">s</span><span class="p">.</span><span class="nx">db</span><span class="p">,</span><span class="w"> </span><span class="nx">fromLast</span><span class="p">:</span><span class="w"> </span><span class="nx">fromLast</span><span class="p">,</span><span class="w"> </span><span class="nx">header</span><span class="p">:</span><span class="w"> </span><span class="nx">header</span><span class="p">},</span><span class="w"> </span><span class="kc">nil</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">s</span><span class="w"> </span><span class="o">*</span><span class="nx">geoipSpec</span><span class="p">)</span><span class="w"> </span><span class="nx">Create</span><span class="p">(</span><span class="nx">config</span><span class="w"> </span><span class="p">[]</span><span class="kd">interface</span><span class="p">{})</span><span class="w"> </span><span class="p">(</span><span class="nx">routing</span><span class="p">.</span><span class="nx">Predicate</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">fromLast</span><span class="w"> </span><span class="kt">bool</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="kt">error</span>
+<span class="w">    </span><span class="nx">countries</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kd">struct</span><span class="p">{})</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">config</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">s</span><span class="p">,</span><span class="w"> </span><span class="nx">ok</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">c</span><span class="p">.(</span><span class="kt">string</span><span class="p">);</span><span class="w"> </span><span class="nx">ok</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">switch</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="nx">strings</span><span class="p">.</span><span class="nx">HasPrefix</span><span class="p">(</span><span class="nx">s</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;from_last=&quot;</span><span class="p">):</span>
+<span class="w">                </span><span class="nx">fromLast</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">strconv</span><span class="p">.</span><span class="nx">ParseBool</span><span class="p">(</span><span class="nx">s</span><span class="p">[</span><span class="mi">10</span><span class="p">:])</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">predicates</span><span class="p">.</span><span class="nx">ErrInvalidPredicateParameters</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="k">default</span><span class="p">:</span>
+<span class="w">                </span><span class="nx">countries</span><span class="p">[</span><span class="nx">strings</span><span class="p">.</span><span class="nx">ToUpper</span><span class="p">(</span><span class="nx">s</span><span class="p">)]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kd">struct</span><span class="p">{}{}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">geoip</span><span class="p">{</span><span class="nx">db</span><span class="p">:</span><span class="w"> </span><span class="nx">s</span><span class="p">.</span><span class="nx">db</span><span class="p">,</span><span class="w"> </span><span class="nx">fromLast</span><span class="p">:</span><span class="w"> </span><span class="nx">fromLast</span><span class="p">,</span><span class="w"> </span><span class="nx">countries</span><span class="p">:</span><span class="w"> </span><span class="nx">countries</span><span class="p">},</span><span class="w"> </span><span class="kc">nil</span>
+<span class="p">}</span>
+
+<span class="kd">type</span><span class="w"> </span><span class="nx">geoip</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">db</span><span class="w">        </span><span class="o">*</span><span class="nx">maxminddb</span><span class="p">.</span><span class="nx">Reader</span>
+<span class="w">    </span><span class="nx">fromLast</span><span class="w">  </span><span class="kt">bool</span>
+<span class="w">    </span><span class="nx">header</span><span class="w">    </span><span class="kt">string</span>
+<span class="w">    </span><span class="nx">countries</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kd">struct</span><span class="p">{}</span>
+<span class="p">}</span>
+
+<span class="kd">type</span><span class="w"> </span><span class="nx">countryRecord</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">Country</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">ISOCode</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`maxminddb:&quot;iso_code&quot;`</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="s">`maxminddb:&quot;country&quot;`</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">g</span><span class="w"> </span><span class="o">*</span><span class="nx">geoip</span><span class="p">)</span><span class="w"> </span><span class="nx">lookup</span><span class="p">(</span><span class="nx">r</span><span class="w"> </span><span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">src</span><span class="w"> </span><span class="nx">net</span><span class="p">.</span><span class="nx">IP</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">g</span><span class="p">.</span><span class="nx">fromLast</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">src</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">snet</span><span class="p">.</span><span class="nx">RemoteHostFromLast</span><span class="p">(</span><span class="nx">r</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">src</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">snet</span><span class="p">.</span><span class="nx">RemoteHost</span><span class="p">(</span><span class="nx">r</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="nx">record</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">countryRecord</span><span class="p">{}</span>
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">g</span><span class="p">.</span><span class="nx">db</span><span class="p">.</span><span class="nx">Lookup</span><span class="p">(</span><span class="nx">src</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">record</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">&quot;geoip(): failed to lookup %s: %s&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">src</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">record</span><span class="p">.</span><span class="nx">Country</span><span class="p">.</span><span class="nx">ISOCode</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="s">&quot;UNKNOWN&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">record</span><span class="p">.</span><span class="nx">Country</span><span class="p">.</span><span class="nx">ISOCode</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">g</span><span class="w"> </span><span class="o">*</span><span class="nx">geoip</span><span class="p">)</span><span class="w"> </span><span class="nx">Request</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="nx">filters</span><span class="p">.</span><span class="nx">FilterContext</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">c</span><span class="p">.</span><span class="nx">Request</span><span class="p">().</span><span class="nx">Header</span><span class="p">.</span><span class="nx">Set</span><span class="p">(</span><span class="nx">g</span><span class="p">.</span><span class="nx">header</span><span class="p">,</span><span class="w"> </span><span class="nx">g</span><span class="p">.</span><span class="nx">lookup</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">Request</span><span class="p">()))</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">g</span><span class="w"> </span><span class="o">*</span><span class="nx">geoip</span><span class="p">)</span><span class="w"> </span><span class="nx">Response</span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="nx">filters</span><span class="p">.</span><span class="nx">FilterContext</span><span class="p">)</span><span class="w"> </span><span class="p">{}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">g</span><span class="w"> </span><span class="o">*</span><span class="nx">geoip</span><span class="p">)</span><span class="w"> </span><span class="nx">Match</span><span class="p">(</span><span class="nx">r</span><span class="w"> </span><span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">span</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">ot</span><span class="p">.</span><span class="nx">SpanFromContext</span><span class="p">(</span><span class="nx">r</span><span class="p">.</span><span class="nx">Context</span><span class="p">())</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">span</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">span</span><span class="p">.</span><span class="nx">LogKV</span><span class="p">(</span><span class="s">&quot;GeoIP&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;start&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="nx">code</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">g</span><span class="p">.</span><span class="nx">lookup</span><span class="p">(</span><span class="nx">r</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">ok</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">g</span><span class="p">.</span><span class="nx">countries</span><span class="p">[</span><span class="nx">code</span><span class="p">]</span>
+
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">span</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">span</span><span class="p">.</span><span class="nx">LogKV</span><span class="p">(</span><span class="s">&quot;GeoIP&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">code</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">ok</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="opentracing-plugins">OpenTracing plugins<a class="headerlink" href="#opentracing-plugins" title="Permanent link">&para;</a></h2>
+<p>The tracers, except for <code>noop</code>, are built as Go Plugins. A tracing plugin can
+be loaded with <code>-opentracing NAME</code> as parameter to skipper.</p>
+<p>Implementations of OpenTracing API can be found in the
+<a href="https://github.com/skipper-plugins/opentracing">https://github.com/skipper-plugins/opentracing</a> repository.</p>
+<p>All plugins must have a function named <code>InitTracer</code> with the following signature</p>
+<div class="codehilite"><pre><span></span><code>func([]string) (opentracing.Tracer, error)
+</code></pre></div>
+
+<p>The parameters passed are all arguments for the plugin, i.e. everything after the first
+word from skipper&rsquo;s -opentracing parameter. E.g. when the -opentracing parameter is
+<code>mytracer foo=bar token=xxx somename=bla:3</code> the &ldquo;mytracer&rdquo; plugin will receive</p>
+<div class="codehilite"><pre><span></span><code>[]string{&quot;foo=bar&quot;, &quot;token=xxx&quot;, &quot;somename=bla:3&quot;}
+</code></pre></div>
+
+<p>as arguments.</p>
+<p>The tracer plugin implementation is responsible to parse the received arguments.</p>
+<p>An example plugin looks like
+<div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">     </span><span class="nx">basic</span><span class="w"> </span><span class="s">&quot;github.com/opentracing/basictracer-go&quot;</span>
+<span class="w">     </span><span class="nx">opentracing</span><span class="w"> </span><span class="s">&quot;github.com/opentracing/opentracing-go&quot;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">InitTracer</span><span class="p">(</span><span class="nx">opts</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">opentracing</span><span class="p">.</span><span class="nx">Tracer</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">     </span><span class="k">return</span><span class="w"> </span><span class="nx">basic</span><span class="p">.</span><span class="nx">NewTracerWithOptions</span><span class="p">(</span><span class="nx">basic</span><span class="p">.</span><span class="nx">Options</span><span class="p">{</span>
+<span class="w">         </span><span class="nx">Recorder</span><span class="p">:</span><span class="w">       </span><span class="nx">basic</span><span class="p">.</span><span class="nx">NewInMemoryRecorder</span><span class="p">(),</span>
+<span class="w">         </span><span class="nx">ShouldSample</span><span class="p">:</span><span class="w">   </span><span class="kd">func</span><span class="p">(</span><span class="nx">traceID</span><span class="w"> </span><span class="kt">uint64</span><span class="p">)</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">traceID</span><span class="o">%</span><span class="mi">64</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">},</span>
+<span class="w">         </span><span class="nx">MaxLogsPerSpan</span><span class="p">:</span><span class="w"> </span><span class="mi">25</span><span class="p">,</span>
+<span class="w">     </span><span class="p">}),</span><span class="w"> </span><span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></div></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

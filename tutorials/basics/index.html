@@ -1,0 +1,2466 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://opensource.zalando.com/skipper/tutorials/basics/">
+      
+      
+        <link rel="prev" href="../../kubernetes/migrate/">
+      
+      
+        <link rel="next" href="../common-use-cases/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../favicon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+    
+    
+      
+        <title>Basics - Skipper</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#architecture" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Skipper" class="md-header__button md-logo" aria-label="Skipper" data-md-component="logo">
+      
+  <img src="../../skipper-h180.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Skipper
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Basics
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/zalando/skipper/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Skipper" class="md-nav__button md-logo" aria-label="Skipper" data-md-component="logo">
+      
+  <img src="../../skipper-h180.png" alt="logo">
+
+    </a>
+    Skipper
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/zalando/skipper/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/filters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/predicates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Predicates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/egress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Egress
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/routing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Routing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_10" id="__nav_2_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Clients
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data Clients
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/eskip-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Eskip File
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/eskip-remote/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Remote Eskip
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/route-string/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Route String
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/kubernetes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data-clients/etcd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Etcd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_11" id="__nav_2_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Operation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operation/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operation/operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Kubernetes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/ingress-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingress Controller Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/ingress-usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingress Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/ingress-backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingress Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/routegroups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RouteGroups
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/routegroup-crd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RouteGroup CRD Semantics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/routegroup-validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RouteGroup Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/east-west-usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    East-West aka svc-to-svc
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/external-addresses/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Addresses aka External Name
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kubernetes/migrate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorials
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorials
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Basics
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Basics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Concepts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Concepts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#route-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route definition
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#predicate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Predicate
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Predicate">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#predicate-and-routing-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Predicate and routing table
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Filter">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filter-in-context-of-an-http-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter in context of an HTTP request
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dataclient" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dataclient
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#route-processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route processing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Route processing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#routing-mechanism" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Routing mechanism
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#route-matching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route matching
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#route-creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route creation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-skipper" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building skipper
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Building skipper">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#local-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ci-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI build
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-routes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing routes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#yaml-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YAML Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-routing-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current routing table
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Current routing table">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#route-ids" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route IDs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../common-use-cases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Common Use Cases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication and Authorization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ratelimit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ratelimits
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../shadow-traffic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shadow Traffic
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../built-your-own/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built Your Own Proxy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Concepts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Concepts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#route-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route definition
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#predicate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Predicate
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Predicate">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#predicate-and-routing-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Predicate and routing table
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Filter">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filter-in-context-of-an-http-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter in context of an HTTP request
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dataclient" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dataclient
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#route-processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route processing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Route processing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#routing-mechanism" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Routing mechanism
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#route-matching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route matching
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#route-creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route creation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-skipper" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building skipper
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Building skipper">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#local-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ci-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI build
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-routes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing routes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#yaml-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YAML Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-routing-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current routing table
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Current routing table">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#route-ids" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route IDs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+  <h1>Basics</h1>
+
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<p>The core business of skipper is routing based on HTTP. It performs and
+scales well, for example it handles more than 800000 routes in
+production with 60000 requests per second.</p>
+<p>Skipper is written as a library and is also a multi binary project with
+2 binaries, named <code>skipper</code> and <code>eskip</code>. <code>Skipper</code> is the HTTP proxy
+and <code>eskip</code> is a CLI application to verify, print, update or delete
+Skipper routes.</p>
+<p>Skipper&rsquo;s internal architecture is split into different packages. The
+<code>skipper</code> package has connections to multiple <code>dataclient</code>, that pull
+information from different sources, for example local routes from an
+eskip file or dynamic routes from Kubernetes ingress objects.</p>
+<p>The <code>proxy</code> package gets the routes populated by skipper and has
+always a current routing table which will be replaced on change.</p>
+<p>A route is one entry in the routing table. A route consists of one or
+more <code>predicate</code>, that are used to find a route for a given HTTP
+request. A route can also have one or more <code>filter</code>, that can modify
+the content of the request or response.  A route can point to a
+backend, it can be a <code>&lt;shunt&gt;</code>, meaning that skipper serves the requests
+for the route, a <code>&lt;loopback&gt;</code>, meaning that the requests will be
+matched against the routing table again after filters have modified
+them, or a <code>&lt;dynamic&gt;</code>, meaning that the target backend must be set in a filter.</p>
+<p><a href="http://opentracing.io/">Opentracing API</a> is supported via
+<code>tracers</code> and you can find all of them in <code>./tracing/tracers/</code>. For
+example <a href="https://github.com/jaegertracing/jaeger">Jaeger</a> is supported.</p>
+<p>Skipper has a rich set of metrics that are exposed as json, but can
+also be exported in <a href="https://prometheus.io">Prometheus</a> format.</p>
+<p><img alt="Skipper's architecture " src="../../img/architecture.svg" /></p>
+<h2 id="concepts">Concepts<a class="headerlink" href="#concepts" title="Permanent link">&para;</a></h2>
+<h3 id="route-definition">Route definition<a class="headerlink" href="#route-definition" title="Permanent link">&para;</a></h3>
+<p>A route consists of an ID, predicates, filters and a backend and is
+most often written in <a href="https://pkg.go.dev/github.com/zalando/skipper/eskip">eskip syntax</a>.</p>
+<p>Syntax:</p>
+<div class="highlight"><pre><span></span><code>ID:
+        Predicate1() &amp;&amp; .. &amp;&amp; PredicateN()
+        -&gt; filter1()
+        ...
+        -&gt; filterN()
+        -&gt; BACKEND
+</code></pre></div>
+<p>An example routing configuration:</p>
+<div class="highlight"><pre><span></span><code>baidu:
+<span class="w">        </span>Path<span class="o">(</span><span class="s2">&quot;/baidu&quot;</span><span class="o">)</span>
+<span class="w">        </span>-&gt;<span class="w"> </span>setRequestHeader<span class="o">(</span><span class="s2">&quot;Host&quot;</span>,<span class="w"> </span><span class="s2">&quot;www.baidu.com&quot;</span><span class="o">)</span>
+<span class="w">        </span>-&gt;<span class="w"> </span>setPath<span class="o">(</span><span class="s2">&quot;/s&quot;</span><span class="o">)</span>
+<span class="w">        </span>-&gt;<span class="w"> </span>setQuery<span class="o">(</span><span class="s2">&quot;wd&quot;</span>,<span class="w"> </span><span class="s2">&quot;godoc skipper&quot;</span><span class="o">)</span>
+<span class="w">        </span>-&gt;<span class="w"> </span><span class="s2">&quot;http://www.baidu.com&quot;</span><span class="p">;</span>
+google:
+<span class="w">        </span>*
+<span class="w">        </span>-&gt;<span class="w"> </span>setPath<span class="o">(</span><span class="s2">&quot;/search&quot;</span><span class="o">)</span>
+<span class="w">        </span>-&gt;<span class="w"> </span>setQuery<span class="o">(</span><span class="s2">&quot;q&quot;</span>,<span class="w"> </span><span class="s2">&quot;godoc skipper&quot;</span><span class="o">)</span>
+<span class="w">        </span>-&gt;<span class="w"> </span><span class="s2">&quot;https://www.google.com&quot;</span><span class="p">;</span>
+yandex:
+<span class="w">        </span>*<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>Cookie<span class="o">(</span><span class="s2">&quot;yandex&quot;</span>,<span class="w"> </span><span class="s2">&quot;true&quot;</span><span class="o">)</span>
+<span class="w">        </span>-&gt;<span class="w"> </span>setPath<span class="o">(</span><span class="s2">&quot;/search/&quot;</span><span class="o">)</span>
+<span class="w">        </span>-&gt;<span class="w"> </span>setQuery<span class="o">(</span><span class="s2">&quot;text&quot;</span>,<span class="w"> </span><span class="s2">&quot;godoc skipper&quot;</span><span class="o">)</span>
+<span class="w">        </span>-&gt;<span class="w"> </span>tee<span class="o">(</span><span class="s2">&quot;http://127.0.0.1:12345/&quot;</span><span class="o">)</span>
+<span class="w">        </span>-&gt;<span class="w"> </span><span class="s2">&quot;https://yandex.ru&quot;</span><span class="p">;</span>
+</code></pre></div>
+<h3 id="predicate">Predicate<a class="headerlink" href="#predicate" title="Permanent link">&para;</a></h3>
+<p>A Predicate adds a matching rule to a route.
+For example the Cookie predicate, <code>Cookie("yandex", "true")</code>, matched
+if there is a cookie in the request with name &ldquo;yandex&rdquo; and the value
+is &ldquo;true&rdquo;, else the route processing will go on and try to find
+another matching route for the given request. Multiple predicates can
+be combined by <code>&amp;&amp;</code> which means a logical <strong>AND</strong>. If you need a
+logical <strong>OR</strong>, you have to create another route.</p>
+<p>Special Predicates:</p>
+<ul>
+<li><code>*</code> catch all is always true</li>
+<li><code>Path()</code> reduces the number of routes in O(log n) time to scan afterwards a subset in linear time</li>
+<li><code>PathSubtree()</code> reduces the number of routes O(log n) time to scan afterwards a subset in linear time</li>
+</ul>
+<h4 id="predicate-and-routing-table">Predicate and routing table<a class="headerlink" href="#predicate-and-routing-table" title="Permanent link">&para;</a></h4>
+<p>A routing table consists of a number of routes.  A route has a list of
+predicates and filters.  Predicates match an incoming request to a
+specific, best matching, route.  Each route has a set of filters.</p>
+<p><img alt="picture of a Predicate" src="../../img/skipper-predicate.svg" /></p>
+<h3 id="filter">Filter<a class="headerlink" href="#filter" title="Permanent link">&para;</a></h3>
+<p>A filter changes a HTTP request or response or both. Multiple filters
+can be concatenated by <code>-&gt;</code>.</p>
+<p>Some special filters are:</p>
+<ul>
+<li><code>inlineContent()</code> sets the HTTP response body, should be used with status() filter and  <shunt> backend</li>
+<li><code>static()</code> serves static files and should be used with <shunt> backend</li>
+<li><code>status()</code> sets HTTP status code to a given value, should be used with <shunt> backend</li>
+<li><code>tee()</code> clones request to given target</li>
+</ul>
+<h4 id="filter-in-context-of-an-http-request">Filter in context of an HTTP request<a class="headerlink" href="#filter-in-context-of-an-http-request" title="Permanent link">&para;</a></h4>
+<p>The picture shows the transformation of the requests and responses</p>
+<p><img alt="picture of a Filter" src="../../img/skipper-filter.svg" /></p>
+<h3 id="backend">Backend<a class="headerlink" href="#backend" title="Permanent link">&para;</a></h3>
+<p>The last entry of a route is the backend definition, that will be
+called with the result request after filter processing. Normally this
+is an URL string.</p>
+<p>Special backends:</p>
+<ul>
+<li><code>&lt;loopback&gt;</code> restart route processing with the possibly changed request</li>
+<li><code>&lt;shunt&gt;</code> stops processing, used for fast returns</li>
+<li><code>&lt;dynamic&gt;</code> target is set dynamically in a filter</li>
+<li><code>&lt;$algorithm, "be1", "be2", ..., "beN"&gt;</code> load balanced backend with N backends</li>
+</ul>
+<p>See more about backends in <a href="../../reference/backends/">backend references</a>.</p>
+<h3 id="dataclient">Dataclient<a class="headerlink" href="#dataclient" title="Permanent link">&para;</a></h3>
+<p>Dataclients are used to pull route information from a data source. The
+data will be used to create routes according to the dataclient. As a
+special case, for example kubernetes dataclient automatically adds
+HTTP-&gt;HTTPS redirects if skipper is started with <code>-kubernetes-https-redirect</code>.</p>
+<p>Dataclients:</p>
+<ul>
+<li><a href="../../data-clients/eskip-file/">eskip file</a></li>
+<li><a href="../../data-clients/eskip-remote/">remote eskip</a></li>
+<li><a href="../../data-clients/route-string/">route string</a></li>
+<li><a href="../../data-clients/kubernetes/">kubernetes</a></li>
+<li><a href="../../data-clients/etcd/">etcd</a></li>
+</ul>
+<h2 id="route-processing">Route processing<a class="headerlink" href="#route-processing" title="Permanent link">&para;</a></h2>
+<p>Package <code>skipper</code> has a Go <code>http.Server</code> and does the <code>ListenAndServe</code>
+call with the <code>loggingHandler</code> wrapped <code>proxy</code>.  The <code>loggingHandler</code>
+is basically a middleware for the <code>proxy</code> providing access logs and
+both implement the plain Go <a href="https://golang.org/pkg/net/http/#Handler">http.Handler interface</a>.</p>
+<p>For each incoming <code>http.Request</code> the <code>proxy</code> will create a request
+context and enhance it with an <a href="http://opentracing.io/">Opentracing API</a> Span.
+It will check proxy global ratelimits first and after that lookup the
+route in the routing table. After that skipper will apply all request
+filters, that can modify the <code>http.Request</code>. It will then check the
+route local ratelimits, the circuitbreakers and do the backend
+call. If the backend call got a TCP or TLS connection error in a
+loadbalanced route, skipper will do a retry to another backend of that
+loadbalanced group automatically. Just before the response to the
+caller, skipper will process the response filters, that can change the
+<code>http.Response</code>.</p>
+<p>In two special cases, skipper doesn&rsquo;t forward the request to the
+backend. When the route is shunted (<code>&lt;shunt&gt;</code>), skipper serves the
+request alone, by using only the filters. When the route is a
+<code>&lt;loopback&gt;</code>, the request is passed to the routing table for finding
+another route, based on the changes that the filters made to the
+request. In case it will always find a <code>&lt;loopback&gt;</code> route it will stop
+after maximum number of loopbacks is reached and logs an error.</p>
+<p><img alt="Skipper's request and response processing " src="../../img/req-and-resp-processing.svg" /></p>
+<h3 id="routing-mechanism">Routing mechanism<a class="headerlink" href="#routing-mechanism" title="Permanent link">&para;</a></h3>
+<p>The routing executes the following steps in the typical case:</p>
+<ol>
+<li>
+<p>Select the best fitting route by matching the request against the
+   predicates. When no route found, respond with 404 (unless the default
+   status code is configured to a different value).</p>
+</li>
+<li>
+<p>Execute the filters defined in the route in normal order on the
+   request. The filters may or may not alter the request.</p>
+</li>
+<li>
+<p>Forward the request to the backend defined by the route and receive
+   a response.</p>
+</li>
+<li>
+<p>Execute the filters defined in the route in reverse order on the
+   response. The filters may or may not alter the response.</p>
+</li>
+<li>
+<p>Respond to the incoming request with the resulting response.</p>
+</li>
+</ol>
+<h3 id="route-matching">Route matching<a class="headerlink" href="#route-matching" title="Permanent link">&para;</a></h3>
+<p>Skipper can handle a relatively large number of routes with acceptable
+performance, while being able to use any attribute of the incoming HTTP
+requests to distinguish between them. In order to be able to do so, the
+path matching predicates (<code>Path()</code> and <code>PathSubtree()</code> but not <code>PathRegexp()</code>)
+have a special role during route matching, which is a tradeoff by
+design, and needs to be kept in mind to understand in some cases why a
+certain route was matched for a request instead of another.</p>
+<p>The route matching logic can be summed up as follows:</p>
+<ol>
+<li>
+<p>Lookup in the path tree based on the <code>Path()</code> and the <code>PathSubtree()</code>
+   predicates, using the path component of the incoming request&rsquo;s URI. Then
+   the remaining predicates of the found route(s) are evaluated.</p>
+<ul>
+<li>
+<p>the path lookup is a radix tree with O(log(n)) time complexity</p>
+</li>
+<li>
+<p>in case of intersecting paths, the more specific path is matched in
+ the tree</p>
+</li>
+<li>
+<p><code>PathRegexp()</code> is not used in the tree, but it is evaluated only after
+ <code>Path()</code> or <code>PathSubtree()</code>, just like e.g. <code>Method()</code> or <code>Host()</code>.</p>
+</li>
+</ul>
+</li>
+<li>
+<p><em>If</em> step #1 matches multiple routes, which means there are multiple
+   routes in the same position of the path tree, and all other predicates
+   match the request, too, then the route with the highest
+   <a href="../../reference/predicates/#weight">weight</a> is matched.</p>
+<ul>
+<li>
+<p>this is an O(n) lookup, but only on the same leaf</p>
+</li>
+<li>
+<p>the root of the tree is considered a single leaf, so if not using the
+  <code>Path()</code> or <code>PathSubtree()</code> predicates, the entire lookup will become O(n)
+  over all the routes.</p>
+</li>
+</ul>
+</li>
+<li>
+<p><em>If</em> #2 results in multiple matching routes, then one route will be
+   selected. It is unspecified which one.</p>
+</li>
+</ol>
+<p>See more details about the predicates here: <a href="../../reference/predicates/">Predicates</a>.</p>
+<h3 id="route-creation">Route creation<a class="headerlink" href="#route-creation" title="Permanent link">&para;</a></h3>
+<p>Skipper has two kind of routes:</p>
+<ol>
+<li><a href="https://pkg.go.dev/github.com/zalando/skipper/eskip#Route">eskip.Route</a></li>
+<li><a href="https://pkg.go.dev/github.com/zalando/skipper/routing#Route">routing.Route</a></li>
+</ol>
+<p>An <code>eskip.Route</code> is the parsed representation of user input. This will
+be converted to a <code>routing.Route</code>, when the routing table is built. A
+tree of <code>routing.Route</code> will be used to match an incoming Request to a route.</p>
+<p>Route creation steps:</p>
+<ol>
+<li>Skipper&rsquo;s route creation starts with the <a href="https://pkg.go.dev/github.com/zalando/skipper/routing#DataClient">Dataclient</a>
+   to fetch routes (<code>[]*eskip.Route</code>).</li>
+<li>These will be first processed by
+   <code>[]routing.PreProcessor</code>. <a href="https://pkg.go.dev/github.com/zalando/skipper/routing#PreProcessor">PreProcessors</a> are able to add, remove,
+   modify all <code>[]*eskip.Route</code>.</li>
+<li>After that <code>[]*eskip.Route</code> are converted to <code>[]*routing.Route</code>.</li>
+<li><code>[]routing.PostProcessor</code> are executed. <a href="https://pkg.go.dev/github.com/zalando/skipper/routing#PostProcessor">PostProcessors</a> are able to
+   add, remove, modify all <code>[]*routing.Route</code>.</li>
+<li>Last the active routing table is swapped. Now all incoming requests
+   are handled by the new routing table</li>
+</ol>
+<h2 id="building-skipper">Building skipper<a class="headerlink" href="#building-skipper" title="Permanent link">&para;</a></h2>
+<h3 id="local-build">Local build<a class="headerlink" href="#local-build" title="Permanent link">&para;</a></h3>
+<p>To get a local build of skipper for your CPU architecture, you can run
+<code>make skipper</code>. To cross compile to non Linux platforms you can use:</p>
+<ul>
+<li><code>make build.darwin</code> for Mac OS X (amd64)</li>
+<li><code>make build.windows</code> for Windows (amd64)</li>
+</ul>
+<p>The local build will write into <code>./bin/</code> directory.</p>
+<h3 id="ci-build">CI build<a class="headerlink" href="#ci-build" title="Permanent link">&para;</a></h3>
+<p>The current used CI flow to build the official docker container, you
+can see in <a href="https://github.com/zalando/skipper/blob/master/delivery.yaml">delivery.yaml</a>.
+Official release versions you will find at
+<code>registry.opensource.zalan.do/teapot/skipper:${RELEASE_VERSION}</code>,
+where <code>${RELEASE_VERSION}</code> is the git tag got by <code>$(git describe --tags --always --dirty)</code>.</p>
+<p>Test versions are released at
+<code>registry.opensource.zalan.do/teapot/skipper-test:${CDP_BUILD_VERSION}</code>
+for every pull request, limited to only repository members, because of
+compliance and security reasons.</p>
+<h2 id="testing-routes">Testing routes<a class="headerlink" href="#testing-routes" title="Permanent link">&para;</a></h2>
+<p>To test routes you can use a local build of skipper and pass arguments
+<code>-inline-routes=&lt;route string&gt;</code> or for more complex ones
+use a local <code>eskip</code> file on disk and use <code>-routes-file=&lt;filepath&gt;</code>.</p>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code>./bin/skipper<span class="w"> </span>-address<span class="w"> </span>:9999<span class="w"> </span>-inline-routes<span class="w"> </span><span class="s1">&#39;r: * -&gt; setQuery(&quot;lang&quot;, &quot;pt&quot;) -&gt; &quot;http://127.0.0.1:8080/&quot;&#39;</span>
+</code></pre></div>
+<p>Now you have a proxy running that will set a query to your request URL
+and call <code>http://127.0.0.1:8080/?lang=pt</code></p>
+<p>The simplest way of testing a proxy is using a local backend and a
+local browser.</p>
+<p>Local backend example:</p>
+<div class="highlight"><pre><span></span><code>./bin/skipper<span class="w"> </span>-address<span class="w"> </span>:8080<span class="w"> </span>-inline-routes<span class="w"> </span><span class="s1">&#39;r: * -&gt; inlineContent(&quot;Hello world!&quot;) -&gt; status(200) -&gt; &lt;shunt&gt;&#39;</span>
+</code></pre></div>
+<p>If you want to do the request and see the response in detail, you can
+use <code>curl</code> as a browser, which should be installed on most Linux and
+Mac OS X computers.</p>
+<p>Example client call to our defined proxy:</p>
+<div class="highlight"><pre><span></span><code>%<span class="w"> </span>curl<span class="w"> </span>localhost:8080<span class="w"> </span>-v
+*<span class="w"> </span>Rebuilt<span class="w"> </span>URL<span class="w"> </span>to:<span class="w"> </span>localhost:8080/
+*<span class="w">   </span>Trying<span class="w"> </span>::1...
+*<span class="w"> </span>Connected<span class="w"> </span>to<span class="w"> </span>localhost<span class="w"> </span><span class="o">(</span>::1<span class="o">)</span><span class="w"> </span>port<span class="w"> </span><span class="m">8080</span><span class="w"> </span><span class="o">(</span><span class="c1">#0)</span>
+&gt;<span class="w"> </span>GET<span class="w"> </span>/<span class="w"> </span>HTTP/1.1
+&gt;<span class="w"> </span>Host:<span class="w"> </span>localhost:8080
+&gt;<span class="w"> </span>User-Agent:<span class="w"> </span>curl/7.49.0
+&gt;<span class="w"> </span>Accept:<span class="w"> </span>*/*
+&gt;
+&lt;<span class="w"> </span>HTTP/1.1<span class="w"> </span><span class="m">200</span><span class="w"> </span>OK
+&lt;<span class="w"> </span>Content-Length:<span class="w"> </span><span class="m">12</span>
+&lt;<span class="w"> </span>Content-Type:<span class="w"> </span>text/plain<span class="p">;</span><span class="w"> </span><span class="nv">charset</span><span class="o">=</span>utf-8
+&lt;<span class="w"> </span>Server:<span class="w"> </span>Skipper
+&lt;<span class="w"> </span>Date:<span class="w"> </span>Thu,<span class="w"> </span><span class="m">01</span><span class="w"> </span>Nov<span class="w"> </span><span class="m">2018</span><span class="w"> </span><span class="m">15</span>:54:13<span class="w"> </span>GMT
+&lt;
+*<span class="w"> </span>Connection<span class="w"> </span><span class="c1">#0 to host localhost left intact</span>
+Hello<span class="w"> </span>world!
+</code></pre></div>
+<h2 id="yaml-configuration">YAML Configuration<a class="headerlink" href="#yaml-configuration" title="Permanent link">&para;</a></h2>
+<p>The usage of flags to configure the <code>skipper</code> binary can get quickly out
+of hand. You can use a <code>yaml</code> file instead to populate the flags presented
+in the <code>skipper -help</code> command.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">kubernetes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">kubernetes-in-cluster</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">kubernetes-https-redirect</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">proxy-preserve-host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">serve-host-metrics</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;:8080&quot;</span>
+<span class="nt">enable-ratelimits</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">experimental-upgrade</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">metrics-exp-decay-sample</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">metrics-flavour</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;codahale&quot;</span><span class="p p-Indicator">,</span><span class="s">&quot;prometheus&quot;</span><span class="p p-Indicator">]</span>
+<span class="nt">enable-connection-metrics</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">whitelisted-healthcheck-cidr</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;172.20.0.0/16&quot;</span>
+<span class="nt">ignore-trailing-slash</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">inline-routes</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;r:</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">-&gt;</span><span class="nv"> </span><span class="s">inlineContent(&quot;Hello</span><span class="nv"> </span><span class="s">world!&quot;)</span><span class="nv"> </span><span class="s">-&gt;</span><span class="nv"> </span><span class="s">status(200)</span><span class="nv"> </span><span class="s">-&gt;</span><span class="nv"> </span><span class="s">&lt;shunt&gt;&#39;</span>
+</code></pre></div>
+<p>Considering that this file would be named <code>config.yaml</code> you can use it to populate
+the flags using the <code>config-file</code> flag:</p>
+<div class="highlight"><pre><span></span><code>./bin/skipper<span class="w"> </span>-config-file<span class="o">=</span>config.yaml
+</code></pre></div>
+<p>Performing the same call to the address as exemplified in the previous section should
+yield the same results.</p>
+<h2 id="current-routing-table">Current routing table<a class="headerlink" href="#current-routing-table" title="Permanent link">&para;</a></h2>
+<p>To investigate the current routing table skipper has loaded into its
+memory, you can use the <code>-support-listener</code>, which defaults to port
+9911 and you have to do a GET request to the <code>/routes</code> endpoint.</p>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code>%<span class="w"> </span>curl<span class="w"> </span>localhost:9911/routes
+r:<span class="w"> </span>*
+<span class="w">  </span>-&gt;<span class="w"> </span>setQuery<span class="o">(</span><span class="s2">&quot;lang&quot;</span>,<span class="w"> </span><span class="s2">&quot;pt&quot;</span><span class="o">)</span>
+<span class="w">  </span>-&gt;<span class="w"> </span><span class="s2">&quot;http://127.0.0.1:8000&quot;</span><span class="p">;</span>
+</code></pre></div>
+<p>If you do not see your route, then you have most probably a syntax
+error in your route definition, such that the route was not loaded
+into memory.</p>
+<p>To print the number of routes, <code>X-Count</code> header, and the last update
+timestamp, <code>X-Timestamp</code> header, you can use a HEAD request to the
+support listener <code>/routes</code> endpoint:</p>
+<div class="highlight"><pre><span></span><code>%<span class="w"> </span>curl<span class="w"> </span>-I<span class="w"> </span>localhost:9911/routes
+HTTP/1.1<span class="w"> </span><span class="m">200</span><span class="w"> </span>OK
+Content-Type:<span class="w"> </span>text/plain
+X-Count:<span class="w"> </span><span class="m">1</span>
+X-Timestamp:<span class="w"> </span><span class="m">1541086036</span>
+Date:<span class="w"> </span>Fri,<span class="w"> </span><span class="m">02</span><span class="w"> </span>Nov<span class="w"> </span><span class="m">2018</span><span class="w"> </span><span class="m">00</span>:30:43<span class="w"> </span>GMT
+</code></pre></div>
+<p>For skipper operators the number of routes can be interesting for
+statistics and the timestamp to detect skipper instances that have not
+updated its routing table.</p>
+<p>If there are more than 1024 routes used, then paging the results is
+possible with the <code>offset</code> and <code>limit</code> query parameters:</p>
+<div class="highlight"><pre><span></span><code>curl localhost:9911/routes?offset=2048&amp;limit=512
+</code></pre></div>
+<h3 id="route-ids">Route IDs<a class="headerlink" href="#route-ids" title="Permanent link">&para;</a></h3>
+<p>In the following example <strong>rid</strong> is the route ID:</p>
+<div class="highlight"><pre><span></span><code>%<span class="w"> </span>curl<span class="w"> </span>localhost:9911/routes
+rid:<span class="w"> </span>*
+<span class="w">  </span>-&gt;<span class="w"> </span>setQuery<span class="o">(</span><span class="s2">&quot;lang&quot;</span>,<span class="w"> </span><span class="s2">&quot;pt&quot;</span><span class="o">)</span>
+<span class="w">  </span>-&gt;<span class="w"> </span><span class="s2">&quot;http://127.0.0.1:8000&quot;</span><span class="p">;</span>
+</code></pre></div>
+<p>If the route ID has a prefix <code>kube_</code>, then it is a route created by
+the Kubernetes dataclient. We do not disallow that you create manually
+routes with <code>kube_</code> prefix, but most of the time you should not use it
+in other routes to differentiate the routes created by other
+dataclients, in case you use multiple at the same time.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
