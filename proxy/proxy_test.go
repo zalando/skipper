@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -266,13 +267,7 @@ func (tp *testProxy) close() {
 }
 
 func hasArg(arg string) bool {
-	for _, a := range os.Args {
-		if a == arg {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(os.Args, arg)
 }
 
 func voidCheck(*http.Request) {}
@@ -508,7 +503,7 @@ func TestSetRequestUrlFromRequest(t *testing.T) {
 func TestSetRequestUrlForDynamicBackend(t *testing.T) {
 	for _, ti := range []struct {
 		msg         string
-		expectedUrl *url.URL
+		expectedURL *url.URL
 		stateBag    map[string]interface{}
 	}{{
 		"DynamicBackendURLKey is set",
@@ -537,9 +532,9 @@ func TestSetRequestUrlForDynamicBackend(t *testing.T) {
 		u := &url.URL{}
 		setRequestURLForDynamicBackend(u, ti.stateBag)
 
-		beq := reflect.DeepEqual(ti.expectedUrl, u)
+		beq := reflect.DeepEqual(ti.expectedURL, u)
 		if !beq {
-			t.Error(ti.msg, "<urls don't match>", ti.expectedUrl, u)
+			t.Error(ti.msg, "<urls don't match>", ti.expectedURL, u)
 		}
 	}
 }

@@ -37,7 +37,7 @@ type tokeninfoClient interface {
 
 var _ tokeninfoClient = &authClient{}
 
-func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns int, tracer opentracing.Tracer) (*authClient, error) {
+func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns int, tracer opentracing.Tracer, openTracingClientTraceByTag bool) (*authClient, error) {
 	if tracer == nil {
 		tracer = opentracing.NoopTracer{}
 	}
@@ -57,6 +57,7 @@ func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns
 		Tracer:                  tracer,
 		OpentracingComponentTag: "skipper",
 		OpentracingSpanName:     spanName,
+		OpentracingEventsByTag:  openTracingClientTraceByTag,
 	})
 
 	return &authClient{url: u, cli: cli}, nil

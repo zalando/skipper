@@ -55,6 +55,8 @@ const (
 	unknownRouteBackendType = "<unknown>"
 	unknownRouteBackend     = "<unknown>"
 
+	clientTraceTime = "clientTraceTime"
+
 	// Number of loops allowed by default.
 	DefaultMaxLoopbacks = 9
 
@@ -130,6 +132,14 @@ type OpenTracingParams struct {
 	// InitialSpan can override the default initial, pre-routing, span name.
 	// Default: "ingress".
 	InitialSpan string
+
+	// ClientTraceByTag is used to propagate measurements by
+	// OT/OTel Tags/attributes instead of span events. Span events
+	// is the default. Some tracing providers have higher costs
+	// for events, others for attributes, so choose based on your
+	// needs.
+	// Default: false
+	ClientTraceByTag bool
 
 	// DisableFilterSpans disables creation of spans representing request and response filters.
 	// Default: false
@@ -253,29 +263,30 @@ func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, e
 
 // Params are Proxy initialization options.
 type Params struct {
-	// The proxy expects a routing instance that is used to match
-	// the incoming requests to routes.
+	// Routing instance of the proxy that is used to match the
+	// incoming requests to routes.
 	Routing *routing.Routing
 
-	// Control flags. See the Flags values.
+	// Flags are control flags. See the Flags values.
 	Flags Flags
 
 	// Metrics collector.
 	// If not specified proxy uses global metrics.Default.
 	Metrics metrics.Metrics
 
-	// And optional list of priority routes to be used for matching
-	// before the general lookup tree.
+	// PriorityRoutes is an optional list of priority routes to be
+	// used for matching before the general lookup tree.
 	PriorityRoutes []PriorityRoute
 
-	// Enable the experimental upgrade protocol feature
+	// ExperimentalUpgrade set to true it enables the upgrade protocol feature
 	ExperimentalUpgrade bool
 
 	// ExperimentalUpgradeAudit enables audit log of both the request line
 	// and the response messages during web socket upgrades.
 	ExperimentalUpgradeAudit bool
 
-	// When set, no access log is printed.
+	// AccessLogDisabled set to true, no access log is
+	// printed. The choice can be overridden by filters
 	AccessLogDisabled bool
 
 	// EnableCopyStreamPoolExperimental if set to true the Proxy will use a
@@ -295,11 +306,12 @@ type Params struct {
 	// wrong routing depending on the current configuration.
 	MaxLoopbacks int
 
-	// Same as net/http.Transport.MaxIdleConnsPerHost, but the default
-	// is 64. This value supports scenarios with relatively few remote
-	// hosts. When the routing table contains different hosts in the
-	// range of hundreds, it is recommended to set this options to a
-	// lower value.
+	// IdleConnectionsPerHost is the same as
+	// net/http.Transport.MaxIdleConnsPerHost, but the default is
+	// 64. This value supports scenarios with relatively few
+	// remote hosts. When the routing table contains different
+	// hosts in the range of hundreds, it is recommended to set
+	// this options to a lower value.
 	IdleConnectionsPerHost int
 
 	// MaxIdleConns limits the number of idle connections to all backends, 0 means no limit
@@ -318,12 +330,12 @@ type Params struct {
 	// set, no ratelimits are used.
 	RateLimiters *ratelimit.Registry
 
-	// Defines the time period of how often the idle connections are
+	// CloseIdleConnsPeriod defines the time period of how often the idle connections are
 	// forcibly closed. The default is 12 seconds. When set to less than
 	// 0, the proxy doesn't force closing the idle connections.
 	CloseIdleConnsPeriod time.Duration
 
-	// The Flush interval for copying upgraded connections
+	// FlushInterval for copying upgraded connections
 	FlushInterval time.Duration
 
 	// Timeout sets the TCP client connection timeout for proxy http connections to the backend
@@ -344,7 +356,7 @@ type Params struct {
 	// TLSHandshakeTimeout sets the TLS handshake timeout for proxy connections to the backend
 	TLSHandshakeTimeout time.Duration
 
-	// Client TLS to connect to Backends
+	// ClientTLS configuration to connect to Backends
 	ClientTLS *tls.Config
 
 	// OpenTracing contains parameters related to OpenTracing instrumentation. For default values
@@ -357,7 +369,7 @@ type Params struct {
 	// which accepts original skipper http.RoundTripper as an argument and returns a wrapped roundtripper
 	CustomHttpRoundTripperWrap func(http.RoundTripper) http.RoundTripper
 
-	// Registry provides key-value API which uses "host:port" string as a key
+	// EndpointRegistry provides key-value API which uses "host:port" string as a key
 	// and returns some metadata about endpoint. Information about the metadata
 	// returned from the registry could be found in routing.Metrics interface.
 	EndpointRegistry *routing.EndpointRegistry
@@ -728,14 +740,7 @@ func newSkipperDialer(d net.Dialer) *skipperDialer {
 // or timeout, or a timeout from http, which is not in general
 // not possible to retry.
 func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr string) (net.Conn, error) {
-	span := ot.SpanFromContext(ctx)
-	if span != nil {
-		span.LogKV("dial_context", "start")
-	}
 	con, err := dc.f(ctx, network, addr)
-	if span != nil {
-		span.LogKV("dial_context", "done")
-	}
 	if err != nil {
 		return nil, &proxyError{
 			err:           err,
@@ -1063,8 +1068,13 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
 
 	p.metrics.IncCounter("outgoing." + req.Proto)
-	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
-	req = injectClientTrace(req, ctx.proxySpan)
+	httpRoundtripTime := time.Now()
+	if p.tracing.clientTraceByTag {
+		req = injectClientTraceByTag(ctx, httpRoundtripTime, req, ctx.proxySpan)
+	} else {
+		ctx.proxySpan.LogKV(ClientTraceHTTPRoundTrip, StartEvent)
+		req = injectClientTraceByEvent(req, ctx.proxySpan)
+	}
 
 	p.metrics.MeasureBackendRequestHeader(ctx.metricsHost(), snet.SizeOfRequestHeader(req))
 
@@ -1077,7 +1087,11 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	if endpointMetrics != nil {
 		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil})
 	}
-	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
+	if p.tracing.clientTraceByTag {
+		ctx.proxySpan.SetTag(ClientTraceHTTPRoundTrip, time.Since(httpRoundtripTime).Microseconds())
+	} else {
+		ctx.proxySpan.LogKV(ClientTraceHTTPRoundTrip, EndEvent)
+	}
 	if err != nil {
 		if errors.Is(err, skpio.ErrBlocked) {
 			p.tracing.setTag(ctx.proxySpan, BlockTag, true)
@@ -1828,44 +1842,88 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 }
 
 // TODO(sszuecs): copy from net.Client, we should refactor this to use net.Client
-func injectClientTrace(req *http.Request, span ot.Span) *http.Request {
+func injectClientTraceByTag(ctx *context, t time.Time, req *http.Request, span ot.Span) *http.Request {
+	ctx.stateBag[clientTraceTime] = t
 	trace := &httptrace.ClientTrace{
-		DNSStart: func(httptrace.DNSStartInfo) {
-			span.LogKV("DNS", "start")
-		},
 		DNSDone: func(httptrace.DNSDoneInfo) {
-			span.LogKV("DNS", "end")
-		},
-		ConnectStart: func(string, string) {
-			span.LogKV("connect", "start")
+			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
+			span.SetTag(ClientTraceDNS, time.Since(t).Microseconds())
 		},
 		ConnectDone: func(string, string, error) {
-			span.LogKV("connect", "end")
-		},
-		TLSHandshakeStart: func() {
-			span.LogKV("TLS", "start")
+			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
+			span.SetTag(ClientTraceConnect, time.Since(t).Milliseconds())
 		},
 		TLSHandshakeDone: func(tls.ConnectionState, error) {
-			span.LogKV("TLS", "end")
-		},
-		GetConn: func(string) {
-			span.LogKV("get_conn", "start")
+			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
+			span.SetTag(ClientTraceTLS, time.Since(t).Microseconds())
 		},
 		GotConn: func(httptrace.GotConnInfo) {
-			span.LogKV("get_conn", "end")
+			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
+			span.SetTag(ClientTraceGetConn, time.Since(t).Nanoseconds())
+		},
+		Got100Continue: func() {
+			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
+			span.SetTag(ClientTraceGot100Continue, time.Since(t).Microseconds())
 		},
 		WroteHeaders: func() {
-			span.LogKV("wrote_headers", "done")
+			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
+			span.SetTag(ClientTraceWroteHeaders, time.Since(t).Microseconds())
 		},
 		WroteRequest: func(wri httptrace.WroteRequestInfo) {
 			if wri.Err != nil {
-				span.LogKV("wrote_request", ensureUTF8(wri.Err.Error()))
+				span.LogKV(ClientTraceWroteRequest, ensureUTF8(wri.Err.Error()))
 			} else {
-				span.LogKV("wrote_request", "done")
+				t, _ := ctx.stateBag[clientTraceTime].(time.Time)
+				span.SetTag(ClientTraceWroteRequest, time.Since(t).Microseconds())
 			}
 		},
 		GotFirstResponseByte: func() {
-			span.LogKV("got_first_byte", "done")
+			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
+			span.SetTag(ClientTraceGotFirstByte, time.Since(t).Microseconds())
+		},
+	}
+	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+}
+
+// TODO(sszuecs): copy from net.Client, we should refactor this to use net.Client
+func injectClientTraceByEvent(req *http.Request, span ot.Span) *http.Request {
+	trace := &httptrace.ClientTrace{
+		DNSStart: func(httptrace.DNSStartInfo) {
+			span.LogKV(ClientTraceDNS)
+		},
+		DNSDone: func(httptrace.DNSDoneInfo) {
+			span.LogKV(ClientTraceDNS, EndEvent)
+		},
+		ConnectStart: func(string, string) {
+			span.LogKV(ClientTraceConnect, StartEvent)
+		},
+		ConnectDone: func(string, string, error) {
+			span.LogKV(ClientTraceConnect, EndEvent)
+		},
+		TLSHandshakeStart: func() {
+			span.LogKV(ClientTraceTLS, StartEvent)
+		},
+		TLSHandshakeDone: func(tls.ConnectionState, error) {
+			span.LogKV(ClientTraceTLS, EndEvent)
+		},
+		GetConn: func(string) {
+			span.LogKV(ClientTraceGetConn, StartEvent)
+		},
+		GotConn: func(httptrace.GotConnInfo) {
+			span.LogKV(ClientTraceGetConn, EndEvent)
+		},
+		WroteHeaders: func() {
+			span.LogKV(ClientTraceWroteHeaders, EndEvent)
+		},
+		WroteRequest: func(wri httptrace.WroteRequestInfo) {
+			if wri.Err != nil {
+				span.LogKV(ClientTraceWroteRequest, ensureUTF8(wri.Err.Error()))
+			} else {
+				span.LogKV(ClientTraceWroteRequest, EndEvent)
+			}
+		},
+		GotFirstResponseByte: func() {
+			span.LogKV(ClientTraceGotFirstByte, EndEvent)
 		},
 	}
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))

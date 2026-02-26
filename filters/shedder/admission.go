@@ -96,6 +96,10 @@ const (
 type Options struct {
 	Tracer   opentracing.Tracer
 	testRand bool
+
+	// OpenTracingClientTraceByTag instead of events use span Tags
+	// to measure client connection pool actions
+	OpenTracingClientTraceByTag bool
 }
 
 type admissionControlPre struct{}

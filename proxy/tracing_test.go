@@ -337,6 +337,79 @@ func TestTracingProxySpan(t *testing.T) {
 	verifyNoTag(t, span, HTTPRemoteIPTag)
 }
 
+func TestTracingProxySpanClientTracingTags(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := &mocktracer.TextMapPropagator{}
+		_, err := p.Extract(ot.HTTPHeadersCarrier(r.Header))
+		if err != nil {
+			t.Error(err)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer s.Close()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> setPath("/bye") -> setQuery("void") -> "%s"`, s.URL)
+	tracer := tracingtest.NewTracer()
+
+	t.Setenv("HOSTNAME", "proxy.tracing.test")
+
+	tp, err := newTestProxyWithParams(doc, Params{
+		OpenTracing: &OpenTracingParams{
+			Tracer:           tracer,
+			ClientTraceByTag: true,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	req, err := http.NewRequest("GET", ps.URL+"/hello?world", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Flow-Id", "test-flow-id")
+
+	_, err = ps.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	span := tracer.FindSpan("proxy")
+	if span == nil {
+		t.Fatal("proxy span not found")
+	}
+
+	backendAddr := s.Listener.Addr().String()
+
+	verifyTag(t, span, SpanKindTag, SpanKindClient)
+	verifyTag(t, span, SkipperRouteIDTag, "hello")
+	verifyTag(t, span, ComponentTag, "skipper")
+	verifyTag(t, span, HTTPUrlTag, "http://"+backendAddr+"/bye") // proxy removes query
+	verifyTag(t, span, NetworkPeerAddressTag, backendAddr)
+	verifyTag(t, span, HTTPMethodTag, "GET")
+	verifyTag(t, span, HostnameTag, "proxy.tracing.test")
+	verifyTag(t, span, HTTPPathTag, "/bye")
+	verifyTag(t, span, HTTPHostTag, backendAddr)
+	verifyTag(t, span, FlowIDTag, "test-flow-id")
+	verifyTag(t, span, HTTPStatusCodeTag, uint16(204))
+	verifyNoTag(t, span, HTTPRemoteIPTag)
+
+	verifyNoTag(t, span, ClientTraceGot100Continue)
+	verifyNoTag(t, span, ClientTraceDNS)
+	verifyNoTag(t, span, ClientTraceTLS)
+
+	verifyHasTag(t, span, ClientTraceConnect)
+	verifyHasTag(t, span, ClientTraceGetConn)
+	verifyHasTag(t, span, ClientTraceWroteHeaders)
+	verifyHasTag(t, span, ClientTraceWroteRequest)
+	verifyHasTag(t, span, ClientTraceGotFirstByte)
+	verifyHasTag(t, span, ClientTraceHTTPRoundTrip)
+}
+
 func TestTracingProxySpanWithRetry(t *testing.T) {
 	const (
 		contentSize         = 1 << 16
@@ -768,5 +841,7 @@ func verifyHasTag(t *testing.T, span *tracingtest.MockSpan, name string) {
 	t.Helper()
 	if got, ok := span.Tags()[name]; !ok || got == "" {
 		t.Errorf("expected '%s' tag", name)
+	} else {
+		t.Logf("%s: %v", name, got)
 	}
 }

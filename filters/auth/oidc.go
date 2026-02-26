@@ -96,6 +96,10 @@ type OidcOptions struct {
 	Tracer                 opentracing.Tracer
 	OidcClientId           string
 	OidcClientSecret       string
+
+	// OpenTracingClientTraceByTag instead of events use span Tags
+	// to measure client connection pool actions
+	OpenTracingClientTraceByTag bool
 }
 
 type (
@@ -1062,6 +1066,7 @@ func (f *tokenOidcFilter) initClient() *snet.Client {
 		Tracer:                  f.oidcOptions.Tracer,
 		OpentracingComponentTag: "skipper",
 		OpentracingSpanName:     "distributedClaims",
+		OpentracingEventsByTag:  f.oidcOptions.OpenTracingClientTraceByTag,
 	})
 	return newCli
 }

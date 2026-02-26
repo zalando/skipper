@@ -125,6 +125,10 @@ type OAuthConfig struct {
 
 	// Tracer used for tokeninfo, access-token and refresh-token endpoint.
 	Tracer opentracing.Tracer
+
+	// OpenTracingClientTraceByTag instead of events use span Tags
+	// to measure client connection pool actions
+	OpenTracingClientTraceByTag bool
 }
 
 var (
@@ -180,6 +184,7 @@ func (c *OAuthConfig) Init() error {
 			c.ConnectionTimeout,
 			c.MaxIdleConnectionsPerHost,
 			c.Tracer,
+			c.OpenTracingClientTraceByTag,
 		)
 		if err != nil {
 			return err
@@ -195,6 +200,7 @@ func (c *OAuthConfig) Init() error {
 			Tracer:                  c.Tracer,
 			OpentracingComponentTag: "skipper",
 			OpentracingSpanName:     "grantauth",
+			OpentracingEventsByTag:  c.OpenTracingClientTraceByTag,
 		})
 	}
 

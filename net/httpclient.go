@@ -1,6 +1,7 @@
 package net
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -21,7 +22,25 @@ import (
 const (
 	defaultIdleConnTimeout = 30 * time.Second
 	defaultRefreshInterval = 5 * time.Minute
+
+	SpanKindClient = "client"
+
+	EndEvent   = "end"
+	StartEvent = "start"
+
+	ClientTraceDNS            = "DNS"
+	ClientTraceConnect        = "connect"
+	ClientTraceTLS            = "TLS"
+	ClientTraceGetConn        = "get_conn"
+	ClientTraceGot100Continue = "got_100_continue"
+	ClientTraceWroteHeaders   = "wrote_headers"
+	ClientTraceWroteRequest   = "wrote_request"
+	ClientTraceGotFirstByte   = "got_first_byte"
 )
+
+type clientTraceTimeT int
+
+const clientTraceTime clientTraceTimeT = 1
 
 // Client adds additional features like Bearer token injection, and
 // opentracing to the wrapped http.Client with the same interface as
@@ -192,6 +211,12 @@ type Options struct {
 	OpentracingComponentTag string
 	// OpentracingSpanName sets span name for all requests
 	OpentracingSpanName string
+	// OpentracingEventsByTag is used to propagate measurements by
+	// OT/OTel Tags/attributes instead of span events. Span events
+	// is the default. Some tracing providers have higher costs
+	// for events, others for attributes, so choose based on your
+	// needs.
+	OpentracingEventsByTag bool
 
 	// BearerTokenFile injects bearer token read from file, which
 	// file path is the given string. In case SecretsReader is
@@ -216,15 +241,16 @@ type Options struct {
 // Transport wraps an http.Transport and adds support for tracing and
 // bearerToken injection.
 type Transport struct {
-	once          sync.Once
-	quit          chan struct{}
-	tr            *http.Transport
-	tracer        opentracing.Tracer
-	spanName      string
-	componentName string
-	bearerToken   string
-	beforeSend    func(*http.Request)
-	afterResponse func(*http.Response, error)
+	once             sync.Once
+	quit             chan struct{}
+	tr               *http.Transport
+	tracer           opentracing.Tracer
+	clientTraceByTag bool
+	spanName         string
+	componentName    string
+	bearerToken      string
+	beforeSend       func(*http.Request)
+	afterResponse    func(*http.Response, error)
 }
 
 // NewTransport creates a wrapped http.Transport, with regular DNS
@@ -281,12 +307,13 @@ func NewTransport(options Options) *Transport {
 	}
 
 	t := &Transport{
-		once:          sync.Once{},
-		quit:          make(chan struct{}),
-		tr:            htransport,
-		tracer:        options.Tracer,
-		beforeSend:    options.BeforeSend,
-		afterResponse: options.AfterResponse,
+		once:             sync.Once{},
+		quit:             make(chan struct{}),
+		tr:               htransport,
+		tracer:           options.Tracer,
+		beforeSend:       options.BeforeSend,
+		afterResponse:    options.AfterResponse,
+		clientTraceByTag: options.OpentracingEventsByTag,
 	}
 
 	if t.tracer != nil {
@@ -343,15 +370,16 @@ func WithBearerToken(t *Transport, bearerToken string) *Transport {
 
 func (t *Transport) shallowCopy() *Transport {
 	return &Transport{
-		once:          sync.Once{},
-		quit:          t.quit,
-		tr:            t.tr,
-		tracer:        t.tracer,
-		spanName:      t.spanName,
-		componentName: t.componentName,
-		bearerToken:   t.bearerToken,
-		beforeSend:    t.beforeSend,
-		afterResponse: t.afterResponse,
+		once:             sync.Once{},
+		quit:             t.quit,
+		tr:               t.tr,
+		tracer:           t.tracer,
+		clientTraceByTag: t.clientTraceByTag,
+		spanName:         t.spanName,
+		componentName:    t.componentName,
+		bearerToken:      t.bearerToken,
+		beforeSend:       t.beforeSend,
+		afterResponse:    t.afterResponse,
 	}
 }
 
@@ -373,8 +401,13 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.spanName != "" {
 		req, span = t.injectSpan(req)
 		defer span.Finish()
-		req = injectClientTrace(req, span)
-		span.LogKV("http_do", "start")
+		if t.clientTraceByTag {
+			ctx := context.WithValue(req.Context(), clientTraceTime, time.Now())
+			req = injectClientTraceByTag(ctx, req, span)
+		} else {
+			req = injectClientTraceByEvent(req, span)
+			span.LogKV("http_do", "start")
+		}
 	}
 	if t.bearerToken != "" {
 		req.Header.Set("Authorization", "Bearer "+t.bearerToken)
@@ -399,7 +432,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 func (t *Transport) injectSpan(req *http.Request) (*http.Request, opentracing.Span) {
 	spanOpts := []opentracing.StartSpanOption{opentracing.Tags{
 		string(ext.Component):  t.componentName,
-		string(ext.SpanKind):   "client",
+		string(ext.SpanKind):   SpanKindClient,
 		string(ext.HTTPMethod): req.Method,
 		string(ext.HTTPUrl):    req.URL.String(),
 	}}
@@ -414,44 +447,86 @@ func (t *Transport) injectSpan(req *http.Request) (*http.Request, opentracing.Sp
 	return req, span
 }
 
-func injectClientTrace(req *http.Request, span opentracing.Span) *http.Request {
+func injectClientTraceByTag(ctx context.Context, req *http.Request, span opentracing.Span) *http.Request {
 	trace := &httptrace.ClientTrace{
-		DNSStart: func(httptrace.DNSStartInfo) {
-			span.LogKV("DNS", "start")
-		},
 		DNSDone: func(httptrace.DNSDoneInfo) {
-			span.LogKV("DNS", "end")
-		},
-		ConnectStart: func(string, string) {
-			span.LogKV("connect", "start")
+			t := ctx.Value(clientTraceTime).(time.Time)
+			span.SetTag(ClientTraceDNS, time.Since(t))
 		},
 		ConnectDone: func(string, string, error) {
-			span.LogKV("connect", "end")
-		},
-		TLSHandshakeStart: func() {
-			span.LogKV("TLS", "start")
+			t := ctx.Value(clientTraceTime).(time.Time)
+			span.SetTag(ClientTraceConnect, time.Since(t))
 		},
 		TLSHandshakeDone: func(tls.ConnectionState, error) {
-			span.LogKV("TLS", "end")
-		},
-		GetConn: func(string) {
-			span.LogKV("get_conn", "start")
+			t := ctx.Value(clientTraceTime).(time.Time)
+			span.SetTag(ClientTraceTLS, time.Since(t))
 		},
 		GotConn: func(httptrace.GotConnInfo) {
-			span.LogKV("get_conn", "end")
+			t := ctx.Value(clientTraceTime).(time.Time)
+			span.SetTag(ClientTraceGetConn, time.Since(t))
+		},
+		Got100Continue: func() {
+			t := ctx.Value(clientTraceTime).(time.Time)
+			span.SetTag(ClientTraceGot100Continue, time.Since(t))
 		},
 		WroteHeaders: func() {
-			span.LogKV("wrote_headers", "done")
+			t := ctx.Value(clientTraceTime).(time.Time)
+			span.SetTag(ClientTraceWroteHeaders, time.Since(t))
 		},
 		WroteRequest: func(wri httptrace.WroteRequestInfo) {
 			if wri.Err != nil {
-				span.LogKV("wrote_request", ensureUTF8(wri.Err.Error()))
+				span.LogKV(ClientTraceWroteRequest, ensureUTF8(wri.Err.Error()))
 			} else {
-				span.LogKV("wrote_request", "done")
+				t := ctx.Value(clientTraceTime).(time.Time)
+				span.SetTag(ClientTraceWroteRequest, time.Since(t))
 			}
 		},
 		GotFirstResponseByte: func() {
-			span.LogKV("got_first_byte", "done")
+			t := ctx.Value(clientTraceTime).(time.Time)
+			span.SetTag(ClientTraceGotFirstByte, time.Since(t))
+		},
+	}
+	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+}
+
+func injectClientTraceByEvent(req *http.Request, span opentracing.Span) *http.Request {
+	trace := &httptrace.ClientTrace{
+		DNSStart: func(httptrace.DNSStartInfo) {
+			span.LogKV(ClientTraceDNS, StartEvent)
+		},
+		DNSDone: func(httptrace.DNSDoneInfo) {
+			span.LogKV(ClientTraceDNS, EndEvent)
+		},
+		ConnectStart: func(string, string) {
+			span.LogKV(ClientTraceConnect, StartEvent)
+		},
+		ConnectDone: func(string, string, error) {
+			span.LogKV(ClientTraceConnect, EndEvent)
+		},
+		TLSHandshakeStart: func() {
+			span.LogKV(ClientTraceTLS, StartEvent)
+		},
+		TLSHandshakeDone: func(tls.ConnectionState, error) {
+			span.LogKV(ClientTraceTLS, EndEvent)
+		},
+		GetConn: func(string) {
+			span.LogKV(ClientTraceGetConn, StartEvent)
+		},
+		GotConn: func(httptrace.GotConnInfo) {
+			span.LogKV(ClientTraceGetConn, EndEvent)
+		},
+		WroteHeaders: func() {
+			span.LogKV(ClientTraceWroteHeaders, EndEvent)
+		},
+		WroteRequest: func(wri httptrace.WroteRequestInfo) {
+			if wri.Err != nil {
+				span.LogKV(ClientTraceWroteRequest, ensureUTF8(wri.Err.Error()))
+			} else {
+				span.LogKV(ClientTraceWroteRequest, EndEvent)
+			}
+		},
+		GotFirstResponseByte: func() {
+			span.LogKV(ClientTraceGotFirstByte, EndEvent)
 		},
 	}
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))

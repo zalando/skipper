@@ -80,6 +80,7 @@ type Config struct {
 	OpenTracingDisableFilterSpans       bool      `yaml:"opentracing-disable-filter-spans"`
 	OpentracingLogFilterLifecycleEvents bool      `yaml:"opentracing-log-filter-lifecycle-events"`
 	OpentracingLogStreamEvents          bool      `yaml:"opentracing-log-stream-events"`
+	OpenTracingClientTraceByTag         bool      `yaml:"opentracing-client-trace-by-tag"`
 	OpentracingBackendNameTag           bool      `yaml:"opentracing-backend-name-tag"`
 	MetricsListener                     string    `yaml:"metrics-listener"`
 	MetricsPrefix                       string    `yaml:"metrics-prefix"`
@@ -434,6 +435,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.OpenTracingDisableFilterSpans, "opentracing-disable-filter-spans", false, "disable creation of spans representing request and response filters")
 	flag.BoolVar(&cfg.OpentracingLogFilterLifecycleEvents, "opentracing-log-filter-lifecycle-events", true, "enables the logs for request & response filters' lifecycle events that are marking start & end times.")
 	flag.BoolVar(&cfg.OpentracingLogStreamEvents, "opentracing-log-stream-events", true, "enables the logs for events marking the times response headers & payload are streamed to the client")
+	flag.BoolVar(&cfg.OpenTracingClientTraceByTag, "opentracing-client-trace-by-tag", false, "enables the logs for events marking the times response headers & payload are streamed to the client")
 	flag.BoolVar(&cfg.OpentracingBackendNameTag, "opentracing-backend-name-tag", false, "enables an additional tracing tag that contains a backend name for a route when it's available  (e.g. for RouteGroups) (default false)")
 	flag.StringVar(&cfg.MetricsListener, "metrics-listener", ":9911", "network address used for exposing the /metrics endpoint. An empty value disables metrics iff support listener is also empty.")
 	flag.StringVar(&cfg.MetricsPrefix, "metrics-prefix", "skipper.", "allows setting a custom path prefix for metrics export")
@@ -893,6 +895,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OpenTracingExcludedProxyTags:        strings.Split(c.OpenTracingExcludedProxyTags, ","),
 		OpenTracingDisableFilterSpans:       c.OpenTracingDisableFilterSpans,
 		OpenTracingLogStreamEvents:          c.OpentracingLogStreamEvents,
+		OpenTracingClientTraceByTag:         c.OpenTracingClientTraceByTag,
 		OpenTracingLogFilterLifecycleEvents: c.OpentracingLogFilterLifecycleEvents,
 		MetricsListener:                     c.MetricsListener,
 		MetricsPrefix:                       c.MetricsPrefix,
