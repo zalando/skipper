@@ -37,7 +37,7 @@ type tokeninfoClient interface {
 
 var _ tokeninfoClient = &authClient{}
 
-func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns int, tracer opentracing.Tracer) (*authClient, error) {
+func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns int, tracer opentracing.Tracer, followRedirects bool) (*authClient, error) {
 	if tracer == nil {
 		tracer = opentracing.NoopTracer{}
 	}
@@ -50,6 +50,13 @@ func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns
 		return nil, err
 	}
 
+	var checkRedirectFn func(req *http.Request, via []*http.Request) error
+	if followRedirects {
+		checkRedirectFn = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	}
+
 	cli := net.NewClient(net.Options{
 		ResponseHeaderTimeout:   timeout,
 		TLSHandshakeTimeout:     timeout,
@@ -57,6 +64,7 @@ func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns
 		Tracer:                  tracer,
 		OpentracingComponentTag: "skipper",
 		OpentracingSpanName:     spanName,
+		CheckRedirect:           checkRedirectFn,
 	})
 
 	return &authClient{url: u, cli: cli}, nil

@@ -96,7 +96,7 @@ func (o *TokeninfoOptions) getTokeninfoClient() (tokeninfoClient, error) {
 func (o *TokeninfoOptions) newTokeninfoClient() (tokeninfoClient, error) {
 	var c tokeninfoClient
 
-	c, err := newAuthClient(o.URL, tokenInfoSpanName, o.Timeout, o.MaxIdleConns, o.Tracer)
+	c, err := newAuthClient(o.URL, tokenInfoSpanName, o.Timeout, o.MaxIdleConns, o.Tracer, false)
 	if err != nil {
 		return nil, err
 	}
