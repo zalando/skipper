@@ -493,12 +493,12 @@ instance to be cluster-wide, watching all `Ingress` objects across all namespace
 Skipper can update `Ingress.status.loadBalancer.ingress` from a configured
 Service by setting:
 
-`-kubernetes-ingress-status-from-service=<namespace>/<service-name>`
+`-kubernetes-status-from-service=<namespace>/<service-name>`
 
 Example:
 
 ```bash
-skipper -kubernetes-ingress-status-from-service=ingress-system/skipper
+skipper -kubernetes-status-from-service=ingress-system/skipper
 ```
 
 When enabled, Skipper reads the configured Service and patches the
