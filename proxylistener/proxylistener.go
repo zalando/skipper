@@ -20,31 +20,9 @@ type Options struct {
 	ReadHeaderTimeout time.Duration
 	ReadBufferSize    int
 
-	SkipListCIDRs  []string
 	AllowListCIDRs []string
 	DenyListCIDRs  []string
-}
-
-type proxyListener struct {
-	address string
-	network string
-	l       net.Listener
-}
-
-func (pl *proxyListener) Accept() (net.Conn, error) {
-	conn, err := pl.l.Accept()
-	if err != nil {
-		return nil, err
-	}
-	return conn, err
-}
-
-func (pl *proxyListener) Addr() net.Addr {
-	return pl.l.Addr()
-}
-
-func (pl *proxyListener) Close() error {
-	return pl.l.Close()
+	SkipListCIDRs  []string
 }
 
 func NewListener(opt Options) (net.Listener, error) {
@@ -69,33 +47,26 @@ func NewListener(opt Options) (net.Listener, error) {
 	}
 
 	policyLogic := func(cpo proxyproto.ConnPolicyOptions) (proxyproto.Policy, error) {
-		println("policy..")
 		host, _, err := net.SplitHostPort(cpo.Upstream.String())
 		if err != nil {
-			println("policy..reject")
 			return proxyproto.REJECT, err
 		}
 
 		addr, err := netip.ParseAddr(host)
 		if err != nil {
-			println("policy..reject 2")
 			return proxyproto.REJECT, err
 		}
 
 		if denySet.Contains(addr) {
-			println("policy..reject 3")
 			return proxyproto.REJECT, nil
 		}
 		if skipSet.Contains(addr) {
-			println("policy..skip")
 			return proxyproto.SKIP, nil
 		}
 		if allowSet.Contains(addr) {
-			println("policy..use")
 			return proxyproto.USE, nil
 		}
 
-		println("policy..reject 4")
 		return proxyproto.REJECT, nil
 	}
 
@@ -106,7 +77,6 @@ func NewListener(opt Options) (net.Listener, error) {
 
 		ConnPolicy: policyLogic,
 		ValidateHeader: func(h *proxyproto.Header) error {
-			println("ValidateHeader")
 			if h == nil {
 				return fmt.Errorf("proxylistener: header is nil")
 			}
@@ -121,7 +91,4 @@ func NewListener(opt Options) (net.Listener, error) {
 	}
 
 	return pl, nil
-	// return &proxyListener{
-	// 	l: pl,
-	// }, nil
 }
