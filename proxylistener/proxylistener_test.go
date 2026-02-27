@@ -81,6 +81,45 @@ func createProxyClient(proxyAddr, destAddr string, destPort int) *http.Client {
 	}
 }
 
+func createBogusProxyClient(proxyAddr, destAddr string, destPort int, version byte, protocol proxyproto.AddressFamilyAndProtocol) *http.Client {
+	dialer := &net.Dialer{
+		Timeout: 5 * time.Second,
+	}
+
+	cli := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				conn, err := dialer.Dial(network, proxyAddr)
+				if err != nil {
+					return nil, err
+				}
+
+				header := &proxyproto.Header{
+					Version:           version,
+					Command:           proxyproto.PROXY,
+					TransportProtocol: protocol,
+					SourceAddr: &net.TCPAddr{
+						IP:   net.ParseIP(clientIP),
+						Port: clientPort,
+					},
+					DestinationAddr: &net.TCPAddr{
+						IP:   net.ParseIP(destAddr),
+						Port: destPort,
+					},
+				}
+				if _, err := header.WriteTo(conn); err != nil {
+					conn.Close()
+					return nil, err
+				}
+
+				return conn, nil
+			},
+		},
+	}
+
+	return cli
+}
+
 func TestProxyListenerWithProxyClient(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
@@ -159,6 +198,120 @@ func TestProxyListenerWithProxyClient(t *testing.T) {
 			}
 
 			client := createProxyClient(addr, "10.0.0.5", 8080)
+
+			go func() {
+				time.Sleep(time.Second)
+				t.Log("Start shutdown")
+				if err := srv.Shutdown(context.Background()); err != nil {
+					t.Logf("Failed to graceful shutdown: %v", err)
+				}
+			}()
+
+			go func() {
+				if err := srv.Serve(l); err != http.ErrServerClosed {
+					t.Logf("Serve failed: %v", err)
+				}
+			}()
+
+			buf := bytes.NewBufferString(clientString)
+			req, err := http.NewRequest("POST", "http://"+addr+"/foo", buf)
+			if err != nil {
+				t.Fatalf("Failed to create request: %v", err)
+			}
+			req.Host = tt.host
+			rsp, err := client.Do(req)
+			if err != nil && !tt.wantErr {
+				t.Fatalf("Failed to get response: %v", err)
+			}
+			if !tt.wantErr && rsp.StatusCode != tt.want {
+				t.Fatalf("Failed to get %d, got %d", tt.want, rsp.StatusCode)
+			}
+
+			t.Log("done")
+		})
+	}
+
+}
+
+func TestProxyListenerWithBogusProxyClient(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		host     string
+		version  byte
+		protocol proxyproto.AddressFamilyAndProtocol
+		destAddr string
+		want     int
+		wantErr  bool
+	}{
+		{
+			name:     "test working example",
+			host:     "good.example",
+			version:  0x02,
+			protocol: proxyproto.TCPv4,
+			destAddr: "1.2.3.4",
+			want:     http.StatusOK,
+		},
+		{
+			name:     "test bogus version",
+			host:     "bogus.example",
+			version:  0x05,
+			protocol: proxyproto.TCPv4,
+			destAddr: "1.2.3.4",
+			wantErr:  true,
+		},
+		{
+			name:     "test bogus protocol",
+			host:     "bogus.example",
+			version:  0x02,
+			protocol: proxyproto.UnixDatagram,
+			destAddr: "1.2.3.4",
+			wantErr:  true,
+		},
+		{
+			name:     "test bogus header",
+			host:     "bogus.example",
+			version:  0x02,
+			protocol: proxyproto.TCPv6,
+			destAddr: "4",
+			wantErr:  true,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			l, err := NewListener(Options{
+				Listener:       createTestListener(),
+				AllowListCIDRs: []string{"::/0", "0.0.0.0/0"},
+			})
+			if err != nil {
+				t.Fatalf("Failed to create proxy listener: %v", err)
+			}
+
+			clientString := `hello from client`
+			serverString := `hello from server`
+			addr := l.Addr().String()
+			srv := &http.Server{
+				Addr: addr,
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					expectedClientAddr := fmt.Sprintf("%s:%d", clientIP, clientPort)
+					if r.RemoteAddr != expectedClientAddr {
+						t.Fatalf("Failed to get the expected client %q, got %q", expectedClientAddr, r.RemoteAddr)
+					}
+					if r.Host != tt.host {
+						t.Fatalf("Failed to get the expected host %q, got: %q", tt.host, r.Host)
+					}
+					if r.Method == "POST" {
+						buf, err := io.ReadAll(r.Body)
+						if err != nil {
+							t.Fatalf("Failed to read body in server: %v", err)
+						}
+						if s := string(buf); s != clientString {
+							t.Fatalf("Failed to get %q, got: %q", clientString, s)
+						}
+					}
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(serverString))
+				}),
+			}
+
+			client := createBogusProxyClient(addr, tt.destAddr, 8080, tt.version, tt.protocol)
 
 			go func() {
 				time.Sleep(time.Second)

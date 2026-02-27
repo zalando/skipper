@@ -76,18 +76,6 @@ func NewListener(opt Options) (net.Listener, error) {
 		ReadBufferSize:    opt.ReadBufferSize,
 
 		ConnPolicy: policyLogic,
-		ValidateHeader: func(h *proxyproto.Header) error {
-			if h == nil {
-				return fmt.Errorf("proxylistener: header is nil")
-			}
-			if h.SourceAddr == nil || h.DestinationAddr == nil {
-				return fmt.Errorf("proxylistener: header missing addresses src: %q, dst: %q", h.SourceAddr, h.DestinationAddr)
-			}
-			if h.TransportProtocol != proxyproto.TCPv4 && h.TransportProtocol != proxyproto.TCPv6 {
-				return fmt.Errorf("proxylistener: unsupported protocol %v", h.TransportProtocol)
-			}
-			return nil
-		},
 	}
 
 	return pl, nil
