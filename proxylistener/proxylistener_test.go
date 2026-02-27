@@ -199,18 +199,22 @@ func TestProxyListenerWithProxyClient(t *testing.T) {
 
 			client := createProxyClient(addr, "10.0.0.5", 8080)
 
+			waitShutdownCH := make(chan struct{})
 			go func() {
 				time.Sleep(time.Second)
 				t.Log("Start shutdown")
 				if err := srv.Shutdown(context.Background()); err != nil {
 					t.Logf("Failed to graceful shutdown: %v", err)
 				}
+				close(waitShutdownCH)
 			}()
 
+			waitServeCH := make(chan struct{})
 			go func() {
 				if err := srv.Serve(l); err != http.ErrServerClosed {
 					t.Logf("Serve failed: %v", err)
 				}
+				close(waitServeCH)
 			}()
 
 			buf := bytes.NewBufferString(clientString)
@@ -227,6 +231,8 @@ func TestProxyListenerWithProxyClient(t *testing.T) {
 				t.Fatalf("Failed to get %d, got %d", tt.want, rsp.StatusCode)
 			}
 
+			<-waitShutdownCH
+			<-waitServeCH
 			t.Log("done")
 		})
 	}
@@ -321,18 +327,22 @@ func TestProxyListenerWithBogusProxyClient(t *testing.T) {
 
 			client := createBogusProxyClient(addr, tt.destAddr, 8080, tt.version, tt.protocol)
 
+			waitShutdownCH := make(chan struct{})
 			go func() {
 				time.Sleep(time.Second)
 				t.Log("Start shutdown")
 				if err := srv.Shutdown(context.Background()); err != nil {
 					t.Logf("Failed to graceful shutdown: %v", err)
 				}
+				close(waitShutdownCH)
 			}()
 
+			waitServeCH := make(chan struct{})
 			go func() {
 				if err := srv.Serve(l); err != http.ErrServerClosed {
 					t.Logf("Serve failed: %v", err)
 				}
+				close(waitServeCH)
 			}()
 
 			buf := bytes.NewBufferString(clientString)
@@ -349,6 +359,8 @@ func TestProxyListenerWithBogusProxyClient(t *testing.T) {
 				t.Fatalf("Failed to get %d, got %d", tt.want, rsp.StatusCode)
 			}
 
+			<-waitShutdownCH
+			<-waitServeCH
 			t.Log("done")
 		})
 	}
@@ -478,18 +490,22 @@ func TestProxyListenerWithHttpClient(t *testing.T) {
 
 			client := http.DefaultClient
 
+			waitShutdownCH := make(chan struct{})
 			go func() {
 				time.Sleep(time.Second)
 				t.Log("Start shutdown")
 				if err := srv.Shutdown(context.Background()); err != nil {
 					t.Logf("Failed to graceful shutdown: %v", err)
 				}
+				close(waitShutdownCH)
 			}()
 
+			waitServeCH := make(chan struct{})
 			go func() {
 				if err := srv.Serve(l); err != http.ErrServerClosed {
 					t.Logf("Serve failed: %v", err)
 				}
+				close(waitServeCH)
 			}()
 
 			buf := bytes.NewBufferString(clientString)
@@ -506,6 +522,8 @@ func TestProxyListenerWithHttpClient(t *testing.T) {
 				t.Fatalf("Failed to get %d, got %d", tt.want, rsp.StatusCode)
 			}
 
+			<-waitShutdownCH
+			<-waitServeCH
 			t.Log("done")
 		})
 	}
