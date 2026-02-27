@@ -244,7 +244,15 @@ func TestProxyListenerWithBogusProxyClient(t *testing.T) {
 		wantErr  bool
 	}{
 		{
-			name:     "test working example",
+			name:     "test working example v6",
+			host:     "good.example",
+			version:  0x02,
+			protocol: proxyproto.TCPv6,
+			destAddr: "1.2.3.4",
+			want:     http.StatusOK,
+		},
+		{
+			name:     "test working example v4",
 			host:     "good.example",
 			version:  0x02,
 			protocol: proxyproto.TCPv4,
@@ -271,7 +279,7 @@ func TestProxyListenerWithBogusProxyClient(t *testing.T) {
 			name:     "test bogus header",
 			host:     "bogus.example",
 			version:  0x02,
-			protocol: proxyproto.TCPv6,
+			protocol: proxyproto.TCPv4,
 			destAddr: "4",
 			wantErr:  true,
 		}} {
@@ -345,6 +353,55 @@ func TestProxyListenerWithBogusProxyClient(t *testing.T) {
 		})
 	}
 
+}
+
+func TestProxyListenerConfigErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		allowList []string
+		denyList  []string
+		skipList  []string
+	}{
+		{
+			name:      "test failing allow list",
+			allowList: []string{"ab", "0.0.0.0/0"},
+		},
+		{
+			name:      "test failing allow list",
+			allowList: []string{"::g/0", "0.0.0.0/0"},
+		},
+		{
+			name:      "test failing allow list",
+			allowList: []string{"::/0", "256.0.0.0/0"},
+		},
+		{
+			name:      "test failing allow list",
+			allowList: []string{"::/0", "0.0.0.0/33"},
+		},
+		{
+			name:      "test failing allow list",
+			allowList: []string{"::/0", "a"},
+		},
+		{
+			name:     "test failing deny list",
+			denyList: []string{"::/0", "256.0.0.0/0"},
+		},
+		{
+			name:     "test failing skip list",
+			skipList: []string{"::/0", "0.0.0.0/33"},
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			l, err := NewListener(Options{
+				Listener:       createTestListener(),
+				AllowListCIDRs: tt.allowList,
+				DenyListCIDRs:  tt.denyList,
+				SkipListCIDRs:  tt.skipList,
+			})
+			if l != nil || err == nil {
+				t.Fatal("Failed to get err")
+			}
+		})
+	}
 }
 
 func TestProxyListenerWithHttpClient(t *testing.T) {
