@@ -348,6 +348,11 @@ type Config struct {
 	OpenPolicyAgentMaxMemoryBodyParsing                int64         `yaml:"open-policy-agent-max-memory-body-parsing"`
 
 	PassiveHealthCheck mapFlags `yaml:"passive-health-check"`
+
+	EnableProxyProtocol bool      `yaml:"enable-proxy-protocol"`
+	ProxyAllowListCIDRs *listFlag `yaml:"proxy-allow-cidrs"`
+	ProxyDenyListCIDRs  *listFlag `yaml:"proxy-deny-cidrs"`
+	ProxySkipListCIDRs  *listFlag `yaml:"proxy-skip-cidrs"`
 }
 
 const (
@@ -383,6 +388,9 @@ func NewConfig() *Config {
 	cfg.LuaModules = commaListFlag()
 	cfg.LuaSources = commaListFlag()
 	cfg.Oauth2GrantTokeninfoKeys = commaListFlag()
+	cfg.ProxyAllowListCIDRs = commaListFlag()
+	cfg.ProxyDenyListCIDRs = commaListFlag()
+	cfg.ProxySkipListCIDRs = commaListFlag()
 
 	flag := flag.NewFlagSet("", flag.ExitOnError)
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
@@ -691,6 +699,12 @@ func NewConfig() *Config {
 
 	// Passive Health Checks
 	flag.Var(&cfg.PassiveHealthCheck, "passive-health-check", "sets the parameters for passive health check feature")
+
+	// PROXY protocol
+	flag.BoolVar(&cfg.EnableProxyProtocol, "enable-proxy-protocol", false, "enable the haproxy PROXY protocol v1 and v2. Default is false and if enabled the default will reject all connections. Please check allow, deny and skip list.")
+	flag.Var(cfg.ProxyAllowListCIDRs, "proxy-allow-cidrs", `comma separated list of CIDRs that are allowed to use the PROXY protocol v1/v2. To allow all ipv6 and ipv4 addresses use: "::/0,0.0.0.0/0"`)
+	flag.Var(cfg.ProxyDenyListCIDRs, "proxy-deny-cidrs", `comma separated list of CIDRs that are denied to use the PROXY protocol v1/v2.`)
+	flag.Var(cfg.ProxySkipListCIDRs, "proxy-skip-cidrs", `comma separated list of CIDRs that are skipped to use the PROXY protocol v1/v2.`)
 
 	cfg.Flags = flag
 	return cfg
@@ -1119,6 +1133,11 @@ func (c *Config) ToOptions() skipper.Options {
 		OpenPolicyAgentMaxMemoryBodyParsing:                c.OpenPolicyAgentMaxMemoryBodyParsing,
 
 		PassiveHealthCheck: c.PassiveHealthCheck.values,
+
+		EnableProxyProtocol: c.EnableProxyProtocol,
+		ProxyAllowListCIDRs: c.ProxyAllowListCIDRs.values,
+		ProxyDenyListCIDRs:  c.ProxyDenyListCIDRs.values,
+		ProxySkipListCIDRs:  c.ProxySkipListCIDRs.values,
 	}
 	for _, rcci := range c.CloneRoute {
 		eskipClone := eskip.NewClone(rcci.Reg, rcci.Repl)
