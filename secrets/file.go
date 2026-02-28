@@ -20,6 +20,7 @@ const (
 var (
 	ErrWrongFileType    = errors.New("file type not supported")
 	ErrFailedToReadFile = errors.New("failed to read file")
+	errEmptyFile        = errors.New("empty file")
 )
 
 // SecretsProvider is a SecretsReader and can add secret sources that
@@ -81,7 +82,7 @@ func (sp *SecretPaths) Add(path string) error {
 	switch mode := fi.Mode(); {
 	// Kubernetes uses symlink to file
 	case mode.IsRegular() || mode&os.ModeSymlink != 0:
-		if _, err := os.ReadFile(path); err != nil {
+		if _, err := readSecretFile(path); err != nil {
 			return err
 		}
 	case mode.IsDir():
@@ -184,6 +185,9 @@ func readSecretFile(path string) ([]byte, error) {
 	}
 	if len(data) > 0 && data[len(data)-1] == 0xa {
 		data = data[:len(data)-1]
+	}
+	if len(data) == 0 {
+		return nil, errEmptyFile
 	}
 	return data, nil
 }

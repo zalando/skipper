@@ -241,6 +241,32 @@ func TestSecretPaths(t *testing.T) {
 			checkSecret(t, path, "created")
 		})
 	})
+
+	t.Run("errors on empty file", func(t *testing.T) {
+		path := t.TempDir() + "/foo"
+
+		writeFile(t, path, "")
+
+		assert.Error(t, sp.Add(path))
+	})
+
+	t.Run("removes empty file", func(t *testing.T) {
+		path := t.TempDir() + "/foo"
+
+		writeFile(t, path, "created")
+
+		require.NoError(t, sp.Add(path))
+
+		checkSecret(t, path, "created")
+
+		writeFile(t, path, "")
+
+		_, exists := sp.GetSecret(path)
+		assert.False(t, exists)
+
+		writeFile(t, path, "re-created")
+		checkSecret(t, path, "re-created")
+	})
 }
 
 func TestSecretPathsDoesNotRefreshAfterClose(t *testing.T) {
