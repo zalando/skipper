@@ -314,7 +314,7 @@ func (a Algorithm) String() string {
 func parseEndpoints(r *routing.Route) error {
 	r.LBEndpoints = make([]routing.LBEndpoint, len(r.Route.LBEndpoints))
 	for i, e := range r.Route.LBEndpoints {
-		scheme, host, err := snet.SchemeHost(e)
+		scheme, host, err := snet.SchemeHost(e.String())
 		if err != nil {
 			return err
 		}
@@ -339,7 +339,7 @@ func setAlgorithm(r *routing.Route) error {
 		initialize = algorithms[t]
 	}
 
-	r.LBAlgorithm = initialize(r.Route.LBEndpoints)
+	r.LBAlgorithm = initialize(eskip.LBEndpointString(r.Route.LBEndpoints))
 	return nil
 }
 
