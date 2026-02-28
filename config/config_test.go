@@ -184,6 +184,9 @@ func defaultConfig(with func(*Config)) *Config {
 		OpenPolicyAgentMaxRequestBodySize:       openpolicyagent.DefaultMaxRequestBodySize,
 		OpenPolicyAgentMaxMemoryBodyParsing:     openpolicyagent.DefaultMaxMemoryBodyParsing,
 		OpenPolicyAgentRequestBodyBufferSize:    openpolicyagent.DefaultRequestBodyBufferSize,
+		ProxyAllowListCIDRs:                     commaListFlag(),
+		ProxyDenyListCIDRs:                      commaListFlag(),
+		ProxySkipListCIDRs:                      commaListFlag(),
 	}
 	with(cfg)
 	return cfg
