@@ -4,6 +4,8 @@ package host
 import (
 	"net/http"
 
+	"slices"
+
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
@@ -41,10 +43,5 @@ func (*anySpec) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 func (ap *anyPredicate) Match(r *http.Request) bool {
-	for _, host := range ap.hosts {
-		if host == r.Host {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ap.hosts, r.Host)
 }
