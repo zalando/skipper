@@ -139,14 +139,14 @@ func New() *Logger {
 	return tl
 }
 
-func (tl *Logger) logf(f string, a ...interface{}) {
+func (tl *Logger) logf(f string, a ...any) {
 	select {
 	case tl.logc <- fmt.Sprintf(f, a...):
 	case <-tl.quit:
 	}
 }
 
-func (tl *Logger) log(a ...interface{}) {
+func (tl *Logger) log(a ...any) {
 	select {
 	case tl.logc <- fmt.Sprint(a...):
 	case <-tl.quit:
@@ -205,14 +205,14 @@ func (tl *Logger) Close() {
 	close(tl.quit)
 }
 
-func (tl *Logger) Error(a ...interface{})            { tl.log(a...) }
-func (tl *Logger) Errorf(f string, a ...interface{}) { tl.logf(f, a...) }
-func (tl *Logger) Warn(a ...interface{})             { tl.log(a...) }
-func (tl *Logger) Warnf(f string, a ...interface{})  { tl.logf(f, a...) }
-func (tl *Logger) Info(a ...interface{})             { tl.log(a...) }
-func (tl *Logger) Infof(f string, a ...interface{})  { tl.logf(f, a...) }
-func (tl *Logger) Debug(a ...interface{})            { tl.log(a...) }
-func (tl *Logger) Debugf(f string, a ...interface{}) { tl.logf(f, a...) }
+func (tl *Logger) Error(a ...any)            { tl.log(a...) }
+func (tl *Logger) Errorf(f string, a ...any) { tl.logf(f, a...) }
+func (tl *Logger) Warn(a ...any)             { tl.log(a...) }
+func (tl *Logger) Warnf(f string, a ...any)  { tl.logf(f, a...) }
+func (tl *Logger) Info(a ...any)             { tl.log(a...) }
+func (tl *Logger) Infof(f string, a ...any)  { tl.logf(f, a...) }
+func (tl *Logger) Debug(a ...any)            { tl.log(a...) }
+func (tl *Logger) Debugf(f string, a ...any) { tl.logf(f, a...) }
 
 func (tl *Logger) Fire(entry *logrus.Entry) error {
 	line, err := entry.String()
