@@ -6,6 +6,7 @@ import (
 	"math"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	xxhash "github.com/cespare/xxhash/v2"
@@ -117,7 +118,7 @@ type valkeyRing struct {
 
 	// maps int to client for sharding, trades memory for concurrent access
 	// most operations only have to use this lock-free structure
-	shards       [ringSize]valkey.Client
+	shards       [ringSize]atomic.Pointer[valkey.Client]
 	activeShards int
 
 	// clientMap is used for Ping operations and to simplify update shards
@@ -155,7 +156,6 @@ func (vr *valkeyRing) updateShards(addr []string) {
 	cur := -1
 	shardSize := computeShardSize(len(addr))
 	clients := make([]valkey.Client, 0, len(addr))
-
 	for _, cl := range vr.clientMap {
 		clients = append(clients, cl)
 	}
@@ -164,7 +164,7 @@ func (vr *valkeyRing) updateShards(addr []string) {
 		if i%shardSize == 0 {
 			cur++
 		}
-		vr.shards[i] = clients[cur]
+		vr.shards[i].Store(&clients[cur])
 	}
 	vr.activeShards = cur + 1
 }
@@ -223,7 +223,7 @@ func (vr *valkeyRing) SetAddr(addr []string) error {
 
 // shardForKey does the lookup for valkey most operations to find the valkey ring shard
 func (vr *valkeyRing) shardForKey(key string) valkey.Client {
-	return vr.shards[xxhash.Sum64String(key)%ringSize]
+	return *vr.shards[xxhash.Sum64String(key)%ringSize].Load()
 }
 
 // PingAll pings all known shards
