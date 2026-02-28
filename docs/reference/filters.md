@@ -430,6 +430,32 @@ Parameters:
 The replacement may contain [template placeholders](#template-placeholders).
 If a template placeholder can't be resolved then empty value is used for it.
 
+### normalizePath
+
+Normalize the URL path by removing empty path segments and trailing slashes.
+
+Parameters:
+
+- The URL path
+
+Example:
+
+```
+all: * -> normalizePath() -> "https://backend.example.org/api/v1;
+```
+
+Requests to
+
+```
+https://backend.example.org//api/v1/
+https://backend.example.org//api/v1
+https://backend.example.org/api//v1
+https://backend.example.org/api//v1/
+https://backend.example.org/api/v1/
+```
+
+will all be normalized to `https://backend.example.org/api/v1`. 
+
 ## HTTP Redirect
 ### redirectTo
 
