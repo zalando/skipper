@@ -1,8 +1,12 @@
 package logging
 
 import (
+	"bufio"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -63,36 +67,114 @@ func TestFlushesPartialPayload(t *testing.T) {
 }
 
 func TestHijack(t *testing.T) {
-	rr := httptest.NewRecorder()
-	w := NewLoggingWriter(rr)
-	w.Write([]byte("Hello, world!"))
-	_, _, err := w.Hijack()
-	if err == nil {
-		t.Fatal("Failed to get hijack error")
-	}
-
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		hijacker, ok := w.(http.Hijacker)
-		if !ok {
-			t.Fatal("Failed to cast responsewriter to Hijacker")
-		}
-		conn, rw, err := hijacker.Hijack()
+	t.Run("Failing hijack test", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		lw := NewLoggingWriter(rr)
+		n, err := lw.Write([]byte("Hello, world!"))
 		if err != nil {
-			t.Fatalf("Failed to get hijacker: %v", err)
+			t.Fatalf("Failed to write: %v", err)
 		}
-		defer conn.Close()
 
-		rw.Write([]byte("foo"))
-		buf := make([]byte, 0, 3)
-		n, err := conn.Read(buf)
+		if m := lw.GetBytes(); m != int64(n) {
+			t.Fatalf("Failed to get correct length of bytes want %d, got: %d", n, m)
+		}
+		_, _, err = lw.Hijack()
+		if err == nil {
+			t.Fatal("Failed to get hijack error")
+		}
+	})
+
+	t.Run("Working hijacked connection", func(t *testing.T) {
+		backend := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+
+			w := NewLoggingWriter(rw)
+			w.WriteHeader(http.StatusSwitchingProtocols)
+
+			conn, bufrw, err := w.Hijack()
+			if err != nil {
+				t.Fatalf("Failed to get hijacker: %v", err)
+			}
+			defer conn.Close()
+
+			for {
+				s, err := bufrw.ReadString('\n')
+				if err != nil {
+					return
+				}
+
+				var resp string
+				if strings.Compare(s, "ping\n") == 0 {
+					resp = "pong\n"
+				} else {
+					resp = "bad\n"
+				}
+
+				_, err = bufrw.WriteString(resp)
+				if err != nil {
+					return
+				}
+				err = bufrw.Flush()
+				if err != nil {
+					return
+				}
+			}
+		}))
+		defer backend.Close()
+
+		req, err := http.NewRequest("GET", backend.URL, nil)
 		if err != nil {
-			t.Fatalf("Failed to read from conn: %v", err)
+			t.Fatalf("Failed to create request: %v", err)
 		}
-		if n != 3 {
-			t.Fatalf("Failed to read 3 bytes, read %d bytes", n)
-		}
-	}))
-	defer backend.Close()
+		req.Header = getValidUpgradeHeaders()
 
+		u, err := url.Parse(backend.URL)
+		if err != nil {
+			t.Fatalf("Failed to parse url: %v", err)
+		}
+
+		conn, err := net.Dial("tcp", u.Host)
+		if err != nil {
+			t.Fatalf("Failed to dial to %s: %v", u.Host, err)
+		}
+
+		err = req.Write(conn)
+		if err != nil {
+			t.Fatalf("Failed to write request to conn: %v", err)
+		}
+
+		reader := bufio.NewReader(conn)
+		rsp, err := http.ReadResponse(reader, req)
+		if err != nil {
+			t.Fatalf("Failed to read response from conn: %v", err)
+		}
+		if rsp.StatusCode != http.StatusSwitchingProtocols {
+			t.Fatalf("Failed to switch protocols: %d", rsp.StatusCode)
+		}
+
+		// we have an upgraded connection and we ping/pong through it
+		// to test the successful Hijacked connection
+		_, err = conn.Write([]byte("ping\n"))
+		if err != nil {
+			t.Fatalf("Failed to write upgraded connection: %v", err)
+		}
+
+		pong, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("Failed to read from upgraded connection: %v", err)
+		}
+		if pong != "pong\n" {
+			t.Fatalf("Failed to get the correct pong, got: %q", pong)
+		}
+	})
+
+}
+
+func getValidUpgradeHeaders() http.Header {
+	//Connection:[Upgrade] Upgrade:[SPDY/3.1]
+	//prot := "HTTP/2.0, SPDY/3.1"
+	prot := "SPDY/3.1"
+	header := http.Header{}
+	header.Add("Connection", "Upgrade")
+	header.Add("Upgrade", prot)
+	return header
 }
