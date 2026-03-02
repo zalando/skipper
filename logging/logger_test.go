@@ -27,7 +27,7 @@ func TestLogger(t *testing.T) {
 	log.Errorf("errorf: %s", "foo")
 	s = strings.TrimSpace(buf.String())
 	buf.Reset()
-	if !strings.HasSuffix(s, `errorf: foo\n"`) {
+	if !strings.HasSuffix(s, `errorf: foo"`) {
 		t.Fatalf(`Failed log.Errorf: want suffix "errorf: foo", got %q`, s)
 	}
 
@@ -41,7 +41,7 @@ func TestLogger(t *testing.T) {
 	log.Warnf("warnf: %s", "foo")
 	s = strings.TrimSpace(buf.String())
 	buf.Reset()
-	if !strings.HasSuffix(s, `warnf: foo\n"`) {
+	if !strings.HasSuffix(s, `warnf: foo"`) {
 		t.Fatalf(`Failed log.Warnf: want suffix "warnf: foo", got %q`, s)
 	}
 
@@ -55,7 +55,7 @@ func TestLogger(t *testing.T) {
 	log.Infof("infof: %s", "foo")
 	s = strings.TrimSpace(buf.String())
 	buf.Reset()
-	if !strings.HasSuffix(s, `infof: foo\n"`) {
+	if !strings.HasSuffix(s, `infof: foo"`) {
 		t.Fatalf(`Failed log.Infof: want suffix "infof: foo", got %q`, s)
 	}
 
@@ -69,7 +69,7 @@ func TestLogger(t *testing.T) {
 	log.Debugf("debugf: %s", "foo")
 	s = strings.TrimSpace(buf.String())
 	buf.Reset()
-	if !strings.HasSuffix(s, `debugf: foo\n"`) {
+	if !strings.HasSuffix(s, `debugf: foo"`) {
 		t.Fatalf(`Failed log.Debugf: want suffix "debugf: foo", got %q`, s)
 	}
 
