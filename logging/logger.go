@@ -9,35 +9,35 @@ type DefaultLog struct{}
 type Logger interface {
 
 	// Log with level ERROR
-	Error(...interface{})
+	Error(...any)
 
 	// Log formatted messages with level ERROR
-	Errorf(string, ...interface{})
+	Errorf(string, ...any)
 
 	// Log with level WARN
-	Warn(...interface{})
+	Warn(...any)
 
 	// Log formatted messages with level WARN
-	Warnf(string, ...interface{})
+	Warnf(string, ...any)
 
 	// Log with level INFO
-	Info(...interface{})
+	Info(...any)
 
 	// Log formatted messages with level INFO
-	Infof(string, ...interface{})
+	Infof(string, ...any)
 
 	// Log with level DEBUG
-	Debug(...interface{})
+	Debug(...any)
 
 	// Log formatted messages with level DEBUG
-	Debugf(string, ...interface{})
+	Debugf(string, ...any)
 }
 
-func (dl *DefaultLog) Error(a ...interface{})            { logrus.Error(a...) }
-func (dl *DefaultLog) Errorf(f string, a ...interface{}) { logrus.Errorf(f, a...) }
-func (dl *DefaultLog) Warn(a ...interface{})             { logrus.Warn(a...) }
-func (dl *DefaultLog) Warnf(f string, a ...interface{})  { logrus.Warnf(f, a...) }
-func (dl *DefaultLog) Info(a ...interface{})             { logrus.Info(a...) }
-func (dl *DefaultLog) Infof(f string, a ...interface{})  { logrus.Infof(f, a...) }
-func (dl *DefaultLog) Debug(a ...interface{})            { logrus.Debug(a...) }
-func (dl *DefaultLog) Debugf(f string, a ...interface{}) { logrus.Debugf(f, a...) }
+func (dl *DefaultLog) Error(a ...any)            { logrus.Error(a...) }
+func (dl *DefaultLog) Errorf(f string, a ...any) { logrus.Errorf(f, a...) }
+func (dl *DefaultLog) Warn(a ...any)             { logrus.Warn(a...) }
+func (dl *DefaultLog) Warnf(f string, a ...any)  { logrus.Warnf(f, a...) }
+func (dl *DefaultLog) Info(a ...any)             { logrus.Info(a...) }
+func (dl *DefaultLog) Infof(f string, a ...any)  { logrus.Infof(f, a...) }
+func (dl *DefaultLog) Debug(a ...any)            { logrus.Debug(a...) }
+func (dl *DefaultLog) Debugf(f string, a ...any) { logrus.Debugf(f, a...) }
