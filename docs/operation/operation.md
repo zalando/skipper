@@ -175,6 +175,23 @@ average expected per request memory requirement, which can be set with the
 Note that the automatically inferred limit may not work as expected in an
 environment other than cgroups v1 or cgroups v2.
 
+### HAProxy PROXY protocol v1/v2
+
+Skipper integrates the [go-proxyproto](https://github.com/pires/go-proxyproto)
+library to implement the [HAProxy protocol](https://www.haproxy.org/download/2.3/doc/proxy-protocol.txt).
+
+If you want to support this protocol in your skipper you have to
+enable the feature by setting `-enable-proxy-protocol`.  For security
+reasons you have to allow list all CIDRs `-proxy-allow-cidrs`, that
+are allowed to use this protocol.  You have also to allow to skip
+(`-proxy-skip-cidrs`) this protocol even if the client tried to use
+the proxy protocol.  You can also deny some CIDRs `-proxy-deny-cidrs`.
+All 3 flags use comma separated values:
+`-proxy-allow-cidrs="::0/0,0.0.0.0/0"` to allow all IPv6 and IPv4
+addresses.
+
+## Authentication and Authorization
+
 ### OAuth2 Tokeninfo
 
 OAuth2 filters integrate with external services and have their own
@@ -716,7 +733,7 @@ The following timer metrics are exposed per used bundle-name:
 - `skipper.opaAuthorizeRequest.custom.eval_time.<bundle-name>`
 - `skipper.opaServeResponse.custom.eval_time.<bundle-name>`
 
-Open Policy Agent [native Prometheus metrics](https://www.openpolicyagent.org/docs/monitoring#status-metrics) are passed through if the metrics backend is set to Prometheus (via `--metrics-flavour`). 
+Open Policy Agent [native Prometheus metrics](https://www.openpolicyagent.org/docs/monitoring#status-metrics) are passed through if the metrics backend is set to Prometheus (via `--metrics-flavour`).
 
 The OPA native metrics are prefixed with `skipper_openpolicyagent_`, e.g. `skipper_openpolicyagent_plugin_status_gauge` will be exposed via Skipper's `/metrics` endpoint. Two extra labels are added to all metrics: `opa_instance_name` (set to the bundle name parameter of the filters) and `opa_instance_id` (a random ID that identifies the virtual OPA instance).
 
