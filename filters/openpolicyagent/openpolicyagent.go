@@ -839,10 +839,16 @@ func (opa *OpenPolicyAgentInstance) Healthy() bool {
 }
 
 func (opa *OpenPolicyAgentInstance) Started() bool {
+	if opa == nil {
+		return false
+	}
 	return opa.started.Load()
 }
 
 func (opa *OpenPolicyAgentInstance) StartScheduled() bool {
+	if opa == nil {
+		return false
+	}
 	return opa.startScheduled.Load()
 }
 
