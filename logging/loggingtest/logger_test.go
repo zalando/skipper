@@ -1,6 +1,11 @@
 package loggingtest_test
 
 import (
+	"bytes"
+	"io"
+	"os"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -36,14 +41,47 @@ func TestLoggingTest(t *testing.T) {
 	}
 
 	lt.Mute()
-	lt.Info("info")
-	if n := lt.Count("info"); n != 0 {
-		t.Fatalf(`Failed to get 0 times "info", got %d`, n)
+	out, err := captureOutput(func() { lt.Info("bar") })
+	if err != nil {
+		t.Fatalf("Failed to capture log output: %v", err)
 	}
-
+	if strings.Contains(out, "bar") {
+		t.Fatal("Failed to mute log output")
+	}
 	lt.Unmute()
+
 	lt.Info("info")
 	if n := lt.Count("info"); n != 1 {
 		t.Fatalf(`Failed to get 1 times "info", got %d`, n)
 	}
+}
+
+func captureOutput(f func()) (string, error) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		return "", err
+	}
+
+	stdout := os.Stdout
+	stderr := os.Stderr
+	defer func() {
+		os.Stdout = stdout
+		os.Stderr = stderr
+	}()
+
+	os.Stdout = writer
+	os.Stderr = writer
+
+	outChan := make(chan string)
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		var buf bytes.Buffer
+		io.Copy(&buf, reader)
+		outChan <- buf.String()
+	})
+	f()
+
+	writer.Close()
+	return <-outChan, nil
 }
