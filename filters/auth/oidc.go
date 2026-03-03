@@ -102,11 +102,14 @@ type OidcOptions struct {
 	OpenTracingClientTraceByTag bool
 }
 
+const oidcSecretRefPrefix = "secretRef:"
+
 type (
 	tokenOidcSpec struct {
 		typ             roleCheckType
 		SecretsFile     string
 		secretsRegistry secrets.EncrypterCreator
+		secretsReader   secrets.SecretsReader
 		options         OidcOptions
 	}
 
@@ -150,6 +153,12 @@ func NewOAuthOidcUserInfosWithOptions(secretsFile string, secretsRegistry secret
 	return &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, options: o}
 }
 
+// NewOAuthOidcUserInfosWithOptionsAndReader is like NewOAuthOidcUserInfosWithOptions, but allows resolving
+// the OIDC client ID/secret from external secret stores by reference.
+func NewOAuthOidcUserInfosWithOptionsAndReader(secretsFile string, secretsRegistry secrets.EncrypterCreator, sr secrets.SecretsReader, o OidcOptions) filters.Spec {
+	return &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, secretsReader: sr, options: o}
+}
+
 // Deprecated: use NewOAuthOidcUserInfosWithOptions instead.
 func NewOAuthOidcUserInfos(secretsFile string, secretsRegistry secrets.EncrypterCreator) filters.Spec {
 	return NewOAuthOidcUserInfosWithOptions(secretsFile, secretsRegistry, OidcOptions{})
@@ -161,6 +170,12 @@ func NewOAuthOidcAnyClaimsWithOptions(secretsFile string, secretsRegistry secret
 	return &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, options: o}
 }
 
+// NewOAuthOidcAnyClaimsWithOptionsAndReader is like NewOAuthOidcAnyClaimsWithOptions, but allows resolving
+// the OIDC client ID/secret from external secret stores by reference.
+func NewOAuthOidcAnyClaimsWithOptionsAndReader(secretsFile string, secretsRegistry secrets.EncrypterCreator, sr secrets.SecretsReader, o OidcOptions) filters.Spec {
+	return &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, secretsReader: sr, options: o}
+}
+
 // Deprecated: use NewOAuthOidcAnyClaimsWithOptions instead.
 func NewOAuthOidcAnyClaims(secretsFile string, secretsRegistry secrets.EncrypterCreator) filters.Spec {
 	return NewOAuthOidcAnyClaimsWithOptions(secretsFile, secretsRegistry, OidcOptions{})
@@ -170,6 +185,30 @@ func NewOAuthOidcAnyClaims(secretsFile string, secretsRegistry secrets.Encrypter
 // has all the claims specified
 func NewOAuthOidcAllClaimsWithOptions(secretsFile string, secretsRegistry secrets.EncrypterCreator, o OidcOptions) filters.Spec {
 	return &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, options: o}
+}
+
+// NewOAuthOidcAllClaimsWithOptionsAndReader is like NewOAuthOidcAllClaimsWithOptions, but allows resolving
+// the OIDC client ID/secret from external secret stores by reference.
+func NewOAuthOidcAllClaimsWithOptionsAndReader(secretsFile string, secretsRegistry secrets.EncrypterCreator, sr secrets.SecretsReader, o OidcOptions) filters.Spec {
+	return &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, secretsReader: sr, options: o}
+}
+
+func (s *tokenOidcSpec) resolveClientCredential(v string) (string, error) {
+	if !strings.HasPrefix(v, oidcSecretRefPrefix) {
+		return v, nil
+	}
+	if s.secretsReader == nil {
+		return "", fmt.Errorf("%w: %q requires secrets reader", filters.ErrInvalidFilterParameters, v)
+	}
+	ref := strings.TrimPrefix(v, oidcSecretRefPrefix)
+	if ref == "" {
+		return "", filters.ErrInvalidFilterParameters
+	}
+	b, ok := s.secretsReader.GetSecret(ref)
+	if !ok {
+		return "", fmt.Errorf("%w: secret %q not found", filters.ErrInvalidFilterParameters, ref)
+	}
+	return string(b), nil
 }
 
 // Deprecated: use NewOAuthOidcAllClaimsWithOptions instead.
@@ -262,10 +301,18 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	if oidcClientId == "" {
 		oidcClientId = s.options.OidcClientId
 	}
+	oidcClientId, err = s.resolveClientCredential(oidcClientId)
+	if err != nil {
+		return nil, err
+	}
 
 	oidcClientSecret := sargs[paramClientSecret]
 	if oidcClientSecret == "" {
 		oidcClientSecret = s.options.OidcClientSecret
+	}
+	oidcClientSecret, err = s.resolveClientCredential(oidcClientSecret)
+	if err != nil {
+		return nil, err
 	}
 
 	f := &tokenOidcFilter{

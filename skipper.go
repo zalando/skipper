@@ -1906,9 +1906,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 
 		o.CustomFilters = append(o.CustomFilters,
-			auth.NewOAuthOidcUserInfosWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, opts),
-			auth.NewOAuthOidcAnyClaimsWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, opts),
-			auth.NewOAuthOidcAllClaimsWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, opts),
+			auth.NewOAuthOidcUserInfosWithOptionsAndReader(o.OIDCSecretsFile, o.SecretsRegistry, sp, opts),
+			auth.NewOAuthOidcAnyClaimsWithOptionsAndReader(o.OIDCSecretsFile, o.SecretsRegistry, sp, opts),
+			auth.NewOAuthOidcAllClaimsWithOptionsAndReader(o.OIDCSecretsFile, o.SecretsRegistry, sp, opts),
 		)
 	}
 
