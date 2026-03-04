@@ -291,6 +291,32 @@ func New(o Options) *Routing {
 	return r
 }
 
+// InvalidRouteResponse wraps a route with its validation error message.
+type InvalidRouteResponse struct {
+	Route *eskip.Route
+	Error string
+}
+
+func (ir InvalidRouteResponse) MarshalJSON() ([]byte, error) {
+	routeJSON, err := json.Marshal(ir.Route)
+	if err != nil {
+		return nil, err
+	}
+
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(routeJSON, &m); err != nil {
+		return nil, err
+	}
+
+	errorJSON, err := json.Marshal(ir.Error)
+	if err != nil {
+		return nil, err
+	}
+	m["error"] = errorJSON
+
+	return json.Marshal(m)
+}
+
 // ServeHTTP renders the list of current routes.
 func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" && req.Method != "HEAD" {
@@ -307,9 +333,16 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	showInvalid := req.Form.Get("invalid") == "true"
+
+	routes := rt.validRoutes
+	if showInvalid {
+		routes = rt.invalidRoutes
+	}
+
 	if req.Method == "HEAD" {
 		w.Header().Set(routesTimestampName, createdUnix)
-		w.Header().Set(RoutesCountName, strconv.Itoa(len(rt.validRoutes)))
+		w.Header().Set(RoutesCountName, strconv.Itoa(len(routes)))
 
 		if strings.Contains(req.Header.Get("Accept"), "application/json") {
 			w.Header().Set("Content-Type", "application/json")
@@ -333,23 +366,37 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set(routesTimestampName, createdUnix)
-	w.Header().Set(RoutesCountName, strconv.Itoa(len(rt.validRoutes)))
+	w.Header().Set(RoutesCountName, strconv.Itoa(len(routes)))
 
-	routes := slice(rt.validRoutes, offset, limit)
+	paged := slice(routes, offset, limit)
 	if strings.Contains(req.Header.Get("Accept"), "application/json") {
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(routes); err != nil {
-			http.Error(
-				w,
-				http.StatusText(http.StatusInternalServerError),
-				http.StatusInternalServerError,
-			)
+		if showInvalid {
+			resp := make([]InvalidRouteResponse, len(paged))
+			for i, route := range paged {
+				resp[i] = InvalidRouteResponse{Route: route, Error: rt.invalidRouteErrors[route.Id]}
+			}
+			if err := json.NewEncoder(w).Encode(resp); err != nil {
+				http.Error(
+					w,
+					http.StatusText(http.StatusInternalServerError),
+					http.StatusInternalServerError,
+				)
+			}
+		} else {
+			if err := json.NewEncoder(w).Encode(paged); err != nil {
+				http.Error(
+					w,
+					http.StatusText(http.StatusInternalServerError),
+					http.StatusInternalServerError,
+				)
+			}
 		}
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
-	eskip.Fprint(w, extractPretty(req), routes...)
+	eskip.Fprint(w, extractPretty(req), paged...)
 }
 
 func (r *Routing) startReceivingUpdates(o Options) {

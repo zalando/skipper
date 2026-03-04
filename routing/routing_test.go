@@ -1045,3 +1045,221 @@ func TestDuplicateDataClients(t *testing.T) {
 		}
 	})
 }
+
+func TestRoutingHandlerInvalidRoutesJSON(t *testing.T) {
+	dc, _ := testdataclient.NewDoc(`
+		route1: CustomPredicate("custom1") -> "https://route1.example.org";
+		route2: FooBar("custom2") -> "https://route2.example.org";
+		catchAll: * -> "https://route.example.org"`)
+	defer dc.Close()
+
+	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	tr, _ := newTestRoutingWithPredicates(cps, dc)
+	defer tr.close()
+
+	mux := http.NewServeMux()
+	mux.Handle("/", tr.routing)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	// Default: should not include invalid routes
+	req, _ := http.NewRequest("GET", server.URL, nil)
+	req.Header.Set("accept", "application/json")
+	resp, _ := http.DefaultClient.Do(req)
+
+	var validRoutes []*eskip.Route
+	json.NewDecoder(resp.Body).Decode(&validRoutes)
+	resp.Body.Close()
+
+	if got, want := len(validRoutes), 2; got != want {
+		t.Errorf("valid routes count = %v, want %v", got, want)
+	}
+
+	if resp.Header.Get(routing.RoutesCountName) != "2" {
+		t.Errorf("X-Count header = %v, want 2", resp.Header.Get(routing.RoutesCountName))
+	}
+
+	// With ?invalid=true: should return only invalid routes with error
+	req, _ = http.NewRequest("GET", server.URL+"?invalid=true", nil)
+	req.Header.Set("accept", "application/json")
+	resp, _ = http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+
+	if resp.Header.Get(routing.RoutesCountName) != "1" {
+		t.Errorf("X-Count header for invalid = %v, want 1", resp.Header.Get(routing.RoutesCountName))
+	}
+
+	var invalidRoutes []json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&invalidRoutes); err != nil {
+		t.Fatalf("failed to decode invalid routes response: %v", err)
+	}
+
+	if got, want := len(invalidRoutes), 1; got != want {
+		t.Fatalf("invalid routes count = %v, want %v", got, want)
+	}
+
+	var entry map[string]interface{}
+	if err := json.Unmarshal(invalidRoutes[0], &entry); err != nil {
+		t.Fatalf("failed to unmarshal invalid route entry: %v", err)
+	}
+
+	if id, _ := entry["id"].(string); id != "route2" {
+		t.Errorf("invalid route id = %v, want route2", id)
+	}
+
+	errMsg, _ := entry["error"].(string)
+	if errMsg == "" {
+		t.Error("expected non-empty error message for invalid route")
+	}
+}
+
+func TestRoutingHandlerInvalidRoutesText(t *testing.T) {
+	dc, _ := testdataclient.NewDoc(`
+		route1: CustomPredicate("custom1") -> "https://route1.example.org";
+		route2: FooBar("custom2") -> "https://route2.example.org";
+		catchAll: * -> "https://route.example.org"`)
+	defer dc.Close()
+
+	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	tr, _ := newTestRoutingWithPredicates(cps, dc)
+	defer tr.close()
+
+	mux := http.NewServeMux()
+	mux.Handle("/", tr.routing)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	req, _ := http.NewRequest("GET", server.URL+"?invalid=true", nil)
+	resp, _ := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+
+	if got, want := resp.Header.Get("content-type"), "text/plain"; got != want {
+		t.Errorf("content type = %v, want %v", got, want)
+	}
+
+	b, _ := io.ReadAll(resp.Body)
+	routes, err := eskip.Parse(string(b))
+	if err != nil {
+		t.Fatalf("failed to parse eskip response: %v", err)
+	}
+
+	if got, want := len(routes), 1; got != want {
+		t.Fatalf("invalid routes count = %v, want %v", got, want)
+	}
+
+	if routes[0].Id != "route2" {
+		t.Errorf("invalid route id = %v, want route2", routes[0].Id)
+	}
+}
+
+func TestRoutingHandlerInvalidRoutesHEAD(t *testing.T) {
+	dc, _ := testdataclient.NewDoc(`
+		route1: CustomPredicate("custom1") -> "https://route1.example.org";
+		route2: FooBar("custom2") -> "https://route2.example.org";
+		catchAll: * -> "https://route.example.org"`)
+	defer dc.Close()
+
+	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	tr, _ := newTestRoutingWithPredicates(cps, dc)
+	defer tr.close()
+
+	mux := http.NewServeMux()
+	mux.Handle("/", tr.routing)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	req, _ := http.NewRequest("HEAD", server.URL+"?invalid=true", nil)
+	resp, _ := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+
+	if resp.Header.Get(routing.RoutesCountName) != "1" {
+		t.Errorf("X-Count header for invalid HEAD = %v, want 1", resp.Header.Get(routing.RoutesCountName))
+	}
+
+	b, _ := io.ReadAll(resp.Body)
+	if len(b) != 0 {
+		t.Error("unexpected payload in HEAD response")
+	}
+}
+
+func TestRoutingHandlerInvalidRoutesPagination(t *testing.T) {
+	dc, _ := testdataclient.NewDoc(`
+		route1: FooBar("a") -> "https://route1.example.org";
+		route2: FooBar("b") -> "https://route2.example.org";
+		route3: FooBar("c") -> "https://route3.example.org";
+		catchAll: * -> "https://route.example.org"`)
+	defer dc.Close()
+
+	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	tr, _ := newTestRoutingWithPredicates(cps, dc)
+	defer tr.close()
+
+	mux := http.NewServeMux()
+	mux.Handle("/", tr.routing)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	tests := []struct {
+		offset  int
+		limit   int
+		nroutes int
+	}{
+		{0, 10, 3},
+		{0, 1, 1},
+		{1, 1, 1},
+		{0, 2, 2},
+		{2, 10, 1},
+		{10, 10, 0},
+	}
+
+	for _, ti := range tests {
+		u := fmt.Sprintf("%s?invalid=true&offset=%d&limit=%d", server.URL, ti.offset, ti.limit)
+		req, _ := http.NewRequest("GET", u, nil)
+		req.Header.Set("accept", "application/json")
+		resp, _ := http.DefaultClient.Do(req)
+
+		if resp.Header.Get(routing.RoutesCountName) != "3" {
+			t.Errorf("X-Count header = %v, want 3", resp.Header.Get(routing.RoutesCountName))
+		}
+
+		var routes []json.RawMessage
+		json.NewDecoder(resp.Body).Decode(&routes)
+		resp.Body.Close()
+
+		if got := len(routes); got != ti.nroutes {
+			t.Errorf("offset=%d limit=%d: got %d routes, want %d", ti.offset, ti.limit, got, ti.nroutes)
+		}
+	}
+}
+
+func TestRoutingHandlerInvalidParamDefaultBehavior(t *testing.T) {
+	dc, _ := testdataclient.NewDoc(`
+		route1: CustomPredicate("custom1") -> "https://route1.example.org";
+		route2: FooBar("custom2") -> "https://route2.example.org";
+		catchAll: * -> "https://route.example.org"`)
+	defer dc.Close()
+
+	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	tr, _ := newTestRoutingWithPredicates(cps, dc)
+	defer tr.close()
+
+	mux := http.NewServeMux()
+	mux.Handle("/", tr.routing)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	// ?invalid=false should return valid routes (default behavior)
+	for _, param := range []string{"?invalid=false", "?invalid=", ""} {
+		req, _ := http.NewRequest("GET", server.URL+param, nil)
+		req.Header.Set("accept", "application/json")
+		resp, _ := http.DefaultClient.Do(req)
+
+		var routes []*eskip.Route
+		json.NewDecoder(resp.Body).Decode(&routes)
+		resp.Body.Close()
+
+		if got, want := len(routes), 2; got != want {
+			t.Errorf("param=%q: valid routes count = %v, want %v", param, got, want)
+		}
+	}
+}
