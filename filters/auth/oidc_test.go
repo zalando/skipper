@@ -731,7 +731,7 @@ func TestCreateFilterOIDCWithSecretRefCredentials(t *testing.T) {
 		"/oidc/client-secret": []byte("mysec"),
 	}
 
-	spec := NewOAuthOidcAnyClaimsWithOptionsAndReader("/foo", secretsRegistry, sr, OidcOptions{}).(*tokenOidcSpec)
+	spec := NewOAuthOidcAnyClaimsWithOptions("/foo", secretsRegistry, OidcOptions{SecretsReader: sr}).(*tokenOidcSpec)
 
 	args := []interface{}{
 		oidcServer.URL,
@@ -757,7 +757,7 @@ func TestCreateFilterOIDCWithSecretRefMissingSecretFails(t *testing.T) {
 		// client-secret missing
 	}
 
-	spec := NewOAuthOidcAnyClaimsWithOptionsAndReader("/foo", secretsRegistry, sr, OidcOptions{}).(*tokenOidcSpec)
+	spec := NewOAuthOidcAnyClaimsWithOptions("/foo", secretsRegistry, OidcOptions{SecretsReader: sr}).(*tokenOidcSpec)
 
 	args := []interface{}{
 		oidcServer.URL,

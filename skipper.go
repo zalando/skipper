@@ -1903,12 +1903,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
 			OidcClientId:                oidcClientId,
 			OidcClientSecret:            oidcClientSecret,
+			SecretsReader:               sp,
 		}
 
 		o.CustomFilters = append(o.CustomFilters,
-			auth.NewOAuthOidcUserInfosWithOptionsAndReader(o.OIDCSecretsFile, o.SecretsRegistry, sp, opts),
-			auth.NewOAuthOidcAnyClaimsWithOptionsAndReader(o.OIDCSecretsFile, o.SecretsRegistry, sp, opts),
-			auth.NewOAuthOidcAllClaimsWithOptionsAndReader(o.OIDCSecretsFile, o.SecretsRegistry, sp, opts),
+			auth.NewOAuthOidcUserInfosWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, opts),
+			auth.NewOAuthOidcAnyClaimsWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, opts),
+			auth.NewOAuthOidcAllClaimsWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, opts),
 		)
 	}
 
