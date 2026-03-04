@@ -1938,6 +1938,21 @@ The filter needs the following parameters:
 * **OpenID Connect Provider URL** For example Google OpenID Connect is available on `https://accounts.google.com`
 * **Client ID** This value is obtained from the provider upon registration of the application. Falls back to```OIDC_CLIENT_ID``` env variable for empty value.
 * **Client Secret**  Also obtained from the provider. Falls back to ```OIDC_CLIENT_SECRET``` env variable for empty value.
+
+The **Client ID** and **Client Secret** parameters also support reading values from Skipper's secrets registry using the prefix `secretRef:`.
+
+In Kubernetes deployments, the secrets registry is commonly backed by Secrets mounted as files (or similar mechanisms); the value after `secretRef:` is the key that Skipper resolves via its configured secrets reader.
+
+```
+oauthOidcAnyClaims("https://oidc-provider.example.com",
+  "secretRef:/oidc/client-id",
+  "secretRef:/oidc/client-secret",
+  "http://target.example.com/subpath/callback",
+  "email profile",
+  "name email")
+```
+
+When using `secretRef:`, Skipper expects the referenced secret to be available via the configured secrets reader; if the secret cannot be resolved, filter creation fails.
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
@@ -1966,6 +1981,8 @@ The filter needs the following parameters:
 * **OpenID Connect Provider URL** For example Google OpenID Connect is available on `https://accounts.google.com`
 * **Client ID** This value is obtained from the provider upon registration of the application.
 * **Client Secret**  Also obtained from the provider
+
+The **Client ID** and **Client Secret** parameters also support reading values from Skipper's secrets registry using the prefix `secretRef:`.
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
@@ -1993,6 +2010,8 @@ The filter needs the following parameters:
 * **OpenID Connect Provider URL** For example Google OpenID Connect is available on `https://accounts.google.com`
 * **Client ID** This value is obtained from the provider upon registration of the application.
 * **Client Secret**  Also obtained from the provider
+
+The **Client ID** and **Client Secret** parameters also support reading values from Skipper's secrets registry using the prefix `secretRef:`.
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.

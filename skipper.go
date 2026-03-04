@@ -1903,6 +1903,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
 			OidcClientId:                oidcClientId,
 			OidcClientSecret:            oidcClientSecret,
+			SecretsReader:               sp,
 		}
 
 		o.CustomFilters = append(o.CustomFilters,

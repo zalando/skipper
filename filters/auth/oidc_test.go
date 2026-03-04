@@ -39,6 +39,17 @@ import (
 	"github.com/zalando/skipper/secrets/secrettest"
 )
 
+type mapSecretsReader map[string][]byte
+
+func (m mapSecretsReader) GetSecret(k string) ([]byte, bool) {
+	b, ok := m[k]
+	return b, ok
+}
+
+func (m mapSecretsReader) Close() {
+	_ = m
+}
+
 const (
 	testRedirectUrl   = "http://redirect-somewhere.com/some-path?arg=param"
 	validClient       = "valid-client"
@@ -708,6 +719,58 @@ func TestCreateFilterOIDC(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateFilterOIDCWithSecretRefCredentials(t *testing.T) {
+	oidcServer := createOIDCServer("", "", "", nil, nil)
+	defer oidcServer.Close()
+
+	secretsRegistry := secrettest.NewTestRegistry()
+	sr := mapSecretsReader{
+		"/oidc/client-id":     []byte("valid-client"),
+		"/oidc/client-secret": []byte("mysec"),
+	}
+
+	spec := NewOAuthOidcAnyClaimsWithOptions("/foo", secretsRegistry, OidcOptions{SecretsReader: sr}).(*tokenOidcSpec)
+
+	args := []interface{}{
+		oidcServer.URL,
+		"secretRef:/oidc/client-id",
+		"secretRef:/oidc/client-secret",
+		oidcServer.URL + "/redirect",
+		"",
+		"",
+	}
+
+	f, err := spec.CreateFilter(args)
+	assert.NoError(t, err)
+	assert.NotNil(t, f)
+}
+
+func TestCreateFilterOIDCWithSecretRefMissingSecretFails(t *testing.T) {
+	oidcServer := createOIDCServer("", "", "", nil, nil)
+	defer oidcServer.Close()
+
+	secretsRegistry := secrettest.NewTestRegistry()
+	sr := mapSecretsReader{
+		"/oidc/client-id": []byte("valid-client"),
+		// client-secret missing
+	}
+
+	spec := NewOAuthOidcAnyClaimsWithOptions("/foo", secretsRegistry, OidcOptions{SecretsReader: sr}).(*tokenOidcSpec)
+
+	args := []interface{}{
+		oidcServer.URL,
+		"secretRef:/oidc/client-id",
+		"secretRef:/oidc/client-secret",
+		oidcServer.URL + "/redirect",
+		"",
+		"",
+	}
+
+	f, err := spec.CreateFilter(args)
+	assert.Error(t, err)
+	assert.Nil(t, f)
 }
 
 func TestOIDCSetup(t *testing.T) {

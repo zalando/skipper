@@ -168,6 +168,21 @@ oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id",
     "claim1 claim2") -> "https://internal.example.org";
 ```
 
+If you don't want to embed client credentials in inline routes, you can reference secrets using the `secretRef:` prefix.
+
+In Kubernetes this typically means: mount a Secret (or ExternalSecret output) into the Skipper pod as files, configure Skipper to read secrets from that mount, and then use `secretRef:` with the corresponding key/path as understood by the configured secrets reader.
+
+```sh
+oauthOidcAllClaims("https://accounts.identity-provider.com",
+  "secretRef:/oidc/client-id",
+  "secretRef:/oidc/client-secret",
+  "http://callback.com/auth/provider/callback",
+  "scope1 scope2",
+  "claim1 claim2") -> "https://internal.example.org";
+```
+
+Note: `secretRef:` does not reference a Kubernetes Secret object directly; it references a key that Skipper resolves via its configured secrets reader.
+
 Here `scope1 scope2` are the scopes that should be included which requesting authentication from the OpenID provider.
 Any number of scopes can be specified here. The `openid` scope is added automatically by the filter. The other fields
 which need to be specified are the URL of the provider which in the above example is
