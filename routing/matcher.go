@@ -369,10 +369,7 @@ func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (ma
 		params = append([]string{""}, params...)
 	}
 
-	l := len(params)
-	if l > len(lm.wildcardParamNames) {
-		l = len(lm.wildcardParamNames)
-	}
+	l := min(len(params), len(lm.wildcardParamNames))
 
 	paramsMap := make(map[string]string)
 	for i := 0; i < l; i += 1 {
