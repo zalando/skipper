@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -400,13 +401,7 @@ func matchHeader(h http.Header, key string, check func(string) bool) bool {
 		return false
 	}
 
-	for _, val := range vals {
-		if check(val) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(vals, check)
 }
 
 // matches a set of request headers to the fix and regexp header conditions
