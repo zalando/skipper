@@ -109,7 +109,19 @@ func TestLoadEnvoyMetadata(t *testing.T) {
 	assert.Equal(t, expected, cfg.envoyMetadata)
 }
 
-func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Server, []byte) {
+func mockControlPlaneWithDiscoveryBundle(discoveryBundle string, opts ...ControlPlaneOption) (*opasdktest.Server, []byte) {
+	cfg := &controlPlaneConfig{
+		enableStatus: false,
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	statusConfig := ""
+	if cfg.enableStatus {
+		statusConfig = `,"status":{"console":false, "service": "test"}`
+	}
+
 	opaControlPlane := opasdktest.MustNewServer(
 		opasdktest.MockBundle("/bundles/test", map[string]string{
 			"main.rego": `
@@ -119,9 +131,7 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 			`,
 		}),
 		opasdktest.MockBundle("/bundles/discovery", map[string]string{
-			"data.json": `
-				{"discovery":{"bundles":{"bundles/test":{"persist":false,"resource":"bundles/test","service":"test"}}}}
-			`,
+			"data.json": fmt.Sprintf(`{"discovery":{"bundles":{"bundles/test":{"persist":false,"resource":"bundles/test","service":"test"}}%s}}`, statusConfig),
 		}),
 		opasdktest.MockBundle("/bundles/discovery-with-wrong-bundle", map[string]string{
 			"data.json": `
@@ -1155,6 +1165,60 @@ func TestPrometheusPluginStatusGaugeRegistered(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "plugin_status_gauge should be registered and have data")
+}
+
+func TestPrometheusPluginStatusGaugeRegisteredWithDiscovery(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery", WithStatusPluginEnabled(true))
+
+	promRegistry := prometheus.NewRegistry()
+	opaRegistry, err := NewOpenPolicyAgentRegistry(
+		WithReuseDuration(1*time.Second),
+		WithCleanInterval(1*time.Second),
+		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
+		WithPrometheusRegisterer(promRegistry),
+	)
+	assert.NoError(t, err)
+
+	opaInst, err := opaRegistry.GetOrStartInstance("test")
+	assert.NoError(t, err)
+
+	// Simulate an HTTP request evaluation
+	ctx := context.Background()
+	_, err = opaInst.Eval(ctx, &authv3.CheckRequest{
+		Attributes: &authv3.AttributeContext{},
+	})
+	assert.NoError(t, err)
+
+	// Gather metrics and check for plugin_status_gauge
+	metricsFamilies, err := promRegistry.Gather()
+	assert.NoError(t, err)
+
+	found := false
+	foundLabels := map[string]string{
+		"name":              "bundle",
+		"opa_instance_id":   "34b78d90-6d9a-4ecc-8ff9-393b9dafa40d", // random ID
+		"opa_instance_name": "test",
+		"status":            "OK",
+	}
+	for _, mf := range metricsFamilies {
+		if mf.GetName() == "plugin_status_gauge" && len(mf.Metric) > 0 {
+			if len(mf.Metric) > 0 {
+				met := mf.Metric[0]
+				for _, lPair := range met.GetLabel() {
+					switch lPair.GetName() {
+					case "opa_instance_id":
+						found = true // ok, because random ID should always be there
+					default:
+						if foundLabels[lPair.GetName()] != lPair.GetValue() {
+							t.Fatalf("Failed to find label %q: %q, got: %q", lPair.GetName(), foundLabels[lPair.GetName()], lPair.GetValue())
+						}
+					}
+				}
+			}
+			break
+		}
+	}
+	assert.True(t, found, "plugin_status_gauge should be registered and have data for discovery bundle")
 }
 
 type opaInstanceStartupTestCase struct {
