@@ -65,6 +65,7 @@ type Config struct {
 	EnableRouteFIFOMetrics           bool           `yaml:"enable-route-fifo-metrics"`
 	EnableRouteLIFOMetrics           bool           `yaml:"enable-route-lifo-metrics"`
 	MetricsFlavour                   *listFlag      `yaml:"metrics-flavour"`
+	DisableMetricsCompression        bool           `yaml:"disable-metrics-compression"`
 	FilterPlugins                    *pluginFlag    `yaml:"filter-plugin"`
 	PredicatePlugins                 *pluginFlag    `yaml:"predicate-plugin"`
 	DataclientPlugins                *pluginFlag    `yaml:"dataclient-plugin"`
@@ -429,6 +430,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.EnableRouteFIFOMetrics, "enable-route-fifo-metrics", false, "enable metrics for the individual route FIFO queues")
 	flag.BoolVar(&cfg.EnableRouteLIFOMetrics, "enable-route-lifo-metrics", false, "enable metrics for the individual route LIFO queues")
 	flag.Var(cfg.MetricsFlavour, "metrics-flavour", "Metrics flavour is used to change the exposed metrics format. Supported metric formats: 'codahale' and 'prometheus', you can select both of them by using one option with ',' separated values")
+	flag.BoolVar(&cfg.DisableMetricsCompression, "disable-metrics-compression", false, "disable metrics compression on /metrics handler endpoint.")
 	flag.Var(cfg.FilterPlugins, "filter-plugin", "set a custom filter plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.PredicatePlugins, "predicate-plugin", "set a custom predicate plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.DataclientPlugins, "dataclient-plugin", "set a custom dataclient plugins to load, a comma separated list of name and arguments")
@@ -894,6 +896,7 @@ func (c *Config) ToOptions() skipper.Options {
 		EnableRouteFIFOMetrics:           c.EnableRouteFIFOMetrics,
 		EnableRouteLIFOMetrics:           c.EnableRouteLIFOMetrics,
 		MetricsFlavours:                  c.MetricsFlavour.values,
+		DisableMetricsCompression:        c.DisableMetricsCompression,
 		FilterPlugins:                    c.FilterPlugins.values,
 		PredicatePlugins:                 c.PredicatePlugins.values,
 		DataClientPlugins:                c.DataclientPlugins.values,

@@ -350,7 +350,9 @@ func (p *Prometheus) CreateHandler() http.Handler {
 	if p.opts.EnablePrometheusStartLabel {
 		gatherer = withStartLabelGatherer{p.registry}
 	}
-	return promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
+	return promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
+		DisableCompression: p.opts.DisableCompression,
+	})
 }
 
 func (p *Prometheus) getHandler() http.Handler {
