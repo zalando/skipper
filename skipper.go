@@ -833,6 +833,9 @@ type Options struct {
 	// of metrics endpoints.
 	MetricsFlavours []string
 
+	// DisableMetricsCompression if enabled it will disable compression on the metrics handler, defaults to false
+	DisableMetricsCompression bool
+
 	// LoadBalancerHealthCheckInterval is *deprecated* and not in use anymore
 	LoadBalancerHealthCheckInterval time.Duration
 
@@ -1714,6 +1717,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
 		PrometheusRegistry:                 o.PrometheusRegistry,
 		EnablePrometheusStartLabel:         o.EnablePrometheusStartLabel,
+		DisableCompression:                 o.DisableMetricsCompression,
 	}
 
 	mtr := o.MetricsBackend
