@@ -1082,7 +1082,10 @@ func TestRoutingHandlerInvalidRoutesJSON(t *testing.T) {
 	// With ?invalid=true: should return only invalid routes with error
 	req, _ = http.NewRequest("GET", server.URL+"?invalid=true", nil)
 	req.Header.Set("accept", "application/json")
-	resp, _ = http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("failed to request invalid routes: %v", err)
+	}
 	defer resp.Body.Close()
 
 	if resp.Header.Get(routing.RoutesCountName) != "1" {
@@ -1130,7 +1133,10 @@ func TestRoutingHandlerInvalidRoutesText(t *testing.T) {
 	defer server.Close()
 
 	req, _ := http.NewRequest("GET", server.URL+"?invalid=true", nil)
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("failed to request invalid routes: %v", err)
+	}
 	defer resp.Body.Close()
 
 	if got, want := resp.Header.Get("content-type"), "text/plain"; got != want {
@@ -1169,7 +1175,10 @@ func TestRoutingHandlerInvalidRoutesHEAD(t *testing.T) {
 	defer server.Close()
 
 	req, _ := http.NewRequest("HEAD", server.URL+"?invalid=true", nil)
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("failed to request invalid routes: %v", err)
+	}
 	defer resp.Body.Close()
 
 	if resp.Header.Get(routing.RoutesCountName) != "1" {
