@@ -782,6 +782,196 @@ func TestTracing(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{"opa.bundle_name": "test", "opa.label.id": inst.manager.Labels()["id"], "opa.label.version": inst.manager.Labels()["version"]}, recspan.Tags())
 }
 
+func TestHttpSendTracing(t *testing.T) {
+	serverCalled := false
+
+	externalServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serverCalled = true
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"authorized": true, "user": "testuser"}`))
+	}))
+	defer externalServer.Close()
+
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/http_send_test", map[string]string{
+			"main.rego": fmt.Sprintf(`
+				package envoy.authz
+
+				import rego.v1
+
+				default allow = false
+
+				allow if {
+					response := http.send({
+						"method": "GET",
+						"url": %q,
+						"timeout": "2s",
+						"raise_error": false
+					})
+					response.status_code == 403
+					response.body.authorized == true
+				}
+			`, externalServer.URL),
+		}),
+	)
+	defer opaControlPlane.Stop()
+
+	config := fmt.Appendf(nil, `{
+		"services": {
+			"test": {
+				"url": %q
+			}
+		},
+		"bundles": {
+			"test": {
+				"resource": "/bundles/{{ .bundlename }}"
+			}
+		},
+		"plugins": {
+			"envoy_ext_authz_grpc": {
+				"path": "envoy/authz/allow",
+				"dry-run": false,
+				"skip-request-body-parse": false
+			}
+		}
+	}`, opaControlPlane.URL())
+
+	tracer := tracingtest.NewTracer()
+
+	registry, err := NewOpenPolicyAgentRegistry(
+		WithReuseDuration(1*time.Second),
+		WithCleanInterval(1*time.Second),
+		WithTracer(tracer),
+		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
+	)
+	assert.NoError(t, err)
+
+	inst, err := registry.GetOrStartInstance("http_send_test")
+	assert.NoError(t, err)
+
+	span := tracer.StartSpan("open-policy-agent")
+	ctx := opentracing.ContextWithSpan(context.Background(), span)
+
+	result, err := inst.Eval(ctx, &authv3.CheckRequest{
+		Attributes: &authv3.AttributeContext{},
+	})
+	assert.NoError(t, err)
+
+	allowed, err := result.IsAllowed()
+	assert.NoError(t, err)
+	assert.True(t, serverCalled, "External server should have been called by http.send")
+	assert.True(t, allowed, "Request should be allowed when external server returns authorized=true")
+
+	span.Finish()
+
+	// Verify tracing span was created for the http.send call
+	var httpSpan *tracingtest.MockSpan
+	for _, s := range tracer.FinishedSpans() {
+		if s.OperationName == "open-policy-agent.http" && s.Tag("http.url") == externalServer.URL {
+			httpSpan = s
+			break
+		}
+	}
+	require.NotNil(t, httpSpan, "No span was created for http.send call to external server")
+	assert.Equal(t, "GET", httpSpan.Tag("http.method"))
+	assert.Equal(t, externalServer.URL, httpSpan.Tag("http.url"))
+	assert.Equal(t, 403, httpSpan.Tag("http.status_code"))
+}
+
+func TestHttpSendTracingDenied(t *testing.T) {
+	externalServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"authorized": false, "user": "testuser"}`))
+	}))
+	defer externalServer.Close()
+
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/http_send_denied_test", map[string]string{
+			"main.rego": fmt.Sprintf(`
+				package envoy.authz
+
+				import rego.v1
+
+				default allow = false
+
+				allow if {
+					response := http.send({
+						"method": "GET",
+						"url": %q,
+						"timeout": "2s",
+						"raise_error": false
+					})
+					response.status_code == 200
+					response.body.authorized == true
+				}
+			`, externalServer.URL),
+		}),
+	)
+	defer opaControlPlane.Stop()
+
+	config := fmt.Appendf(nil, `{
+		"services": {
+			"test": {
+				"url": %q
+			}
+		},
+		"bundles": {
+			"test": {
+				"resource": "/bundles/{{ .bundlename }}"
+			}
+		},
+		"plugins": {
+			"envoy_ext_authz_grpc": {
+				"path": "envoy/authz/allow",
+				"dry-run": false,
+				"skip-request-body-parse": false
+			}
+		}
+	}`, opaControlPlane.URL())
+
+	tracer := tracingtest.NewTracer()
+
+	registry, err := NewOpenPolicyAgentRegistry(
+		WithReuseDuration(1*time.Second),
+		WithCleanInterval(1*time.Second),
+		WithTracer(tracer),
+		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
+	)
+	assert.NoError(t, err)
+
+	inst, err := registry.GetOrStartInstance("http_send_denied_test")
+	assert.NoError(t, err)
+
+	span := tracer.StartSpan("open-policy-agent")
+	ctx := opentracing.ContextWithSpan(context.Background(), span)
+
+	result, err := inst.Eval(ctx, &authv3.CheckRequest{
+		Attributes: &authv3.AttributeContext{},
+	})
+	assert.NoError(t, err)
+
+	allowed, err := result.IsAllowed()
+	assert.NoError(t, err)
+	assert.False(t, allowed, "Request should be denied when external server returns authorized=false")
+
+	span.Finish()
+
+	// Verify tracing span was created for the http.send call
+	var httpSpan *tracingtest.MockSpan
+	for _, s := range tracer.FinishedSpans() {
+		if s.OperationName == "open-policy-agent.http" && s.Tag("http.url") == externalServer.URL {
+			httpSpan = s
+			break
+		}
+	}
+	require.NotNil(t, httpSpan, "No span was created for http.send call to external server")
+	assert.Equal(t, "GET", httpSpan.Tag("http.method"))
+	assert.Equal(t, externalServer.URL, httpSpan.Tag("http.url"))
+	assert.Equal(t, 200, httpSpan.Tag("http.status_code"))
+}
+
 func TestEval(t *testing.T) {
 	testCases := []opaInstanceStartupTestCase{
 		{
