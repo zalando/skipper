@@ -3,6 +3,7 @@ package openpolicyagent
 import (
 	"context"
 	"fmt"
+	"runtime/pprof"
 	"time"
 
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -61,18 +62,25 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 	}
 
 	logger := opa.Logger().WithFields(map[string]interface{}{"decision-id": result.DecisionID})
-	input, err = envoyauth.RequestToInput(req, logger, nil, opa.EnvoyPluginConfig().SkipRequestBodyParse)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert request to input: %w", err)
-	}
 
-	inputValue, err := ast.InterfaceToValue(input)
-	if err != nil {
-		return nil, err
-	}
+	var innerErr error
+	pprof.Do(ctx, pprof.Labels("opa.decision_id", decisionId), func(ctx context.Context) {
+		input, innerErr = envoyauth.RequestToInput(req, logger, nil, opa.EnvoyPluginConfig().SkipRequestBodyParse)
+		if innerErr != nil {
+			innerErr = fmt.Errorf("failed to convert request to input: %w", innerErr)
+			return
+		}
 
-	err = envoyauth.Eval(ctx, &evalContext{opa}, inputValue, result)
-	if err != nil {
+		var inputValue ast.Value
+		inputValue, innerErr = ast.InterfaceToValue(input)
+		if innerErr != nil {
+			return
+		}
+
+		innerErr = envoyauth.Eval(ctx, &evalContext{opa}, inputValue, result)
+	})
+	if innerErr != nil {
+		err = innerErr
 		return nil, err
 	}
 

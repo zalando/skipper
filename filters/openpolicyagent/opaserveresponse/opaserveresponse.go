@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime/pprof"
 	"time"
 
 	"github.com/zalando/skipper/filters"
@@ -91,9 +92,16 @@ type opaServeResponseFilter struct {
 }
 
 func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
-	span, ctx := f.opa.StartSpanFromFilterContext(fc)
-	defer span.Finish()
 	req := fc.Request()
+
+	parentCtx := req.Context()
+	labels := openpolicyagent.BuildLabelSet(f.opa.BundleName(), f.envoyContextExtensions)
+	labelCtx := pprof.WithLabels(parentCtx, labels)
+	defer pprof.SetGoroutineLabels(parentCtx)
+	pprof.SetGoroutineLabels(labelCtx)
+
+	span, ctx := f.opa.StartSpanFromContext(labelCtx)
+	defer span.Finish()
 
 	if !f.opa.Healthy() {
 		f.opa.HandleInstanceNotReadyError(fc, span, !f.opa.EnvoyPluginConfig().DryRun)
@@ -114,7 +122,7 @@ func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 		req.Body = body
 	}
 
-	authzreq, err := envoy.AdaptToExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetEnvoyMetadata(), f.envoyContextExtensions, rawBodyBytes)
+	authzreq, err := envoy.AdaptToExtAuthRequest(req, f.opa.InstanceConfig().GetEnvoyMetadata(), f.envoyContextExtensions, rawBodyBytes)
 	if err != nil {
 		f.opa.HandleEvaluationError(fc, span, nil, err, !f.opa.EnvoyPluginConfig().DryRun, http.StatusBadRequest)
 		return
@@ -124,20 +132,24 @@ func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 	result, err := f.opa.Eval(ctx, authzreq)
 	fc.Metrics().MeasureSince(f.opa.MetricsKey("eval_time"), start)
 	if err != nil {
+		pprof.SetGoroutineLabels(pprof.WithLabels(labelCtx, pprof.Labels("opa.decision", "error")))
 		f.opa.ServeInvalidDecisionError(fc, span, result, err)
 		return
 	}
 
 	allowed, err := result.IsAllowed()
 	if err != nil {
+		pprof.SetGoroutineLabels(pprof.WithLabels(labelCtx, pprof.Labels("opa.decision", "error")))
 		f.opa.ServeInvalidDecisionError(fc, span, result, err)
 		return
 	}
 	span.SetTag("opa.decision.allowed", allowed)
 
 	if allowed {
+		pprof.SetGoroutineLabels(pprof.WithLabels(labelCtx, pprof.Labels("opa.decision", "allow")))
 		fc.Metrics().IncCounter(f.opa.MetricsKey("decision.allow"))
 	} else {
+		pprof.SetGoroutineLabels(pprof.WithLabels(labelCtx, pprof.Labels("opa.decision", "deny")))
 		fc.Metrics().IncCounter(f.opa.MetricsKey("decision.deny"))
 	}
 
