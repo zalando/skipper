@@ -923,7 +923,15 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 		filterTracing.logStart(fi.Name)
 		ctx.setMetricsPrefix(fi.Name)
 
+		parentCtx := ctx.request.Context()
+		labelCtx := pprof.WithLabels(parentCtx, pprof.Labels("skipper.filter", fi.Name))
+		pprof.SetGoroutineLabels(labelCtx)
+		ctx.request = ctx.request.WithContext(labelCtx)
+
 		fi.Request(ctx)
+
+		ctx.request = ctx.request.WithContext(parentCtx)
+		pprof.SetGoroutineLabels(parentCtx)
 
 		p.metrics.MeasureFilterRequest(fi.Name, start)
 		filterTracing.logEnd(fi.Name)
@@ -1761,7 +1769,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	defer pprof.SetGoroutineLabels(rCtx)
 
-	tCtx := pprof.WithLabels(rCtx, pprof.Labels("trace_id", tracing.GetTraceID(span)))
+	tCtx := pprof.WithLabels(rCtx,
+		pprof.Labels(
+			"trace_id", tracing.GetTraceID(span),
+			"http.path", r.URL.Path,
+			"http.method", r.Method,
+			"http.host", r.Host,
+		))
 	pprof.SetGoroutineLabels(tCtx)
 	r = r.WithContext(tCtx)
 

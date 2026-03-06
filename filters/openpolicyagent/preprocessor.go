@@ -1,6 +1,8 @@
 package openpolicyagent
 
 import (
+	"context"
+	"runtime/pprof"
 	"slices"
 	"strings"
 	"sync"
@@ -79,6 +81,7 @@ func (p *opaPreProcessor) preloadInstancesParallel(bundles []string) {
 		wg.Add(1)
 		go func(bundleName string) {
 			defer wg.Done()
+			pprof.SetGoroutineLabels(pprof.WithLabels(context.Background(), pprof.Labels("opa.task", "preload", "opa.bundle_name", bundleName)))
 
 			inst, err := p.registry.getExistingInstance(bundleName)
 			if err != nil {
