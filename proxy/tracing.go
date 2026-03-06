@@ -55,11 +55,6 @@ type proxyTracing struct {
 	excludeTags              map[string]bool
 }
 
-type filterTracing struct {
-	span      ot.Span
-	logEvents bool
-}
-
 func newProxyTracing(p *OpenTracingParams) *proxyTracing {
 	if p == nil {
 		p = &OpenTracingParams{}
@@ -90,20 +85,31 @@ func newProxyTracing(p *OpenTracingParams) *proxyTracing {
 	}
 }
 
-func (t *proxyTracing) logEvent(span ot.Span, eventName, eventValue string) {
+func (pt *proxyTracing) logEvent(span ot.Span, eventName, eventValue string) {
+	if pt.clientTraceByTag {
+		pt.setTag(span, eventName, eventValue)
+	} else {
+		pt.logKV(span, eventName, eventValue)
+	}
+}
+
+func (pt *proxyTracing) logKV(span ot.Span, key string, value any) {
 	if span == nil {
 		return
 	}
-
-	span.LogKV(eventName, ensureUTF8(eventValue))
+	if s, ok := value.(string); ok {
+		span.LogKV(key, ensureUTF8(s))
+	} else {
+		span.LogKV(key, value)
+	}
 }
 
-func (t *proxyTracing) setTag(span ot.Span, key string, value interface{}) *proxyTracing {
+func (pt *proxyTracing) setTag(span ot.Span, key string, value any) *proxyTracing {
 	if span == nil {
-		return t
+		return pt
 	}
 
-	if !t.excludeTags[key] {
+	if !pt.excludeTags[key] {
 		if s, ok := value.(string); ok {
 			span.SetTag(key, ensureUTF8(s))
 		} else {
@@ -111,41 +117,51 @@ func (t *proxyTracing) setTag(span ot.Span, key string, value interface{}) *prox
 		}
 	}
 
-	return t
+	return pt
 }
 
-func (t *proxyTracing) logStreamEvent(span ot.Span, eventName, eventValue string) {
-	if !t.logStreamEvents {
+func (pt *proxyTracing) logStreamEvent(span ot.Span, eventName, eventValue string) {
+	if !pt.logStreamEvents {
 		return
 	}
 
-	t.logEvent(span, eventName, ensureUTF8(eventValue))
+	pt.logEvent(span, eventName, eventValue)
 }
 
-func (t *proxyTracing) startFilterTracing(operation string, ctx *context) *filterTracing {
-	if t.disableFilterSpans {
+func (pt *proxyTracing) startFilterTracing(operation string, ctx *context) *filterTracing {
+	if pt.disableFilterSpans {
 		return nil
 	}
-	span := tracing.CreateSpan(operation, ctx.request.Context(), t.tracer)
+	span := tracing.CreateSpan(operation, ctx.request.Context(), pt.tracer)
 	ctx.parentSpan = span
 
-	return &filterTracing{span, t.logFilterLifecycleEvents}
-}
-
-func (t *filterTracing) finish() {
-	if t != nil {
-		t.span.Finish()
+	return &filterTracing{
+		span:             span,
+		logEvents:        pt.logFilterLifecycleEvents,
+		clientTraceByTag: pt.clientTraceByTag,
 	}
 }
 
-func (t *filterTracing) logStart(filterName string) {
-	if t != nil && t.logEvents {
-		t.span.LogKV(filterName, StartEvent)
+type filterTracing struct {
+	span             ot.Span
+	logEvents        bool
+	clientTraceByTag bool
+}
+
+func (ft *filterTracing) finish() {
+	if ft != nil {
+		ft.span.Finish()
 	}
 }
 
-func (t *filterTracing) logEnd(filterName string) {
-	if t != nil && t.logEvents {
-		t.span.LogKV(filterName, EndEvent)
+func (ft *filterTracing) logStart(filterName string) {
+	if ft != nil && ft.logEvents {
+		ft.span.LogKV(filterName, StartEvent)
+	}
+}
+
+func (ft *filterTracing) logEnd(filterName string) {
+	if ft != nil && ft.logEvents {
+		ft.span.LogKV(filterName, EndEvent)
 	}
 }
