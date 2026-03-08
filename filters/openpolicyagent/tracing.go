@@ -49,6 +49,11 @@ func WithTracingOptManager(manager *plugins.Manager) func(*transport) {
 func (*tracingFactory) NewTransport(tr http.RoundTripper, opts opatracing.Options) http.RoundTripper {
 	log := &logging.DefaultLog{}
 
+	// If the underlying transport is nil, use the default transport
+	if tr == nil {
+		tr = http.DefaultTransport
+	}
+
 	wrapper := &transport{
 		wrapped: tr,
 	}
