@@ -55,8 +55,6 @@ const (
 	unknownRouteBackendType = "<unknown>"
 	unknownRouteBackend     = "<unknown>"
 
-	clientTraceTime = "clientTraceTime"
-
 	// Number of loops allowed by default.
 	DefaultMaxLoopbacks = 9
 
@@ -1854,43 +1852,35 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 
 // TODO(sszuecs): copy from net.Client, we should refactor this to use net.Client
 func injectClientTraceByTag(ctx *context, t time.Time, req *http.Request, span ot.Span) *http.Request {
-	ctx.stateBag[clientTraceTime] = t
+	ctx.clientTraceTime = t
 	trace := &httptrace.ClientTrace{
 		DNSDone: func(httptrace.DNSDoneInfo) {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceDNS, time.Since(t).Microseconds())
+			span.SetTag(ClientTraceDNS, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 		ConnectDone: func(string, string, error) {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceConnect, time.Since(t).Milliseconds())
+			span.SetTag(ClientTraceConnect, time.Since(ctx.clientTraceTime).Milliseconds())
 		},
 		TLSHandshakeDone: func(tls.ConnectionState, error) {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceTLS, time.Since(t).Microseconds())
+			span.SetTag(ClientTraceTLS, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 		GotConn: func(httptrace.GotConnInfo) {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceGetConn, time.Since(t).Nanoseconds())
+			span.SetTag(ClientTraceGetConn, time.Since(ctx.clientTraceTime).Nanoseconds())
 		},
 		Got100Continue: func() {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceGot100Continue, time.Since(t).Microseconds())
+			span.SetTag(ClientTraceGot100Continue, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 		WroteHeaders: func() {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceWroteHeaders, time.Since(t).Microseconds())
+			span.SetTag(ClientTraceWroteHeaders, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 		WroteRequest: func(wri httptrace.WroteRequestInfo) {
 			if wri.Err != nil {
 				span.LogKV(ClientTraceWroteRequest, ensureUTF8(wri.Err.Error()))
 			} else {
-				t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-				span.SetTag(ClientTraceWroteRequest, time.Since(t).Microseconds())
+				span.SetTag(ClientTraceWroteRequest, time.Since(ctx.clientTraceTime).Microseconds())
 			}
 		},
 		GotFirstResponseByte: func() {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceGotFirstByte, time.Since(t).Microseconds())
+			span.SetTag(ClientTraceGotFirstByte, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 	}
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
