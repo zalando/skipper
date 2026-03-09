@@ -29,7 +29,7 @@ require (
 	github.com/miekg/dns v1.1.72
 	github.com/oklog/ulid v1.3.1
 	github.com/open-policy-agent/eopa v1.46.0
-	github.com/open-policy-agent/opa v1.13.2
+	github.com/open-policy-agent/opa v1.14.1
 	github.com/open-policy-agent/opa-envoy-plugin v1.13.2-envoy-2
 	github.com/opentracing/basictracer-go v1.1.0
 	github.com/opentracing/opentracing-go v1.2.0
@@ -269,7 +269,7 @@ require (
 	github.com/twmb/franz-go/pkg/kmsg v1.12.0 // indirect
 	github.com/urfave/cli/v2 v2.27.7 // indirect
 	github.com/valyala/fastjson v1.6.7 // indirect
-	github.com/vektah/gqlparser/v2 v2.5.31 // indirect
+	github.com/vektah/gqlparser/v2 v2.5.32 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
