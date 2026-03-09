@@ -251,15 +251,19 @@ func ExampleForwardBackend() {
 	defer proxy.Close()
 
 	client := proxy.Client()
-
-	rsp, err := client.Get("http://hello.world")
+	req, err := http.NewRequest("GET", proxy.URL, nil)
 	if err != nil {
-		fmt.Printf("Failed to GET hello.world: %v\n", err)
+		fmt.Printf("Failed to create request: %v\n", err)
+	}
+
+	rsp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("Failed to GET hello.example: %v\n", err)
 		return
 	}
 	defer rsp.Body.Close()
 	if rsp.StatusCode != http.StatusOK {
-		fmt.Printf("Failed to GET OK from http://hello.world, got: %v\n", rsp.StatusCode)
+		fmt.Printf("Failed to GET OK from http://hello.example, got: %v\n", rsp.StatusCode)
 		return
 	}
 	fmt.Println("hello skipper")
