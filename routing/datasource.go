@@ -552,14 +552,16 @@ func mapPredicates(cps []PredicateSpec) map[string]PredicateSpec {
 }
 
 // processes a set of route definitions for the routing table
-func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalidDefs []*eskip.Route) {
+func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalidDefs []*eskip.Route, invalidErrors map[string]string) {
 	cpm := mapPredicates(o.Predicates)
+	invalidErrors = make(map[string]string)
 	for _, def := range defs {
 		route, err := processRouteDef(o, cpm, def)
 		if err == nil {
 			routes = append(routes, route)
 		} else {
 			invalidDefs = append(invalidDefs, def)
+			invalidErrors[def.Id] = err.Error()
 			o.Log.Errorf("failed to process route %s: %v", def.Id, err)
 
 			var defErr invalidDefinitionError
@@ -578,14 +580,15 @@ func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalid
 }
 
 type routeTable struct {
-	id            int
-	m             *matcher
-	once          sync.Once
-	routes        []*Route // only used for closing
-	validRoutes   []*eskip.Route
-	invalidRoutes []*eskip.Route
-	clients       map[DataClient]struct{}
-	created       time.Time
+	id                 int
+	m                  *matcher
+	once               sync.Once
+	routes             []*Route // only used for closing
+	validRoutes        []*eskip.Route
+	invalidRoutes      []*eskip.Route
+	invalidRouteErrors map[string]string // route ID -> error message
+	clients            map[DataClient]struct{}
+	created            time.Time
 }
 
 // close routeTable will cleanup all underlying resources, that could
@@ -630,7 +633,7 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 				defs = o.PreProcessors[i].Do(defs)
 			}
 
-			routes, invalidRoutes := processRouteDefs(&o, defs)
+			routes, invalidRoutes, invalidRouteErrors := processRouteDefs(&o, defs)
 
 			for i := range o.PostProcessors {
 				routes = o.PostProcessors[i].Do(routes)
@@ -644,6 +647,7 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 			for _, err := range errs {
 				o.Log.Error(err)
 				invalidRouteIds[err.ID] = struct{}{}
+				invalidRouteErrors[err.ID] = err.Error()
 			}
 
 			for i := range routes {
@@ -664,13 +668,14 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 			})
 
 			rt = &routeTable{
-				id:            updateId,
-				m:             m,
-				routes:        routes,
-				validRoutes:   validRoutes,
-				invalidRoutes: invalidRoutes,
-				clients:       mdefs.clients,
-				created:       start,
+				id:                 updateId,
+				m:                  m,
+				routes:             routes,
+				validRoutes:        validRoutes,
+				invalidRoutes:      invalidRoutes,
+				invalidRouteErrors: invalidRouteErrors,
+				clients:            mdefs.clients,
+				created:            start,
 			}
 			updatesRelay = nil
 			outRelay = out
