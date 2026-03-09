@@ -219,9 +219,9 @@ func (c *context) ParentSpan() opentracing.Span        { return c.parentSpan }
 
 func (c *context) Logger() filters.FilterContextLogger {
 	if c.logger == nil {
-		traceId := tracing.GetTraceID(c.initialSpan)
-		if traceId != "" {
-			c.logger = log.WithFields(log.Fields{"trace_id": traceId})
+		traceID := tracing.GetTraceID(c.initialSpan)
+		if traceID != "" {
+			c.logger = log.WithFields(log.Fields{"trace_id": traceID})
 		} else {
 			c.logger = log.StandardLogger()
 		}
