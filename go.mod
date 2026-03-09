@@ -30,7 +30,7 @@ require (
 	github.com/oklog/ulid v1.3.1
 	github.com/open-policy-agent/eopa v1.46.0
 	github.com/open-policy-agent/opa v1.14.1
-	github.com/open-policy-agent/opa-envoy-plugin v1.13.2-envoy-2
+	github.com/open-policy-agent/opa-envoy-plugin v1.14.1-envoy
 	github.com/opentracing/basictracer-go v1.1.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pires/go-proxyproto v0.11.0
