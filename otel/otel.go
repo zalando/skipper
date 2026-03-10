@@ -8,10 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/contrib/propagators/autoprop"
+	"go.opentelemetry.io/contrib/propagators/aws/xray"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -23,6 +26,7 @@ import (
 
 	"github.com/bombsimon/logrusr/v4"
 	"github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/otel/xxray"
 )
 
 var log = logrus.WithField("package", "otel")
@@ -51,6 +55,10 @@ type BatchSpanProcessor struct {
 	ExportTimeout      time.Duration `yaml:"exportTimeout"`
 	MaxQueueSize       int           `yaml:"maxQueueSize"`
 	MaxExportBatchSize int           `yaml:"maxExportBatchSize"`
+}
+
+func init() {
+	autoprop.RegisterTextMapPropagator("xxray", xxray.NewPropagator())
 }
 
 // Init bootstraps the OpenTelemetry pipeline using environment variables and provided options.
@@ -129,16 +137,21 @@ func Init(ctx context.Context, o *Options) (shutdown func(context.Context) error
 		return handleErr(err)
 	}
 
-	tracerProvider := trace.NewTracerProvider(batcherOpt, resourceOpt)
-	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
-
-	otel.SetTracerProvider(tracerProvider)
-
 	propagator, err := textMapPropagator(o)
 	if err != nil {
 		return handleErr(err)
 	}
 	otel.SetTextMapPropagator(propagator)
+
+	var idGenerator trace.IDGenerator
+	if hasPropagator("xray", o) || hasPropagator("xxray", o) {
+		idGenerator = xray.NewIDGenerator()
+	}
+
+	tracerProvider := trace.NewTracerProvider(batcherOpt, resourceOpt, trace.WithIDGenerator(idGenerator))
+	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
+
+	otel.SetTracerProvider(tracerProvider)
 
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) { log.Error(err) }))
 	otel.SetLogger(logrusr.New(log))
@@ -243,6 +256,14 @@ func textMapPropagator(o *Options) (propagation.TextMapPropagator, error) {
 		return autoprop.TextMapPropagator(o.Propagators...)
 	} else {
 		return autoprop.NewTextMapPropagator(), nil
+	}
+}
+
+func hasPropagator(name string, o *Options) bool {
+	if len(o.Propagators) > 0 {
+		return slices.Contains(o.Propagators, name)
+	} else {
+		return slices.Contains(strings.Split(os.Getenv("OTEL_PROPAGATORS"), ","), name)
 	}
 }
 
