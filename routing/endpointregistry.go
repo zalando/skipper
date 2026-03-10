@@ -1,6 +1,11 @@
 package routing
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -8,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/net"
 )
 
 const defaultLastSeenTimeout = 1 * time.Minute
@@ -105,6 +111,12 @@ type EndpointRegistry struct {
 
 	now  func() time.Time
 	data sync.Map // map[string]*entry
+
+	endpoints             sync.Map // map[string][]*kubernetes.Endpoint
+	endpointsClient       *net.Client
+	endpointsURL          *url.URL
+	endpointsUpdatePeriod time.Duration
+	zone                  string
 }
 
 var _ PostProcessor = &EndpointRegistry{}
@@ -116,6 +128,10 @@ type RegistryOptions struct {
 	MinRequests                   int64
 	MinHealthCheckDropProbability float64
 	MaxHealthCheckDropProbability float64
+	ZoneAwareEnabled              bool
+	EndpointsUpdatePeriod         time.Duration
+	EndpointsURL                  string
+	Zone                          string
 }
 
 func (r *EndpointRegistry) Do(routes []*Route) []*Route {
@@ -191,6 +207,114 @@ func (r *EndpointRegistry) updateStats() {
 	}
 }
 
+type EndpointsMap map[string][]*Endpoint
+
+type Endpoint struct {
+	Address string `json:"addr"`
+	Zone    string `json:"zone"`
+	Port    int    `json:"port"`
+}
+
+func (r *EndpointRegistry) GetEndpoints(svc string) ([]*Endpoint, bool) {
+	dat, ok := r.endpoints.Load(svc)
+	if !ok {
+		return nil, false
+	}
+	members, ok := dat.([]*Endpoint)
+	if !ok {
+		return nil, false
+	}
+	return members, true
+}
+
+func (r *EndpointRegistry) fetchEndpoints() (EndpointsMap, error) {
+
+	req, err := http.NewRequest("GET", r.endpointsURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fetch endpoints request: %w", err)
+	}
+
+	rsp, err := r.endpointsClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get fetch endpoints: %w", err)
+	}
+	defer rsp.Body.Close()
+
+	// TODO(sszuecs): whatever we have in routesrv as API response we need to adapt here
+	buf, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read body: %w", err)
+	}
+	log.Debugf("Go %s", buf)
+
+	var result EndpointsMap
+	err = json.Unmarshal(buf, &result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal into kubernetes.EndpointsMap: %w", err)
+	}
+	return result, nil
+}
+
+func (r *EndpointRegistry) updateEndpoints() {
+	ticker := time.NewTicker(r.endpointsUpdatePeriod)
+	defer ticker.Stop()
+
+	for {
+		mapMembers, err := r.fetchEndpoints()
+		if err != nil {
+			log.Errorf("Failed to fetch endpoints: %v", err)
+		} else {
+			active := make(map[string]struct{})
+			log.Infof("Got %d members", len(mapMembers))
+
+			// create/update
+			for svc, members := range mapMembers {
+				active[svc] = struct{}{}
+				for _, member := range members {
+					log.Debugf("service: %s, with addr: %s, in zone: %s, with port: %d", svc, member.Address, member.Zone, member.Port)
+				}
+
+				// constraint: to make sense we have >=2 zones and 3 pods in each as minimum
+				if len(members) >= 6 {
+					filteredMembers := make([]*Endpoint, 0)
+					for _, member := range members {
+						if member.Zone == r.zone {
+							filteredMembers = append(filteredMembers, member)
+						}
+					}
+					// constraint: 3 pods in zone
+					if len(filteredMembers) >= 3 {
+						r.endpoints.Store(svc, filteredMembers)
+						log.Infof("Endpointregistry zone aware service: %s with %d endpoints in zone: %s", svc, len(filteredMembers), r.zone)
+					} else {
+						log.Infof("Endpointregistry zone aware service fallback to all zones: %s too few 3 >= %d endpoints found in zone %s", svc, len(filteredMembers), r.zone)
+						r.endpoints.Store(svc, members)
+					}
+
+				} else {
+					log.Infof("Endpointregistry zone aware service fallback to all zones: %s too few 6 >= %d endpoints found", svc, len(members))
+					r.endpoints.Store(svc, members)
+				}
+			}
+
+			// cleanup endpoints
+			r.endpoints.Range(func(a, _ any) bool {
+				svc := a.(string)
+				if _, ok := active[svc]; !ok {
+					r.endpoints.Delete(svc)
+				}
+				return true
+			})
+		}
+
+		select {
+		case <-r.quit:
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
 func (r *EndpointRegistry) Close() {
 	close(r.quit)
 }
@@ -200,12 +324,20 @@ func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
 		o.LastSeenTimeout = defaultLastSeenTimeout
 	}
 
+	epURL, err := url.Parse(o.EndpointsURL)
+	if err != nil {
+		log.Fatalf("Failed to create EndpointRegistry with EndpointsURL %q: %v", o.EndpointsURL, err)
+	}
+
 	registry := &EndpointRegistry{
 		lastSeenTimeout:               o.LastSeenTimeout,
 		statsResetPeriod:              o.StatsResetPeriod,
 		minRequests:                   o.MinRequests,
 		minHealthCheckDropProbability: o.MinHealthCheckDropProbability,
 		maxHealthCheckDropProbability: o.MaxHealthCheckDropProbability,
+		endpointsURL:                  epURL,
+		endpointsUpdatePeriod:         5 * time.Second,
+		zone:                          o.Zone,
 
 		quit: make(chan struct{}),
 

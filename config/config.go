@@ -201,6 +201,9 @@ type Config struct {
 	KubernetesValkeyServiceNamespace                     string                             `yaml:"kubernetes-valkey-service-namespace"`
 	KubernetesValkeyServiceName                          string                             `yaml:"kubernetes-valkey-service-name"`
 	KubernetesValkeyServicePort                          int                                `yaml:"kubernetes-valkey-service-port"`
+	KubernetesZoneAwareEnabled                           bool                               `yaml:"kubernetes-zone-aware"`
+	KubernetesEndpointsURL                               string                             `yaml:"kubernetes-endpoints-url"`
+	KubernetesPodZone                                    string                             `yaml:"kubernetes-pod-zone"`
 	KubernetesBackendTrafficAlgorithmString              string                             `yaml:"kubernetes-backend-traffic-algorithm"`
 	KubernetesBackendTrafficAlgorithm                    kubernetes.BackendTrafficAlgorithm `yaml:"-"`
 	KubernetesDefaultLoadBalancerAlgorithm               string                             `yaml:"kubernetes-default-lb-algorithm"`
@@ -558,6 +561,9 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesValkeyServiceNamespace, "kubernetes-valkey-service-namespace", "", "Sets namespace for valkey to be used to lookup endpoints")
 	flag.StringVar(&cfg.KubernetesValkeyServiceName, "kubernetes-valkey-service-name", "", "Sets name for valkey to be used to lookup endpoints")
 	flag.IntVar(&cfg.KubernetesValkeyServicePort, "kubernetes-valkey-service-port", 6379, "Sets the port for valkey to be used to lookup endpoints")
+	flag.BoolVar(&cfg.KubernetesZoneAwareEnabled, "kubernetes-zone-aware", false, "Enables Kubernetes zone aware routes, requires -kubernetes-endpoints-url")
+	flag.StringVar(&cfg.KubernetesEndpointsURL, "kubernetes-endpoints-url", "", "Sets URL to lookup /endpoints from routesrv")
+	flag.StringVar(&cfg.KubernetesPodZone, "kubernetes-pod-zone", "", "Sets the Zone of the pod, you should set it via Kuibernetes donwards API to enable skipper to know in which zone it runs.")
 	flag.StringVar(&cfg.KubernetesBackendTrafficAlgorithmString, "kubernetes-backend-traffic-algorithm", kubernetes.TrafficPredicateAlgorithm.String(), "sets the algorithm to be used for traffic splitting between backends: traffic-predicate or traffic-segment-predicate")
 	flag.StringVar(&cfg.KubernetesDefaultLoadBalancerAlgorithm, "kubernetes-default-lb-algorithm", kubernetes.DefaultLoadBalancerAlgorithm, "sets the default algorithm to be used for load balancing between backend endpoints, available options: roundRobin, consistentHash, random, powerOfRandomNChoices")
 	flag.BoolVar(&cfg.KubernetesForceService, "kubernetes-force-service", false, "overrides default Skipper functionality and routes traffic using Kubernetes Services instead of Endpoints")
@@ -1005,6 +1011,9 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesValkeyServiceNamespace:               c.KubernetesValkeyServiceNamespace,
 		KubernetesValkeyServiceName:                    c.KubernetesValkeyServiceName,
 		KubernetesValkeyServicePort:                    c.KubernetesValkeyServicePort,
+		KubernetesZoneAwareEnabled:                     c.KubernetesZoneAwareEnabled,
+		KubernetesEndpointsURL:                         c.KubernetesEndpointsURL,
+		KubernetesPodZone:                              c.KubernetesPodZone,
 		KubernetesBackendTrafficAlgorithm:              c.KubernetesBackendTrafficAlgorithm,
 		KubernetesDefaultLoadBalancerAlgorithm:         c.KubernetesDefaultLoadBalancerAlgorithm,
 		KubernetesForceService:                         c.KubernetesForceService,
