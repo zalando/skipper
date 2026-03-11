@@ -79,6 +79,7 @@ func initializeEndpoints(endpointAges []float64, algorithmName string, fadeInDur
 		LBFadeInDuration: fadeInDuration,
 		LBFadeInExponent: 1,
 		LBEndpoints:      []routing.LBEndpoint{},
+		HostMap:          &sync.Map{},
 	}
 
 	rt := loadbalancer.NewAlgorithmProvider().Do([]*routing.Route{route})
@@ -111,7 +112,13 @@ func calculateFadeInDuration(t *testing.T, algorithmName string, endpointAges []
 	// Preemulate the load balancer loop to find out the approximate amount of RPS
 	begin := time.Now()
 	for range fadeInRequestCount / precalculateRatio {
-		_ = proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000))}})
+		_ = proxy.selectEndpoint(&context{
+			route:   route,
+			request: &http.Request{},
+			stateBag: map[string]any{
+				loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000)),
+			},
+		})
 	}
 	preemulationDuration := time.Since(begin)
 
@@ -138,7 +145,13 @@ func testFadeInMonotony(
 		func() {
 			randGen := rand.New(rand.NewPCG(0, 0))
 			for {
-				ep := proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000))}})
+				ep := proxy.selectEndpoint(&context{
+					route:   route,
+					request: &http.Request{},
+					stateBag: map[string]any{
+						loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000)),
+					},
+				})
 				stats = append(stats, ep.Host)
 				select {
 				case <-stop:
@@ -286,7 +299,13 @@ func testFadeInLoadBetweenOldAndNewEps(
 		// Emulate the load balancer loop, sending requests to it with random hash keys
 		// over and over again till fadeIn period is over.
 		for range numberOfReqs {
-			ep := proxy.selectEndpoint(&context{route: route, request: &http.Request{}, stateBag: map[string]interface{}{loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000))}})
+			ep := proxy.selectEndpoint(&context{
+				route:   route,
+				request: &http.Request{},
+				stateBag: map[string]any{
+					loadbalancer.ConsistentHashKey: strconv.Itoa(randGen.IntN(100000)),
+				},
+			})
 			nReqs[ep.Host]++
 		}
 
