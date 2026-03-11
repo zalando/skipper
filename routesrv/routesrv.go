@@ -78,8 +78,13 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		b: b,
 	}
 	mux := http.NewServeMux()
+	if opts.KubernetesTopologyZone != "" {
+		mux.Handle("/routes/{zone}", b)
+	} else {
+		mux.Handle("/routes", b)
+	}
+
 	mux.Handle("/health", bs)
-	mux.Handle("/routes", b)
 	supportHandler := http.NewServeMux()
 	supportHandler.Handle("/metrics", metricsHandler)
 	supportHandler.Handle("/metrics/", metricsHandler)
