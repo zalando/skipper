@@ -137,10 +137,8 @@ func hash(s string) uint64 {
 
 func skipEndpoint(c *routing.LBContext, index int) bool {
 	host := c.Route.LBEndpoints[index].Host
-	for i := range c.LBEndpoints {
-		if c.LBEndpoints[i].Host == host {
-			return false
-		}
+	if _, ok := c.HostMap.Load(host); ok {
+		return false
 	}
 	return true
 }
@@ -324,6 +322,10 @@ func parseEndpoints(r *routing.Route) error {
 			Scheme: scheme,
 			Host:   host,
 		}
+
+		if _, ok := r.LBAlgorithm.(*consistentHash); ok {
+			r.HostMap.Store(host, struct{}{})
+		}
 	}
 
 	return nil
@@ -358,13 +360,13 @@ func (p *algorithmProvider) Do(r []*routing.Route) []*routing.Route {
 			continue
 		}
 
-		if err := parseEndpoints(ri); err != nil {
-			log.Errorf("failed to parse LB endpoints for route %s: %v", ri.Id, err)
+		if err := setAlgorithm(ri); err != nil {
+			log.Errorf("failed to set LB algorithm implementation for route %s: %v", ri.Id, err)
 			continue
 		}
 
-		if err := setAlgorithm(ri); err != nil {
-			log.Errorf("failed to set LB algorithm implementation for route %s: %v", ri.Id, err)
+		if err := parseEndpoints(ri); err != nil {
+			log.Errorf("failed to parse LB endpoints for route %s: %v", ri.Id, err)
 			continue
 		}
 

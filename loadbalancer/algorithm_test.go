@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -549,10 +550,12 @@ func BenchmarkConsistentHash(b *testing.B) {
 	for _, N := range []int{10, 100, 1000} {
 		eps := make([]string, 0, N)
 		var j int
+		hostMap := &sync.Map{}
 		for i := range N {
 			j = i / 255
 			ep := fmt.Sprintf("http://10.0.%d.%d:8080/", j, i%255)
 			eps = append(eps, ep)
+			hostMap.Store(fmt.Sprintf("10.0.%d.%d", j, i%255), struct{}{})
 		}
 
 		req, err := http.NewRequest("GET", "http://consistent.bench.test", nil)
@@ -566,6 +569,7 @@ func BenchmarkConsistentHash(b *testing.B) {
 				LBAlgorithm: ConsistentHash.String(),
 				LBEndpoints: eps,
 			},
+			HostMap: hostMap,
 		}})[0]
 
 		alg := newConsistentHash(eps)
@@ -573,6 +577,7 @@ func BenchmarkConsistentHash(b *testing.B) {
 			Request:     req,
 			Route:       route,
 			LBEndpoints: route.LBEndpoints,
+			HostMap:     route.HostMap,
 			Params: map[string]any{
 				ConsistentHashKey:           "Foo",
 				ConsistentHashBalanceFactor: 0.2,

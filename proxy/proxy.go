@@ -623,6 +623,7 @@ func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 		Request:     ctx.request,
 		Route:       rt,
 		LBEndpoints: endpoints,
+		HostMap:     rt.HostMap,
 		Params:      ctx.StateBag(),
 	}
 

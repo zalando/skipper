@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -171,7 +172,8 @@ type LBContext struct {
 	Request     *http.Request
 	Route       *Route
 	LBEndpoints []LBEndpoint
-	Params      map[string]interface{}
+	HostMap     *sync.Map
+	Params      map[string]any
 }
 
 // NewLBContext is used to create a new LBContext, to pass data to the
@@ -211,6 +213,8 @@ type Route struct {
 	// LBEndpoints contain the possible endpoints of a load
 	// balanced route.
 	LBEndpoints []LBEndpoint
+
+	HostMap *sync.Map
 
 	// LBAlgorithm is the selected load balancing algorithm
 	// of a load balanced route.
@@ -441,7 +445,7 @@ func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
 	return rt.m.match(req)
 }
 
-// FirstLoad, when enabled, blocks until the first routing configuration was received
+// FirstLoad when enabled, blocks until the first routing configuration was received
 // by the routing during the startup. When disabled, it doesn't block.
 func (r *Routing) FirstLoad() <-chan struct{} {
 	return r.firstLoad
