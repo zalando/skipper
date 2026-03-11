@@ -113,6 +113,14 @@ func getRoutes(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	return w
 }
 
+func getZoneAwareRoutes(rs *routesrv.RouteServer, zone string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/routes/"+zone, nil)
+	rs.ServeHTTP(w, r)
+
+	return w
+}
+
 func getHealth(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/health", nil)
@@ -897,4 +905,37 @@ func TestESkipBytesHandlerWithNoUpdate(t *testing.T) {
 	if w2.Code != http.StatusNotModified {
 		t.Errorf("expected 304 status code, got %d", w2.Code)
 	}
+}
+
+func TestRoutesWithZoneAwareness(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesTopologyZone:         "eu-central-1a",
+		KubernetesEnableEndpointslices: true,
+	})
+
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Fatalf("routes not initialized: %v", err)
+	}
+	w := getZoneAwareRoutes(rs, "eu-central-1a")
+
+	want := parseEskipFixture(t, "testdata/zone-aware-traffic/all-zones-3-addr.eskip")
+	got, err := eskip.Parse(w.Body.String())
+	t.Logf("got routes: %s", got)
+	if err != nil {
+		t.Fatalf("served routes are not valid eskip: %s", w.Body)
+	}
+	if !eskip.EqLists(got, want) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
+	}
+	wantHTTPCode(t, w, http.StatusOK)
 }
