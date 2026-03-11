@@ -118,7 +118,7 @@ func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routin
 	}
 	for i, ep := range endpoints {
 		endpointStartIndex := hashesPerEndpoint * i
-		for j := 0; j < hashesPerEndpoint; j++ {
+		for j := range hashesPerEndpoint {
 			ch.hashRing[endpointStartIndex+j] = endpointHash{i, hash(fmt.Sprintf("%s-%d", ep, j))}
 		}
 	}
@@ -127,7 +127,8 @@ func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routin
 }
 
 func newConsistentHash(endpoints []string) routing.LBAlgorithm {
-	return newConsistentHashInternal(endpoints, 100)
+	n := 10000 / len(endpoints)
+	return newConsistentHashInternal(endpoints, n)
 }
 
 func hash(s string) uint64 {
