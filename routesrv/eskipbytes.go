@@ -54,6 +54,9 @@ var (
 type eskipBytes struct {
 	mu           sync.RWMutex
 	data         []byte
+	aData        []byte
+	bData        []byte
+	cData        []byte
 	hash         string
 	lastModified time.Time
 	initialized  bool
@@ -71,12 +74,36 @@ type eskipBytes struct {
 // in a synchronized way. It returns the length of the stored data, and
 // flags signaling whether the data was initialized and updated.
 func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, _ string, initialized bool, updated bool) {
+
+	var zoneRoutes = make(map[string][]*eskip.Route)
+
+	for _, r := range routes {
+		for _, eps := range r.LBEndpoints {
+			if eps.Zone != "" {
+				zoneRoutes[eps.Zone] = append(zoneRoutes[eps.Zone], r)
+			}
+		}
+	}
+
 	buf := &bytes.Buffer{}
 	eskip.Fprint(buf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
 	data := buf.Bytes()
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	for zone, rts := range zoneRoutes {
+		zoneBuf := &bytes.Buffer{}
+		eskip.Fprint(zoneBuf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, rts...)
+		switch {
+		case strings.Contains(zone, "a"):
+			e.aData = zoneBuf.Bytes()
+		case strings.Contains(zone, "b"):
+			e.bData = zoneBuf.Bytes()
+		case strings.Contains(zone, "c"):
+			e.cData = zoneBuf.Bytes()
+		}
+	}
 
 	updated = !bytes.Equal(e.data, data)
 	if updated {
@@ -141,6 +168,22 @@ func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	hash := e.hash
 	lastModified := e.lastModified
 	initialized := e.initialized
+
+	zone := r.PathValue("zone")
+	if zone != "" {
+		if strings.Contains(zone, "a") {
+			data = e.aData
+		}
+
+		if strings.Contains(zone, "b") {
+			data = e.bData
+		}
+
+		if strings.Contains(zone, "c") {
+			data = e.cData
+		}
+	}
+
 	e.mu.RUnlock()
 
 	if initialized {
