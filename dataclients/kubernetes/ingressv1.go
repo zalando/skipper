@@ -77,6 +77,8 @@ func convertPathRuleV1(
 	ns := metadata.Namespace
 	name := metadata.Name
 
+	isZoneTargets := false
+
 	if prule.Backend == nil {
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
@@ -121,7 +123,7 @@ func convertPathRuleV1(
 			protocol = p
 		}
 
-		eps = state.GetEndpointsByService(ic.zone, ns, svcName, protocol, servicePort)
+		eps, isZoneTargets = state.GetEndpointsByService(ic.zone, ns, svcName, protocol, servicePort)
 	}
 	if len(eps) == 0 {
 		ic.logger.Tracef("Target endpoints not found, shuntroute for %s:%s", svcName, svcPort)
@@ -138,6 +140,7 @@ func convertPathRuleV1(
 	}
 
 	ic.logger.Tracef("Found %d endpoints for %s:%s", len(eps), svcName, svcPort)
+
 	if len(eps) == 1 {
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
@@ -150,14 +153,29 @@ func convertPathRuleV1(
 		traffic.apply(r)
 		return r, nil
 	}
+	var r *eskip.Route
 
-	r := &eskip.Route{
-		Id:          routeID(ns, name, host, prule.Path, svcName),
-		BackendType: eskip.LBBackend,
-		LBEndpoints: eskip.NewLBEndpoints(eps),
-		LBAlgorithm: getLoadBalancerAlgorithm(metadata, defaultLoadBalancerAlgorithm),
-		HostRegexps: hostRegexp,
+	if isZoneTargets {
+		var lbeps []*eskip.LBEndpoint
+		for _, ep := range eps {
+			lbeps = append(lbeps, &eskip.LBEndpoint{Address: ep, Zone: ic.zone})
+		}
+		r = &eskip.Route{
+			Id:          routeID(ns, name, host, prule.Path, svcName),
+			BackendType: eskip.LBBackend,
+			LBEndpoints: lbeps,
+			LBAlgorithm: getLoadBalancerAlgorithm(metadata, defaultLoadBalancerAlgorithm),
+		}
+	} else {
+		r = &eskip.Route{
+			Id:          routeID(ns, name, host, prule.Path, svcName),
+			BackendType: eskip.LBBackend,
+			LBEndpoints: eskip.NewLBEndpoints(eps),
+			LBAlgorithm: getLoadBalancerAlgorithm(metadata, defaultLoadBalancerAlgorithm),
+			HostRegexps: hostRegexp,
+		}
 	}
+
 	setPathV1(pathMode, r, prule.PathType, prule.Path)
 	traffic.apply(r)
 	return r, nil
@@ -197,9 +215,11 @@ func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *d
 		return fmt.Errorf("error while getting service: %w", err)
 	}
 
-	for _, lbep := range endpointsRoute.LBEndpoints {
-		lbep.Zone = ic.zone
-	}
+	// // check for minEndpointsByZone and set zone for endpoints if needed
+
+	// for _, lbep := range endpointsRoute.LBEndpoints {
+	// 	lbep.Zone = ic.zone
+	// }
 
 	if endpointsRoute.BackendType != eskip.ShuntBackend {
 		// safe prepend, see: https://play.golang.org/p/zg5aGKJpRyK
@@ -359,6 +379,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		svcName = i.Spec.DefaultBackend.Service.Name
 		svcPort = i.Spec.DefaultBackend.Service.Port
 	)
+	isZoneTargets := false
 
 	svc, err := state.getService(ns, svcName)
 	if err != nil {
@@ -386,7 +407,7 @@ func (ing *ingress) convertDefaultBackendV1(
 			protocol = p
 		}
 
-		eps = state.GetEndpointsByService(
+		eps, isZoneTargets = state.GetEndpointsByService(
 			ing.zone,
 			ns,
 			svcName,
@@ -409,6 +430,19 @@ func (ing *ingress) convertDefaultBackendV1(
 			Id:          routeID(ns, name, "", "", ""),
 			Backend:     eps[0],
 			BackendType: eskip.NetworkBackend,
+		}, true, nil
+	}
+
+	if isZoneTargets {
+		var lbeps []*eskip.LBEndpoint
+		for _, ep := range eps {
+			lbeps = append(lbeps, &eskip.LBEndpoint{Address: ep, Zone: ing.zone})
+		}
+		return &eskip.Route{
+			Id:          routeID(ns, name, "", "", ""),
+			BackendType: eskip.LBBackend,
+			LBEndpoints: lbeps,
+			LBAlgorithm: getLoadBalancerAlgorithm(i.Metadata, ing.defaultLoadBalancerAlgorithm),
 		}, true, nil
 	}
 
