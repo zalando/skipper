@@ -178,9 +178,7 @@ func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	if zone != "" {
 		data = e.zoneData[zone]
 		if len(data) == 0 {
-			e.mu.RUnlock()
-			w.WriteHeader(http.StatusNotFound)
-			return
+			data = e.data
 		}
 	}
 
