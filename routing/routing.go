@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -172,7 +171,7 @@ type LBContext struct {
 	Request     *http.Request
 	Route       *Route
 	LBEndpoints []LBEndpoint
-	HostMap     *sync.Map
+	HostMap     map[string]struct{}
 	Params      map[string]any
 }
 
@@ -214,7 +213,10 @@ type Route struct {
 	// balanced route.
 	LBEndpoints []LBEndpoint
 
-	HostMap *sync.Map
+	// NeedsHostMap is set on routing.Route creation for routes
+	// with consistentHash based loadbalacner algorithm to speedup
+	// the algorithm.
+	NeedsHostMap bool
 
 	// LBAlgorithm is the selected load balancing algorithm
 	// of a load balanced route.

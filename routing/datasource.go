@@ -534,8 +534,8 @@ func processRouteDef(o *Options, cpm map[string]PredicateSpec, def *eskip.Route)
 	}
 
 	r := &Route{Route: *def, Scheme: scheme, Host: host, Predicates: cps, Filters: fs, weight: weight}
-	if def.LBAlgorithm == "consistentHash" && r.HostMap == nil {
-		r.HostMap = &sync.Map{}
+	if def.LBAlgorithm == "consistentHash" {
+		r.NeedsHostMap = true
 	}
 
 	if err := processTreePredicates(r, def.Predicates); err != nil {

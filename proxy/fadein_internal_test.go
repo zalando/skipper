@@ -79,7 +79,9 @@ func initializeEndpoints(endpointAges []float64, algorithmName string, fadeInDur
 		LBFadeInDuration: fadeInDuration,
 		LBFadeInExponent: 1,
 		LBEndpoints:      []routing.LBEndpoint{},
-		HostMap:          &sync.Map{},
+	}
+	if algorithmName == loadbalancer.ConsistentHash.String() {
+		route.NeedsHostMap = true
 	}
 
 	rt := loadbalancer.NewAlgorithmProvider().Do([]*routing.Route{route})

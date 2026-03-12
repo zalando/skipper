@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +11,14 @@ import (
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
 )
+
+func hostMapFromEndpoints(eps []routing.LBEndpoint) map[string]struct{} {
+	m := make(map[string]struct{})
+	for _, e := range eps {
+		m[e.Host] = struct{}{}
+	}
+	return m
+}
 
 func TestSelectAlgorithm(t *testing.T) {
 	t.Run("not an LB route", func(t *testing.T) {
@@ -92,15 +99,13 @@ func TestSelectAlgorithm(t *testing.T) {
 		p := NewAlgorithmProvider()
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		defer endpointRegistry.Close()
-		hmap := &sync.Map{}
-		hmap.Store("https://www.example.org", struct{}{})
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
 				LBAlgorithm: "consistentHash",
 				LBEndpoints: []string{"https://www.example.org"},
 			},
-			HostMap: hmap,
+			NeedsHostMap: true,
 		}
 
 		rr := p.Do([]*routing.Route{r})
@@ -276,7 +281,7 @@ func TestApply(t *testing.T) {
 					LBAlgorithm: tt.algorithmName,
 					LBEndpoints: eps,
 				},
-				HostMap: &sync.Map{},
+				NeedsHostMap: true,
 			}
 			rt := p.Do([]*routing.Route{r})
 			endpointRegistry.Do([]*routing.Route{r})
@@ -285,7 +290,7 @@ func TestApply(t *testing.T) {
 				Request:     req,
 				Route:       rt[0],
 				LBEndpoints: rt[0].LBEndpoints,
-				HostMap:     r.HostMap,
+				HostMap:     hostMapFromEndpoints(rt[0].LBEndpoints),
 			}
 
 			h := make(map[string]int)
@@ -312,7 +317,7 @@ func TestConsistentHashSearch(t *testing.T) {
 				LBAlgorithm: ConsistentHash.String(),
 				LBEndpoints: endpoints,
 			},
-			HostMap: &sync.Map{},
+			NeedsHostMap: true,
 		}
 		p.Do([]*routing.Route{r})
 		endpointRegistry.Do([]*routing.Route{r})
@@ -322,7 +327,7 @@ func TestConsistentHashSearch(t *testing.T) {
 			Route:       r,
 			LBEndpoints: r.LBEndpoints,
 			Params:      map[string]any{ConsistentHashKey: key},
-			HostMap:     r.HostMap,
+			HostMap:     hostMapFromEndpoints(r.LBEndpoints),
 		}
 		return endpoints[ch.search(key, ctx)]
 	}
@@ -358,7 +363,7 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 			LBAlgorithm: ConsistentHash.String(),
 			LBEndpoints: endpoints,
 		},
-		HostMap: &sync.Map{},
+		NeedsHostMap: true,
 	}})[0]
 
 	ch := route.LBAlgorithm.(*consistentHash)
@@ -367,7 +372,7 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 		Route:       route,
 		LBEndpoints: route.LBEndpoints,
 		Params:      map[string]any{ConsistentHashBalanceFactor: 1.25},
-		HostMap:     route.HostMap,
+		HostMap:     hostMapFromEndpoints(route.LBEndpoints),
 	}
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	defer endpointRegistry.Close()
@@ -378,7 +383,7 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 		Route:       route,
 		LBEndpoints: route.LBEndpoints,
 		Params:      map[string]any{},
-		HostMap:     route.HostMap,
+		HostMap:     hostMapFromEndpoints(route.LBEndpoints),
 	})
 
 	if noLoad != nonBounded {
@@ -419,7 +424,7 @@ func TestConsistentHashKey(t *testing.T) {
 			LBAlgorithm: ConsistentHash.String(),
 			LBEndpoints: endpoints,
 		},
-		HostMap: &sync.Map{},
+		NeedsHostMap: true,
 	}})[0]
 
 	defaultEndpoint := ch.Apply(&routing.LBContext{
@@ -427,14 +432,14 @@ func TestConsistentHashKey(t *testing.T) {
 		Route:       rt,
 		LBEndpoints: rt.LBEndpoints,
 		Params:      make(map[string]any),
-		HostMap:     rt.HostMap,
+		HostMap:     hostMapFromEndpoints(rt.LBEndpoints),
 	})
 	remoteHostEndpoint := ch.Apply(&routing.LBContext{
 		Request:     r,
 		Route:       rt,
 		LBEndpoints: rt.LBEndpoints,
 		Params:      map[string]any{ConsistentHashKey: net.RemoteHost(r).String()},
-		HostMap:     rt.HostMap,
+		HostMap:     hostMapFromEndpoints(rt.LBEndpoints),
 	})
 
 	if defaultEndpoint != remoteHostEndpoint {
@@ -448,7 +453,7 @@ func TestConsistentHashKey(t *testing.T) {
 			Route:       rt,
 			LBEndpoints: rt.LBEndpoints,
 			Params:      map[string]any{ConsistentHashKey: key},
-			HostMap:     rt.HostMap,
+			HostMap:     hostMapFromEndpoints(rt.LBEndpoints),
 		})
 		if selected != rt.LBEndpoints[i] {
 			t.Errorf("expected: %v, got %v", rt.LBEndpoints[i], selected)
@@ -465,7 +470,7 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 			LBAlgorithm: ConsistentHash.String(),
 			LBEndpoints: endpoints,
 		},
-		HostMap: &sync.Map{},
+		NeedsHostMap: true,
 	}})[0]
 
 	ch := route.LBAlgorithm.(*consistentHash)
@@ -475,7 +480,7 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 		Route:       route,
 		LBEndpoints: route.LBEndpoints,
 		Params:      map[string]any{ConsistentHashBalanceFactor: balanceFactor},
-		HostMap:     route.HostMap,
+		HostMap:     hostMapFromEndpoints(route.LBEndpoints),
 	}
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	defer endpointRegistry.Close()
@@ -595,12 +600,10 @@ func BenchmarkConsistentHash(b *testing.B) {
 	for _, N := range []int{10, 100, 1000} {
 		eps := make([]string, 0, N)
 		var j int
-		hostMap := &sync.Map{}
 		for i := range N {
 			j = i / 255
 			ep := fmt.Sprintf("http://10.0.%d.%d:8080/", j, i%255)
 			eps = append(eps, ep)
-			hostMap.Store(fmt.Sprintf("10.0.%d.%d", j, i%255), struct{}{})
 		}
 
 		req, err := http.NewRequest("GET", "http://consistent.bench.test", nil)
@@ -614,7 +617,7 @@ func BenchmarkConsistentHash(b *testing.B) {
 				LBAlgorithm: ConsistentHash.String(),
 				LBEndpoints: eps,
 			},
-			HostMap: hostMap,
+			NeedsHostMap: true,
 		}})[0]
 
 		alg := newConsistentHash(eps)
@@ -622,7 +625,7 @@ func BenchmarkConsistentHash(b *testing.B) {
 			Request:     req,
 			Route:       route,
 			LBEndpoints: route.LBEndpoints,
-			HostMap:     route.HostMap,
+			HostMap:     hostMapFromEndpoints(route.LBEndpoints),
 			Params: map[string]any{
 				ConsistentHashKey:           "Foo",
 				ConsistentHashBalanceFactor: 0.2,

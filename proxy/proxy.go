@@ -619,11 +619,19 @@ func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	endpoints = p.fadein.filterFadeIn(endpoints, rt)
 	endpoints = p.healthyEndpoints.filterHealthyEndpoints(ctx, endpoints, p.metrics)
 
+	var hostMap map[string]struct{}
+	if rt.NeedsHostMap {
+		hostMap = make(map[string]struct{})
+		for _, e := range endpoints {
+			hostMap[e.Host] = struct{}{}
+		}
+	}
+
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
 		Route:       rt,
 		LBEndpoints: endpoints,
-		HostMap:     rt.HostMap,
+		HostMap:     hostMap,
 		Params:      ctx.StateBag(),
 	}
 

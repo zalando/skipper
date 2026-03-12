@@ -135,9 +135,9 @@ func hash(s string) uint64 {
 	return xxhash.Sum64String(s)
 }
 
-func skipEndpoint(c *routing.LBContext, index int) bool {
-	host := c.Route.LBEndpoints[index].Host
-	if _, ok := c.HostMap.Load(host); ok {
+func skipEndpoint(ctx *routing.LBContext, index int) bool {
+	host := ctx.Route.LBEndpoints[index].Host
+	if _, ok := ctx.HostMap[host]; ok {
 		return false
 	}
 	return true
@@ -321,10 +321,6 @@ func parseEndpoints(r *routing.Route) error {
 		r.LBEndpoints[i] = routing.LBEndpoint{
 			Scheme: scheme,
 			Host:   host,
-		}
-
-		if _, ok := r.LBAlgorithm.(*consistentHash); ok {
-			r.HostMap.Store(host, struct{}{})
 		}
 	}
 
