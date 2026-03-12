@@ -2607,3 +2607,43 @@ func benchmarkCopyStream(b *testing.B, size int64, cpStream func(to flushWriter,
 		}
 	}
 }
+
+func BenchmarkConsistentHashSelectEndpoint(b *testing.B) {
+	for _, N := range []int{10, 100, 1000} {
+		eps := make([]string, 0, N)
+		var j int
+		for i := range N {
+			j = i / 255
+			ep := fmt.Sprintf("http://10.0.%d.%d:8080", j, i%255)
+			eps = append(eps, ep)
+		}
+
+		req, err := http.NewRequest("GET", "http://consistent.bench.test", nil)
+		if err != nil {
+			b.Fatalf("Failed to create request: %v", err)
+		}
+
+		doc := fmt.Sprintf(`r: * -> <consistentHash, "%s">`, strings.Join(eps, `", "`))
+		tp, err := newTestProxyWithParams(doc, Params{
+			AccessLogDisabled: false,
+		})
+		if err != nil {
+			b.Error(err)
+			return
+		}
+		defer tp.close()
+
+		route, _ := tp.routing.Get().Do(req)
+		ctx := newContext(nil, req, tp.proxy)
+		ctx.route = route
+
+		b.Run(fmt.Sprintf("%d endpoints", N), func(b *testing.B) {
+			b.ResetTimer()
+			b.ReportAllocs()
+			for b.Loop() {
+				tp.proxy.selectEndpoint(ctx)
+			}
+		})
+
+	}
+}
