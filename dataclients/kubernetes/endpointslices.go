@@ -58,16 +58,16 @@ func (eps *skipperEndpointSlice) targetsByServicePort(zone, protocol, scheme str
 	}
 
 	result := make([]string, 0, len(eps.Endpoints))
-	resultByZone := make([]string, 0, len(eps.Endpoints))
+	// resultByZone := make([]string, 0, len(eps.Endpoints))
 	for _, ep := range eps.Endpoints {
-		if ep.Zone == zone {
-			resultByZone = append(resultByZone, formatEndpointString(ep.Address, scheme, port))
-		}
+		// if ep.Zone == zone {
+		// 	resultByZone = append(resultByZone, formatEndpointString(ep.Address, scheme, port))
+		// }
 		result = append(result, formatEndpointString(ep.Address, scheme, port))
 	}
-	if len(resultByZone) >= minEndpointsByZone {
-		return resultByZone
-	}
+	// if len(resultByZone) >= minEndpointsByZone {
+	// 	return resultByZone
+	// }
 	return result
 }
 
@@ -77,16 +77,16 @@ func (eps *skipperEndpointSlice) targetsByServiceTarget(zone, protocol, scheme s
 	port := eps.getPort(protocol, pName, pValue)
 
 	result := make([]string, 0, len(eps.Endpoints))
-	resultByZone := make([]string, 0, len(eps.Endpoints))
+	// resultByZone := make([]string, 0, len(eps.Endpoints))
 	for _, ep := range eps.Endpoints {
-		if ep.Zone == zone {
-			resultByZone = append(resultByZone, formatEndpointString(ep.Address, scheme, port))
-		}
+		// if ep.Zone == zone {
+		// 	resultByZone = append(resultByZone, formatEndpointString(ep.Address, scheme, port))
+		// }
 		result = append(result, formatEndpointString(ep.Address, scheme, port))
 	}
-	if len(resultByZone) >= minEndpointsByZone {
-		return resultByZone
-	}
+	// if len(resultByZone) >= minEndpointsByZone {
+	// 	return resultByZone
+	// }
 	return result
 }
 
