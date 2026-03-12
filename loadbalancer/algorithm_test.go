@@ -639,7 +639,7 @@ func BenchmarkConsistentHash(b *testing.B) {
 		defer endpointRegistry.Close()
 		endpointRegistry.Do([]*routing.Route{route})
 
-		// set Foo value
+		// set Foo header value
 		headerValues := [10000]string{}
 		for i := range len(headerValues) {
 			headerValues[i] = fmt.Sprintf("foo-%d", i)
