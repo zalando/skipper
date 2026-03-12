@@ -591,6 +591,8 @@ func BenchmarkRandomAlgorithm(b *testing.B) {
 		LBEndpoints: lbeps,
 	}
 
+	b.ResetTimer()
+
 	for b.Loop() {
 		alg.Apply(lbc)
 	}
