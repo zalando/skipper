@@ -153,8 +153,8 @@ func convertPathRuleV1(
 		traffic.apply(r)
 		return r, nil
 	}
-	var r *eskip.Route
 
+	var r *eskip.Route
 	r = &eskip.Route{
 		Id:          routeID(ns, name, host, prule.Path, svcName),
 		BackendType: eskip.LBBackend,
@@ -370,6 +370,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		svcPort = i.Spec.DefaultBackend.Service.Port
 	)
 	zoneTarget := false
+	dataclientZone := ing.zone
 
 	svc, err := state.getService(ns, svcName)
 	if err != nil {
@@ -398,7 +399,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		}
 
 		eps, zoneTarget = state.GetEndpointsByService(
-			ing.zone,
+			dataclientZone,
 			ns,
 			svcName,
 			protocol,
@@ -424,7 +425,6 @@ func (ing *ingress) convertDefaultBackendV1(
 	}
 
 	var r *eskip.Route
-
 	r = &eskip.Route{
 		Id:          routeID(ns, name, "", "", ""),
 		BackendType: eskip.LBBackend,
@@ -434,7 +434,7 @@ func (ing *ingress) convertDefaultBackendV1(
 	if zoneTarget {
 		var lbeps []*eskip.LBEndpoint
 		for _, ep := range eps {
-			lbeps = append(lbeps, &eskip.LBEndpoint{Address: ep, Zone: ing.zone})
+			lbeps = append(lbeps, &eskip.LBEndpoint{Address: ep, Zone: dataclientZone})
 		}
 		r.LBEndpoints = lbeps
 	} else {
