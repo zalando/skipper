@@ -67,8 +67,7 @@ func (state *clusterState) GetEndpointsByService(zone, namespace, name, protocol
 	var targetsByZone []string
 	if state.enableEndpointSlices {
 		if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
-			targets = eps.targetsByServicePort(zone, "TCP", protocol, servicePort)
-			targetsByZone = eps.addressesByZone(zone)
+			targets, targetsByZone = eps.targetsByServicePort(zone, "TCP", protocol, servicePort)
 		} else {
 			return nil, false
 		}
@@ -139,8 +138,7 @@ func (state *clusterState) GetEndpointsByTarget(zone, namespace, name, protocol,
 	var targetsByZone []string
 	if state.enableEndpointSlices {
 		if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
-			targets = eps.targetsByServiceTarget(zone, protocol, scheme, target)
-			targetsByZone = eps.addressesByZone(zone)
+			targets, targetsByZone = eps.targetsByServiceTarget(zone, protocol, scheme, target)
 		} else {
 			return nil, false
 		}

@@ -165,6 +165,7 @@ func convertPathRuleV1(
 			BackendType: eskip.LBBackend,
 			LBEndpoints: lbeps,
 			LBAlgorithm: getLoadBalancerAlgorithm(metadata, defaultLoadBalancerAlgorithm),
+			HostRegexps: hostRegexp,
 		}
 	} else {
 		r = &eskip.Route{

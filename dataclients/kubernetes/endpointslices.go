@@ -43,7 +43,7 @@ func (eps *skipperEndpointSlice) getPort(protocol, pName string, pValue int) int
 
 	return port
 }
-func (eps *skipperEndpointSlice) targetsByServicePort(zone, protocol, scheme string, servicePort *servicePort) []string {
+func (eps *skipperEndpointSlice) targetsByServicePort(zone, protocol, scheme string, servicePort *servicePort) ([]string, []string) {
 	var port int
 	if servicePort.Name != "" {
 		port = eps.getPort(protocol, servicePort.Name, servicePort.Port)
@@ -58,36 +58,30 @@ func (eps *skipperEndpointSlice) targetsByServicePort(zone, protocol, scheme str
 	}
 
 	result := make([]string, 0, len(eps.Endpoints))
-	// resultByZone := make([]string, 0, len(eps.Endpoints))
+	resultByZone := make([]string, 0, len(eps.Endpoints))
 	for _, ep := range eps.Endpoints {
-		// if ep.Zone == zone {
-		// 	resultByZone = append(resultByZone, formatEndpointString(ep.Address, scheme, port))
-		// }
+		if ep.Zone == zone {
+			resultByZone = append(resultByZone, formatEndpointString(ep.Address, scheme, port))
+		}
 		result = append(result, formatEndpointString(ep.Address, scheme, port))
 	}
-	// if len(resultByZone) >= minEndpointsByZone {
-	// 	return resultByZone
-	// }
-	return result
+	return result, resultByZone
 }
 
-func (eps *skipperEndpointSlice) targetsByServiceTarget(zone, protocol, scheme string, serviceTarget *definitions.BackendPort) []string {
+func (eps *skipperEndpointSlice) targetsByServiceTarget(zone, protocol, scheme string, serviceTarget *definitions.BackendPort) ([]string, []string) {
 	pName, _ := serviceTarget.Value.(string)
 	pValue, _ := serviceTarget.Value.(int)
 	port := eps.getPort(protocol, pName, pValue)
 
 	result := make([]string, 0, len(eps.Endpoints))
-	// resultByZone := make([]string, 0, len(eps.Endpoints))
+	resultByZone := make([]string, 0, len(eps.Endpoints))
 	for _, ep := range eps.Endpoints {
-		// if ep.Zone == zone {
-		// 	resultByZone = append(resultByZone, formatEndpointString(ep.Address, scheme, port))
-		// }
+		if ep.Zone == zone {
+			resultByZone = append(resultByZone, formatEndpointString(ep.Address, scheme, port))
+		}
 		result = append(result, formatEndpointString(ep.Address, scheme, port))
 	}
-	// if len(resultByZone) >= minEndpointsByZone {
-	// 	return resultByZone
-	// }
-	return result
+	return result, resultByZone
 }
 
 func (eps *skipperEndpointSlice) addressesByZone(zone string) []string {
