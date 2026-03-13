@@ -76,20 +76,16 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, _ string, initi
 	var zoneRoutes = make(map[string][]*eskip.Route)
 
 	for _, r := range routes {
-		for _, eps := range r.LBEndpoints {
-			if eps.Zone != "" {
-				// check if route is already added to the zone, if not add it to the zoneRoutes map
-				exists := false
-				for _, existingRoute := range zoneRoutes[eps.Zone] {
-					if existingRoute.Id == r.Id {
-						exists = true
-						break
-					}
-				}
-				if !exists {
-					zoneRoutes[eps.Zone] = append(zoneRoutes[eps.Zone], r)
-				}
+		byZone := make(map[string][]*eskip.LBEndpoint)
+		for _, ep := range r.LBEndpoints {
+			if ep.Zone != "" {
+				byZone[ep.Zone] = append(byZone[ep.Zone], ep)
 			}
+		}
+		for zone, eps := range byZone {
+			rCopy := *r
+			rCopy.LBEndpoints = eps
+			zoneRoutes[zone] = append(zoneRoutes[zone], &rCopy)
 		}
 	}
 
@@ -104,14 +100,15 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, _ string, initi
 		e.zoneData = make(map[string][]byte)
 	}
 
-	for zone, routes := range zoneRoutes {
-		zoneBuf := &bytes.Buffer{}
-		eskip.Fprint(zoneBuf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
-		e.zoneData[zone] = zoneBuf.Bytes()
-	}
-
 	updated = !bytes.Equal(e.data, data)
 	if updated {
+		if len(zoneRoutes) > 0 {
+			for zone, routes := range zoneRoutes {
+				zoneBuf := &bytes.Buffer{}
+				eskip.Fprint(zoneBuf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
+				e.zoneData[zone] = zoneBuf.Bytes()
+			}
+		}
 		e.lastModified = e.now()
 		e.data = data
 		e.zdata = e.compressLocked(data)
