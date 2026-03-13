@@ -54,6 +54,7 @@ var (
 type eskipBytes struct {
 	mu           sync.RWMutex
 	data         []byte
+	zoneData     map[string][]byte
 	hash         string
 	lastModified time.Time
 	initialized  bool
@@ -71,6 +72,23 @@ type eskipBytes struct {
 // in a synchronized way. It returns the length of the stored data, and
 // flags signaling whether the data was initialized and updated.
 func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, _ string, initialized bool, updated bool) {
+
+	var zoneRoutes = make(map[string][]*eskip.Route)
+
+	for _, r := range routes {
+		byZone := make(map[string][]*eskip.LBEndpoint)
+		for _, ep := range r.LBEndpoints {
+			if ep.Zone != "" {
+				byZone[ep.Zone] = append(byZone[ep.Zone], ep)
+			}
+		}
+		for zone, eps := range byZone {
+			rCopy := *r
+			rCopy.LBEndpoints = eps
+			zoneRoutes[zone] = append(zoneRoutes[zone], &rCopy)
+		}
+	}
+
 	buf := &bytes.Buffer{}
 	eskip.Fprint(buf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
 	data := buf.Bytes()
@@ -78,8 +96,19 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, _ string, initi
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	if e.zoneData == nil {
+		e.zoneData = make(map[string][]byte)
+	}
+
 	updated = !bytes.Equal(e.data, data)
 	if updated {
+		if len(zoneRoutes) > 0 {
+			for zone, routes := range zoneRoutes {
+				zoneBuf := &bytes.Buffer{}
+				eskip.Fprint(zoneBuf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
+				e.zoneData[zone] = zoneBuf.Bytes()
+			}
+		}
 		e.lastModified = e.now()
 		e.data = data
 		e.zdata = e.compressLocked(data)
@@ -141,6 +170,15 @@ func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	hash := e.hash
 	lastModified := e.lastModified
 	initialized := e.initialized
+
+	zone := r.PathValue("zone")
+	if zone != "" {
+		data = e.zoneData[zone]
+		if len(data) == 0 {
+			data = e.data
+		}
+	}
+
 	e.mu.RUnlock()
 
 	if initialized {

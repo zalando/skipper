@@ -113,6 +113,14 @@ func getRoutes(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	return w
 }
 
+func getZoneAwareRoutes(rs *routesrv.RouteServer, zone string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/routes/"+zone, nil)
+	rs.ServeHTTP(w, r)
+
+	return w
+}
+
 func getHealth(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/health", nil)
@@ -896,5 +904,78 @@ func TestESkipBytesHandlerWithNoUpdate(t *testing.T) {
 	}
 	if w2.Code != http.StatusNotModified {
 		t.Errorf("expected 304 status code, got %d", w2.Code)
+	}
+}
+
+func TestRoutesWithZone(t *testing.T) {
+
+	for _, tc := range []struct {
+		name  string
+		zone  string
+		ing   string
+		eskip string
+	}{
+		{
+			name:  "TwoAddrPerZone",
+			zone:  "eu-central-1a",
+			ing:   "testdata/zone-aware-traffic/all-zones-2-addr.yaml",
+			eskip: "testdata/zone-aware-traffic/all-zones-2-addr.eskip",
+		},
+		{
+			name:  "ThreeAddrPerZone",
+			zone:  "eu-central-1a",
+			ing:   "testdata/zone-aware-traffic/all-zones-3-addr.yaml",
+			eskip: "testdata/zone-aware-traffic/all-zones-3-addr.eskip",
+		},
+		{
+			name:  "AllZonesExceptZoneA",
+			zone:  "eu-central-1a",
+			ing:   "testdata/zone-aware-traffic/all-zones-except-zone-a.yaml",
+			eskip: "testdata/zone-aware-traffic/all-zones-except-zone-a.eskip",
+		},
+		{
+			name:  "AllZonesTopologySetToZoneB",
+			zone:  "eu-central-1b",
+			ing:   "testdata/zone-aware-traffic/all-zones-topology-zone-b.yaml",
+			eskip: "testdata/zone-aware-traffic/all-zones-topology-zone-b.eskip",
+		},
+		{
+			name:  "OnlyZoneA",
+			zone:  "eu-central-1a",
+			ing:   "testdata/zone-aware-traffic/only-zone-a.yaml",
+			eskip: "testdata/zone-aware-traffic/only-zone-a.eskip",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			defer tl.Reset()
+			ks, _ := newKubeServer(t, loadKubeYAML(t, tc.ing))
+			ks.Start()
+			defer ks.Close()
+			rs := newRouteServerWithOptions(t, skipper.Options{
+				SourcePollTimeout:              pollInterval,
+				Kubernetes:                     true,
+				KubernetesURL:                  ks.URL,
+				KubernetesTopologyZone:         tc.zone,
+				KubernetesEnableEndpointslices: true,
+			})
+
+			rs.StartUpdates()
+			defer rs.StopUpdates()
+
+			if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+				t.Fatalf("routes not initialized: %v", err)
+			}
+			w := getZoneAwareRoutes(rs, tc.zone)
+
+			want := parseEskipFixture(t, tc.eskip)
+			got, err := eskip.Parse(w.Body.String())
+			if err != nil {
+				t.Fatalf("served routes are not valid eskip: %s", w.Body)
+			}
+			if !eskip.EqLists(got, want) {
+				t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
+			}
+			wantHTTPCode(t, w, http.StatusOK)
+		})
 	}
 }

@@ -50,7 +50,7 @@ func (state *clusterState) getServiceRG(namespace, name string) (*service, error
 }
 
 // GetEndpointsByService returns the skipper endpoints for kubernetes endpoints or endpointslices.
-func (state *clusterState) GetEndpointsByService(zone, namespace, name, protocol string, servicePort *servicePort) []string {
+func (state *clusterState) GetEndpointsByService(zone, namespace, name, protocol string, servicePort *servicePort) ([]string, bool) {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
@@ -60,27 +60,34 @@ func (state *clusterState) GetEndpointsByService(zone, namespace, name, protocol
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	if cached, ok := state.cachedEndpoints[epID]; ok {
-		return cached
+		return cached, false
 	}
 
 	var targets []string
+	var targetsByZone []string
 	if state.enableEndpointSlices {
 		if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
-			targets = eps.targetsByServicePort(zone, "TCP", protocol, servicePort)
+			targets, targetsByZone = eps.targetsByServicePort(zone, "TCP", protocol, servicePort)
 		} else {
-			return nil
+			return nil, false
 		}
 	} else {
 		if ep, ok := state.endpoints[epID.ResourceID]; ok {
 			targets = ep.targetsByServicePort(protocol, servicePort)
 		} else {
-			return nil
+			return nil, false
 		}
+	}
+
+	if len(targetsByZone) >= minEndpointsByZone {
+		sort.Strings(targetsByZone)
+		state.cachedEndpoints[epID] = targetsByZone
+		return targetsByZone, true
 	}
 
 	sort.Strings(targets)
 	state.cachedEndpoints[epID] = targets
-	return targets
+	return targets, false
 }
 
 // getEndpointAddresses returns the list of all addresses for the given service using endpoints or endpointslices.
@@ -114,7 +121,7 @@ func (state *clusterState) getEndpointAddresses(zone, namespace, name string) []
 }
 
 // GetEndpointsByTarget returns the skipper endpoints for kubernetes endpoints or endpointslices.
-func (state *clusterState) GetEndpointsByTarget(zone, namespace, name, protocol, scheme string, target *definitions.BackendPort) []string {
+func (state *clusterState) GetEndpointsByTarget(zone, namespace, name, protocol, scheme string, target *definitions.BackendPort) ([]string, bool) {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
@@ -124,25 +131,32 @@ func (state *clusterState) GetEndpointsByTarget(zone, namespace, name, protocol,
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	if cached, ok := state.cachedEndpoints[epID]; ok {
-		return cached
+		return cached, false
 	}
 
 	var targets []string
+	var targetsByZone []string
 	if state.enableEndpointSlices {
 		if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
-			targets = eps.targetsByServiceTarget(zone, protocol, scheme, target)
+			targets, targetsByZone = eps.targetsByServiceTarget(zone, protocol, scheme, target)
 		} else {
-			return nil
+			return nil, false
 		}
 	} else {
 		if ep, ok := state.endpoints[epID.ResourceID]; ok {
 			targets = ep.targetsByServiceTarget(scheme, target)
 		} else {
-			return nil
+			return nil, false
 		}
+	}
+
+	if len(targetsByZone) >= minEndpointsByZone {
+		sort.Strings(targetsByZone)
+		state.cachedEndpoints[epID] = targetsByZone
+		return targetsByZone, true
 	}
 
 	sort.Strings(targets)
 	state.cachedEndpoints[epID] = targets
-	return targets
+	return targets, false
 }

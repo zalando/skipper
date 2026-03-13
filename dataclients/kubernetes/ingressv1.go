@@ -77,6 +77,8 @@ func convertPathRuleV1(
 	ns := metadata.Namespace
 	name := metadata.Name
 
+	zoneTarget := false
+
 	if prule.Backend == nil {
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
@@ -121,7 +123,7 @@ func convertPathRuleV1(
 			protocol = p
 		}
 
-		eps = state.GetEndpointsByService(ic.zone, ns, svcName, protocol, servicePort)
+		eps, zoneTarget = state.GetEndpointsByService(ic.zone, ns, svcName, protocol, servicePort)
 	}
 	if len(eps) == 0 {
 		ic.logger.Tracef("Target endpoints not found, shuntroute for %s:%s", svcName, svcPort)
@@ -138,6 +140,7 @@ func convertPathRuleV1(
 	}
 
 	ic.logger.Tracef("Found %d endpoints for %s:%s", len(eps), svcName, svcPort)
+
 	if len(eps) == 1 {
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
@@ -154,10 +157,20 @@ func convertPathRuleV1(
 	r := &eskip.Route{
 		Id:          routeID(ns, name, host, prule.Path, svcName),
 		BackendType: eskip.LBBackend,
-		LBEndpoints: eps,
 		LBAlgorithm: getLoadBalancerAlgorithm(metadata, defaultLoadBalancerAlgorithm),
 		HostRegexps: hostRegexp,
 	}
+
+	if zoneTarget {
+		var lbeps []*eskip.LBEndpoint
+		for _, ep := range eps {
+			lbeps = append(lbeps, &eskip.LBEndpoint{Address: ep, Zone: ic.zone})
+		}
+		r.LBEndpoints = lbeps
+	} else {
+		r.LBEndpoints = eskip.NewLBEndpoints(eps)
+	}
+
 	setPathV1(pathMode, r, prule.PathType, prule.Path)
 	traffic.apply(r)
 	return r, nil
@@ -355,6 +368,8 @@ func (ing *ingress) convertDefaultBackendV1(
 		svcName = i.Spec.DefaultBackend.Service.Name
 		svcPort = i.Spec.DefaultBackend.Service.Port
 	)
+	zoneTarget := false
+	dataclientZone := ing.zone
 
 	svc, err := state.getService(ns, svcName)
 	if err != nil {
@@ -382,8 +397,8 @@ func (ing *ingress) convertDefaultBackendV1(
 			protocol = p
 		}
 
-		eps = state.GetEndpointsByService(
-			ing.zone,
+		eps, zoneTarget = state.GetEndpointsByService(
+			dataclientZone,
 			ns,
 			svcName,
 			protocol,
@@ -408,12 +423,23 @@ func (ing *ingress) convertDefaultBackendV1(
 		}, true, nil
 	}
 
-	return &eskip.Route{
+	r := &eskip.Route{
 		Id:          routeID(ns, name, "", "", ""),
 		BackendType: eskip.LBBackend,
-		LBEndpoints: eps,
 		LBAlgorithm: getLoadBalancerAlgorithm(i.Metadata, ing.defaultLoadBalancerAlgorithm),
-	}, true, nil
+	}
+
+	if zoneTarget {
+		var lbeps []*eskip.LBEndpoint
+		for _, ep := range eps {
+			lbeps = append(lbeps, &eskip.LBEndpoint{Address: ep, Zone: dataclientZone})
+		}
+		r.LBEndpoints = lbeps
+	} else {
+		r.LBEndpoints = eskip.NewLBEndpoints(eps)
+	}
+
+	return r, true, nil
 }
 
 func serviceNameBackend(svcName, svcNamespace string, servicePort *servicePort) string {
