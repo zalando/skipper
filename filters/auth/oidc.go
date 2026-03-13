@@ -101,6 +101,10 @@ type OidcOptions struct {
 	// OpenTracingClientTraceByTag instead of events use span Tags
 	// to measure client connection pool actions
 	OpenTracingClientTraceByTag bool
+
+	// Profiles is a map of named OIDC profile configurations that can be referenced
+	// by oauthOidc* filters using the "profile:<name>" first argument syntax.
+	Profiles map[string]OidcProfile
 }
 
 const oidcSecretRefPrefix = "secretRef:"
@@ -207,11 +211,73 @@ func NewOAuthOidcAllClaims(secretsFile string, secretsRegistry secrets.Encrypter
 //
 //	oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
 //	"http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2", "<optional>", "<optional>", "<optional>") -> "https://internal.example.org";
+//
+// createProfileFilter handles the "profile:<name>" first-arg syntax.
+func (s *tokenOidcSpec) createProfileFilter(sargs []string) (filters.Filter, error) {
+	name := strings.TrimPrefix(sargs[0], oidcProfilePrefix)
+	profile, ok := s.options.Profiles[name]
+	if !ok {
+		return nil, fmt.Errorf("%w: oidc profile %q not found", filters.ErrInvalidFilterParameters, name)
+	}
+
+	if profile.IdpURL == "" {
+		return nil, fmt.Errorf("%w: oidc profile %q: IdpURL is required", filters.ErrInvalidFilterParameters, name)
+	}
+	if strings.Contains(profile.IdpURL, "{{") {
+		return nil, fmt.Errorf("%w: oidc profile %q: IdpURL must be a static URL (no template expressions)", filters.ErrInvalidFilterParameters, name)
+	}
+
+	provider, err := oidc.NewProvider(context.Background(), profile.IdpURL)
+	if err != nil {
+		log.Errorf("Failed to create new provider %s: %v.", profile.IdpURL, err)
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	encrypter, err := s.secretsRegistry.GetEncrypter(1*time.Minute, s.SecretsFile)
+	if err != nil {
+		return nil, err
+	}
+
+	validity := s.options.CookieValidity
+	if validity == 0 {
+		validity = defaultCookieValidity
+	}
+
+	subdomainsToRemove := 1
+	if s.options.CookieRemoveSubdomains != nil {
+		subdomainsToRemove = *s.options.CookieRemoveSubdomains
+	}
+
+	var claims []string
+	if len(sargs) > 1 && sargs[1] != "" {
+		claims = strings.Split(sargs[1], " ")
+	}
+
+	profileCopy := profile
+	return newProfileFilter(
+		s.typ,
+		&profileCopy,
+		claims,
+		provider,
+		encrypter,
+		validity,
+		subdomainsToRemove,
+		s.options,
+		s,
+	), nil
+}
+
 func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
 		return nil, err
 	}
+
+	// Detect "profile:<name>" first-arg syntax and delegate to profile filter creation.
+	if len(sargs) >= 1 && strings.HasPrefix(sargs[0], oidcProfilePrefix) {
+		return s.createProfileFilter(sargs)
+	}
+
 	if len(sargs) <= paramClaims {
 		return nil, filters.ErrInvalidFilterParameters
 	}

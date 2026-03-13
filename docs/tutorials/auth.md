@@ -261,6 +261,122 @@ Access to path `/` would be granted to everyone in `example.org`, however path `
 oauthOidcAnyClaims(...) -> oidcClaimsQuery("/login:groups.#[==\"appX-Tester\"]", "/:@_:email%\"*@example.org\"")
 ```
 
+### OIDC Profiles
+
+When the same OIDC provider and credentials are shared across many routes, repeating all connection parameters in every filter call becomes error-prone and hard to maintain. **OIDC profiles** let you define the parameters once in a YAML configuration and reference them by name:
+
+```
+oauthOidcAnyClaims("profile:myprofile", "groups")
+```
+
+#### Defining a profile
+
+Add the `-oidc-profiles` flag when starting Skipper (inline YAML), or use `-oidc-profiles-file` to point to a YAML file (the two flags are mutually exclusive). You can also add `oidc-profiles` to your YAML config file:
+
+```yaml
+oidc-profiles:
+  myprofile:
+    idp-url: https://idp.example.com
+    client-id: my-client-id
+    client-secret: my-client-secret
+    callback-url: https://app.example.com/auth/callback
+    scopes: email profile
+```
+
+Then write routes using `profile:<name>` as the first argument:
+
+```
+myroute: * -> oauthOidcAnyClaims("profile:myprofile", "groups") -> "https://internal.example.org";
+```
+
+The `openid` scope is always included automatically. Claims go in the route arguments as usual; they are never part of the profile.
+
+#### Template fields for multi-tenant deployments
+
+Profile fields (except `idp-url`) support Go [`text/template`](https://pkg.go.dev/text/template) expressions resolved at request time. Two data sources are available:
+
+* `{{.Request.Host}}` — the `Host` header of the incoming request
+* `{{index .Annotations "key"}}` — a value injected by a preceding `annotate()` filter
+
+This makes it possible to serve many tenants from a single profile:
+
+```yaml
+oidc-profiles:
+  multi-tenant:
+    idp-url: https://idp.example.com
+    client-id: '{{index .Annotations "oidc/client-id"}}'
+    client-secret: '{{index .Annotations "oidc/client-secret"}}'
+    callback-url: 'https://{{.Request.Host}}/auth/callback'
+    scopes: email profile
+```
+
+**Note:** `idp-url` must be a static URL. Template expressions in that field are rejected at startup.
+
+Client ID and Client Secret also accept the `secretRef:` prefix to read values from Skipper's secrets registry:
+
+```yaml
+oidc-profiles:
+  myprofile:
+    idp-url: https://idp.example.com
+    client-id: secretRef:/mnt/secrets/oidc-client-id
+    client-secret: secretRef:/mnt/secrets/oidc-client-secret
+    callback-url: https://app.example.com/auth/callback
+```
+
+#### Automatic annotation injection in Kubernetes
+
+When using Kubernetes Ingress or RouteGroups, you can drive profile template values from annotations on the resource itself. Start Skipper with `-kubernetes-annotations-to-route-annotations` listing the annotation keys to inject:
+
+```
+skipper -kubernetes-annotations-to-route-annotations=oidc/client-id,oidc/client-secret
+```
+
+Skipper then automatically prepends `annotate(key, value)` filters for each matching annotation found on any Ingress or RouteGroup. The profile template can then read those values via `{{index .Annotations "key"}}`.
+
+Use `-kubernetes-annotations-to-route-annotations-prefix` to prepend a fixed string to the key used in the `annotate()` call (the Kubernetes annotation lookup key is unchanged, no separator is added):
+
+```
+skipper -kubernetes-annotations-to-route-annotations=oidc/client-id \
+        -kubernetes-annotations-to-route-annotations-prefix=k8s:
+```
+
+With this prefix, the annotation `oidc/client-id` on a resource produces `annotate("k8s:oidc/client-id", value)`, and the template would use `{{index .Annotations "k8s:oidc/client-id"}}`.
+
+Full example — Kubernetes Ingress:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    oidc/client-id: tenant-abc-client
+    oidc/client-secret: secretRef:/mnt/secrets/tenant-abc-oidc-secret
+    zalando.org/skipper-filter: 'oauthOidcAnyClaims("profile:multi-tenant", "groups")'
+spec:
+  rules:
+  - host: tenant-abc.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: my-service
+            port:
+              number: 80
+```
+
+When Skipper processes this Ingress, it generates routes that effectively behave as:
+
+```
+annotate("oidc/client-id", "tenant-abc-client")
+  -> annotate("oidc/client-secret", "secretRef:/mnt/secrets/tenant-abc-oidc-secret")
+  -> oauthOidcAnyClaims("profile:multi-tenant", "groups")
+  -> ...
+```
+
+The profile filter resolves `{{index .Annotations "oidc/client-id"}}` to `tenant-abc-client` and `{{.Request.Host}}` to the actual request hostname at request time. Resolved configurations are cached so repeated requests with the same resolved values incur no extra overhead.
+
 ## OAuth2 authorization grant flow
 
 [Authorization grant flow](https://tools.ietf.org/html/rfc6749#section-1.3) is a mechanism
