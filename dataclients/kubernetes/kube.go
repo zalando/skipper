@@ -232,6 +232,15 @@ type Options struct {
 	// No separator is added between prefix and key.
 	AnnotationsToRouteAnnotationsPrefix string
 
+	// LabelsToRouteAnnotations is a list of Kubernetes resource label keys whose values
+	// are automatically injected as annotate() filters into routes generated from those resources.
+	LabelsToRouteAnnotations []string
+
+	// LabelsToRouteAnnotationsPrefix is an optional string prepended to the key in the
+	// generated annotate() filter call. The K8s label lookup key is unchanged.
+	// No separator is added between prefix and key.
+	LabelsToRouteAnnotationsPrefix string
+
 	// DefaultFiltersDir enables default filters mechanism and sets the location of the default filters.
 	// The provided filters are then applied to all routes.
 	DefaultFiltersDir string

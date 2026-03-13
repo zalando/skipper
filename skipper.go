@@ -305,6 +305,17 @@ type Options struct {
 	// No separator is added between prefix and key.
 	KubernetesAnnotationsToRouteAnnotationsPrefix string
 
+	// KubernetesLabelsToRouteAnnotations is a list of Kubernetes resource label keys
+	// whose values are automatically injected as annotate() filters into routes generated from
+	// those resources. This makes the label values accessible to oauthOidc* profile filters
+	// via {{index .Annotations "key"}}.
+	KubernetesLabelsToRouteAnnotations []string
+
+	// KubernetesLabelsToRouteAnnotationsPrefix is an optional prefix prepended to the key
+	// in the generated annotate() filter call.
+	// No separator is added between prefix and key.
+	KubernetesLabelsToRouteAnnotationsPrefix string
+
 	// EnableKubernetesExternalNames enables to use Kubernetes service type ExternalName as backend in Ingress and RouteGroup.
 	EnableKubernetesExternalNames bool
 
@@ -1110,6 +1121,8 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		KubernetesAnnotationFiltersAppend:              o.KubernetesAnnotationFiltersAppend,
 		AnnotationsToRouteAnnotations:                  o.KubernetesAnnotationsToRouteAnnotations,
 		AnnotationsToRouteAnnotationsPrefix:            o.KubernetesAnnotationsToRouteAnnotationsPrefix,
+		LabelsToRouteAnnotations:                       o.KubernetesLabelsToRouteAnnotations,
+		LabelsToRouteAnnotationsPrefix:                 o.KubernetesLabelsToRouteAnnotationsPrefix,
 		HTTPSRedirectCode:                              o.KubernetesHTTPSRedirectCode,
 		DisableCatchAllRoutes:                          o.KubernetesDisableCatchAllRoutes,
 		IngressClass:                                   o.KubernetesIngressClass,

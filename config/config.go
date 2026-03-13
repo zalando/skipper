@@ -190,6 +190,8 @@ type Config struct {
 	KubernetesAnnotationFiltersAppendString              multiFlag                          `yaml:"kubernetes-annotation-filters-append"`
 	KubernetesAnnotationsToRouteAnnotations              *listFlag                          `yaml:"kubernetes-annotations-to-route-annotations"`
 	KubernetesAnnotationsToRouteAnnotationsPrefix        string                             `yaml:"kubernetes-annotations-to-route-annotations-prefix"`
+	KubernetesLabelsToRouteAnnotations                   *listFlag                          `yaml:"kubernetes-labels-to-route-annotations"`
+	KubernetesLabelsToRouteAnnotationsPrefix             string                             `yaml:"kubernetes-labels-to-route-annotations-prefix"`
 	KubernetesEastWestRangeAnnotationPredicates          []kubernetes.AnnotationPredicates  `yaml:"-"`
 	KubernetesEastWestRangeAnnotationFiltersAppend       []kubernetes.AnnotationFilters     `yaml:"-"`
 	KubernetesAnnotationPredicates                       []kubernetes.AnnotationPredicates  `yaml:"-"`
@@ -388,6 +390,7 @@ func NewConfig() *Config {
 	cfg.EditRoute = routeChangerConfig{}
 	cfg.KubernetesEastWestRangeDomains = commaListFlag()
 	cfg.KubernetesAnnotationsToRouteAnnotations = commaListFlag()
+	cfg.KubernetesLabelsToRouteAnnotations = commaListFlag()
 	cfg.RoutesURLs = commaListFlag()
 	cfg.ForwardedHeadersList = commaListFlag()
 	cfg.ForwardedHeadersExcludeCIDRList = commaListFlag()
@@ -555,6 +558,8 @@ func NewConfig() *Config {
 	flag.Var(&cfg.KubernetesAnnotationFiltersAppendString, "kubernetes-annotation-filters-append", "configures filters appended to non east-west routes of annotated resources. E.g. -kubernetes-annotation-filters-append='zone-a=true=foo() -> bar()' will add 'foo() -> bar()' filters to all non east-west routes of ingress or routegroup annotated with 'zone-a: true'. For east-west routes use -kubernetes-east-west-range-annotation-filters-append.")
 	flag.Var(cfg.KubernetesAnnotationsToRouteAnnotations, "kubernetes-annotations-to-route-annotations", "comma-separated list of Kubernetes resource annotation keys whose values are automatically injected as annotate() filters into routes, making them available to oauthOidc* profile filters via {{index .Annotations \"key\"}}")
 	flag.StringVar(&cfg.KubernetesAnnotationsToRouteAnnotationsPrefix, "kubernetes-annotations-to-route-annotations-prefix", "", "prefix prepended to the key in annotate() filters generated from -kubernetes-annotations-to-route-annotations; no separator is added between prefix and key")
+	flag.Var(cfg.KubernetesLabelsToRouteAnnotations, "kubernetes-labels-to-route-annotations", "comma-separated list of Kubernetes resource label keys whose values are automatically injected as annotate() filters into routes, making them available to oauthOidc* profile filters via {{index .Annotations \"key\"}}")
+	flag.StringVar(&cfg.KubernetesLabelsToRouteAnnotationsPrefix, "kubernetes-labels-to-route-annotations-prefix", "", "prefix prepended to the key in annotate() filters generated from -kubernetes-labels-to-route-annotations; no separator is added between prefix and key")
 	flag.Var(&cfg.KubernetesEastWestRangeAnnotationPredicatesString, "kubernetes-east-west-range-annotation-predicates", "similar to -kubernetes-annotation-predicates configures predicates appended to east-west routes of annotated resources. See also -kubernetes-east-west-range-domains.")
 	flag.Var(&cfg.KubernetesEastWestRangeAnnotationFiltersAppendString, "kubernetes-east-west-range-annotation-filters-append", "similar to -kubernetes-annotation-filters-append configures filters appended to east-west routes of annotated resources. See also -kubernetes-east-west-range-domains.")
 	flag.BoolVar(&cfg.EnableKubernetesExternalNames, "enable-kubernetes-external-names", false, "only if enabled we allow to use external name services as backends in Ingress")
@@ -1008,6 +1013,8 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesAnnotationFiltersAppend:              c.KubernetesAnnotationFiltersAppend,
 		KubernetesAnnotationsToRouteAnnotations:        c.KubernetesAnnotationsToRouteAnnotations.values,
 		KubernetesAnnotationsToRouteAnnotationsPrefix:  c.KubernetesAnnotationsToRouteAnnotationsPrefix,
+		KubernetesLabelsToRouteAnnotations:             c.KubernetesLabelsToRouteAnnotations.values,
+		KubernetesLabelsToRouteAnnotationsPrefix:       c.KubernetesLabelsToRouteAnnotationsPrefix,
 		EnableKubernetesExternalNames:                  c.EnableKubernetesExternalNames,
 		KubernetesOnlyAllowedExternalNames:             c.KubernetesOnlyAllowedExternalNames,
 		KubernetesAllowedExternalNames:                 c.KubernetesAllowedExternalNames,
