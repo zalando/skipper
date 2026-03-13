@@ -94,9 +94,10 @@ func resolveField(tmplStr string, data profileTemplateData) (string, error) {
 
 // tokenOidcProfileFilter is the per-route filter created when an oauthOidc* filter
 // uses the "profile:<name>" first argument syntax. It resolves profile field templates
-// at request time, caches the resulting tokenOidcFilter delegates by a hash of the
-// resolved parameters, and delegates all OIDC processing to them.
+// at request time, caches the resulting tokenOidcFilter delegates by profile name and
+// request host, and delegates all OIDC processing to them.
 type tokenOidcProfileFilter struct {
+	name                      string // profile name, e.g. "myprofile"
 	typ                       roleCheckType
 	profile                   *OidcProfile
 	claims                    []string // from route args; never from profile
@@ -108,7 +109,7 @@ type tokenOidcProfileFilter struct {
 	oidcOptions               OidcOptions
 	spec                      *tokenOidcSpec // for resolveClientCredential
 
-	delegates sync.Map // map[string]*tokenOidcFilter, keyed by cacheKey
+	delegates sync.Map // map[string]*tokenOidcFilter, keyed by profile name + host
 }
 
 // resolvedProfile holds the template-resolved (but not secretRef-resolved) field values.
@@ -123,17 +124,12 @@ type resolvedProfile struct {
 	cookieName         string
 }
 
-// cacheKey returns a SHA-256 hex string over all resolved fields.
-func (r *resolvedProfile) cacheKey() string {
-	h := sha256.New()
-	for _, s := range []string{
-		r.clientID, r.clientSecret, r.callbackURL, r.scopes,
-		r.authCodeOpts, r.upstreamHeaders, r.subdomainsToRemove, r.cookieName,
-	} {
-		h.Write([]byte(s))
-		h.Write([]byte{0}) // field separator
-	}
-	return fmt.Sprintf("%x", h.Sum(nil))
+// cacheKey returns a stable key for the delegate cache based on profile name and
+// request host. Credentials are intentionally excluded: including them would cause
+// unbounded cache growth on secret rotation and is unnecessary since the profile
+// name and host uniquely identify the logical delegate configuration.
+func (r *resolvedProfile) cacheKey(profileName, host string) string {
+	return profileName + "\x00" + host
 }
 
 // resolveAll resolves all profile template fields using request-time data.
@@ -169,7 +165,8 @@ func (f *tokenOidcProfileFilter) resolveAll(data profileTemplateData) (*resolved
 
 // buildDelegate constructs a tokenOidcFilter from template-resolved profile fields.
 // secretRef resolution happens here so the actual credentials are in the delegate.
-func (f *tokenOidcProfileFilter) buildDelegate(r *resolvedProfile) (*tokenOidcFilter, error) {
+// host is the request hostname, used to derive a stable cookie name.
+func (f *tokenOidcProfileFilter) buildDelegate(r *resolvedProfile, host string) (*tokenOidcFilter, error) {
 	clientID, err := f.spec.resolveClientCredential(r.clientID)
 	if err != nil {
 		return nil, fmt.Errorf("ClientID secretRef: %w", err)
@@ -179,16 +176,15 @@ func (f *tokenOidcProfileFilter) buildDelegate(r *resolvedProfile) (*tokenOidcFi
 		return nil, fmt.Errorf("ClientSecret secretRef: %w", err)
 	}
 
-	// Cookie name: use explicit value or derive from hash of params
+	// Cookie name: use explicit value or derive a stable name from profile name and host.
+	// Credentials are intentionally excluded so the name does not change on secret
+	// rotation (which would log out all users).
 	cookieName := r.cookieName
 	if cookieName == "" {
 		h := sha256.New()
-		// Hash same fields as CreateFilter (skip CallbackURL and SubdomainsToRemove)
-		for _, s := range []string{
-			f.profile.IdpURL, clientID, clientSecret, r.scopes, r.authCodeOpts, r.upstreamHeaders,
-		} {
-			h.Write([]byte(s))
-		}
+		h.Write([]byte(f.name))
+		h.Write([]byte{0})
+		h.Write([]byte(host))
 		cookieName = oauthOidcCookieName + fmt.Sprintf("%x", h.Sum(nil))[:8] + "-"
 	}
 
@@ -295,7 +291,8 @@ func (f *tokenOidcProfileFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	key := resolved.cacheKey()
+	host := data.Request.Host
+	key := resolved.cacheKey(f.name, host)
 	if d, ok := f.delegates.Load(key); ok {
 		delegate := d.(*tokenOidcFilter)
 		ctx.StateBag()[oidcProfileStateBagKey] = delegate
@@ -303,7 +300,7 @@ func (f *tokenOidcProfileFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	delegate, err := f.buildDelegate(resolved)
+	delegate, err := f.buildDelegate(resolved, host)
 	if err != nil {
 		ctx.Logger().Errorf("oidc profile filter: failed to build delegate: %v", err)
 		f.internalServerError(ctx)
@@ -327,6 +324,7 @@ func (f *tokenOidcProfileFilter) Response(ctx filters.FilterContext) {
 // newProfileFilter creates a tokenOidcProfileFilter from a pre-discovered provider.
 // Called by tokenOidcSpec.CreateFilter when the first arg starts with "profile:".
 func newProfileFilter(
+	name string,
 	typ roleCheckType,
 	profile *OidcProfile,
 	claims []string,
@@ -338,6 +336,7 @@ func newProfileFilter(
 	spec *tokenOidcSpec,
 ) *tokenOidcProfileFilter {
 	return &tokenOidcProfileFilter{
+		name:                      name,
 		typ:                       typ,
 		profile:                   profile,
 		claims:                    claims,
