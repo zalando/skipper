@@ -108,6 +108,8 @@ func defaultConfig(with func(*Config)) *Config {
 		EditRoute:                               routeChangerConfig{},
 		SourcePollTimeout:                       3000,
 		KubernetesEastWestRangeDomains:          commaListFlag(),
+		KubernetesAnnotationsToRouteAnnotations: commaListFlag(),
+		KubernetesLabelsToRouteAnnotations:      commaListFlag(),
 		KubernetesHealthcheck:                   true,
 		KubernetesHTTPSRedirect:                 true,
 		KubernetesHTTPSRedirectCode:             308,

@@ -19,6 +19,7 @@ import (
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/openpolicyagent"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/net"
@@ -187,6 +188,10 @@ type Config struct {
 	KubernetesEastWestRangeAnnotationFiltersAppendString multiFlag                          `yaml:"kubernetes-east-west-range-annotation-filters-append"`
 	KubernetesAnnotationPredicatesString                 multiFlag                          `yaml:"kubernetes-annotation-predicates"`
 	KubernetesAnnotationFiltersAppendString              multiFlag                          `yaml:"kubernetes-annotation-filters-append"`
+	KubernetesAnnotationsToRouteAnnotations              *listFlag                          `yaml:"kubernetes-annotations-to-route-annotations"`
+	KubernetesAnnotationsToRouteAnnotationsPrefix        string                             `yaml:"kubernetes-annotations-to-route-annotations-prefix"`
+	KubernetesLabelsToRouteAnnotations                   *listFlag                          `yaml:"kubernetes-labels-to-route-annotations"`
+	KubernetesLabelsToRouteAnnotationsPrefix             string                             `yaml:"kubernetes-labels-to-route-annotations-prefix"`
 	KubernetesEastWestRangeAnnotationPredicates          []kubernetes.AnnotationPredicates  `yaml:"-"`
 	KubernetesEastWestRangeAnnotationFiltersAppend       []kubernetes.AnnotationFilters     `yaml:"-"`
 	KubernetesAnnotationPredicates                       []kubernetes.AnnotationPredicates  `yaml:"-"`
@@ -211,35 +216,37 @@ type Config struct {
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
 
 	// Auth:
-	EnableOAuth2GrantFlow             bool          `yaml:"enable-oauth2-grant-flow"`
-	Oauth2AuthURL                     string        `yaml:"oauth2-auth-url"`
-	Oauth2TokenURL                    string        `yaml:"oauth2-token-url"`
-	Oauth2RevokeTokenURL              string        `yaml:"oauth2-revoke-token-url"`
-	Oauth2TokeninfoURL                string        `yaml:"oauth2-tokeninfo-url"`
-	Oauth2TokeninfoTimeout            time.Duration `yaml:"oauth2-tokeninfo-timeout"`
-	Oauth2TokeninfoCacheSize          int           `yaml:"oauth2-tokeninfo-cache-size"`
-	Oauth2TokeninfoCacheTTL           time.Duration `yaml:"oauth2-tokeninfo-cache-ttl"`
-	Oauth2SecretFile                  string        `yaml:"oauth2-secret-file"`
-	Oauth2ClientID                    string        `yaml:"oauth2-client-id"`
-	Oauth2ClientSecret                string        `yaml:"oauth2-client-secret"`
-	Oauth2ClientIDFile                string        `yaml:"oauth2-client-id-file"`
-	Oauth2ClientSecretFile            string        `yaml:"oauth2-client-secret-file"`
-	Oauth2AuthURLParameters           mapFlags      `yaml:"oauth2-auth-url-parameters"`
-	Oauth2CallbackPath                string        `yaml:"oauth2-callback-path"`
-	Oauth2TokenintrospectionTimeout   time.Duration `yaml:"oauth2-tokenintrospect-timeout"`
-	Oauth2AccessTokenHeaderName       string        `yaml:"oauth2-access-token-header-name"`
-	Oauth2TokeninfoSubjectKey         string        `yaml:"oauth2-tokeninfo-subject-key"`
-	Oauth2GrantTokeninfoKeys          *listFlag     `yaml:"oauth2-grant-tokeninfo-keys"`
-	Oauth2TokenCookieName             string        `yaml:"oauth2-token-cookie-name"`
-	Oauth2TokenCookieRemoveSubdomains int           `yaml:"oauth2-token-cookie-remove-subdomains"`
-	Oauth2GrantInsecure               bool          `yaml:"oauth2-grant-insecure"`
-	WebhookTimeout                    time.Duration `yaml:"webhook-timeout"`
-	OidcSecretsFile                   string        `yaml:"oidc-secrets-file"`
-	OIDCCookieValidity                time.Duration `yaml:"oidc-cookie-validity"`
-	OidcDistributedClaimsTimeout      time.Duration `yaml:"oidc-distributed-claims-timeout"`
-	OIDCCookieRemoveSubdomains        int           `yaml:"oidc-cookie-remove-subdomains"`
-	CredentialPaths                   *listFlag     `yaml:"credentials-paths"`
-	CredentialsUpdateInterval         time.Duration `yaml:"credentials-update-interval"`
+	EnableOAuth2GrantFlow             bool                         `yaml:"enable-oauth2-grant-flow"`
+	Oauth2AuthURL                     string                       `yaml:"oauth2-auth-url"`
+	Oauth2TokenURL                    string                       `yaml:"oauth2-token-url"`
+	Oauth2RevokeTokenURL              string                       `yaml:"oauth2-revoke-token-url"`
+	Oauth2TokeninfoURL                string                       `yaml:"oauth2-tokeninfo-url"`
+	Oauth2TokeninfoTimeout            time.Duration                `yaml:"oauth2-tokeninfo-timeout"`
+	Oauth2TokeninfoCacheSize          int                          `yaml:"oauth2-tokeninfo-cache-size"`
+	Oauth2TokeninfoCacheTTL           time.Duration                `yaml:"oauth2-tokeninfo-cache-ttl"`
+	Oauth2SecretFile                  string                       `yaml:"oauth2-secret-file"`
+	Oauth2ClientID                    string                       `yaml:"oauth2-client-id"`
+	Oauth2ClientSecret                string                       `yaml:"oauth2-client-secret"`
+	Oauth2ClientIDFile                string                       `yaml:"oauth2-client-id-file"`
+	Oauth2ClientSecretFile            string                       `yaml:"oauth2-client-secret-file"`
+	Oauth2AuthURLParameters           mapFlags                     `yaml:"oauth2-auth-url-parameters"`
+	Oauth2CallbackPath                string                       `yaml:"oauth2-callback-path"`
+	Oauth2TokenintrospectionTimeout   time.Duration                `yaml:"oauth2-tokenintrospect-timeout"`
+	Oauth2AccessTokenHeaderName       string                       `yaml:"oauth2-access-token-header-name"`
+	Oauth2TokeninfoSubjectKey         string                       `yaml:"oauth2-tokeninfo-subject-key"`
+	Oauth2GrantTokeninfoKeys          *listFlag                    `yaml:"oauth2-grant-tokeninfo-keys"`
+	Oauth2TokenCookieName             string                       `yaml:"oauth2-token-cookie-name"`
+	Oauth2TokenCookieRemoveSubdomains int                          `yaml:"oauth2-token-cookie-remove-subdomains"`
+	Oauth2GrantInsecure               bool                         `yaml:"oauth2-grant-insecure"`
+	WebhookTimeout                    time.Duration                `yaml:"webhook-timeout"`
+	OidcSecretsFile                   string                       `yaml:"oidc-secrets-file"`
+	OIDCCookieValidity                time.Duration                `yaml:"oidc-cookie-validity"`
+	OidcDistributedClaimsTimeout      time.Duration                `yaml:"oidc-distributed-claims-timeout"`
+	OIDCCookieRemoveSubdomains        int                          `yaml:"oidc-cookie-remove-subdomains"`
+	OidcProfiles                      *map[string]auth.OidcProfile `yaml:"oidc-profiles"`
+	OidcProfilesFile                  string                       `yaml:"oidc-profiles-file"`
+	CredentialPaths                   *listFlag                    `yaml:"credentials-paths"`
+	CredentialsUpdateInterval         time.Duration                `yaml:"credentials-update-interval"`
 
 	// TLS configuration for the validation webhook
 	ValidationWebhookEnabled  bool   `yaml:"validation-webhook-enabled"`
@@ -382,6 +389,8 @@ func NewConfig() *Config {
 	cfg.CloneRoute = routeChangerConfig{}
 	cfg.EditRoute = routeChangerConfig{}
 	cfg.KubernetesEastWestRangeDomains = commaListFlag()
+	cfg.KubernetesAnnotationsToRouteAnnotations = commaListFlag()
+	cfg.KubernetesLabelsToRouteAnnotations = commaListFlag()
 	cfg.RoutesURLs = commaListFlag()
 	cfg.ForwardedHeadersList = commaListFlag()
 	cfg.ForwardedHeadersExcludeCIDRList = commaListFlag()
@@ -547,6 +556,10 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesEastWestRangePredicatesString, "kubernetes-east-west-range-predicates", "", "set the predicates that will be appended to routes identified as to -kubernetes-east-west-range-domains")
 	flag.Var(&cfg.KubernetesAnnotationPredicatesString, "kubernetes-annotation-predicates", "configures predicates appended to non east-west routes of annotated resources. E.g. -kubernetes-annotation-predicates='zone-a=true=Foo() && Bar()' will add 'Foo() && Bar()' predicates to all non east-west routes of ingress or routegroup annotated with 'zone-a: true'. For east-west routes use -kubernetes-east-west-range-annotation-predicates.")
 	flag.Var(&cfg.KubernetesAnnotationFiltersAppendString, "kubernetes-annotation-filters-append", "configures filters appended to non east-west routes of annotated resources. E.g. -kubernetes-annotation-filters-append='zone-a=true=foo() -> bar()' will add 'foo() -> bar()' filters to all non east-west routes of ingress or routegroup annotated with 'zone-a: true'. For east-west routes use -kubernetes-east-west-range-annotation-filters-append.")
+	flag.Var(cfg.KubernetesAnnotationsToRouteAnnotations, "kubernetes-annotations-to-route-annotations", "comma-separated list of Kubernetes resource annotation keys whose values are automatically injected as annotate() filters into routes, making them available to oauthOidc* profile filters via {{index .Annotations \"key\"}}")
+	flag.StringVar(&cfg.KubernetesAnnotationsToRouteAnnotationsPrefix, "kubernetes-annotations-to-route-annotations-prefix", "", "prefix prepended to the key in annotate() filters generated from -kubernetes-annotations-to-route-annotations; no separator is added between prefix and key")
+	flag.Var(cfg.KubernetesLabelsToRouteAnnotations, "kubernetes-labels-to-route-annotations", "comma-separated list of Kubernetes resource label keys whose values are automatically injected as annotate() filters into routes, making them available to oauthOidc* profile filters via {{index .Annotations \"key\"}}")
+	flag.StringVar(&cfg.KubernetesLabelsToRouteAnnotationsPrefix, "kubernetes-labels-to-route-annotations-prefix", "", "prefix prepended to the key in annotate() filters generated from -kubernetes-labels-to-route-annotations; no separator is added between prefix and key")
 	flag.Var(&cfg.KubernetesEastWestRangeAnnotationPredicatesString, "kubernetes-east-west-range-annotation-predicates", "similar to -kubernetes-annotation-predicates configures predicates appended to east-west routes of annotated resources. See also -kubernetes-east-west-range-domains.")
 	flag.Var(&cfg.KubernetesEastWestRangeAnnotationFiltersAppendString, "kubernetes-east-west-range-annotation-filters-append", "similar to -kubernetes-annotation-filters-append configures filters appended to east-west routes of annotated resources. See also -kubernetes-east-west-range-domains.")
 	flag.BoolVar(&cfg.EnableKubernetesExternalNames, "enable-kubernetes-external-names", false, "only if enabled we allow to use external name services as backends in Ingress")
@@ -599,6 +612,8 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.OIDCCookieValidity, "oidc-cookie-validity", time.Hour, "sets the cookie expiry time to +1h for OIDC filters, when no 'exp' claim is found in the JWT token")
 	flag.DurationVar(&cfg.OidcDistributedClaimsTimeout, "oidc-distributed-claims-timeout", 2*time.Second, "sets the default OIDC distributed claims request timeout duration to 2000ms")
 	flag.IntVar(&cfg.OIDCCookieRemoveSubdomains, "oidc-cookie-remove-subdomains", 1, "sets the number of subdomains to remove from the callback request hostname to obtain token cookie domain")
+	flag.Var(newYamlFlag(&cfg.OidcProfiles), "oidc-profiles", "named OIDC profile configurations in YAML format; profiles can be referenced by oauthOidc* filters via the \"profile:<name>\" first-argument syntax; mutually exclusive with -oidc-profiles-file")
+	flag.StringVar(&cfg.OidcProfilesFile, "oidc-profiles-file", "", "path to a YAML file containing named OIDC profile configurations; the file must be a YAML map of profile name to OidcProfile struct; mutually exclusive with -oidc-profiles")
 	flag.Var(cfg.CredentialPaths, "credentials-paths", "directories or files to watch for credentials to use by bearerinjector filter")
 	flag.DurationVar(&cfg.CredentialsUpdateInterval, "credentials-update-interval", 10*time.Minute, "sets the interval to update secrets")
 	flag.BoolVar(&cfg.EnableOpenPolicyAgent, "enable-open-policy-agent", false, "enables Open Policy Agent filters")
@@ -996,6 +1011,10 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesEastWestRangeAnnotationFiltersAppend: c.KubernetesEastWestRangeAnnotationFiltersAppend,
 		KubernetesAnnotationPredicates:                 c.KubernetesAnnotationPredicates,
 		KubernetesAnnotationFiltersAppend:              c.KubernetesAnnotationFiltersAppend,
+		KubernetesAnnotationsToRouteAnnotations:        c.KubernetesAnnotationsToRouteAnnotations.values,
+		KubernetesAnnotationsToRouteAnnotationsPrefix:  c.KubernetesAnnotationsToRouteAnnotationsPrefix,
+		KubernetesLabelsToRouteAnnotations:             c.KubernetesLabelsToRouteAnnotations.values,
+		KubernetesLabelsToRouteAnnotationsPrefix:       c.KubernetesLabelsToRouteAnnotationsPrefix,
 		EnableKubernetesExternalNames:                  c.EnableKubernetesExternalNames,
 		KubernetesOnlyAllowedExternalNames:             c.KubernetesOnlyAllowedExternalNames,
 		KubernetesAllowedExternalNames:                 c.KubernetesAllowedExternalNames,
@@ -1047,6 +1066,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OIDCCookieValidity:                c.OIDCCookieValidity,
 		OIDCDistributedClaimsTimeout:      c.OidcDistributedClaimsTimeout,
 		OIDCCookieRemoveSubdomains:        c.OIDCCookieRemoveSubdomains,
+		OidcProfiles:                      c.oidcProfilesMap(),
 		CredentialsPaths:                  c.CredentialPaths.values,
 		CredentialsUpdateInterval:         c.CredentialsUpdateInterval,
 		ValidationWebhookEnabled:          c.ValidationWebhookEnabled,
@@ -1430,4 +1450,27 @@ func parseAnnotationConfig[T any](kvvs []string, parseValue func(annotationKey, 
 		result = append(result, v)
 	}
 	return result, nil
+}
+
+// oidcProfilesMap returns the configured OidcProfile map, or nil when no profiles are configured.
+// Exactly one of -oidc-profiles and -oidc-profiles-file may be set; using both is a fatal error.
+func (c *Config) oidcProfilesMap() map[string]auth.OidcProfile {
+	if c.OidcProfiles != nil && c.OidcProfilesFile != "" {
+		log.Fatal("cannot use both -oidc-profiles and -oidc-profiles-file")
+	}
+	if c.OidcProfiles != nil {
+		return *c.OidcProfiles
+	}
+	if c.OidcProfilesFile != "" {
+		data, err := os.ReadFile(c.OidcProfilesFile)
+		if err != nil {
+			log.Fatalf("cannot read -oidc-profiles-file %q: %v", c.OidcProfilesFile, err)
+		}
+		var profiles map[string]auth.OidcProfile
+		if err := yaml.Unmarshal(data, &profiles); err != nil {
+			log.Fatalf("cannot parse -oidc-profiles-file %q: %v", c.OidcProfilesFile, err)
+		}
+		return profiles
+	}
+	return nil
 }

@@ -1953,6 +1953,7 @@ oauthOidcAnyClaims("https://oidc-provider.example.com",
 ```
 
 When using `secretRef:`, Skipper expects the referenced secret to be available via the configured secrets reader; if the secret cannot be resolved, filter creation fails.
+
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
@@ -2066,6 +2067,126 @@ oidcClaimsQuery("/:name%\"*One\"", "/path:groups.#[%\"*-Test-Users\"] groups.#[=
 ```
 
 As of now there is no negative/deny rule possible. The first matching path is evaluated against the defined query/queries and if positive, permitted.
+
+#### OIDC Profiles
+
+Instead of embedding OIDC connection parameters in every filter call, you can define **named profiles** in a YAML configuration file and reference them using the `profile:<name>` syntax as the first argument to any `oauthOidc*` filter:
+
+```
+oauthOidcAnyClaims("profile:myprofile", "claim1 claim2")
+oauthOidcAllClaims("profile:myprofile", "claim1 claim2")
+oauthOidcUserInfo("profile:myprofile")
+```
+
+Only the optional claims argument (second positional arg) can be supplied alongside the profile reference. All other connection parameters (IdpURL, ClientID, ClientSecret, CallbackURL, Scopes, AuthCodeOpts, UpstreamHeaders, SubdomainsToRemove, CookieName) come from the profile definition.
+
+##### Defining profiles
+
+Pass a YAML map of `name → OidcProfile` to the `-oidc-profiles` flag:
+
+```
+skipper -oidc-secrets-file /path/to/secrets \
+  -oidc-profiles '{myprofile: {idp-url: "https://idp.example.com", client-id: "my-client", client-secret: "secretRef:my-secret", callback-url: "https://app.example.com/.well-known/oauth2-callback", scopes: "email profile"}}'
+```
+
+Or use a YAML config file:
+
+```yaml
+oidc-profiles:
+  myprofile:
+    idp-url: https://idp.example.com
+    client-id: my-client-id
+    client-secret: secretRef:my-client-secret
+    callback-url: https://app.example.com/.well-known/oauth2-callback
+    scopes: email profile
+```
+
+The **Client ID** and **Client Secret** profile fields also support the `secretRef:` prefix to read values from Skipper's secrets registry:
+
+```yaml
+oidc-profiles:
+  myprofile:
+    idp-url: https://idp.example.com
+    client-id: secretRef:/mnt/secrets/oidc-client-id
+    client-secret: secretRef:/mnt/secrets/oidc-client-secret
+    callback-url: https://app.example.com/.well-known/oauth2-callback
+```
+
+##### Go template fields
+
+All profile fields except `idp-url` support Go [`text/template`](https://pkg.go.dev/text/template) syntax, resolved at request time:
+
+| Template expression | Value |
+| ------------------- | ----- |
+| `{{.Request.Host}}` | Request hostname (from the `Host` header) |
+| `{{index .Annotations "key"}}` | Value set by a preceding `annotate()` filter |
+
+This enables multi-tenant deployments where OIDC parameters are derived from the incoming request or from Kubernetes resource annotations:
+
+```yaml
+oidc-profiles:
+  multi-tenant:
+    idp-url: https://idp.example.com
+    client-id: '{{index .Annotations "oidc/client-id"}}'
+    client-secret: '{{index .Annotations "oidc/client-secret"}}'
+    callback-url: 'https://{{.Request.Host}}/.well-known/oauth2-callback'
+    scopes: email profile
+```
+
+**Note:** `idp-url` must be a static URL — template expressions are rejected. The provider is discovered once at filter creation time.
+
+##### Annotation and label injection from Kubernetes resources
+
+To make Kubernetes Ingress or RouteGroup annotation values available to profile templates via `{{index .Annotations "key"}}`, use the `-kubernetes-annotations-to-route-annotations` flag:
+
+```
+skipper -kubernetes-annotations-to-route-annotations=oidc/client-id,oidc/client-secret
+```
+
+When this flag is set, the Kubernetes dataclient automatically prepends `annotate(key, value)` filters to every route generated from a resource that carries one of the configured annotation keys. The injected annotation values then become accessible to the OIDC profile filter at request time.
+
+To inject Kubernetes **label** values instead (or in addition), use the `-kubernetes-labels-to-route-annotations` flag:
+
+```
+skipper -kubernetes-labels-to-route-annotations=tenant,environment
+```
+
+This works identically to the annotation flag but reads from the resource's `labels` map.
+
+**Kubernetes Ingress example:**
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    oidc/client-id: tenant-abc-client
+    oidc/client-secret: secretRef:/mnt/secrets/oidc-secret
+    zalando.org/skipper-filter: 'oauthOidcAnyClaims("profile:multi-tenant", "groups")'
+spec:
+  rules:
+  - host: tenant-abc.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: my-service
+            port:
+              number: 80
+```
+
+Skipper arguments:
+
+| Argument | Required? | Description |
+| -------- | --------- | ----------- |
+| `-oidc-profiles` | no | Named OIDC profile configurations in YAML format. Maps profile name to an `OidcProfile` struct. Mutually exclusive with `-oidc-profiles-file`. |
+| `-oidc-profiles-file` | no | Path to a YAML file containing named OIDC profile configurations (a map of profile name to `OidcProfile` struct). Mutually exclusive with `-oidc-profiles`. |
+| `-kubernetes-annotations-to-route-annotations` | no | Comma-separated list of Kubernetes resource annotation keys whose values are automatically injected as `annotate()` filters into generated routes, making them accessible to OIDC profile templates. |
+| `-kubernetes-annotations-to-route-annotations-prefix` | no | Optional prefix prepended to the key in each generated `annotate()` filter call. No separator is added. Example: prefix `k8s:` + Ingress / RouteGroup annotation `oidc/cid` → `annotate("k8s:oidc/cid", value)`. |
+| `-kubernetes-labels-to-route-annotations` | no | Comma-separated list of Kubernetes resource label keys whose values are automatically injected as `annotate()` filters into generated routes, making them accessible to OIDC profile templates. |
+| `-kubernetes-labels-to-route-annotations-prefix` | no | Optional prefix prepended to the key in each generated `annotate()` filter call for labels. No separator is added. |
 
 ### Open Policy Agent
 

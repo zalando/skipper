@@ -197,6 +197,9 @@ func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *d
 		return fmt.Errorf("error while getting service: %w", err)
 	}
 
+	injectAnnotateFilters(ic.ingressV1.Metadata.Annotations, ing.annotationsToRouteAnnotations, ing.annotationsToRouteAnnotationsPrefix, endpointsRoute)
+	injectAnnotateFilters(ic.ingressV1.Metadata.Labels, ing.labelsToRouteAnnotations, ing.labelsToRouteAnnotationsPrefix, endpointsRoute)
+
 	if endpointsRoute.BackendType != eskip.ShuntBackend {
 		// safe prepend, see: https://play.golang.org/p/zg5aGKJpRyK
 		filters := make([]*eskip.Filter, len(endpointsRoute.Filters)+len(ic.annotationFilters))
