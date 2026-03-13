@@ -294,6 +294,17 @@ type Options struct {
 	// KubernetesAnnotationFiltersAppend sets filters to append for each annotation key and value
 	KubernetesAnnotationFiltersAppend []kubernetes.AnnotationFilters
 
+	// KubernetesAnnotationsToRouteAnnotations is a list of Kubernetes resource annotation keys
+	// whose values are automatically injected as annotate() filters into routes generated from
+	// those resources. This makes the annotation values accessible to oauthOidc* profile filters
+	// via {{index .Annotations "key"}}.
+	KubernetesAnnotationsToRouteAnnotations []string
+
+	// KubernetesAnnotationsToRouteAnnotationsPrefix is an optional prefix prepended to the key
+	// in the generated annotate() filter call.
+	// No separator is added between prefix and key.
+	KubernetesAnnotationsToRouteAnnotationsPrefix string
+
 	// EnableKubernetesExternalNames enables to use Kubernetes service type ExternalName as backend in Ingress and RouteGroup.
 	EnableKubernetesExternalNames bool
 
@@ -951,6 +962,10 @@ type Options struct {
 	// the callback request hostname to obtain token cookie domain.
 	OIDCCookieRemoveSubdomains int
 
+	// OidcProfiles is a map of named OIDC profile configurations. Profiles can be
+	// referenced by oauthOidc* filters via the "profile:<name>" first-argument syntax.
+	OidcProfiles map[string]auth.OidcProfile
+
 	// SecretsRegistry to store and load secretsencrypt
 	SecretsRegistry *secrets.Registry
 
@@ -1093,6 +1108,8 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		KubernetesEastWestRangeAnnotationFiltersAppend: o.KubernetesEastWestRangeAnnotationFiltersAppend,
 		KubernetesAnnotationPredicates:                 o.KubernetesAnnotationPredicates,
 		KubernetesAnnotationFiltersAppend:              o.KubernetesAnnotationFiltersAppend,
+		AnnotationsToRouteAnnotations:                  o.KubernetesAnnotationsToRouteAnnotations,
+		AnnotationsToRouteAnnotationsPrefix:            o.KubernetesAnnotationsToRouteAnnotationsPrefix,
 		HTTPSRedirectCode:                              o.KubernetesHTTPSRedirectCode,
 		DisableCatchAllRoutes:                          o.KubernetesDisableCatchAllRoutes,
 		IngressClass:                                   o.KubernetesIngressClass,
@@ -1909,6 +1926,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			OidcClientId:                oidcClientId,
 			OidcClientSecret:            oidcClientSecret,
 			SecretsReader:               sp,
+			Profiles:                    o.OidcProfiles,
 		}
 
 		o.CustomFilters = append(o.CustomFilters,

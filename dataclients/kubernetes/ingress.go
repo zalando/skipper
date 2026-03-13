@@ -70,6 +70,8 @@ type ingress struct {
 	kubernetesAnnotationFiltersAppend              []AnnotationFilters
 	kubernetesEastWestRangeAnnotationPredicates    []AnnotationPredicates
 	kubernetesEastWestRangeAnnotationFiltersAppend []AnnotationFilters
+	annotationsToRouteAnnotations                  []string
+	annotationsToRouteAnnotationsPrefix            string
 }
 
 var (
@@ -121,6 +123,8 @@ func newIngress(o Options) *ingress {
 		kubernetesAnnotationFiltersAppend:              o.KubernetesAnnotationFiltersAppend,
 		kubernetesEastWestRangeAnnotationPredicates:    o.KubernetesEastWestRangeAnnotationPredicates,
 		kubernetesEastWestRangeAnnotationFiltersAppend: o.KubernetesEastWestRangeAnnotationFiltersAppend,
+		annotationsToRouteAnnotations:                  o.AnnotationsToRouteAnnotations,
+		annotationsToRouteAnnotationsPrefix:            o.AnnotationsToRouteAnnotationsPrefix,
 	}
 }
 

@@ -600,6 +600,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 			}
 
 			for _, route := range ri {
+				injectAnnotateFilters(rg.Metadata.Annotations, r.options.AnnotationsToRouteAnnotations, r.options.AnnotationsToRouteAnnotationsPrefix, route)
 				appendAnnotationPredicates(r.options.KubernetesAnnotationPredicates, rg.Metadata.Annotations, route)
 				appendAnnotationFilters(r.options.KubernetesAnnotationFiltersAppend, rg.Metadata.Annotations, route)
 			}
@@ -644,6 +645,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 
 			applyEastWestRangePredicates(internalRi, r.options.KubernetesEastWestRangePredicates)
 			for _, route := range internalRi {
+				injectAnnotateFilters(rg.Metadata.Annotations, r.options.AnnotationsToRouteAnnotations, r.options.AnnotationsToRouteAnnotationsPrefix, route)
 				appendAnnotationPredicates(r.options.KubernetesEastWestRangeAnnotationPredicates, rg.Metadata.Annotations, route)
 				appendAnnotationFilters(r.options.KubernetesEastWestRangeAnnotationFiltersAppend, rg.Metadata.Annotations, route)
 			}

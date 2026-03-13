@@ -223,6 +223,15 @@ type Options struct {
 	// KubernetesAnnotationFiltersAppend sets filters to append for each annotation key and value
 	KubernetesAnnotationFiltersAppend []AnnotationFilters
 
+	// AnnotationsToRouteAnnotations is a list of Kubernetes resource annotation keys whose values
+	// are automatically injected as annotate() filters into routes generated from those resources.
+	AnnotationsToRouteAnnotations []string
+
+	// AnnotationsToRouteAnnotationsPrefix is an optional string prepended to the key in the
+	// generated annotate() filter call. The K8s annotation lookup key is unchanged.
+	// No separator is added between prefix and key.
+	AnnotationsToRouteAnnotationsPrefix string
+
 	// DefaultFiltersDir enables default filters mechanism and sets the location of the default filters.
 	// The provided filters are then applied to all routes.
 	DefaultFiltersDir string
