@@ -119,46 +119,28 @@ func TestResolveField(t *testing.T) {
 }
 
 func TestResolvedProfileCacheKey(t *testing.T) {
-	t.Run("same fields produce same key", func(t *testing.T) {
-		r1 := &resolvedProfile{
-			clientID:     "client-a",
-			clientSecret: "secret-a",
-			callbackURL:  "https://app.example.com/callback",
-			scopes:       "email profile",
-		}
-		r2 := &resolvedProfile{
-			clientID:     "client-a",
-			clientSecret: "secret-a",
-			callbackURL:  "https://app.example.com/callback",
-			scopes:       "email profile",
-		}
-		assert.Equal(t, r1.cacheKey(), r2.cacheKey())
+	r := &resolvedProfile{}
+
+	t.Run("same name and host produce same key", func(t *testing.T) {
+		assert.Equal(t, r.cacheKey("myprofile", "app.example.com"), r.cacheKey("myprofile", "app.example.com"))
 	})
 
-	t.Run("different clientID produces different key", func(t *testing.T) {
-		r1 := &resolvedProfile{clientID: "client-a"}
-		r2 := &resolvedProfile{clientID: "client-b"}
-		assert.NotEqual(t, r1.cacheKey(), r2.cacheKey())
+	t.Run("different profile name produces different key", func(t *testing.T) {
+		assert.NotEqual(t, r.cacheKey("profile-a", "app.example.com"), r.cacheKey("profile-b", "app.example.com"))
 	})
 
-	t.Run("different scopes produces different key", func(t *testing.T) {
-		r1 := &resolvedProfile{clientID: "c", scopes: "email"}
-		r2 := &resolvedProfile{clientID: "c", scopes: "email profile"}
-		assert.NotEqual(t, r1.cacheKey(), r2.cacheKey())
+	t.Run("different host produces different key", func(t *testing.T) {
+		assert.NotEqual(t, r.cacheKey("myprofile", "tenant-a.example.com"), r.cacheKey("myprofile", "tenant-b.example.com"))
 	})
 
-	t.Run("key is non-empty hex string", func(t *testing.T) {
-		r := &resolvedProfile{clientID: "c", clientSecret: "s"}
-		key := r.cacheKey()
-		assert.NotEmpty(t, key)
-		// SHA-256 hex = 64 chars
-		assert.Len(t, key, 64)
+	t.Run("credential values do not affect key", func(t *testing.T) {
+		r1 := &resolvedProfile{clientID: "client-a", clientSecret: "secret-a"}
+		r2 := &resolvedProfile{clientID: "client-b", clientSecret: "secret-b"}
+		assert.Equal(t, r1.cacheKey("myprofile", "app.example.com"), r2.cacheKey("myprofile", "app.example.com"))
 	})
 
-	t.Run("field order matters - clientID vs cookieName not interchangeable", func(t *testing.T) {
-		r1 := &resolvedProfile{clientID: "value", cookieName: ""}
-		r2 := &resolvedProfile{clientID: "", cookieName: "value"}
-		assert.NotEqual(t, r1.cacheKey(), r2.cacheKey())
+	t.Run("key is non-empty", func(t *testing.T) {
+		assert.NotEmpty(t, r.cacheKey("myprofile", "app.example.com"))
 	})
 }
 
@@ -226,7 +208,6 @@ func TestTokenOidcProfileFilterResolveAll(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.NotEqual(t, r1.clientID, r2.clientID)
-		assert.NotEqual(t, r1.cacheKey(), r2.cacheKey())
 	})
 
 	t.Run("same annotations produce same cache key", func(t *testing.T) {
@@ -247,7 +228,7 @@ func TestTokenOidcProfileFilterResolveAll(t *testing.T) {
 		r2, err := f.resolveAll(data)
 		require.NoError(t, err)
 
-		assert.Equal(t, r1.cacheKey(), r2.cacheKey())
+		assert.Equal(t, r1.cacheKey(f.name, data.Request.Host), r2.cacheKey(f.name, data.Request.Host))
 	})
 
 	t.Run("subdomains to remove field resolved", func(t *testing.T) {
@@ -297,5 +278,5 @@ func TestOidcProfileDelegateCaching(t *testing.T) {
 	r2, err := f.resolveAll(data)
 	require.NoError(t, err)
 
-	assert.Equal(t, r1.cacheKey(), r2.cacheKey(), "same input should produce the same cache key")
+	assert.Equal(t, r1.cacheKey(f.name, data.Request.Host), r2.cacheKey(f.name, data.Request.Host), "same input should produce the same cache key")
 }

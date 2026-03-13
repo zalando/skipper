@@ -202,16 +202,24 @@ func NewOAuthOidcAllClaims(secretsFile string, secretsRegistry secrets.Encrypter
 	return NewOAuthOidcAllClaimsWithOptions(secretsFile, secretsRegistry, OidcOptions{})
 }
 
-// CreateFilter creates an OpenID Connect authorization filter.
-//
-// first arg: a provider, for example "https://accounts.google.com",
-// which has the path /.well-known/openid-configuration
-//
-// Example:
-//
-//	oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
-//	"http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2", "<optional>", "<optional>", "<optional>") -> "https://internal.example.org";
-//
+// commonFilterParams returns the three filter construction parameters that are
+// shared between CreateFilter and createProfileFilter.
+func (s *tokenOidcSpec) commonFilterParams() (encrypter secrets.Encryption, validity time.Duration, subdomainsToRemove int, err error) {
+	encrypter, err = s.secretsRegistry.GetEncrypter(1*time.Minute, s.SecretsFile)
+	if err != nil {
+		return
+	}
+	validity = s.options.CookieValidity
+	if validity == 0 {
+		validity = defaultCookieValidity
+	}
+	subdomainsToRemove = 1
+	if s.options.CookieRemoveSubdomains != nil {
+		subdomainsToRemove = *s.options.CookieRemoveSubdomains
+	}
+	return
+}
+
 // createProfileFilter handles the "profile:<name>" first-arg syntax.
 func (s *tokenOidcSpec) createProfileFilter(sargs []string) (filters.Filter, error) {
 	name := strings.TrimPrefix(sargs[0], oidcProfilePrefix)
@@ -233,19 +241,9 @@ func (s *tokenOidcSpec) createProfileFilter(sargs []string) (filters.Filter, err
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	encrypter, err := s.secretsRegistry.GetEncrypter(1*time.Minute, s.SecretsFile)
+	encrypter, validity, subdomainsToRemove, err := s.commonFilterParams()
 	if err != nil {
 		return nil, err
-	}
-
-	validity := s.options.CookieValidity
-	if validity == 0 {
-		validity = defaultCookieValidity
-	}
-
-	subdomainsToRemove := 1
-	if s.options.CookieRemoveSubdomains != nil {
-		subdomainsToRemove = *s.options.CookieRemoveSubdomains
 	}
 
 	var claims []string
@@ -255,6 +253,7 @@ func (s *tokenOidcSpec) createProfileFilter(sargs []string) (filters.Filter, err
 
 	profileCopy := profile
 	return newProfileFilter(
+		name,
 		s.typ,
 		&profileCopy,
 		claims,
@@ -267,6 +266,15 @@ func (s *tokenOidcSpec) createProfileFilter(sargs []string) (filters.Filter, err
 	), nil
 }
 
+// CreateFilter creates an OpenID Connect authorization filter.
+//
+// first arg: a provider, for example "https://accounts.google.com",
+// which has the path /.well-known/openid-configuration
+//
+// Example:
+//
+//	oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
+//	"http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2", "<optional>", "<optional>", "<optional>") -> "https://internal.example.org";
 func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
@@ -321,15 +329,11 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, fmt.Errorf("invalid redirect url '%s': %w", sargs[paramCallbackURL], err)
 	}
 
-	encrypter, err := s.secretsRegistry.GetEncrypter(1*time.Minute, s.SecretsFile)
+	encrypter, validity, subdomainsToRemove, err := s.commonFilterParams()
 	if err != nil {
 		return nil, err
 	}
 
-	subdomainsToRemove := 1
-	if s.options.CookieRemoveSubdomains != nil {
-		subdomainsToRemove = *s.options.CookieRemoveSubdomains
-	}
 	if len(sargs) > paramSubdomainsToRemove && sargs[paramSubdomainsToRemove] != "" {
 		subdomainsToRemove, err = strconv.Atoi(sargs[paramSubdomainsToRemove])
 		if err != nil {
@@ -338,11 +342,6 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	}
 	if subdomainsToRemove < 0 {
 		return nil, fmt.Errorf("domain level cannot be negative '%d'", subdomainsToRemove)
-	}
-
-	validity := s.options.CookieValidity
-	if validity == 0 {
-		validity = defaultCookieValidity
 	}
 
 	oidcClientId := sargs[paramClientID]
