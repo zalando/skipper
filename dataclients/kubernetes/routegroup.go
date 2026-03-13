@@ -188,7 +188,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 		return targetPortNotFound(backend.ServiceName, backend.ServicePort)
 	}
 
-	eps, isZoneTargets := ctx.state.GetEndpointsByTarget(
+	eps, zoneTarget := ctx.state.GetEndpointsByTarget(
 		ctx.zone,
 		namespaceString(ctx.routeGroup.Metadata.Namespace),
 		s.Meta.Name,
@@ -211,7 +211,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 	}
 
 	r.BackendType = eskip.LBBackend
-	if isZoneTargets {
+	if zoneTarget {
 		for _, ep := range eps {
 			r.LBEndpoints = append(r.LBEndpoints, &eskip.LBEndpoint{Address: ep, Zone: ctx.zone})
 		}
