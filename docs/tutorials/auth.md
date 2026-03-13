@@ -323,7 +323,7 @@ oidc-profiles:
     callback-url: https://app.example.com/auth/callback
 ```
 
-#### Automatic annotation injection in Kubernetes
+#### Automatic annotation and label injection in Kubernetes
 
 When using Kubernetes Ingress or RouteGroups, you can drive profile template values from annotations on the resource itself. Start Skipper with `-kubernetes-annotations-to-route-annotations` listing the annotation keys to inject:
 
@@ -341,6 +341,15 @@ skipper -kubernetes-annotations-to-route-annotations=oidc/client-id \
 ```
 
 With this prefix, the annotation `oidc/client-id` on a resource produces `annotate("k8s:oidc/client-id", value)`, and the template would use `{{index .Annotations "k8s:oidc/client-id"}}`.
+
+The equivalent flags `-kubernetes-labels-to-route-annotations` and `-kubernetes-labels-to-route-annotations-prefix` work identically but read from the resource's Kubernetes **labels** instead of annotations:
+
+```
+skipper -kubernetes-labels-to-route-annotations=tenant \
+        -kubernetes-labels-to-route-annotations-prefix=label:
+```
+
+Both flags can be used together to inject values from both annotations and labels into the same route.
 
 Full example — Kubernetes Ingress:
 

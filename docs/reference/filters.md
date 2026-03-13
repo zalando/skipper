@@ -2158,7 +2158,7 @@ oidc-profiles:
 
 **Note:** `idp-url` must be a static URL — template expressions are rejected. The provider is discovered once at filter creation time.
 
-##### Annotation injection from Kubernetes resources
+##### Annotation and label injection from Kubernetes resources
 
 To make Kubernetes Ingress or RouteGroup annotation values available to profile templates via `{{index .Annotations "key"}}`, use the `-kubernetes-annotations-to-route-annotations` flag:
 
@@ -2167,6 +2167,14 @@ skipper -kubernetes-annotations-to-route-annotations=oidc/client-id,oidc/client-
 ```
 
 When this flag is set, the Kubernetes dataclient automatically prepends `annotate(key, value)` filters to every route generated from a resource that carries one of the configured annotation keys. The injected annotation values then become accessible to the OIDC profile filter at request time.
+
+To inject Kubernetes **label** values instead (or in addition), use the `-kubernetes-labels-to-route-annotations` flag:
+
+```
+skipper -kubernetes-labels-to-route-annotations=tenant,environment
+```
+
+This works identically to the annotation flag but reads from the resource's `labels` map.
 
 **Kubernetes Ingress example:**
 
@@ -2200,6 +2208,8 @@ Skipper arguments:
 | `-oidc-profiles-file` | no | Path to a YAML file containing named OIDC profile configurations (a map of profile name to `OidcProfile` struct). Mutually exclusive with `-oidc-profiles`. |
 | `-kubernetes-annotations-to-route-annotations` | no | Comma-separated list of Kubernetes resource annotation keys whose values are automatically injected as `annotate()` filters into generated routes, making them accessible to OIDC profile templates. |
 | `-kubernetes-annotations-to-route-annotations-prefix` | no | Optional prefix prepended to the key in each generated `annotate()` filter call. No separator is added. Example: prefix `k8s:` + Ingress / RouteGroup annotation `oidc/cid` → `annotate("k8s:oidc/cid", value)`. |
+| `-kubernetes-labels-to-route-annotations` | no | Comma-separated list of Kubernetes resource label keys whose values are automatically injected as `annotate()` filters into generated routes, making them accessible to OIDC profile templates. |
+| `-kubernetes-labels-to-route-annotations-prefix` | no | Optional prefix prepended to the key in each generated `annotate()` filter call for labels. No separator is added. |
 
 ### Open Policy Agent
 
