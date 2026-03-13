@@ -279,7 +279,7 @@ oidc-profiles:
     idp-url: https://idp.example.com
     client-id: my-client-id
     client-secret: my-client-secret
-    callback-url: https://app.example.com/auth/callback
+    callback-url: https://app.example.com/.well-known/oauth2-callback
     scopes: email profile
 ```
 
@@ -306,7 +306,7 @@ oidc-profiles:
     idp-url: https://idp.example.com
     client-id: '{{index .Annotations "oidc/client-id"}}'
     client-secret: '{{index .Annotations "oidc/client-secret"}}'
-    callback-url: 'https://{{.Request.Host}}/auth/callback'
+    callback-url: 'https://{{.Request.Host}}/.well-known/oauth2-callback'
     scopes: email profile
 ```
 
@@ -320,7 +320,7 @@ oidc-profiles:
     idp-url: https://idp.example.com
     client-id: secretRef:/mnt/secrets/oidc-client-id
     client-secret: secretRef:/mnt/secrets/oidc-client-secret
-    callback-url: https://app.example.com/auth/callback
+    callback-url: https://app.example.com/.well-known/oauth2-callback
 ```
 
 #### Automatic annotation and label injection in Kubernetes
