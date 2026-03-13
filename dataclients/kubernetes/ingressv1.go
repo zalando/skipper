@@ -154,8 +154,7 @@ func convertPathRuleV1(
 		return r, nil
 	}
 
-	var r *eskip.Route
-	r = &eskip.Route{
+	r := &eskip.Route{
 		Id:          routeID(ns, name, host, prule.Path, svcName),
 		BackendType: eskip.LBBackend,
 		LBAlgorithm: getLoadBalancerAlgorithm(metadata, defaultLoadBalancerAlgorithm),
@@ -424,8 +423,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		}, true, nil
 	}
 
-	var r *eskip.Route
-	r = &eskip.Route{
+	r := &eskip.Route{
 		Id:          routeID(ns, name, "", "", ""),
 		BackendType: eskip.LBBackend,
 		LBAlgorithm: getLoadBalancerAlgorithm(i.Metadata, ing.defaultLoadBalancerAlgorithm),
