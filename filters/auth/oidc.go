@@ -220,6 +220,44 @@ func (s *tokenOidcSpec) commonFilterParams() (encrypter secrets.Encryption, vali
 	return
 }
 
+// parseAuthCodeOpts parses a space-separated list of "key=value" auth code option pairs.
+// Values that equal "skipper-request-query" are collected as query parameter names instead
+// of fixed auth code options. The key=value split uses SplitN with limit 2 so that values
+// containing "=" (e.g. Base64-encoded strings) are handled correctly.
+func parseAuthCodeOpts(opts string) (authCodeOptions []oauth2.AuthCodeOption, queryParams []string, err error) {
+	if opts == "" {
+		return nil, nil, nil
+	}
+	for _, p := range strings.Split(opts, " ") {
+		splitP := strings.SplitN(p, "=", 2)
+		if len(splitP) != 2 {
+			return nil, nil, fmt.Errorf("%w: auth code option %q must be key=value", filters.ErrInvalidFilterParameters, p)
+		}
+		if splitP[1] == "skipper-request-query" {
+			queryParams = append(queryParams, splitP[0])
+		} else {
+			authCodeOptions = append(authCodeOptions, oauth2.SetAuthURLParam(splitP[0], splitP[1]))
+		}
+	}
+	return authCodeOptions, queryParams, nil
+}
+
+// parseUpstreamHeaders parses a space-separated list of "key:value" upstream header pairs.
+func parseUpstreamHeaders(headers string) (map[string]string, error) {
+	if headers == "" {
+		return nil, nil
+	}
+	result := make(map[string]string)
+	for _, header := range strings.Split(headers, " ") {
+		k, v, found := strings.Cut(header, ":")
+		if !found || k == "" || v == "" {
+			return nil, fmt.Errorf("%w: malformed upstream header %q", filters.ErrInvalidFilterParameters, header)
+		}
+		result[k] = v
+	}
+	return result, nil
+}
+
 // createProfileFilter handles the "profile:<name>" first-arg syntax.
 func (s *tokenOidcSpec) createProfileFilter(sargs []string) (filters.Filter, error) {
 	name := strings.TrimPrefix(sargs[0], oidcProfilePrefix)
@@ -397,36 +435,26 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		f.claims = strings.Split(sargs[paramClaims], " ")
 	}
 
-	f.authCodeOptions = make([]oauth2.AuthCodeOption, 0)
-	if len(sargs) > paramAuthCodeOpts && sargs[paramAuthCodeOpts] != "" {
-		extraParameters := strings.Split(sargs[paramAuthCodeOpts], " ")
-
-		for _, p := range extraParameters {
-			splitP := strings.Split(p, "=")
-			log.Debug(splitP)
-			if len(splitP) != 2 {
-				return nil, filters.ErrInvalidFilterParameters
-			}
-			if splitP[1] == "skipper-request-query" {
-				f.queryParams = append(f.queryParams, splitP[0])
-			} else {
-				f.authCodeOptions = append(f.authCodeOptions, oauth2.SetAuthURLParam(splitP[0], splitP[1]))
-			}
-		}
+	var authCodeOptsStr string
+	if len(sargs) > paramAuthCodeOpts {
+		authCodeOptsStr = sargs[paramAuthCodeOpts]
+	}
+	f.authCodeOptions, f.queryParams, err = parseAuthCodeOpts(authCodeOptsStr)
+	if err != nil {
+		return nil, err
 	}
 	log.Debugf("Auth Code Options: %v", f.authCodeOptions)
 
 	// inject additional headers from the access token for upstream applications
-	if len(sargs) > paramUpstrHeaders && sargs[paramUpstrHeaders] != "" {
-		f.upstreamHeaders = make(map[string]string)
-
-		for _, header := range strings.Split(sargs[paramUpstrHeaders], " ") {
-			k, v, found := strings.Cut(header, ":")
-			if !found || k == "" || v == "" {
-				return nil, fmt.Errorf("%w: malformed filter for upstream headers %s", filters.ErrInvalidFilterParameters, header)
-			}
-			f.upstreamHeaders[k] = v
-		}
+	var upstreamHeadersStr string
+	if len(sargs) > paramUpstrHeaders {
+		upstreamHeadersStr = sargs[paramUpstrHeaders]
+	}
+	f.upstreamHeaders, err = parseUpstreamHeaders(upstreamHeadersStr)
+	if err != nil {
+		return nil, err
+	}
+	if f.upstreamHeaders != nil {
 		log.Debugf("Upstream Headers: %v", f.upstreamHeaders)
 	}
 

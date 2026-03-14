@@ -124,12 +124,22 @@ type resolvedProfile struct {
 	cookieName         string
 }
 
-// cacheKey returns a stable key for the delegate cache based on profile name and
-// request host. Credentials are intentionally excluded: including them would cause
-// unbounded cache growth on secret rotation and is unnecessary since the profile
-// name and host uniquely identify the logical delegate configuration.
-func (r *resolvedProfile) cacheKey(profileName, host string) string {
-	return profileName + "\x00" + host
+// cacheKey returns a stable key for the delegate cache.
+// profileName and host identify the logical OIDC configuration; clientID
+// (template-resolved, before any secretRef expansion) differentiates tenants
+// that share the same host and profile name but inject different credentials
+// via annotate() filters. Without clientID in the key, the first request's
+// delegate would be cached and reused for all tenants on the same host+profile,
+// sending them through the wrong OAuth2 client registration.
+//
+// \x00 is a safe separator: YAML map keys, HTTP Host header values, and OAuth2
+// client IDs cannot contain null bytes, so no two distinct (profileName, host,
+// clientID) triples can produce the same key string.
+//
+// clientSecret and other secret fields are intentionally excluded to avoid
+// unbounded cache growth on rotation and to keep secrets out of observable keys.
+func cacheKey(profileName, host, clientID string) string {
+	return profileName + "\x00" + host + "\x00" + clientID
 }
 
 // resolveAll resolves all profile template fields using request-time data.
@@ -176,15 +186,19 @@ func (f *tokenOidcProfileFilter) buildDelegate(r *resolvedProfile, host string) 
 		return nil, fmt.Errorf("ClientSecret secretRef: %w", err)
 	}
 
-	// Cookie name: use explicit value or derive a stable name from profile name and host.
-	// Credentials are intentionally excluded so the name does not change on secret
-	// rotation (which would log out all users).
+	// Cookie name: use explicit value or derive a stable name from profile name, host,
+	// and template-resolved clientID. clientID is included (before secretRef expansion)
+	// to give each tenant on the same host+profile a distinct cookie namespace, preventing
+	// one tenant's session cookie from being accepted on another tenant's route.
+	// clientSecret is intentionally excluded so the name does not change on rotation.
 	cookieName := r.cookieName
 	if cookieName == "" {
 		h := sha256.New()
 		h.Write([]byte(f.name))
 		h.Write([]byte{0})
 		h.Write([]byte(host))
+		h.Write([]byte{0})
+		h.Write([]byte(r.clientID))
 		cookieName = oauthOidcCookieName + fmt.Sprintf("%x", h.Sum(nil))[:8] + "-"
 	}
 
@@ -221,32 +235,14 @@ func (f *tokenOidcProfileFilter) buildDelegate(r *resolvedProfile, host string) 
 	}
 	verifier := f.provider.Verifier(&oidc.Config{ClientID: clientID})
 
-	authCodeOptions := make([]oauth2.AuthCodeOption, 0)
-	var queryParams []string
-	if r.authCodeOpts != "" {
-		for _, p := range strings.Split(r.authCodeOpts, " ") {
-			splitP := strings.SplitN(p, "=", 2)
-			if len(splitP) != 2 {
-				return nil, fmt.Errorf("invalid auth code opt %q", p)
-			}
-			if splitP[1] == "skipper-request-query" {
-				queryParams = append(queryParams, splitP[0])
-			} else {
-				authCodeOptions = append(authCodeOptions, oauth2.SetAuthURLParam(splitP[0], splitP[1]))
-			}
-		}
+	authCodeOptions, queryParams, err := parseAuthCodeOpts(r.authCodeOpts)
+	if err != nil {
+		return nil, fmt.Errorf("AuthCodeOpts: %w", err)
 	}
 
-	var upstreamHeaders map[string]string
-	if r.upstreamHeaders != "" {
-		upstreamHeaders = make(map[string]string)
-		for _, header := range strings.Split(r.upstreamHeaders, " ") {
-			k, v, found := strings.Cut(header, ":")
-			if !found || k == "" || v == "" {
-				return nil, fmt.Errorf("malformed upstream header %q", header)
-			}
-			upstreamHeaders[k] = v
-		}
+	upstreamHeaders, err := parseUpstreamHeaders(r.upstreamHeaders)
+	if err != nil {
+		return nil, fmt.Errorf("UpstreamHeaders: %w", err)
 	}
 
 	return &tokenOidcFilter{
@@ -292,7 +288,7 @@ func (f *tokenOidcProfileFilter) Request(ctx filters.FilterContext) {
 	}
 
 	host := data.Request.Host
-	key := resolved.cacheKey(f.name, host)
+	key := cacheKey(f.name, host, resolved.clientID)
 	if d, ok := f.delegates.Load(key); ok {
 		delegate := d.(*tokenOidcFilter)
 		ctx.StateBag()[oidcProfileStateBagKey] = delegate

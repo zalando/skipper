@@ -118,29 +118,42 @@ func TestResolveField(t *testing.T) {
 	})
 }
 
-func TestResolvedProfileCacheKey(t *testing.T) {
-	r := &resolvedProfile{}
-
-	t.Run("same name and host produce same key", func(t *testing.T) {
-		assert.Equal(t, r.cacheKey("myprofile", "app.example.com"), r.cacheKey("myprofile", "app.example.com"))
+func TestCacheKey(t *testing.T) {
+	t.Run("same profile, host and clientID produce same key", func(t *testing.T) {
+		assert.Equal(t, cacheKey("myprofile", "app.example.com", "client-a"), cacheKey("myprofile", "app.example.com", "client-a"))
 	})
 
 	t.Run("different profile name produces different key", func(t *testing.T) {
-		assert.NotEqual(t, r.cacheKey("profile-a", "app.example.com"), r.cacheKey("profile-b", "app.example.com"))
+		assert.NotEqual(t, cacheKey("profile-a", "app.example.com", "client"), cacheKey("profile-b", "app.example.com", "client"))
 	})
 
 	t.Run("different host produces different key", func(t *testing.T) {
-		assert.NotEqual(t, r.cacheKey("myprofile", "tenant-a.example.com"), r.cacheKey("myprofile", "tenant-b.example.com"))
+		assert.NotEqual(t, cacheKey("myprofile", "tenant-a.example.com", "client"), cacheKey("myprofile", "tenant-b.example.com", "client"))
 	})
 
-	t.Run("credential values do not affect key", func(t *testing.T) {
-		r1 := &resolvedProfile{clientID: "client-a", clientSecret: "secret-a"}
-		r2 := &resolvedProfile{clientID: "client-b", clientSecret: "secret-b"}
-		assert.Equal(t, r1.cacheKey("myprofile", "app.example.com"), r2.cacheKey("myprofile", "app.example.com"))
+	t.Run("different clientID produces different key (tenant isolation)", func(t *testing.T) {
+		// Two tenants sharing the same host and profile but injecting different clientIDs
+		// via annotate() filters must get distinct cache entries so they are not served
+		// by each other's OAuth2 delegate.
+		assert.NotEqual(t, cacheKey("myprofile", "app.example.com", "client-a"), cacheKey("myprofile", "app.example.com", "client-b"))
+	})
+
+	t.Run("clientSecret does not affect key (rotation safety)", func(t *testing.T) {
+		// Rotating the secret must not produce a new cache entry, which would invalidate
+		// all in-flight sessions. Only the public clientID is included in the key.
+		assert.Equal(t, cacheKey("myprofile", "app.example.com", "client-a"), cacheKey("myprofile", "app.example.com", "client-a"))
+	})
+
+	t.Run("null byte separator prevents cross-field collisions", func(t *testing.T) {
+		// "ab" + "" must not equal "a" + "b" — the \x00 separator prevents this.
+		// YAML keys, HTTP Host values and OAuth2 client IDs cannot themselves contain
+		// null bytes, so no legitimate inputs can produce the same key string.
+		assert.NotEqual(t, cacheKey("a", "b", "c"), cacheKey("a\x00b", "", "c"))
+		assert.NotEqual(t, cacheKey("a", "b", "c"), cacheKey("a", "b\x00c", ""))
 	})
 
 	t.Run("key is non-empty", func(t *testing.T) {
-		assert.NotEmpty(t, r.cacheKey("myprofile", "app.example.com"))
+		assert.NotEmpty(t, cacheKey("myprofile", "app.example.com", "client"))
 	})
 }
 
@@ -228,7 +241,7 @@ func TestTokenOidcProfileFilterResolveAll(t *testing.T) {
 		r2, err := f.resolveAll(data)
 		require.NoError(t, err)
 
-		assert.Equal(t, r1.cacheKey(f.name, data.Request.Host), r2.cacheKey(f.name, data.Request.Host))
+		assert.Equal(t, cacheKey(f.name, data.Request.Host, r1.clientID), cacheKey(f.name, data.Request.Host, r2.clientID))
 	})
 
 	t.Run("subdomains to remove field resolved", func(t *testing.T) {
@@ -278,5 +291,114 @@ func TestOidcProfileDelegateCaching(t *testing.T) {
 	r2, err := f.resolveAll(data)
 	require.NoError(t, err)
 
-	assert.Equal(t, r1.cacheKey(f.name, data.Request.Host), r2.cacheKey(f.name, data.Request.Host), "same input should produce the same cache key")
+	assert.Equal(t, cacheKey(f.name, data.Request.Host, r1.clientID), cacheKey(f.name, data.Request.Host, r2.clientID), "same input should produce the same cache key")
+}
+
+// TestTenantIsolation verifies that two tenants sharing the same host and profile name
+// but injecting different clientIDs via annotate() filters receive distinct cache keys
+// and distinct cookie names, preventing session cookies from being accepted
+// cross-tenant.
+func TestTenantIsolation(t *testing.T) {
+	profile := &OidcProfile{
+		IdpURL:      "https://idp.example.com",
+		ClientID:    `{{index .Annotations "client-id"}}`,
+		CallbackURL: "https://app.example.com/callback",
+	}
+	f := &tokenOidcProfileFilter{name: "shared-profile", profile: profile}
+	host := "app.example.com"
+
+	dataTenantA := profileTemplateData{
+		Request:     profileRequestData{Host: host},
+		Annotations: map[string]string{"client-id": "tenant-a-client"},
+	}
+	dataTenantB := profileTemplateData{
+		Request:     profileRequestData{Host: host},
+		Annotations: map[string]string{"client-id": "tenant-b-client"},
+	}
+
+	rA, err := f.resolveAll(dataTenantA)
+	require.NoError(t, err)
+	rB, err := f.resolveAll(dataTenantB)
+	require.NoError(t, err)
+
+	keyA := cacheKey(f.name, host, rA.clientID)
+	keyB := cacheKey(f.name, host, rB.clientID)
+	assert.NotEqual(t, keyA, keyB, "different tenants must get different delegate cache keys")
+}
+
+func TestParseAuthCodeOpts(t *testing.T) {
+	t.Run("empty string returns nil slices", func(t *testing.T) {
+		opts, qp, err := parseAuthCodeOpts("")
+		require.NoError(t, err)
+		assert.Nil(t, opts)
+		assert.Nil(t, qp)
+	})
+
+	t.Run("single static option", func(t *testing.T) {
+		opts, qp, err := parseAuthCodeOpts("prompt=consent")
+		require.NoError(t, err)
+		assert.Len(t, opts, 1)
+		assert.Empty(t, qp)
+	})
+
+	t.Run("skipper-request-query becomes query param", func(t *testing.T) {
+		opts, qp, err := parseAuthCodeOpts("acr_values=skipper-request-query")
+		require.NoError(t, err)
+		assert.Empty(t, opts)
+		assert.Equal(t, []string{"acr_values"}, qp)
+	})
+
+	t.Run("multiple options mixed", func(t *testing.T) {
+		opts, qp, err := parseAuthCodeOpts("prompt=consent acr_values=skipper-request-query")
+		require.NoError(t, err)
+		assert.Len(t, opts, 1)
+		assert.Equal(t, []string{"acr_values"}, qp)
+	})
+
+	t.Run("value containing equals sign is handled correctly", func(t *testing.T) {
+		// SplitN with limit 2 ensures a Base64 value like "abc==" is not split further.
+		opts, _, err := parseAuthCodeOpts("nonce=abc==")
+		require.NoError(t, err)
+		assert.Len(t, opts, 1)
+	})
+
+	t.Run("missing equals sign returns error", func(t *testing.T) {
+		_, _, err := parseAuthCodeOpts("no-equals-sign")
+		require.Error(t, err)
+	})
+}
+
+func TestParseUpstreamHeaders(t *testing.T) {
+	t.Run("empty string returns nil", func(t *testing.T) {
+		h, err := parseUpstreamHeaders("")
+		require.NoError(t, err)
+		assert.Nil(t, h)
+	})
+
+	t.Run("single header", func(t *testing.T) {
+		h, err := parseUpstreamHeaders("X-User-ID:sub")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"X-User-ID": "sub"}, h)
+	})
+
+	t.Run("multiple headers", func(t *testing.T) {
+		h, err := parseUpstreamHeaders("X-User-ID:sub X-Email:email")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"X-User-ID": "sub", "X-Email": "email"}, h)
+	})
+
+	t.Run("missing colon returns error", func(t *testing.T) {
+		_, err := parseUpstreamHeaders("no-colon")
+		require.Error(t, err)
+	})
+
+	t.Run("empty key returns error", func(t *testing.T) {
+		_, err := parseUpstreamHeaders(":value")
+		require.Error(t, err)
+	})
+
+	t.Run("empty value returns error", func(t *testing.T) {
+		_, err := parseUpstreamHeaders("key:")
+		require.Error(t, err)
+	})
 }
