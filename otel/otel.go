@@ -181,7 +181,6 @@ func newSpanExporter(ctx context.Context, o *Options) (trace.SpanExporter, error
 		return skipperDebugSpanExporter(ctx)
 	} else {
 		log.Debugf("Configuring span exporter using environment variables")
-		autoexport.RegisterSpanExporter("skipper-debug", skipperDebugSpanExporter)
 		return autoexport.NewSpanExporter(ctx)
 	}
 }
