@@ -73,6 +73,51 @@ func TestPatch(t *testing.T) {
 		parsed:   "/foo*bar/",
 		expected: "/foo*bar%2F",
 	}, {
+		title:    "reserved ;",
+		raw:      "/foo%3bbar",
+		parsed:   "/foo;bar",
+		expected: "/foo%3bbar",
+	}, {
+		title:    "reserved ?",
+		raw:      "/foo%3fbar",
+		parsed:   "/foo?bar",
+		expected: "/foo%3fbar",
+	}, {
+		title:    "reserved :",
+		raw:      "/foo%3Abar",
+		parsed:   "/foo:bar",
+		expected: "/foo%3Abar",
+	}, {
+		title:    "reserved @",
+		raw:      "/foo%40bar",
+		parsed:   "/foo@bar",
+		expected: "/foo%40bar",
+	}, {
+		title:    "reserved &",
+		raw:      "/foo%26bar",
+		parsed:   "/foo&bar",
+		expected: "/foo%26bar",
+	}, {
+		title:    "reserved =",
+		raw:      "/foo%3Dbar",
+		parsed:   "/foo=bar",
+		expected: "/foo%3Dbar",
+	}, {
+		title:    "reserved +",
+		raw:      "/foo%2bbar",
+		parsed:   "/foo+bar",
+		expected: "/foo%2bbar",
+	}, {
+		title:    "reserved $",
+		raw:      "/foo%24bar",
+		parsed:   "/foo$bar",
+		expected: "/foo%24bar",
+	}, {
+		title:    "reserved ,",
+		raw:      "/foo%2cbar",
+		parsed:   "/foo,bar",
+		expected: "/foo%2cbar",
+	}, {
 		title:    "non-ascii range",
 		raw:      "/世%2F界",
 		parsed:   "/世/界",
