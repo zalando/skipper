@@ -1875,6 +1875,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		auth.NewBearerInjector(sp),
 		auth.NewSetRequestHeaderFromSecret(sp),
 		auth.NewJwtValidationWithOptions(tio),
+		auth.NewJwtValidationKeys(),
 		auth.NewJwtMetrics(),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAnyClaims, tio),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAllClaims, tio),

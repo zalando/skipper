@@ -232,7 +232,6 @@ func Filters() []filters.Spec {
 		accesslog.NewEnableAccessLog(),
 		auth.NewForwardToken(),
 		auth.NewForwardTokenField(),
-		auth.NewJwtDirect(),
 		scheduler.NewFifo(),
 		scheduler.NewFifoWithBody(),
 		scheduler.NewLIFO(),

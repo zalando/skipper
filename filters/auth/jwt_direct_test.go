@@ -40,10 +40,10 @@ func setupJWKSServer(t *testing.T, key *rsa.PrivateKey) *httptest.Server {
 	}))
 }
 
-func TestJwtDirectSpec(t *testing.T) {
-	spec := NewJwtDirect()
+func TestJwtValidationKeysSpec(t *testing.T) {
+	spec := NewJwtValidationKeys()
 
-	if spec.Name() != filters.JwtDirectName {
+	if spec.Name() != filters.JwtValidationKeysName {
 		t.Errorf("unexpected name: %s", spec.Name())
 	}
 
@@ -53,10 +53,10 @@ func TestJwtDirectSpec(t *testing.T) {
 		t.Error("expected error with no arguments")
 	}
 
-	// Odd number of claim args
-	_, err = spec.CreateFilter([]interface{}{"https://example.com/jwks", "iss"})
+	// Too many arguments
+	_, err = spec.CreateFilter([]interface{}{"url1", "url2"})
 	if err == nil {
-		t.Error("expected error with odd claim arguments")
+		t.Error("expected error with too many arguments")
 	}
 
 	// Non-string argument
@@ -66,7 +66,7 @@ func TestJwtDirectSpec(t *testing.T) {
 	}
 }
 
-func TestJwtDirect(t *testing.T) {
+func TestJwtValidationKeys(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("Failed to generate key: %v", err)
@@ -83,119 +83,7 @@ func TestJwtDirect(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer backend.Close()
 
-	for _, ti := range []struct {
-		name     string
-		claims   map[string]string
-		token    jwt.MapClaims
-		expected int
-	}{{
-		name: "valid token no claims required",
-		token: jwt.MapClaims{
-			"sub": "user1",
-			"iss": "test-issuer",
-			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)).Unix(),
-		},
-		expected: http.StatusOK,
-	}, {
-		name:   "valid token with matching claims",
-		claims: map[string]string{"iss": "test-issuer", "aud": "my-project"},
-		token: jwt.MapClaims{
-			"sub": "user1",
-			"iss": "test-issuer",
-			"aud": "my-project",
-			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)).Unix(),
-		},
-		expected: http.StatusOK,
-	}, {
-		name:   "valid token with wrong issuer",
-		claims: map[string]string{"iss": "expected-issuer"},
-		token: jwt.MapClaims{
-			"sub": "user1",
-			"iss": "wrong-issuer",
-			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)).Unix(),
-		},
-		expected: http.StatusUnauthorized,
-	}, {
-		name:   "valid token with wrong audience",
-		claims: map[string]string{"aud": "expected-aud"},
-		token: jwt.MapClaims{
-			"sub": "user1",
-			"aud": "wrong-aud",
-			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)).Unix(),
-		},
-		expected: http.StatusUnauthorized,
-	}, {
-		name:   "valid token with missing required claim",
-		claims: map[string]string{"iss": "test-issuer"},
-		token: jwt.MapClaims{
-			"sub": "user1",
-			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)).Unix(),
-		},
-		expected: http.StatusUnauthorized,
-	}, {
-		name:   "expired token",
-		claims: map[string]string{"iss": "test-issuer"},
-		token: jwt.MapClaims{
-			"sub": "user1",
-			"iss": "test-issuer",
-			"exp": jwt.NewNumericDate(time.Now().Add(-time.Hour)).Unix(),
-		},
-		expected: http.StatusUnauthorized,
-	}} {
-		t.Run(ti.name, func(t *testing.T) {
-			var args []interface{}
-			args = append(args, jwksServer.URL)
-			for k, v := range ti.claims {
-				args = append(args, k, v)
-			}
-
-			spec := NewJwtDirect()
-			fr := make(filters.Registry)
-			fr.Register(spec)
-
-			r := &eskip.Route{
-				Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}},
-				Backend: backend.URL,
-			}
-
-			proxy := proxytest.New(fr, r)
-			defer proxy.Close()
-
-			reqURL, _ := url.Parse(proxy.URL)
-			req, _ := http.NewRequest("GET", reqURL.String(), nil)
-			req.Header.Set(authHeaderName, authHeaderPrefix+createDirectToken(t, key, ti.token))
-
-			rsp, err := cli.Do(req)
-			if err != nil {
-				t.Fatalf("failed to get response: %v", err)
-			}
-			defer rsp.Body.Close()
-
-			if rsp.StatusCode != ti.expected {
-				t.Errorf("unexpected status code: %v != %v", rsp.StatusCode, ti.expected)
-			}
-		})
-	}
-}
-
-func TestJwtDirectMissingToken(t *testing.T) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("Failed to generate key: %v", err)
-	}
-
-	jwksServer := setupJWKSServer(t, key)
-	defer jwksServer.Close()
-
-	cli := net.NewClient(net.Options{
-		IdleConnTimeout: 2 * time.Second,
-	})
-	defer cli.Close()
-
-	backend := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	defer backend.Close()
-
-	spec := NewJwtDirect()
+	spec := NewJwtValidationKeys()
 	fr := make(filters.Registry)
 	fr.Register(spec)
 
@@ -212,6 +100,18 @@ func TestJwtDirectMissingToken(t *testing.T) {
 		auth     string
 		expected int
 	}{{
+		name:     "valid token",
+		auth:     authHeaderPrefix + createDirectToken(t, key, jwt.MapClaims{"sub": "user1", "exp": jwt.NewNumericDate(time.Now().Add(time.Hour)).Unix()}),
+		expected: http.StatusOK,
+	}, {
+		name:     "expired token",
+		auth:     authHeaderPrefix + createDirectToken(t, key, jwt.MapClaims{"sub": "user1", "exp": jwt.NewNumericDate(time.Now().Add(-time.Hour)).Unix()}),
+		expected: http.StatusUnauthorized,
+	}, {
+		name:     "missing sub claim",
+		auth:     authHeaderPrefix + createDirectToken(t, key, jwt.MapClaims{"iss": "test", "exp": jwt.NewNumericDate(time.Now().Add(time.Hour)).Unix()}),
+		expected: http.StatusUnauthorized,
+	}, {
 		name:     "no authorization header",
 		auth:     "",
 		expected: http.StatusUnauthorized,
@@ -222,6 +122,10 @@ func TestJwtDirectMissingToken(t *testing.T) {
 	}, {
 		name:     "invalid token format",
 		auth:     authHeaderPrefix + "not-a-jwt",
+		expected: http.StatusUnauthorized,
+	}, {
+		name:     "algorithm none rejected",
+		auth:     authHeaderPrefix + createToken(t, jwt.SigningMethodNone),
 		expected: http.StatusUnauthorized,
 	}} {
 		t.Run(ti.name, func(t *testing.T) {
