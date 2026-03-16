@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/netip"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -229,10 +231,11 @@ func TestApply(t *testing.T) {
 	const R = 1000
 	const N = 10
 	eps := make([]string, 0, N)
-	for i := 0; i < N; i++ {
+	for i := range N {
 		ep := fmt.Sprintf("http://127.0.0.1:123%d/foo", i)
 		eps = append(eps, ep)
 	}
+	sortLBEndpoints(eps)
 
 	for _, tt := range []struct {
 		name          string
@@ -283,7 +286,7 @@ func TestApply(t *testing.T) {
 			}
 
 			h := make(map[string]int)
-			for i := 0; i < R; i++ {
+			for range R {
 				lbe := tt.algorithm.Apply(lbctx)
 				h[lbe.Host] += 1
 			}
@@ -316,6 +319,7 @@ func TestConsistentHashSearch(t *testing.T) {
 	}
 
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
+	sortLBEndpoints(endpoints)
 	const key = "192.168.0.1"
 
 	ep := apply(key, endpoints)
@@ -339,6 +343,7 @@ func TestConsistentHashSearch(t *testing.T) {
 
 func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
+	sortLBEndpoints(endpoints)
 	r, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
 	route := NewAlgorithmProvider().Do([]*routing.Route{{
 		Route: eskip.Route{
@@ -359,7 +364,7 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 	defer endpointRegistry.Close()
 	endpointRegistry.Do([]*routing.Route{route})
 	noLoad := ch.Apply(ctx)
-	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, LBEndpoints: route.LBEndpoints, Params: map[string]interface{}{}})
+	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, LBEndpoints: route.LBEndpoints, Params: map[string]any{}})
 
 	if noLoad != nonBounded {
 		t.Error("When no endpoints are overloaded, the chosen endpoint should be the same as standard consistentHash")
@@ -388,6 +393,7 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 
 func TestConsistentHashKey(t *testing.T) {
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
+	sortLBEndpoints(endpoints)
 	ch := newConsistentHash(endpoints)
 
 	r, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
@@ -401,8 +407,8 @@ func TestConsistentHashKey(t *testing.T) {
 		},
 	}})[0]
 
-	defaultEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: make(map[string]interface{})})
-	remoteHostEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: map[string]interface{}{ConsistentHashKey: net.RemoteHost(r).String()}})
+	defaultEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: make(map[string]any)})
+	remoteHostEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: map[string]any{ConsistentHashKey: net.RemoteHost(r).String()}})
 
 	if defaultEndpoint != remoteHostEndpoint {
 		t.Error("remote host should be used as a default key")
@@ -410,7 +416,7 @@ func TestConsistentHashKey(t *testing.T) {
 
 	for i, ep := range endpoints {
 		key := fmt.Sprintf("%s-%d", ep, 1) // "ep-0" to "ep-99" is the range of keys for this endpoint. If we use this as the hash key it should select endpoint ep.
-		selected := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: map[string]interface{}{ConsistentHashKey: key}})
+		selected := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: map[string]any{ConsistentHashKey: key}})
 		if selected != rt.LBEndpoints[i] {
 			t.Errorf("expected: %v, got %v", rt.LBEndpoints[i], selected)
 		}
@@ -419,6 +425,7 @@ func TestConsistentHashKey(t *testing.T) {
 
 func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
+	sortLBEndpoints(endpoints)
 	r, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
 	route := NewAlgorithmProvider().Do([]*routing.Route{{
 		Route: eskip.Route{
@@ -434,13 +441,13 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 		Request:     r,
 		Route:       route,
 		LBEndpoints: route.LBEndpoints,
-		Params:      map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor},
+		Params:      map[string]any{ConsistentHashBalanceFactor: balanceFactor},
 	}
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	defer endpointRegistry.Close()
 	endpointRegistry.Do([]*routing.Route{route})
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		ep := ch.Apply(ctx)
 		ifr0 := route.LBEndpoints[0].Metrics.InflightRequests()
 		ifr1 := route.LBEndpoints[1].Metrics.InflightRequests()
@@ -475,7 +482,7 @@ func TestConsistentHashKeyDistribution(t *testing.T) {
 }
 
 func addInflightRequests(registry *routing.EndpointRegistry, endpoint routing.LBEndpoint, count int) {
-	for i := 0; i < count; i++ {
+	for range count {
 		endpoint.Metrics.IncInflightRequest()
 		registry.GetMetrics(endpoint.Host).IncInflightRequest()
 	}
@@ -545,9 +552,88 @@ func BenchmarkRandomAlgorithm(b *testing.B) {
 		LBEndpoints: lbeps,
 	}
 
-	b.ResetTimer()
-
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		alg.Apply(lbc)
+	}
+}
+
+// similar to datasource processRouteDef() use of sort.SliceStable
+func sortLBEndpoints(lbEndpoints []string) {
+	sort.SliceStable(lbEndpoints, func(i, j int) bool {
+		apI, errI := netip.ParseAddrPort(lbEndpoints[i])
+		apJ, errJ := netip.ParseAddrPort(lbEndpoints[j])
+
+		if errI != nil || errJ != nil {
+			return errI == nil
+		}
+
+		ipI := apI.Addr()
+		ipJ := apJ.Addr()
+
+		if ipI != ipJ {
+			return ipI.Less(ipJ)
+		}
+
+		return apI.Port() < apJ.Port()
+	})
+
+}
+
+func BenchmarkConsistentHash(b *testing.B) {
+	for _, N := range []int{10, 100, 1000} {
+		eps := make([]string, 0, N)
+		var j int
+		for i := range N {
+			j = i / 255
+			ep := fmt.Sprintf("http://10.0.%d.%d:8080/", j, i%255)
+			eps = append(eps, ep)
+		}
+		sortLBEndpoints(eps)
+
+		req, err := http.NewRequest("GET", "http://consistent.bench.test", nil)
+		if err != nil {
+			b.Fatalf("Failed to create request: %v", err)
+		}
+
+		route := NewAlgorithmProvider().Do([]*routing.Route{{
+			Route: eskip.Route{
+				BackendType: eskip.LBBackend,
+				LBAlgorithm: ConsistentHash.String(),
+				LBEndpoints: eps,
+			},
+		}})[0]
+
+		alg := newConsistentHash(eps)
+		lbCtx := &routing.LBContext{
+			Request:     req,
+			Route:       route,
+			LBEndpoints: route.LBEndpoints,
+			Params: map[string]any{
+				ConsistentHashKey:           "Foo",
+				ConsistentHashBalanceFactor: 0.2,
+			},
+		}
+
+		// populate metrics
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
+		endpointRegistry.Do([]*routing.Route{route})
+
+		// set Foo header value
+		headerValues := [10000]string{}
+		for i := range len(headerValues) {
+			headerValues[i] = fmt.Sprintf("foo-%d", i)
+		}
+
+		b.Run(fmt.Sprintf("%d endpoints", N), func(b *testing.B) {
+			var iter int64
+			b.ResetTimer()
+			b.ReportAllocs()
+			for b.Loop() {
+				iter++
+				req.Header.Set("Foo", headerValues[iter%10000])
+				alg.Apply(lbCtx)
+			}
+		})
 	}
 }

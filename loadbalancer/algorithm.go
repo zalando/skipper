@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"net/netip"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -118,7 +119,7 @@ func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routin
 	}
 	for i, ep := range endpoints {
 		endpointStartIndex := hashesPerEndpoint * i
-		for j := 0; j < hashesPerEndpoint; j++ {
+		for j := range hashesPerEndpoint {
 			ch.hashRing[endpointStartIndex+j] = endpointHash{i, hash(fmt.Sprintf("%s-%d", ep, j))}
 		}
 	}
@@ -127,7 +128,8 @@ func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routin
 }
 
 func newConsistentHash(endpoints []string) routing.LBAlgorithm {
-	return newConsistentHashInternal(endpoints, 100)
+	n := 10000 / len(endpoints)
+	return newConsistentHashInternal(endpoints, n)
 }
 
 func hash(s string) uint64 {
@@ -136,12 +138,40 @@ func hash(s string) uint64 {
 
 func skipEndpoint(c *routing.LBContext, index int) bool {
 	host := c.Route.LBEndpoints[index].Host
+	if len(c.LBEndpoints) > 300 { // 300 see https://github.com/zalando/skipper/pull/3918/
+		return !existsBinarySearch(host, c.LBEndpoints)
+	}
+	// linear scan for low numbers
 	for i := range c.LBEndpoints {
 		if c.LBEndpoints[i].Host == host {
 			return false
 		}
 	}
 	return true
+}
+
+func existsBinarySearch(target string, list []routing.LBEndpoint) bool {
+	targetAP, err := netip.ParseAddrPort(target)
+	if err != nil {
+		return false
+	}
+
+	idx := sort.Search(len(list), func(i int) bool {
+		itemAP, err := netip.ParseAddrPort(list[i].Host)
+		if err != nil {
+			return false
+		}
+
+		if itemAP.Addr() != targetAP.Addr() {
+			return !itemAP.Addr().Less(targetAP.Addr())
+		}
+		return itemAP.Port() >= targetAP.Port()
+	})
+
+	if idx < len(list) && list[idx].Host == target {
+		return true
+	}
+	return false
 }
 
 // Returns index in hash ring with the closest hash to key's hash
