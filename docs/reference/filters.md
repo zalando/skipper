@@ -1695,11 +1695,13 @@ Examples:
 jwtValidationKeys("https://www.googleapis.com/service_accounts/v1/jwk/chat@system.gserviceaccount.com")
 ```
 
-To also validate specific claims like `iss` or `aud`, chain with [oidcClaimsQuery](#oidcclaimsquery):
+To also validate specific claims like `iss` or `aud`, chain with [oidcClaimsQuery](#oidcclaimsquery).
+Note that queries within a single `oidcClaimsQuery` argument are OR-matched, so use separate filters for AND logic:
 
 ```
 jwtValidationKeys("https://www.googleapis.com/service_accounts/v1/jwk/chat@system.gserviceaccount.com")
--> oidcClaimsQuery("/:iss:chat@system.gserviceaccount.com aud:123456789")
+-> oidcClaimsQuery("/:@_:iss==\"chat@system.gserviceaccount.com\"")
+-> oidcClaimsQuery("/:@_:aud==\"123456789\"")
 ```
 
 #### jwtMetrics
