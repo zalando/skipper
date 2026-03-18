@@ -1681,6 +1681,30 @@ Examples:
 jwtValidation("https://login.microsoftonline.com/{tenantId}/v2.0")
 ```
 
+#### jwtValidationKeys
+
+The filter works like [jwtValidation](#jwtvalidation) but takes a JWKS URL directly instead of
+discovering it via `/.well-known/openid-configuration`. This is useful for services that publish
+JWKS keys at non-standard endpoints, such as Google Chat service accounts.
+Unlike `jwtValidation`, the `sub` claim is not required — tokens without `sub` are accepted.
+
+The filter stores token claims into the state bag where they can be used by [oidcClaimsQuery](#oidcclaimsquery), [forwardToken](#forwardtoken) or [forwardTokenField](#forwardtokenfield) filters.
+
+Examples:
+
+```
+jwtValidationKeys("https://www.googleapis.com/service_accounts/v1/jwk/chat@system.gserviceaccount.com")
+```
+
+To also validate specific claims like `iss` or `aud`, chain with [oidcClaimsQuery](#oidcclaimsquery).
+Note that queries within a single `oidcClaimsQuery` argument are OR-matched, so use separate filters for AND logic:
+
+```
+jwtValidationKeys("https://www.googleapis.com/service_accounts/v1/jwk/chat@system.gserviceaccount.com")
+-> oidcClaimsQuery("/:@_:iss==\"chat@system.gserviceaccount.com\"")
+-> oidcClaimsQuery("/:@_:aud==\"123456789\"")
+```
+
 #### jwtMetrics
 
 > This filter is experimental and may change in the future, please see tests for example usage.

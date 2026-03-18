@@ -21,8 +21,11 @@ type (
 		options TokenintrospectionOptions
 	}
 
+	jwtValidationKeysSpec struct{}
+
 	jwtValidationFilter struct {
-		jwksUri string
+		jwksUri    string
+		requireSub bool
 	}
 )
 
@@ -69,7 +72,8 @@ func (s *jwtValidationSpec) CreateFilter(args []interface{}) (filters.Filter, er
 	}
 
 	f := &jwtValidationFilter{
-		jwksUri: cfg.JwksURI,
+		jwksUri:    cfg.JwksURI,
+		requireSub: true,
 	}
 
 	return f, nil
@@ -146,17 +150,64 @@ func (f *jwtValidationFilter) Request(ctx filters.FilterContext) {
 	}
 
 	sub, ok := info.Claims["sub"].(string)
-	if !ok {
-		unauthorized(ctx, sub, invalidSub, "", "")
-		return
+	if !ok || sub == "" {
+		if f.requireSub {
+			unauthorized(ctx, "", invalidSub, "", "")
+			return
+		}
+		sub = AuthUnknown
+		info.Claims["sub"] = sub
 	}
 
+	info.Subject = sub
 	authorized(ctx, sub)
 
 	ctx.StateBag()[oidcClaimsCacheKey] = info
 }
 
 func (f *jwtValidationFilter) Response(filters.FilterContext) {}
+
+// NewJwtValidationKeys creates a filter spec for JWT validation using a direct JWKS URL.
+//
+// Unlike jwtValidation which discovers JWKS via .well-known/openid-configuration,
+// this filter takes the JWKS URL directly. This is useful for services that publish
+// JWKS keys at non-standard endpoints (e.g. Google Chat service accounts).
+//
+// The filter stores token claims into the state bag where they can be used by
+// oidcClaimsQuery, forwardToken or forwardTokenField filters.
+//
+// Usage:
+//
+//	jwtValidationKeys("https://www.googleapis.com/service_accounts/v1/jwk/chat@system.gserviceaccount.com")
+func NewJwtValidationKeys() filters.Spec {
+	return &jwtValidationKeysSpec{}
+}
+
+func (s *jwtValidationKeysSpec) Name() string {
+	return filters.JwtValidationKeysName
+}
+
+func (s *jwtValidationKeysSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) != 1 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	sargs, err := getStrings(args)
+	if err != nil {
+		return nil, err
+	}
+
+	jwksURL := sargs[0]
+
+	if err := registerKeyFunction(jwksURL); err != nil {
+		return nil, err
+	}
+
+	return &jwtValidationFilter{
+		jwksUri:    jwksURL,
+		requireSub: false,
+	}, nil
+}
 
 func parseToken(token string, jwksUri string) (map[string]interface{}, error) {
 	jwks := getKeyFunction(jwksUri)
