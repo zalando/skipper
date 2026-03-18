@@ -236,9 +236,9 @@ func TestJwtValidationKeys(t *testing.T) {
 		auth:     authHeaderPrefix + createTokenWithKey(t, key, jwt.MapClaims{"sub": "user1", "exp": jwt.NewNumericDate(time.Now().Add(-time.Hour)).Unix()}),
 		expected: http.StatusUnauthorized,
 	}, {
-		name:     "missing sub claim",
+		name:     "missing sub claim accepted",
 		auth:     authHeaderPrefix + createTokenWithKey(t, key, jwt.MapClaims{"iss": "test", "exp": jwt.NewNumericDate(time.Now().Add(time.Hour)).Unix()}),
-		expected: http.StatusUnauthorized,
+		expected: http.StatusOK,
 	}, {
 		name:     "no authorization header",
 		auth:     "",

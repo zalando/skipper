@@ -24,7 +24,8 @@ type (
 	jwtValidationKeysSpec struct{}
 
 	jwtValidationFilter struct {
-		jwksUri string
+		jwksUri    string
+		requireSub bool
 	}
 )
 
@@ -71,7 +72,8 @@ func (s *jwtValidationSpec) CreateFilter(args []interface{}) (filters.Filter, er
 	}
 
 	f := &jwtValidationFilter{
-		jwksUri: cfg.JwksURI,
+		jwksUri:    cfg.JwksURI,
+		requireSub: true,
 	}
 
 	return f, nil
@@ -148,11 +150,16 @@ func (f *jwtValidationFilter) Request(ctx filters.FilterContext) {
 	}
 
 	sub, ok := info.Claims["sub"].(string)
-	if !ok {
-		unauthorized(ctx, sub, invalidSub, "", "")
-		return
+	if !ok || sub == "" {
+		if f.requireSub {
+			unauthorized(ctx, "", invalidSub, "", "")
+			return
+		}
+		sub = AuthUnknown
+		info.Claims["sub"] = sub
 	}
 
+	info.Subject = sub
 	authorized(ctx, sub)
 
 	ctx.StateBag()[oidcClaimsCacheKey] = info
@@ -197,7 +204,8 @@ func (s *jwtValidationKeysSpec) CreateFilter(args []interface{}) (filters.Filter
 	}
 
 	return &jwtValidationFilter{
-		jwksUri: jwksURL,
+		jwksUri:    jwksURL,
+		requireSub: false,
 	}, nil
 }
 
