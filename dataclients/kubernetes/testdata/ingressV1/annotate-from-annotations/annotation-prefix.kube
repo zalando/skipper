@@ -1,0 +1,4 @@
+# Test that annotationsToRouteAnnotationsPrefix is prepended to the annotate() key.
+annotationsToRouteAnnotations:
+  - "oidc/client-id"
+annotationsToRouteAnnotationsPrefix: "k8s:"
