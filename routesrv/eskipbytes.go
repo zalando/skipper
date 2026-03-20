@@ -18,6 +18,10 @@ import (
 	"github.com/zalando/skipper/tracing"
 )
 
+const (
+	minEndpointsByZone = 3
+)
+
 type responseWriterInterceptor struct {
 	http.ResponseWriter
 	statusCode   int
@@ -83,9 +87,11 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, _ string, initi
 			}
 		}
 		for zone, eps := range byZone {
-			rCopy := *r
-			rCopy.LBEndpoints = eps
-			zoneRoutes[zone] = append(zoneRoutes[zone], &rCopy)
+			if len(eps) >= minEndpointsByZone {
+				rCopy := *r
+				rCopy.LBEndpoints = eps
+				zoneRoutes[zone] = append(zoneRoutes[zone], &rCopy)
+			}
 		}
 	}
 
@@ -173,9 +179,9 @@ func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	zone := r.PathValue("zone")
 	if zone != "" {
-		data = e.zoneData[zone]
-		if len(data) == 0 {
-			data = e.data
+		zoneData, ok := e.zoneData[zone]
+		if ok {
+			data = zoneData
 		}
 	}
 

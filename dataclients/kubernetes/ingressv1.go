@@ -77,16 +77,15 @@ func convertPathRuleV1(
 	ns := metadata.Namespace
 	name := metadata.Name
 
-	zoneTarget := false
-
 	if prule.Backend == nil {
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
 
 	var (
-		eps []string
-		err error
-		svc *service
+		eps      []string
+		epSlices []skipperEndpoint
+		err      error
+		svc      *service
 	)
 
 	var hostRegexp []string
@@ -123,7 +122,14 @@ func convertPathRuleV1(
 			protocol = p
 		}
 
-		eps, zoneTarget = state.GetEndpointsByService(ic.zone, ns, svcName, protocol, servicePort)
+		if state.enableEndpointSlices {
+			epSlices = state.GetEndpointSlicesByService(ns, svcName, protocol, servicePort)
+			for _, ep := range epSlices {
+				eps = append(eps, ep.Address)
+			}
+		} else {
+			eps = state.GetEndpointsByService(ns, svcName, protocol, servicePort)
+		}
 	}
 	if len(eps) == 0 {
 		ic.logger.Tracef("Target endpoints not found, shuntroute for %s:%s", svcName, svcPort)
@@ -161,10 +167,10 @@ func convertPathRuleV1(
 		HostRegexps: hostRegexp,
 	}
 
-	if zoneTarget {
+	if state.enableEndpointSlices {
 		var lbeps []*eskip.LBEndpoint
-		for _, ep := range eps {
-			lbeps = append(lbeps, &eskip.LBEndpoint{Address: ep, Zone: ic.zone})
+		for _, ep := range epSlices {
+			lbeps = append(lbeps, &eskip.LBEndpoint{Address: ep.Address, Zone: ep.Zone})
 		}
 		r.LBEndpoints = lbeps
 	} else {
@@ -361,15 +367,14 @@ func (ing *ingress) convertDefaultBackendV1(
 	}
 
 	var (
-		eps     []string
-		err     error
-		ns      = i.Metadata.Namespace
-		name    = i.Metadata.Name
-		svcName = i.Spec.DefaultBackend.Service.Name
-		svcPort = i.Spec.DefaultBackend.Service.Port
+		eps      []string
+		epSlices []skipperEndpoint
+		err      error
+		ns       = i.Metadata.Namespace
+		name     = i.Metadata.Name
+		svcName  = i.Spec.DefaultBackend.Service.Name
+		svcPort  = i.Spec.DefaultBackend.Service.Port
 	)
-	zoneTarget := false
-	dataclientZone := ing.zone
 
 	svc, err := state.getService(ns, svcName)
 	if err != nil {
@@ -397,14 +402,20 @@ func (ing *ingress) convertDefaultBackendV1(
 			protocol = p
 		}
 
-		eps, zoneTarget = state.GetEndpointsByService(
-			dataclientZone,
-			ns,
-			svcName,
-			protocol,
-			servicePort,
-		)
-		ic.logger.Debugf("Found %d endpoints for %s: %v", len(eps), svcName, err)
+		if state.enableEndpointSlices {
+			epSlices = state.GetEndpointSlicesByService(ns, svcName, protocol, servicePort)
+			for _, ep := range epSlices {
+				eps = append(eps, ep.Address)
+			}
+		} else {
+			eps = state.GetEndpointsByService(
+				ns,
+				svcName,
+				protocol,
+				servicePort,
+			)
+			ic.logger.Debugf("Found %d endpoints for %s: %v", len(eps), svcName, err)
+		}
 	}
 
 	if len(eps) == 0 {
@@ -429,10 +440,10 @@ func (ing *ingress) convertDefaultBackendV1(
 		LBAlgorithm: getLoadBalancerAlgorithm(i.Metadata, ing.defaultLoadBalancerAlgorithm),
 	}
 
-	if zoneTarget {
+	if state.enableEndpointSlices {
 		var lbeps []*eskip.LBEndpoint
-		for _, ep := range eps {
-			lbeps = append(lbeps, &eskip.LBEndpoint{Address: ep, Zone: dataclientZone})
+		for _, ep := range epSlices {
+			lbeps = append(lbeps, &eskip.LBEndpoint{Address: ep.Address, Zone: ep.Zone})
 		}
 		r.LBEndpoints = lbeps
 	} else {
