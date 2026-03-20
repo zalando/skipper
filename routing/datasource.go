@@ -3,7 +3,6 @@ package routing
 import (
 	"errors"
 	"fmt"
-	"net/netip"
 	"sort"
 	"sync"
 	"time"
@@ -535,26 +534,6 @@ func processRouteDef(o *Options, cpm map[string]PredicateSpec, def *eskip.Route)
 	}
 
 	r := &Route{Route: *def, Scheme: scheme, Host: host, Predicates: cps, Filters: fs, weight: weight}
-	if def.LBAlgorithm == "consistentHash" {
-		sort.SliceStable(def.LBEndpoints, func(i, j int) bool {
-			apI, errI := netip.ParseAddrPort(def.LBEndpoints[i])
-			apJ, errJ := netip.ParseAddrPort(def.LBEndpoints[j])
-
-			if errI != nil || errJ != nil {
-				return errI == nil
-			}
-
-			ipI := apI.Addr()
-			ipJ := apJ.Addr()
-
-			if ipI != ipJ {
-				return ipI.Less(ipJ)
-			}
-
-			return apI.Port() < apJ.Port()
-		})
-	}
-
 	if err := processTreePredicates(r, def.Predicates); err != nil {
 		return nil, err
 	}
