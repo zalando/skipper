@@ -88,6 +88,8 @@ func convertPathRuleV1(
 		svc      *service
 	)
 
+	dataclientZone := ic.zone
+
 	var hostRegexp []string
 	if host != "" {
 		hostRegexp = []string{createHostRx(host)}
@@ -123,7 +125,7 @@ func convertPathRuleV1(
 		}
 
 		if state.enableEndpointSlices {
-			epSlices = state.GetEndpointSlicesByService(ns, svcName, protocol, servicePort)
+			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort)
 			for _, ep := range epSlices {
 				eps = append(eps, ep.Address)
 			}
@@ -146,7 +148,6 @@ func convertPathRuleV1(
 	}
 
 	ic.logger.Tracef("Found %d endpoints for %s:%s", len(eps), svcName, svcPort)
-
 	if len(eps) == 1 {
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
@@ -376,6 +377,8 @@ func (ing *ingress) convertDefaultBackendV1(
 		svcPort  = i.Spec.DefaultBackend.Service.Port
 	)
 
+	dataclientZone := ic.zone
+
 	svc, err := state.getService(ns, svcName)
 	if err != nil {
 		ic.logger.Errorf("Failed to get service %s, %s", svcName, svcPort)
@@ -403,7 +406,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		}
 
 		if state.enableEndpointSlices {
-			epSlices = state.GetEndpointSlicesByService(ns, svcName, protocol, servicePort)
+			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort)
 			for _, ep := range epSlices {
 				eps = append(eps, ep.Address)
 			}
