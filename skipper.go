@@ -606,6 +606,9 @@ type Options struct {
 	// EnableRouteCreationMetrics enables the OriginMarker to track route creation times. Disabled by default
 	EnableRouteCreationMetrics bool
 
+	//EnableZoneAwareRouting enables RouteSRV to filter based on the zone
+	EnableZoneAwareRouting bool
+
 	// When set, makes the histograms use an exponentially decaying sample
 	// instead of the default uniform one.
 	MetricsUseExpDecaySample bool

@@ -18,10 +18,6 @@ import (
 	"github.com/zalando/skipper/tracing"
 )
 
-const (
-	minEndpointsByZone = 3
-)
-
 type responseWriterInterceptor struct {
 	http.ResponseWriter
 	statusCode   int
