@@ -351,12 +351,12 @@ type Config struct {
 
 	PassiveHealthCheck mapFlags `yaml:"passive-health-check"`
 
-	EnableProxyProtocol    bool      `yaml:"enable-proxy-protocol"`
-	ProxyAllowListCIDRs    *listFlag `yaml:"proxy-allow-cidrs"`
-	ProxyDenyListCIDRs     *listFlag `yaml:"proxy-deny-cidrs"`
-	ProxySkipListCIDRs     *listFlag `yaml:"proxy-skip-cidrs"`
+	EnableProxyProtocol bool      `yaml:"enable-proxy-protocol"`
+	ProxyAllowListCIDRs *listFlag `yaml:"proxy-allow-cidrs"`
+	ProxyDenyListCIDRs  *listFlag `yaml:"proxy-deny-cidrs"`
+	ProxySkipListCIDRs  *listFlag `yaml:"proxy-skip-cidrs"`
 
-	EnableZoneAwareRouting bool      `yaml:"enable-zone-aware-routing"`
+	EnableZoneAwareRouting bool `yaml:"enable-zone-aware-routing"`
 }
 
 const (
