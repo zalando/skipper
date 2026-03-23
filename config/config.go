@@ -355,8 +355,6 @@ type Config struct {
 	ProxyAllowListCIDRs *listFlag `yaml:"proxy-allow-cidrs"`
 	ProxyDenyListCIDRs  *listFlag `yaml:"proxy-deny-cidrs"`
 	ProxySkipListCIDRs  *listFlag `yaml:"proxy-skip-cidrs"`
-
-	EnableZoneAwareRouting bool `yaml:"enable-zone-aware-routing"`
 }
 
 const (
@@ -711,8 +709,6 @@ func NewConfig() *Config {
 	flag.Var(cfg.ProxyAllowListCIDRs, "proxy-allow-cidrs", `comma separated list of CIDRs that are allowed to use the PROXY protocol v1/v2. To allow all ipv6 and ipv4 addresses use: "::/0,0.0.0.0/0"`)
 	flag.Var(cfg.ProxyDenyListCIDRs, "proxy-deny-cidrs", `comma separated list of CIDRs that are denied to use the PROXY protocol v1/v2.`)
 	flag.Var(cfg.ProxySkipListCIDRs, "proxy-skip-cidrs", `comma separated list of CIDRs that are skipped to use the PROXY protocol v1/v2.`)
-
-	flag.BoolVar(&cfg.EnableZoneAwareRouting, "enable-zone-aware-routing", false, "enables filtering of backend endpoints based on the topology zone sent to RouteSRV")
 
 	cfg.Flags = flag
 	return cfg
@@ -1148,8 +1144,6 @@ func (c *Config) ToOptions() skipper.Options {
 		ProxyAllowListCIDRs: c.ProxyAllowListCIDRs.values,
 		ProxyDenyListCIDRs:  c.ProxyDenyListCIDRs.values,
 		ProxySkipListCIDRs:  c.ProxySkipListCIDRs.values,
-
-		EnableZoneAwareRouting: c.EnableZoneAwareRouting,
 	}
 	for _, rcci := range c.CloneRoute {
 		eskipClone := eskip.NewClone(rcci.Reg, rcci.Repl)
