@@ -65,6 +65,7 @@ import (
 	"github.com/zalando/skipper/predicates/tee"
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/proxylistener"
 	"github.com/zalando/skipper/queuelistener"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
@@ -832,6 +833,9 @@ type Options struct {
 	// of metrics endpoints.
 	MetricsFlavours []string
 
+	// DisableMetricsCompression if enabled it will disable compression on the metrics handler, defaults to false
+	DisableMetricsCompression bool
+
 	// LoadBalancerHealthCheckInterval is *deprecated* and not in use anymore
 	LoadBalancerHealthCheckInterval time.Duration
 
@@ -1055,6 +1059,12 @@ type Options struct {
 	OpenPolicyAgentMaxMemoryBodyParsing                int64
 
 	PassiveHealthCheck map[string]string
+
+	// proxy protocol options
+	EnableProxyProtocol bool
+	ProxyAllowListCIDRs []string
+	ProxyDenyListCIDRs  []string
+	ProxySkipListCIDRs  []string
 
 	// ValidationWebhookEnabled enables the validation webhook server
 	ValidationWebhookEnabled  bool
@@ -1487,6 +1497,13 @@ func listenAndServeQuit(
 		return err
 	}
 
+	if o.EnableProxyProtocol {
+		l, err = proxyListener(l, o)
+		if err != nil {
+			return fmt.Errorf("failed to start proxy listener: %w", err)
+		}
+	}
+
 	// making idleConnsCH and sigs optional parameters is required to be able to tear down a server
 	// from the tests
 	if idleConnsCH == nil {
@@ -1544,6 +1561,21 @@ func listenAndServeQuit(
 	<-idleConnsCH
 	log.Infof("done.")
 	return nil
+}
+
+func proxyListener(ll net.Listener, o *Options) (net.Listener, error) {
+	// PROXY protocol
+	l, err := proxylistener.NewListener(proxylistener.Options{
+		Listener:       ll,
+		AllowListCIDRs: o.ProxyAllowListCIDRs,
+		DenyListCIDRs:  o.ProxyDenyListCIDRs,
+		SkipListCIDRs:  o.ProxySkipListCIDRs,
+	})
+	if err != nil {
+		return nil, err
+	}
+	log.Info("start PROXY PROTOCOL wrapped listener")
+	return l, nil
 }
 
 func findKubernetesDataclient(dataClients []routing.DataClient) *kubernetes.Client {
@@ -1685,6 +1717,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
 		PrometheusRegistry:                 o.PrometheusRegistry,
 		EnablePrometheusStartLabel:         o.EnablePrometheusStartLabel,
+		DisableCompression:                 o.DisableMetricsCompression,
 	}
 
 	mtr := o.MetricsBackend
@@ -1842,6 +1875,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		auth.NewBearerInjector(sp),
 		auth.NewSetRequestHeaderFromSecret(sp),
 		auth.NewJwtValidationWithOptions(tio),
+		auth.NewJwtValidationKeys(),
 		auth.NewJwtMetrics(),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAnyClaims, tio),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAllClaims, tio),
@@ -1874,6 +1908,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
 			OidcClientId:                oidcClientId,
 			OidcClientSecret:            oidcClientSecret,
+			SecretsReader:               sp,
 		}
 
 		o.CustomFilters = append(o.CustomFilters,

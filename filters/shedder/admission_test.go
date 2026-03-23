@@ -267,10 +267,10 @@ func TestAdmissionControl(t *testing.T) {
 				t.Logf("ok: %d, fail: %d, failBackend: %d, epsilon: %d, expectedOk: %d", ok, fail, failBackend, epsilon, expectedOk)
 
 				if ti.expectedFails-epsilon > fail || fail > ti.expectedFails+epsilon {
-					t.Fatalf("Failed to get expected fails: %d > %d > %d", ti.expectedFails-epsilon, fail, ti.expectedFails+epsilon)
+					t.Fatalf("Failed to get expected fails: %d < %d < %d", ti.expectedFails-epsilon, fail, ti.expectedFails+epsilon)
 				}
 				if expectedOk-epsilon > ok || ok > expectedOk+epsilon {
-					t.Fatalf("Failed to get expected OKs: %d > %d > %d", expectedOk-epsilon, fail, expectedOk+epsilon)
+					t.Fatalf("Failed to get expected OKs: %d <= %d <= %d", expectedOk-epsilon, fail, expectedOk+epsilon)
 				}
 			})
 		})

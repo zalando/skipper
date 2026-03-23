@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime/pprof"
 	"slices"
 	"strings"
 	"sync"
@@ -441,6 +442,7 @@ func (registry *OpenPolicyAgentRegistry) cleanUnusedInstances(t time.Time) {
 }
 
 func (registry *OpenPolicyAgentRegistry) startCleanerDaemon() {
+	pprof.SetGoroutineLabels(pprof.WithLabels(context.Background(), pprof.Labels("opa.task", "cleaner")))
 	ticker := time.NewTicker(registry.cleanInterval)
 	defer ticker.Stop()
 
@@ -459,6 +461,7 @@ func (registry *OpenPolicyAgentRegistry) startCleanerDaemon() {
 // The timeout for the processing of each instance is set to the startup timeout to ensure that the behavior is the same as during startup
 // It is accepted that runs can be skipped if the processing of all instances takes longer than the interval.
 func (registry *OpenPolicyAgentRegistry) startCustomControlLoopDaemon() {
+	pprof.SetGoroutineLabels(pprof.WithLabels(context.Background(), pprof.Labels("opa.task", "control_loop")))
 	ticker := time.NewTicker(registry.controlLoopIntervalWithJitter())
 	defer ticker.Stop()
 
@@ -839,10 +842,16 @@ func (opa *OpenPolicyAgentInstance) Healthy() bool {
 }
 
 func (opa *OpenPolicyAgentInstance) Started() bool {
+	if opa == nil {
+		return false
+	}
 	return opa.started.Load()
 }
 
 func (opa *OpenPolicyAgentInstance) StartScheduled() bool {
+	if opa == nil {
+		return false
+	}
 	return opa.startScheduled.Load()
 }
 
@@ -1070,6 +1079,23 @@ func (opa *OpenPolicyAgentInstance) MetricsKey(key string) string {
 	return key + "." + opa.bundleName
 }
 
+func (opa *OpenPolicyAgentInstance) BundleName() string {
+	return opa.bundleName
+}
+
+// BuildLabelSet builds pprof label pairs for OPA filter profiling.
+// It always includes opa.task and opa.bundle_name, and adds opa.ctx.<key>=<value>
+// for each entry in contextExtensions.
+func BuildLabelSet(bundleName string, contextExtensions map[string]string) pprof.LabelSet {
+	pairs := make([]string, 0, 4+len(contextExtensions)*2)
+	pairs = append(pairs, "opa.task", "eval")
+	pairs = append(pairs, "opa.bundle_name", bundleName)
+	for k, v := range contextExtensions {
+		pairs = append(pairs, "opa.ctx."+k, v)
+	}
+	return pprof.Labels(pairs...)
+}
+
 var (
 	ErrClosed                 = errors.New("reader closed")
 	ErrTotalBodyBytesExceeded = errors.New("buffer for in-flight request body authorization in Open Policy Agent exceeded")
@@ -1284,6 +1310,7 @@ func (registry *OpenPolicyAgentRegistry) ScheduleBackgroundTask(fn func() error)
 func (registry *OpenPolicyAgentRegistry) startBackgroundWorker() {
 	registry.backgroundWorkerOnce.Do(func() {
 		go func() {
+			pprof.SetGoroutineLabels(pprof.WithLabels(context.Background(), pprof.Labels("opa.task", "background_worker")))
 			for task := range registry.backgroundTaskChan {
 				if task != nil {
 					task.execute()

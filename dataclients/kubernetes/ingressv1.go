@@ -148,6 +148,7 @@ func convertPathRuleV1(
 	}
 
 	ic.logger.Tracef("Found %d endpoints for %s:%s", len(eps), svcName, svcPort)
+
 	if len(eps) == 1 {
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),

@@ -96,11 +96,14 @@ type OidcOptions struct {
 	Tracer                 opentracing.Tracer
 	OidcClientId           string
 	OidcClientSecret       string
+	SecretsReader          secrets.SecretsReader
 
 	// OpenTracingClientTraceByTag instead of events use span Tags
 	// to measure client connection pool actions
 	OpenTracingClientTraceByTag bool
 }
+
+const oidcSecretRefPrefix = "secretRef:"
 
 type (
 	tokenOidcSpec struct {
@@ -170,6 +173,24 @@ func NewOAuthOidcAnyClaims(secretsFile string, secretsRegistry secrets.Encrypter
 // has all the claims specified
 func NewOAuthOidcAllClaimsWithOptions(secretsFile string, secretsRegistry secrets.EncrypterCreator, o OidcOptions) filters.Spec {
 	return &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, options: o}
+}
+
+func (s *tokenOidcSpec) resolveClientCredential(v string) (string, error) {
+	if !strings.HasPrefix(v, oidcSecretRefPrefix) {
+		return v, nil
+	}
+	if s.options.SecretsReader == nil {
+		return "", fmt.Errorf("%w: %q requires secrets reader", filters.ErrInvalidFilterParameters, v)
+	}
+	ref := strings.TrimPrefix(v, oidcSecretRefPrefix)
+	if ref == "" {
+		return "", filters.ErrInvalidFilterParameters
+	}
+	b, ok := s.options.SecretsReader.GetSecret(ref)
+	if !ok {
+		return "", fmt.Errorf("%w: secret %q not found", filters.ErrInvalidFilterParameters, ref)
+	}
+	return string(b), nil
 }
 
 // Deprecated: use NewOAuthOidcAllClaimsWithOptions instead.
@@ -262,10 +283,18 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	if oidcClientId == "" {
 		oidcClientId = s.options.OidcClientId
 	}
+	oidcClientId, err = s.resolveClientCredential(oidcClientId)
+	if err != nil {
+		return nil, err
+	}
 
 	oidcClientSecret := sargs[paramClientSecret]
 	if oidcClientSecret == "" {
 		oidcClientSecret = s.options.OidcClientSecret
+	}
+	oidcClientSecret, err = s.resolveClientCredential(oidcClientSecret)
+	if err != nil {
+		return nil, err
 	}
 
 	f := &tokenOidcFilter{

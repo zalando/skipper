@@ -55,8 +55,6 @@ const (
 	unknownRouteBackendType = "<unknown>"
 	unknownRouteBackend     = "<unknown>"
 
-	clientTraceTime = "clientTraceTime"
-
 	// Number of loops allowed by default.
 	DefaultMaxLoopbacks = 9
 
@@ -923,7 +921,15 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 		filterTracing.logStart(fi.Name)
 		ctx.setMetricsPrefix(fi.Name)
 
+		parentCtx := ctx.request.Context()
+		labelCtx := pprof.WithLabels(parentCtx, pprof.Labels("skipper.filter", fi.Name))
+		pprof.SetGoroutineLabels(labelCtx)
+		ctx.request = ctx.request.WithContext(labelCtx)
+
 		fi.Request(ctx)
+
+		ctx.request = ctx.request.WithContext(parentCtx)
+		pprof.SetGoroutineLabels(parentCtx)
 
 		p.metrics.MeasureFilterRequest(fi.Name, start)
 		filterTracing.logEnd(fi.Name)
@@ -1405,12 +1411,16 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			p.metrics.IncErrorsBackend(ctx.route.Id)
 
 			if retryable(ctx, perr) {
+				if p.tracing.clientTraceByTag {
+					p.tracing.setTag(ctx.proxySpan, "retry", ctx.route.Id)
+				} else {
+					tracing.LogKV("retry", ctx.route.Id, ctx.Request().Context())
+				}
+
 				if ctx.proxySpan != nil {
 					ctx.proxySpan.Finish()
 					ctx.proxySpan = nil
 				}
-
-				tracing.LogKV("retry", ctx.route.Id, ctx.Request().Context())
 
 				perr = nil
 				var perr2 *proxyError
@@ -1486,7 +1496,9 @@ func (p *Proxy) serveResponse(ctx *context) {
 	}
 
 	start := time.Now()
-	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, StartEvent)
+	if !p.tracing.clientTraceByTag {
+		p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, StartEvent)
+	}
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
 
 	if err := ctx.Request().Context().Err(); err != nil {
@@ -1501,7 +1513,11 @@ func (p *Proxy) serveResponse(ctx *context) {
 
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	ctx.responseWriter.Flush()
-	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, EndEvent)
+	if p.tracing.clientTraceByTag {
+		p.tracing.setTag(ctx.proxySpan, StreamHeadersEvent, time.Since(start).Microseconds())
+	} else {
+		p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, EndEvent)
+	}
 
 	responseStopWatch.Stop()
 
@@ -1518,6 +1534,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 	responseStopWatch.Start()
 
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, strconv.FormatInt(n, 10))
+
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
 		ctx.Logger().Debugf("error while copying the response stream: %v", err)
@@ -1544,10 +1561,10 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		return
 	}
 
-	flowIdLog := ""
-	flowId := ctx.Request().Header.Get(flowidFilter.HeaderName)
-	if flowId != "" {
-		flowIdLog = fmt.Sprintf(", flow id %s", flowId)
+	flowIDLog := ""
+	flowID := ctx.Request().Header.Get(flowidFilter.HeaderName)
+	if flowID != "" {
+		flowIDLog = fmt.Sprintf(", flow id %s", flowID)
 	}
 	id := unknownRouteID
 	backendType := unknownRouteBackendType
@@ -1604,7 +1621,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 			id,
 			backendType,
 			backend,
-			flowIdLog,
+			flowIDLog,
 			ctx.response.StatusCode,
 			err,
 			remoteAddr,
@@ -1679,7 +1696,7 @@ func shouldLog(statusCode int, filter *al.AccessLogFilter) bool {
 	return match == filter.Enable
 }
 
-// http.Handler implementation
+// ServeHTTP is the proxy http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var requestElapsed, responseElapsed time.Duration
@@ -1761,7 +1778,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	defer pprof.SetGoroutineLabels(rCtx)
 
-	tCtx := pprof.WithLabels(rCtx, pprof.Labels("trace_id", tracing.GetTraceID(span)))
+	tCtx := pprof.WithLabels(rCtx,
+		pprof.Labels(
+			"trace_id", tracing.GetTraceID(span),
+			"http.path", r.URL.Path,
+			"http.method", r.Method,
+			"http.host", r.Host,
+		))
 	pprof.SetGoroutineLabels(tCtx)
 	r = r.WithContext(tCtx)
 
@@ -1843,43 +1866,35 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 
 // TODO(sszuecs): copy from net.Client, we should refactor this to use net.Client
 func injectClientTraceByTag(ctx *context, t time.Time, req *http.Request, span ot.Span) *http.Request {
-	ctx.stateBag[clientTraceTime] = t
+	ctx.clientTraceTime = t
 	trace := &httptrace.ClientTrace{
 		DNSDone: func(httptrace.DNSDoneInfo) {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceDNS, time.Since(t).Microseconds())
+			span.SetTag(ClientTraceDNS, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 		ConnectDone: func(string, string, error) {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceConnect, time.Since(t).Milliseconds())
+			span.SetTag(ClientTraceConnect, time.Since(ctx.clientTraceTime).Milliseconds())
 		},
 		TLSHandshakeDone: func(tls.ConnectionState, error) {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceTLS, time.Since(t).Microseconds())
+			span.SetTag(ClientTraceTLS, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 		GotConn: func(httptrace.GotConnInfo) {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceGetConn, time.Since(t).Nanoseconds())
+			span.SetTag(ClientTraceGetConn, time.Since(ctx.clientTraceTime).Nanoseconds())
 		},
 		Got100Continue: func() {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceGot100Continue, time.Since(t).Microseconds())
+			span.SetTag(ClientTraceGot100Continue, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 		WroteHeaders: func() {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceWroteHeaders, time.Since(t).Microseconds())
+			span.SetTag(ClientTraceWroteHeaders, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 		WroteRequest: func(wri httptrace.WroteRequestInfo) {
 			if wri.Err != nil {
 				span.LogKV(ClientTraceWroteRequest, ensureUTF8(wri.Err.Error()))
 			} else {
-				t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-				span.SetTag(ClientTraceWroteRequest, time.Since(t).Microseconds())
+				span.SetTag(ClientTraceWroteRequest, time.Since(ctx.clientTraceTime).Microseconds())
 			}
 		},
 		GotFirstResponseByte: func() {
-			t, _ := ctx.stateBag[clientTraceTime].(time.Time)
-			span.SetTag(ClientTraceGotFirstByte, time.Since(t).Microseconds())
+			span.SetTag(ClientTraceGotFirstByte, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 	}
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))

@@ -89,7 +89,6 @@ implementation of DialContext, which is the TCP connection pool used in the
     -enable-dualstack-backend
         enables DualStack for backend connections (default true)
 
-
 ### Client
 
 Client is the side skipper gets incoming calls from.
@@ -175,6 +174,23 @@ average expected per request memory requirement, which can be set with the
 Note that the automatically inferred limit may not work as expected in an
 environment other than cgroups v1 or cgroups v2.
 
+### HAProxy PROXY protocol v1/v2
+
+Skipper integrates the [go-proxyproto](https://github.com/pires/go-proxyproto)
+library to implement the [HAProxy protocol](https://www.haproxy.org/download/2.3/doc/proxy-protocol.txt).
+
+If you want to support this protocol in your skipper you have to
+enable the feature by setting `-enable-proxy-protocol`. For security
+reasons you have to allow list all CIDRs `-proxy-allow-cidrs`, that
+are allowed to use this protocol. You have also to allow to skip
+(`-proxy-skip-cidrs`) this protocol even if the client tried to use
+the proxy protocol. You can also deny some CIDRs `-proxy-deny-cidrs`.
+All 3 flags use comma separated values:
+`-proxy-allow-cidrs="::0/0,0.0.0.0/0"` to allow all IPv6 and IPv4
+addresses.
+
+## Authentication and Authorization
+
 ### OAuth2 Tokeninfo
 
 OAuth2 filters integrate with external services and have their own
@@ -200,7 +216,6 @@ the listen port with the `-support-listener` flag. Metrics can exposed
 using formats Codahale (json) or Prometheus and be configured by
 `-metrics-flavour=`, which defaults to `codahale`. To expose both
 formats you can use a comma separated list: `-metrics-flavour=codahale,prometheus`.
-
 
 ### Prometheus
 
@@ -240,7 +255,7 @@ These metrics are exposed in /metrics, the example json structure looks like thi
 
 ```json
 {
-  "timers" : {
+  "timers": {
     "skipper.proxy.total": {
       "15m.rate": 0.2,
       "1m.rate": 0.2,
@@ -256,7 +271,7 @@ These metrics are exposed in /metrics, the example json structure looks like thi
       "median": 288375,
       "min": 288375,
       "stddev": 0
-    },
+    }
   }
 }
 ```
@@ -304,7 +319,7 @@ If enabled these metrics are also exposed in /metrics, and the example json stru
       "median": 288375,
       "min": 288375,
       "stddev": 0
-    },
+    }
   }
 }
 ```
@@ -337,7 +352,7 @@ It will expose them in /metrics, for example json structure looks like this exam
     "skipper.lb-conn-new": {
       "count": 6
     }
-  },
+  }
   /* stripped a lot of metrics here */
 }
 ```
@@ -448,7 +463,6 @@ utilized applications (less than 100 requests per second):
 
     -metrics-exp-decay-sample
         use exponentially decaying sample in metrics
-
 
 ### Go metrics
 
@@ -716,7 +730,7 @@ The following timer metrics are exposed per used bundle-name:
 - `skipper.opaAuthorizeRequest.custom.eval_time.<bundle-name>`
 - `skipper.opaServeResponse.custom.eval_time.<bundle-name>`
 
-Open Policy Agent [native Prometheus metrics](https://www.openpolicyagent.org/docs/monitoring#status-metrics) are passed through if the metrics backend is set to Prometheus (via `--metrics-flavour`). 
+Open Policy Agent [native Prometheus metrics](https://www.openpolicyagent.org/docs/monitoring#status-metrics) are passed through if the metrics backend is set to Prometheus (via `--metrics-flavour`).
 
 The OPA native metrics are prefixed with `skipper_openpolicyagent_`, e.g. `skipper_openpolicyagent_plugin_status_gauge` will be exposed via Skipper's `/metrics` endpoint. Two extra labels are added to all metrics: `opa_instance_name` (set to the bundle name parameter of the filters) and `opa_instance_id` (a random ID that identifies the virtual OPA instance).
 
@@ -793,7 +807,6 @@ Metrics explanation:
 - `routesrv_custom_gauges{key="routes.updated_timestamp"} 1.698766468969631e+09`:
   The last update of routes by routesrv was at 1.698766468969631e+09.
   (2023-10-31 16:34:28 4066927/4194304 +0100)
-
 
 If you want to read more about RouteSRV see [deploy RouteSRV](../kubernetes/ingress-controller.md#routesrv).
 
@@ -907,7 +920,6 @@ The best tested tracer is the [lightstep tracer](https://github.com/zalando/skip
 because we use it in our setup. In case you miss something for your chosen tracer, please
 open an issue or pull request in our [repository](https://github.com/zalando/skipper).
 
-
 ## OpenTelemetry
 
 Skipper supports [OpenTelemetry](https://opentelemetry.io/) tracing using [standard environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) and the `-open-telemetry` flag.
@@ -928,7 +940,7 @@ OTEL_BSP_MAX_EXPORT_BATCH_SIZE="512" \
 skipper -open-telemetry={}
 ```
 
-To enable and  configure OpenTelemetry using the `-open-telemetry` flag, provide a YAML configuration as the value:
+To enable and configure OpenTelemetry using the `-open-telemetry` flag, provide a YAML configuration as the value:
 
 ```sh
 skipper -open-telemetry='
@@ -1030,7 +1042,6 @@ The request filters span logs show `start` and `end` events for each filter appl
 
 ![request filter span with logs](../img/skipper_opentracing_request_filters_span_with_logs.png)
 
-
 ### Response filters span
 
 The response filters span logs show `start` and `end` events for each filter applied.
@@ -1048,6 +1059,7 @@ have the name "tokeninfo", "tokenintrospection" or "webhook" depending
 on the filter used by the matched route.
 
 Tags:
+
 - http.url: https://auth.example.org
 
 The auth filters have trace log values `start` and `end` for DNS, TCP
@@ -1060,6 +1072,7 @@ connect, TLS handshake and connection pool:
 When one of the Open Policy Agent filters is used, child spans with the operation name `open-policy-agent` are added to the Trace.
 
 The following tags are added to the Span, labels are taken from the OPA configuration YAML file as is and are not interpreted:
+
 - `opa.decision_id=<decision id that was recorded>`
 - `opa.labels.<label1>=<value1>`
 
@@ -1090,7 +1103,6 @@ Kubernetes API, use the following option:
 
     -source-poll-timeout int
         polling timeout of the routing data sources, in milliseconds (default 3000)
-
 
 ## Routing table information
 
@@ -1126,6 +1138,26 @@ to get the results paginated or getting all of them at the same time.
 curl localhost:9911/routes?offset=200&limit=100
 ```
 
+To list invalid routes (routes that failed validation due to unknown
+filters, invalid predicate parameters, etc.), use the `invalid` query
+parameter:
+
+```sh
+curl localhost:9911/routes?invalid=true
+```
+
+When requesting invalid routes as JSON, the response includes an
+`error` field with the validation error message for each route:
+
+```sh
+curl -H 'Accept: application/json' localhost:9911/routes?invalid=true
+[{"id":"my_route","backend":"https://example.org","error":"unknown_filter: filter \"unknownFilter\" not found"}]
+```
+
+The `X-Count` header reflects the number of invalid routes when
+`invalid=true` is set. Pagination with `offset` and `limit` works
+the same way as for valid routes.
+
 ## Passive Health Check
 
 Skipper has an option to automatically detect and mitigate faulty backend endpoints, this feature is called
@@ -1149,29 +1181,29 @@ them explicitly defined by user. `min-drop-probability` is implicitly defined as
 `max-unhealthy-endpoints-ratio` is defined as `1.0` if not explicitly set by user.
 Valid examples of `-passive-health-check` are:
 
-+ `-passive-health-check=period=1s,min-requests=10,min-drop-probability=0.05,max-drop-probability=0.9,max-unhealthy-endpoints-ratio=0.3`
-+ `-passive-health-check=period=1s,min-requests=10,max-drop-probability=0.9,max-unhealthy-endpoints-ratio=0.3`
-+ `-passive-health-check=period=1s,min-requests=10,min-drop-probability=0.05,max-drop-probability=0.9`
-+ `-passive-health-check=period=1s,min-requests=10,max-drop-probability=0.9`
+- `-passive-health-check=period=1s,min-requests=10,min-drop-probability=0.05,max-drop-probability=0.9,max-unhealthy-endpoints-ratio=0.3`
+- `-passive-health-check=period=1s,min-requests=10,max-drop-probability=0.9,max-unhealthy-endpoints-ratio=0.3`
+- `-passive-health-check=period=1s,min-requests=10,min-drop-probability=0.05,max-drop-probability=0.9`
+- `-passive-health-check=period=1s,min-requests=10,max-drop-probability=0.9`
 
 If `-passive-health-check` option is provided, but some required parameters are not defined, Skipper will not start.
 Skipper will run without this feature, if no `-passive-health-check` is provided at all.
 
 The parameters of `-passive-health-check` option are:
 
-+ `period=<duration>` - the duration of stats reset period
-+ `min-requests=<int>` - the minimum number of requests per `period` per backend endpoint required to activate PHC for this endpoint
-+ `min-drop-probability=[0.0 <= p < max-drop-probability)` - the minimum possible probability of unhealthy endpoint being not considered while choosing the endpoint for the given request. The same value is in fact used as minimal failed requests ratio for PHC to be enabled for this endpoint
-+ `max-drop-probability=(min-drop-probability < p <= 1.0]` - the maximum possible probability of unhealthy endpoint being not considered
-while choosing the endpoint for the given request
-+ `max-unhealthy-endpoints-ratio=[0.0 <= r <= 1.0]` - the maximum ratio of unhealthy endpoints for PHC to try to mitigate ongoing requests
+- `period=<duration>` - the duration of stats reset period
+- `min-requests=<int>` - the minimum number of requests per `period` per backend endpoint required to activate PHC for this endpoint
+- `min-drop-probability=[0.0 <= p < max-drop-probability)` - the minimum possible probability of unhealthy endpoint being not considered while choosing the endpoint for the given request. The same value is in fact used as minimal failed requests ratio for PHC to be enabled for this endpoint
+- `max-drop-probability=(min-drop-probability < p <= 1.0]` - the maximum possible probability of unhealthy endpoint being not considered
+  while choosing the endpoint for the given request
+- `max-unhealthy-endpoints-ratio=[0.0 <= r <= 1.0]` - the maximum ratio of unhealthy endpoints for PHC to try to mitigate ongoing requests
 
 ### Metrics
 
 A set of metrics will be exposed to track passive health check:
 
-* `passive-health-check.endpoints.dropped`: Number of all endpoints dropped before load balancing a request, so after N requests and M endpoints are being dropped this counter would be N*M.
-* `passive-health-check.requests.passed`: Number of unique requests where PHC was able to avoid sending them to unhealthy endpoints.
+- `passive-health-check.endpoints.dropped`: Number of all endpoints dropped before load balancing a request, so after N requests and M endpoints are being dropped this counter would be N\*M.
+- `passive-health-check.requests.passed`: Number of unique requests where PHC was able to avoid sending them to unhealthy endpoints.
 
 ## Memory consumption
 
@@ -1202,8 +1234,7 @@ If you use the Prometheus histogram buckets `-histogram-metric-buckets`.
 If you enable route based `-route-backend-metrics`
 `-route-response-metrics` `-serve-route-metrics`, error codes
 `-route-response-metrics` and host `-serve-host-metrics` based metrics
-it can count up. Please check the support listener endpoint (default
-9911) to understand the usage:
+it can count up. Please check the support listener endpoint (default 9911) to understand the usage:
 
 ```sh
 % curl localhost:9911/metrics
@@ -1271,8 +1302,8 @@ a default filter.
 
 HTTP request schedulers change the queuing behavior of in-flight
 requests. A queue has two generic properties: a limit of requests and
-a concurrency level.  The limit of request can be unlimited (unbounded
-queue), or limited (bounded queue).  The concurrency level is either
+a concurrency level. The limit of request can be unlimited (unbounded
+queue), or limited (bounded queue). The concurrency level is either
 limited or unlimited.
 
 The default scheduler is an unbounded first in first out (FIFO) queue,
@@ -1283,7 +1314,7 @@ decision:
 
 1. TCP accept() handler LIFO
 2. Filters: [`fifo()`](../reference/filters.md#fifo), [`lifo()`](../reference/filters.md#lifo) and
-[`lifoGroup()`](../reference/filters.md#lifogroup)
+   [`lifoGroup()`](../reference/filters.md#lifogroup)
 
 ![picture of skipper queues](../img/skipper-queues.png)
 
@@ -1345,7 +1376,7 @@ On failure conditions, Skipper will return HTTP status code:
 Skipper has two filters [`lifo()`](../reference/filters.md#lifo) and
 [`lifoGroup()`](../reference/filters.md#lifogroup) and one
 [`fifo()`](../reference/filters.md#fifo) filter, that can limit
-the number of requests for a route.  A [documented load
+the number of requests for a route. A [documented load
 test](https://github.com/zalando/skipper/pull/1030#issuecomment-485714338)
 shows the behavior with an enabled `lifo(100,100,"10s")` filter for
 all routes, that was added by default. You can do this, if you pass
@@ -1572,6 +1603,7 @@ copy.
 Example:
 
 A route with `edit-route`
+
 ```sh
 % skipper -inline-routes='Path("/foo") -> setResponseHeader("X-Foo","bar") -> inlineContent("hi") -> <shunt>' \
 -edit-route='/inlineContent[(]["](.*)["][)]/inlineContent("modified \"$1\" response")/'
@@ -1585,6 +1617,7 @@ A route with `edit-route`
 ```
 
 Modified route:
+
 ```sh
 curl localhost:9911/routes
 Path("/foo")
@@ -1594,6 +1627,7 @@ Path("/foo")
 ```
 
 Modified response body:
+
 ```sh
 % curl -v http://localhost:9090/foo
 *   Trying ::1...
@@ -1624,20 +1658,26 @@ additional routes for
 ```
 r: SourceFromLast("9.0.0.0/8","2001:67c:20a0::/48") -> ...`
 ```
+
 to change to
+
 ```
 r: SourceFromLast("9.0.0.0/8","2001:67c:20a0::/48") -> ...`
 clone_r: ClientIP("9.0.0.0/8","2001:67c:20a0::/48") -> ...`
 ```
+
 for migration time.
 
 `/` symbol is not the only option for the separator for `-edit-route` and `-clone-route`, any
 first symbol you will specify in those options could be used as separator. This could be useful
 for IP mask changes, for example, you can use `-edit-route='#/26#/24#`. In this case
+
 ```
 r: SourceFromLast("9.0.0.0/26","2001:67c:20a0::/48") -> ...`
 ```
+
 will be changed to
+
 ```
 r: SourceFromLast("9.0.0.0/24","2001:67c:20a0::/48") -> ...`
 ```

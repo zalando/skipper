@@ -18,6 +18,10 @@ import (
 	"github.com/zalando/skipper/tracing"
 )
 
+const (
+	minEndpointsByZone = 3
+)
+
 type responseWriterInterceptor struct {
 	http.ResponseWriter
 	statusCode   int
@@ -79,6 +83,10 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route, zoneAwareRoutes map[str
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	if e.zoneData == nil {
+		e.zoneData = make(map[string][]byte)
+	}
 
 	updated = !bytes.Equal(e.data, data)
 	if updated {

@@ -231,6 +231,9 @@ type Options struct {
 	// EnablePrometheusStartLabel adds start label to each prometheus counter with the value of counter creation
 	// timestamp as unix nanoseconds.
 	EnablePrometheusStartLabel bool
+
+	// DisableCompression defaults to enable compression on the metrics endpoint, can be disabled if set to true
+	DisableCompression bool
 }
 
 var (

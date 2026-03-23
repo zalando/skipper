@@ -1681,6 +1681,30 @@ Examples:
 jwtValidation("https://login.microsoftonline.com/{tenantId}/v2.0")
 ```
 
+#### jwtValidationKeys
+
+The filter works like [jwtValidation](#jwtvalidation) but takes a JWKS URL directly instead of
+discovering it via `/.well-known/openid-configuration`. This is useful for services that publish
+JWKS keys at non-standard endpoints, such as Google Chat service accounts.
+Unlike `jwtValidation`, the `sub` claim is not required — tokens without `sub` are accepted.
+
+The filter stores token claims into the state bag where they can be used by [oidcClaimsQuery](#oidcclaimsquery), [forwardToken](#forwardtoken) or [forwardTokenField](#forwardtokenfield) filters.
+
+Examples:
+
+```
+jwtValidationKeys("https://www.googleapis.com/service_accounts/v1/jwk/chat@system.gserviceaccount.com")
+```
+
+To also validate specific claims like `iss` or `aud`, chain with [oidcClaimsQuery](#oidcclaimsquery).
+Note that queries within a single `oidcClaimsQuery` argument are OR-matched, so use separate filters for AND logic:
+
+```
+jwtValidationKeys("https://www.googleapis.com/service_accounts/v1/jwk/chat@system.gserviceaccount.com")
+-> oidcClaimsQuery("/:@_:iss==\"chat@system.gserviceaccount.com\"")
+-> oidcClaimsQuery("/:@_:aud==\"123456789\"")
+```
+
 #### jwtMetrics
 
 > This filter is experimental and may change in the future, please see tests for example usage.
@@ -1938,6 +1962,21 @@ The filter needs the following parameters:
 * **OpenID Connect Provider URL** For example Google OpenID Connect is available on `https://accounts.google.com`
 * **Client ID** This value is obtained from the provider upon registration of the application. Falls back to```OIDC_CLIENT_ID``` env variable for empty value.
 * **Client Secret**  Also obtained from the provider. Falls back to ```OIDC_CLIENT_SECRET``` env variable for empty value.
+
+The **Client ID** and **Client Secret** parameters also support reading values from Skipper's secrets registry using the prefix `secretRef:`.
+
+In Kubernetes deployments, the secrets registry is commonly backed by Secrets mounted as files (or similar mechanisms); the value after `secretRef:` is the key that Skipper resolves via its configured secrets reader.
+
+```
+oauthOidcAnyClaims("https://oidc-provider.example.com",
+  "secretRef:/oidc/client-id",
+  "secretRef:/oidc/client-secret",
+  "http://target.example.com/subpath/callback",
+  "email profile",
+  "name email")
+```
+
+When using `secretRef:`, Skipper expects the referenced secret to be available via the configured secrets reader; if the secret cannot be resolved, filter creation fails.
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
@@ -1966,6 +2005,8 @@ The filter needs the following parameters:
 * **OpenID Connect Provider URL** For example Google OpenID Connect is available on `https://accounts.google.com`
 * **Client ID** This value is obtained from the provider upon registration of the application.
 * **Client Secret**  Also obtained from the provider
+
+The **Client ID** and **Client Secret** parameters also support reading values from Skipper's secrets registry using the prefix `secretRef:`.
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
@@ -1993,6 +2034,8 @@ The filter needs the following parameters:
 * **OpenID Connect Provider URL** For example Google OpenID Connect is available on `https://accounts.google.com`
 * **Client ID** This value is obtained from the provider upon registration of the application.
 * **Client Secret**  Also obtained from the provider
+
+The **Client ID** and **Client Secret** parameters also support reading values from Skipper's secrets registry using the prefix `secretRef:`.
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
