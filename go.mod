@@ -24,7 +24,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/memberlist v0.5.4
-	github.com/instana/go-sensor v1.73.0
+	github.com/instana/go-sensor v1.73.1
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.72
 	github.com/oklog/ulid v1.3.1
@@ -48,9 +48,9 @@ require (
 	github.com/tsenart/vegeta v12.7.0+incompatible
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
-	github.com/valkey-io/valkey-go v1.0.72
-	github.com/valkey-io/valkey-go/valkeyhook v1.0.72
-	github.com/valkey-io/valkey-go/valkeyotel v1.0.72
+	github.com/valkey-io/valkey-go v1.0.73
+	github.com/valkey-io/valkey-go/valkeyhook v1.0.73
+	github.com/valkey-io/valkey-go/valkeyotel v1.0.73
 	github.com/yookoala/gofast v0.8.0
 	github.com/yuin/gopher-lua v1.1.1
 	go.opentelemetry.io/contrib/exporters/autoexport v0.67.0
