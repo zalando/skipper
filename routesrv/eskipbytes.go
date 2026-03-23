@@ -54,7 +54,7 @@ var (
 type eskipBytes struct {
 	mu           sync.RWMutex
 	data         []byte
-	zoneData    map[string][]byte
+	zoneData     map[string][]byte
 	hash         string
 	lastModified time.Time
 	initialized  bool
@@ -151,9 +151,8 @@ func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	lastModified := e.lastModified
 	initialized := e.initialized
 
-	// by default serve all routes, 
-	// but if a zone is specified and there are routes for that zone given that the condition that there needs to be at least 3 enpoints in the zoneAwareRoutes, serve those instead
-	// we fall back to cross
+	// if a zone is specified and there are at least three routes that are zone aware, serve the zone aware routes
+	// else serve all routes
 	zone := r.PathValue("zone")
 	if zone != "" {
 		zoneData, ok := e.zoneData[zone]
