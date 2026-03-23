@@ -118,35 +118,6 @@ func (state *clusterState) GetEndpointSlicesByService(zone, namespace, name, pro
 	return targets
 }
 
-// GetEndpointSlicesByService returns the skipper endpointslices for kubernetes endpointslices.
-func (state *clusterState) GetEndpointSlicesByService(namespace, name, protocol string, servicePort *servicePort) []skipperEndpoint {
-	epID := endpointID{
-		ResourceID: newResourceID(namespace, name),
-		Protocol:   protocol,
-		TargetPort: servicePort.TargetPort.String(),
-	}
-
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if cached, ok := state.cachedEndpointSlices[epID]; ok {
-		return cached
-	}
-
-	var targets []skipperEndpoint
-	if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
-		targets = eps.targetsByServicePort("TCP", protocol, servicePort)
-	} else {
-		return nil
-	}
-
-	sort.Slice(targets, func(i, j int) bool {
-		return targets[i].Address < targets[j].Address
-	})
-
-	state.cachedEndpointSlices[epID] = targets
-	return targets
-}
-
 // getEndpointAddresses returns the list of all addresses for the given service using endpoints or endpointslices.
 func (state *clusterState) getEndpointAddresses(zone, namespace, name string) []string {
 	rID := newResourceID(namespace, name)
@@ -241,32 +212,5 @@ func (state *clusterState) GetEndpointSlicesByTarget(zone, namespace, name, prot
 		}
 	}
 
-	return targets
-}
-
-func (state *clusterState) GetEndpointSlicesByTarget(namespace, name, protocol, scheme string, target *definitions.BackendPort) []skipperEndpoint {
-	epID := endpointID{
-		ResourceID: newResourceID(namespace, name),
-		Protocol:   protocol,
-		TargetPort: target.String(),
-	}
-
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if cached, ok := state.cachedEndpointSlices[epID]; ok {
-		return cached
-	}
-
-	var targets []skipperEndpoint
-	if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
-		targets = eps.targetsByServiceTarget(protocol, scheme, target)
-	} else {
-		return nil
-	}
-
-	sort.Slice(targets, func(i, j int) bool {
-		return targets[i].Address < targets[j].Address
-	})
-	state.cachedEndpointSlices[epID] = targets
 	return targets
 }
