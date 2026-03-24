@@ -2,8 +2,8 @@ package builtin
 
 import (
 	"bytes"
-	"compress/flate"
-	"compress/gzip"
+	"github.com/klauspost/compress/flate"
+	"github.com/klauspost/compress/gzip"
 	"errors"
 	"io"
 	"math/rand"
@@ -785,6 +785,70 @@ func BenchmarkCompressBrotli2(b *testing.B) { benchmarkCompress(b, 100, []string
 func BenchmarkCompressBrotli4(b *testing.B) { benchmarkCompress(b, 10000, []string{"br"}) }
 func BenchmarkCompressBrotli6(b *testing.B) { benchmarkCompress(b, 1000000, []string{"br"}) }
 func BenchmarkCompressBrotli8(b *testing.B) { benchmarkCompress(b, 100000000, []string{"br"}) }
+
+func benchmarkCompressJSON(b *testing.B, n int64, encoding []string) {
+	// Repeating JSON pattern — highly compressible, realistic payload
+	pattern := []byte(`{"id":12345,"name":"test-user","email":"user@example.com","active":true,"tags":["a","b"]},`)
+	buf := make([]byte, n)
+	for i := 0; i < len(buf); i += len(pattern) {
+		copy(buf[i:], pattern)
+	}
+
+	s := NewCompress()
+	f, _ := s.CreateFilter(nil)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			body := io.NopCloser(bytes.NewReader(buf))
+			req := &http.Request{Header: http.Header{"Accept-Encoding": encoding}}
+			rsp := &http.Response{
+				Header: http.Header{"Content-Type": []string{"application/json"}},
+				Body:   body}
+			ctx := &filtertest.Context{
+				FRequest:  req,
+				FResponse: rsp}
+			f.Response(ctx)
+			_, err := io.ReadAll(rsp.Body)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func benchmarkCompressLevel(b *testing.B, n int64, level int, encoding []string) {
+	s := NewCompress()
+	f, _ := s.CreateFilter([]interface{}{float64(level)})
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			body := io.NopCloser(&io.LimitedReader{R: rand.New(rand.NewSource(0)), N: n})
+			req := &http.Request{Header: http.Header{"Accept-Encoding": encoding}}
+			rsp := &http.Response{
+				Header: http.Header{"Content-Type": []string{"application/octet-stream"}},
+				Body:   body}
+			ctx := &filtertest.Context{
+				FRequest:  req,
+				FResponse: rsp}
+			f.Response(ctx)
+			_, err := io.ReadAll(rsp.Body)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+// JSON payload benchmarks (compressible data)
+func BenchmarkCompressGzipJSON4(b *testing.B)  { benchmarkCompressJSON(b, 10000, []string{"gzip"}) }
+func BenchmarkCompressGzipJSON6(b *testing.B)  { benchmarkCompressJSON(b, 1000000, []string{"gzip"}) }
+func BenchmarkCompressGzipJSON8(b *testing.B)  { benchmarkCompressJSON(b, 100000000, []string{"gzip"}) }
+
+// Deflate-only benchmarks
+func BenchmarkCompressDeflate4(b *testing.B) { benchmarkCompress(b, 10000, []string{"deflate"}) }
+func BenchmarkCompressDeflate6(b *testing.B) { benchmarkCompress(b, 1000000, []string{"deflate"}) }
+
+// Higher compression level (level 6 = DefaultCompression)
+func BenchmarkCompressGzipLevel6_4(b *testing.B) { benchmarkCompressLevel(b, 10000, 6, []string{"gzip"}) }
+func BenchmarkCompressGzipLevel6_6(b *testing.B) { benchmarkCompressLevel(b, 1000000, 6, []string{"gzip"}) }
 
 func BenchmarkCanEncodeEntity(b *testing.B) {
 	testCases := []struct {

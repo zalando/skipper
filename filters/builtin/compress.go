@@ -1,8 +1,8 @@
 package builtin
 
 import (
-	"compress/flate"
-	"compress/gzip"
+	"github.com/klauspost/compress/flate"
+	"github.com/klauspost/compress/gzip"
 	"errors"
 	"io"
 	"math"
