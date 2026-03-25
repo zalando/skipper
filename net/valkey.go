@@ -351,7 +351,6 @@ func NewValkeyRingClient(opt *ValkeyOptions) (*ValkeyRingClient, error) {
 		}
 		if err != nil {
 			opt.Log.Errorf("Failed start valkey client: %v", err)
-			return nil, fmt.Errorf("failed start valkey client: %v", err)
 		} else {
 			opt.Addrs = address
 		}
