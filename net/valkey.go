@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -397,12 +399,20 @@ func (vrc *ValkeyRingClient) Close() error {
 
 func (vrc *ValkeyRingClient) startUpdater(ctx context.Context) {
 	old := vrc.options.Addrs
+	sort.Strings(old)
 	vrc.log.Infof("Start goroutine to update valkey instances every %s", vrc.options.UpdateInterval)
 	defer vrc.log.Info("Stopped goroutine to update valkey")
 
 	ticker := time.NewTicker(vrc.options.UpdateInterval)
 	defer ticker.Stop()
+
 	init := true
+	if len(old) != 0 {
+		vrc.SetAddrs(ctx, old)
+		vrc.log.Infof("Valkey updater initial set to %d shards", len(old))
+		init = false
+	}
+
 	for {
 
 		select {
@@ -413,18 +423,25 @@ func (vrc *ValkeyRingClient) startUpdater(ctx context.Context) {
 
 		addrs, err := vrc.options.AddrUpdater()
 		if err != nil {
-			vrc.log.Errorf("Failed to run valkey updater: %v", err)
+			vrc.log.Errorf("Failed to update valkey ring: %v", err)
 			continue
 		}
-		if !init && len(difference(addrs, old)) != 0 {
+		sort.Strings(addrs)
+
+		if init {
+			if len(addrs) != 0 {
+				init = false
+				vrc.SetAddrs(ctx, addrs)
+				vrc.log.Infof("Valkey updater initial set to %d shards", len(addrs))
+				old = addrs
+			}
+			continue
+		}
+
+		if !slices.Equal(old, addrs) {
 			vrc.SetAddrs(ctx, addrs)
 			vrc.log.Infof("Valkey updater updated old(%d) -> new(%d)", len(old), len(addrs))
 
-			old = addrs
-		} else if init && len(addrs) != 0 {
-			init = false
-			vrc.SetAddrs(ctx, addrs)
-			vrc.log.Infof("Valkey updater initial set to %d shards", len(addrs))
 			old = addrs
 		}
 	}
@@ -553,9 +570,9 @@ func difference(a, b []string) []string {
 			result = append(result, item)
 		}
 	}
-
 	return result
 }
+
 func intersect(slice1, slice2 []string) []string {
 	set := make(map[string]struct{})
 	for _, item := range slice1 {
@@ -569,6 +586,5 @@ func intersect(slice1, slice2 []string) []string {
 			delete(set, item)
 		}
 	}
-
 	return result
 }
