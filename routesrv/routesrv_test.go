@@ -955,7 +955,6 @@ func TestRoutesWithZone(t *testing.T) {
 				SourcePollTimeout:              pollInterval,
 				Kubernetes:                     true,
 				KubernetesURL:                  ks.URL,
-				KubernetesTopologyZone:         tc.zone,
 				KubernetesEnableEndpointslices: true,
 			})
 
@@ -978,4 +977,59 @@ func TestRoutesWithZone(t *testing.T) {
 			wantHTTPCode(t, w, http.StatusOK)
 		})
 	}
+}
+
+func TestEtagWithZoneAwareRoutingFallback(t *testing.T) {
+	defer tl.Reset()
+
+	// Initial state: 3 endpoints in zone-a, 3 in zone-b, 3 in zone-c
+	ks, handler := newKubeServer(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Fatalf("routes not initialized: %v", err)
+	}
+
+	w1 := getZoneAwareRoutes(rs, "eu-central-1a")
+	if w1.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w1.Code)
+	}
+
+	got1 := eskip.MustParse(w1.Body.String())
+	want1 := parseEskipFixture(t, "testdata/zone-aware-traffic/all-zones-3-addr.eskip")
+	if !eskip.EqLists(got1, want1) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got1, want1))
+	}
+
+	etag1 := w1.Header().Get("Etag")
+
+	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr-updated.yaml")))
+	if err := tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout); err != nil {
+		t.Fatalf("routes not updated: %v", err)
+	}
+
+	w2 := getZoneAwareRoutes(rs, "eu-central-1a")
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w2.Code)
+	}
+
+	got2 := eskip.MustParse(w2.Body.String())
+	want2 := parseEskipFixture(t, "testdata/zone-aware-traffic/all-zones-3-addr-updated.eskip")
+	if !eskip.EqLists(got2, want2) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got2, want2))
+	}
+
+	etag2 := w2.Header().Get("Etag")
+
+	require.NotEqual(t, etag1, etag2, "Etag should change after routes update")
 }

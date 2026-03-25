@@ -80,13 +80,10 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route, zoneAwareRoutes map[str
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if e.zoneData == nil {
-		e.zoneData = make(map[string][]byte)
-	}
-
 	updated = !bytes.Equal(e.data, data)
 	if updated {
 		if len(zoneAwareRoutes) > 0 {
+			e.zoneData = make(map[string][]byte)
 			for zone, routes := range zoneAwareRoutes {
 				zoneBuf := &bytes.Buffer{}
 				eskip.Fprint(zoneBuf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
