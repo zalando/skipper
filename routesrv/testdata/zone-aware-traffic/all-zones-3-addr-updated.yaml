@@ -15,24 +15,22 @@ spec:
     app: myapp
   type: ClusterIP
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: zalando.org/v1
+kind: RouteGroup
 metadata:
   labels:
     app: myapp
-  name: myapp-ingress
-  namespace: default
+  name: myapp
 spec:
-  rules:
-    - host: example.org
-      http:
-        paths:
-          - backend:
-              service:
-                name: myapp-service
-                port:
-                  number: 80
-            pathType: ImplementationSpecific
+  hosts:
+  - example.org
+  backends:
+  - name: myapp
+    type: service
+    serviceName: myapp-service
+    servicePort: 80
+  defaultBackends:
+  - backendName: myapp
 ---
 apiVersion: v1
 kind: EndpointSlice
@@ -44,6 +42,9 @@ metadata:
   namespace: default
 endpoints:
   - addresses:
+    - 10.3.0.3
+    zone: eu-central-1a
+  - addresses:
     - 10.3.1.3
     zone: eu-central-1b
   - addresses:
@@ -53,6 +54,9 @@ endpoints:
     - 10.3.1.5
     zone: eu-central-1b
   - addresses:
+    - 10.3.1.6
+    zone: eu-central-1b
+  - addresses:
     - 10.3.2.3
     zone: eu-central-1c
   - addresses:
@@ -60,6 +64,9 @@ endpoints:
     zone: eu-central-1c
   - addresses:
     - 10.3.2.5
+    zone: eu-central-1c
+  - addresses:
+    - 10.3.2.6
     zone: eu-central-1c
 ports:
   - name: web

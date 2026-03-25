@@ -18,10 +18,6 @@ import (
 	"github.com/zalando/skipper/tracing"
 )
 
-const (
-	minEndpointsByZone = 3
-)
-
 type responseWriterInterceptor struct {
 	http.ResponseWriter
 	statusCode   int
@@ -75,25 +71,7 @@ type eskipBytes struct {
 // formatAndSet takes a slice of routes and stores them eskip-formatted
 // in a synchronized way. It returns the length of the stored data, and
 // flags signaling whether the data was initialized and updated.
-func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, _ string, initialized bool, updated bool) {
-
-	var zoneRoutes = make(map[string][]*eskip.Route)
-
-	for _, r := range routes {
-		byZone := make(map[string][]*eskip.LBEndpoint)
-		for _, ep := range r.LBEndpoints {
-			if ep.Zone != "" {
-				byZone[ep.Zone] = append(byZone[ep.Zone], ep)
-			}
-		}
-		for zone, eps := range byZone {
-			if len(eps) >= minEndpointsByZone {
-				rCopy := *r
-				rCopy.LBEndpoints = eps
-				zoneRoutes[zone] = append(zoneRoutes[zone], &rCopy)
-			}
-		}
-	}
+func (e *eskipBytes) formatAndSet(routes []*eskip.Route, zoneAwareRoutes map[string][]*eskip.Route) (_ int, _ string, initialized bool, updated bool) {
 
 	buf := &bytes.Buffer{}
 	eskip.Fprint(buf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
@@ -102,14 +80,11 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, _ string, initi
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if e.zoneData == nil {
-		e.zoneData = make(map[string][]byte)
-	}
-
 	updated = !bytes.Equal(e.data, data)
 	if updated {
-		if len(zoneRoutes) > 0 {
-			for zone, routes := range zoneRoutes {
+		if len(zoneAwareRoutes) > 0 {
+			e.zoneData = make(map[string][]byte)
+			for zone, routes := range zoneAwareRoutes {
 				zoneBuf := &bytes.Buffer{}
 				eskip.Fprint(zoneBuf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
 				e.zoneData[zone] = zoneBuf.Bytes()
@@ -177,6 +152,9 @@ func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	lastModified := e.lastModified
 	initialized := e.initialized
 
+	// if a zone is specified and there are at least three endpoints for that are zone, serve the zone aware routes
+	// else serve all routes
+	// we check for three endpoints because three is good choice for availability; it guarantees that at least one endpoint will be healthy even if the others are on update or have some issues
 	zone := r.PathValue("zone")
 	if zone != "" {
 		zoneData, ok := e.zoneData[zone]

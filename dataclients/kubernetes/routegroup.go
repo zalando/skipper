@@ -188,10 +188,12 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 		return targetPortNotFound(backend.ServiceName, backend.ServicePort)
 	}
 
+	dataclientZone := ctx.zone
+
 	var eps []string
 	var epSlices []skipperEndpoint
 	if ctx.state.enableEndpointSlices {
-		epSlices = ctx.state.GetEndpointSlicesByTarget(namespaceString(ctx.routeGroup.Metadata.Namespace),
+		epSlices = ctx.state.GetEndpointSlicesByTarget(dataclientZone, namespaceString(ctx.routeGroup.Metadata.Namespace),
 			s.Meta.Name,
 			"TCP",
 			protocol,

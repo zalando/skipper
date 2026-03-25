@@ -25,6 +25,7 @@ const (
 	LogRoutesInitialized    = "routes initialized"
 	LogRoutesUpdated        = "routes updated"
 	LogRoutesNoChange       = "routes did not change"
+	minEndpointsByZone      = 3
 )
 
 type poller struct {
@@ -82,7 +83,8 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			case routesCount == 0:
 				p.handleEmptyRoutes()
 			case routesCount > 0:
-				routesBytes, routesHash, initialized, updated := p.b.formatAndSet(routes)
+				zoneAwareRoutes := filterRoutesByZone(routes)
+				routesBytes, routesHash, initialized, updated := p.b.formatAndSet(routes, zoneAwareRoutes)
 				logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes, "hash": routesHash})
 				if initialized {
 					logger.Info(LogRoutesInitialized)
@@ -123,6 +125,26 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		case <-ticker.C:
 		}
 	}
+}
+
+func filterRoutesByZone(routes []*eskip.Route) map[string][]*eskip.Route {
+	zoneAwareRoutes := make(map[string][]*eskip.Route)
+	for _, r := range routes {
+		byZone := make(map[string][]*eskip.LBEndpoint)
+		for _, ep := range r.LBEndpoints {
+			if ep.Zone != "" {
+				byZone[ep.Zone] = append(byZone[ep.Zone], ep)
+			}
+		}
+		for zone, eps := range byZone {
+			if len(eps) >= minEndpointsByZone {
+				rCopy := *r
+				rCopy.LBEndpoints = eps
+				zoneAwareRoutes[zone] = append(zoneAwareRoutes[zone], &rCopy)
+			}
+		}
+	}
+	return zoneAwareRoutes
 }
 
 func (p *poller) handleEmptyRoutes() {

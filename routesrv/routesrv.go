@@ -70,9 +70,10 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	rs.tracerShutdown = shutdown
 
 	b := &eskipBytes{
-		tracer:  tracer,
-		metrics: m,
-		now:     time.Now,
+		tracer:   tracer,
+		metrics:  m,
+		now:      time.Now,
+		zoneData: make(map[string][]byte),
 	}
 	bs := &eskipBytesStatus{
 		b: b,
