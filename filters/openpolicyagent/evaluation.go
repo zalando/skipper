@@ -12,8 +12,10 @@ import (
 	"github.com/open-policy-agent/opa-envoy-plugin/opa/decisionlog"
 	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/open-policy-agent/opa/v1/plugins/logs"
+	"github.com/open-policy-agent/opa/v1/rego"
 	"github.com/open-policy-agent/opa/v1/server"
 	"github.com/open-policy-agent/opa/v1/topdown"
+	"github.com/open-policy-agent/opa/v1/topdown/print"
 	"github.com/opentracing/opentracing-go"
 	pbstruct "google.golang.org/protobuf/types/known/structpb"
 )
@@ -76,7 +78,11 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 			return
 		}
 
-		err = envoyauth.Eval(ctx, &evalContext{opa}, inputValue, result)
+		evalOpts := []rego.EvalOption{}
+		if span != nil && opa.registry.enablePrintTracing {
+			evalOpts = append(evalOpts, rego.EvalPrintHook(&spanPrintHook{span: span}))
+		}
+		err = envoyauth.Eval(ctx, &evalContext{opa}, inputValue, result, evalOpts...)
 	})
 
 	if err != nil {
@@ -131,4 +137,13 @@ func withDecisionID(decisionID string) func(*envoyauth.EvalResult) {
 	return func(result *envoyauth.EvalResult) {
 		result.DecisionID = decisionID
 	}
+}
+
+type spanPrintHook struct {
+	span opentracing.Span
+}
+
+func (h *spanPrintHook) Print(pctx print.Context, msg string) error {
+	h.span.LogKV("event", "print", "opa.print.location", pctx.Location.String(), "message", msg)
+	return nil
 }

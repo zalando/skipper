@@ -1050,6 +1050,7 @@ type Options struct {
 	OpenPolicyAgentControlLoopMaxJitter                time.Duration
 	EnableOpenPolicyAgentDataPreProcessingOptimization bool
 	EnableOpenPolicyAgentPreloading                    bool
+	EnableOpenPolicyAgentPrintTracing                  bool
 	OpenPolicyAgentConfigTemplate                      string
 	OpenPolicyAgentEnvoyMetadata                       string
 	OpenPolicyAgentCleanerInterval                     time.Duration
@@ -2158,6 +2159,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			openpolicyagent.WithInstanceStartupTimeout(o.OpenPolicyAgentStartupTimeout),
 			openpolicyagent.WithTracer(tracer),
 			openpolicyagent.WithEnableCustomControlLoop(o.EnableOpenPolicyAgentCustomControlLoop),
+			openpolicyagent.WithEnablePrintTracing(o.EnableOpenPolicyAgentPrintTracing),
 			openpolicyagent.WithControlLoopInterval(o.OpenPolicyAgentControlLoopInterval),
 			openpolicyagent.WithControlLoopMaxJitter(o.OpenPolicyAgentControlLoopMaxJitter),
 			openpolicyagent.WithEnableDataPreProcessingOptimization(o.EnableOpenPolicyAgentDataPreProcessingOptimization),
