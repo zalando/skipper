@@ -774,6 +774,12 @@ func TestPoolRelease(t *testing.T) {
 	wg.Wait()
 }
 
+func BenchmarkCompressDeflate0(b *testing.B) { benchmarkCompress(b, 0, []string{"deflate"}) }
+func BenchmarkCompressDeflate2(b *testing.B) { benchmarkCompress(b, 100, []string{"deflate"}) }
+func BenchmarkCompressDeflate4(b *testing.B) { benchmarkCompress(b, 10000, []string{"deflate"}) }
+func BenchmarkCompressDeflate6(b *testing.B) { benchmarkCompress(b, 1000000, []string{"deflate"}) }
+func BenchmarkCompressDeflate8(b *testing.B) { benchmarkCompress(b, 100000000, []string{"deflate"}) }
+
 func BenchmarkCompressGzip0(b *testing.B) { benchmarkCompress(b, 0, []string{"gzip,deflate"}) }
 func BenchmarkCompressGzip2(b *testing.B) { benchmarkCompress(b, 100, []string{"gzip,deflate"}) }
 func BenchmarkCompressGzip4(b *testing.B) { benchmarkCompress(b, 10000, []string{"gzip,deflate"}) }
