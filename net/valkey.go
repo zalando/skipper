@@ -349,6 +349,7 @@ func NewValkeyRingClient(opt *ValkeyOptions) (*ValkeyRingClient, error) {
 		}
 		if err != nil {
 			opt.Log.Errorf("Failed start valkey client: %v", err)
+			return nil, fmt.Errorf("failed start valkey client: %v", err)
 		} else {
 			opt.Addrs = address
 		}
@@ -413,10 +414,10 @@ func (vrc *ValkeyRingClient) startUpdater(ctx context.Context) {
 
 		addrs, err := vrc.options.AddrUpdater()
 		if err != nil {
-			vrc.log.Errorf("Failed to run valkey updater: %v", err)
+			vrc.log.Errorf("Failed to update valkey ring: %v", err)
 			continue
 		}
-		if !init && len(difference(addrs, old)) != 0 {
+		if !init && (len(difference(addrs, old)) != 0 || len(difference(old, addrs)) != 0) {
 			vrc.SetAddrs(ctx, addrs)
 			vrc.log.Infof("Valkey updater updated old(%d) -> new(%d)", len(old), len(addrs))
 
@@ -553,9 +554,9 @@ func difference(a, b []string) []string {
 			result = append(result, item)
 		}
 	}
-
 	return result
 }
+
 func intersect(slice1, slice2 []string) []string {
 	set := make(map[string]struct{})
 	for _, item := range slice1 {
@@ -569,6 +570,5 @@ func intersect(slice1, slice2 []string) []string {
 			delete(set, item)
 		}
 	}
-
 	return result
 }

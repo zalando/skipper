@@ -15,6 +15,86 @@ import (
 	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
+func TestValkeyDifferenceUpdater(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		a    []string
+		b    []string
+		want int
+	}{
+		{
+			name: "test a > b",
+			a:    []string{"1s"},
+			b:    []string{},
+			want: 1,
+		},
+		{
+			name: "test a < b",
+			a:    []string{},
+			b:    []string{"1s"},
+			want: 1,
+		},
+		{
+			name: "test a = b",
+			a:    []string{"1s"},
+			b:    []string{"1s"},
+			want: 0,
+		},
+		{
+			name: "test a != b",
+			a:    []string{"1s"},
+			b:    []string{"2s"},
+			want: 2,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			if l, m := len(difference(tt.a, tt.b)), len(difference(tt.b, tt.a)); l+m != tt.want {
+				t.Errorf("Failed to get correct difference: Want %v", tt.want)
+			}
+		})
+	}
+
+}
+
+func TestValkeyDifference(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		a    []string
+		b    []string
+		want []string
+	}{
+		{
+			name: "test a > b",
+			a:    []string{"1s"},
+			b:    []string{},
+			want: []string{"1s"},
+		},
+		{
+			name: "test a < b",
+			a:    []string{},
+			b:    []string{"1s"},
+			want: []string{},
+		},
+		{
+			name: "test a = b",
+			a:    []string{"1s"},
+			b:    []string{"1s"},
+			want: []string{},
+		},
+		{
+			name: "test a != b",
+			a:    []string{"1s"},
+			b:    []string{"2s"},
+			want: []string{"1s"},
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := difference(tt.a, tt.b); len(got) != len(tt.want) {
+				t.Errorf("Failed to get correct difference: Want %v, got %v", tt.want, got)
+			}
+		})
+	}
+
+}
+
 func TestValkeyContainer(t *testing.T) {
 	valkeyAddr, done := valkeytest.NewTestValkey(t)
 	defer done()
