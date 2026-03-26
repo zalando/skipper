@@ -4,7 +4,7 @@ This provides a guide for people that want to migrate from another Ingress Contr
 
 ### Why Skipper as Ingress controller?
 
-Skipper is stable software that has a lot of features and is a [modern http router](https://www.usenix.org/conference/lisa18/presentation/szucs).
+Skipper is stable software that has quite impressive features as a [modern http router](https://www.usenix.org/conference/lisa18/presentation/szucs).
 Skipper is a library first implementation of an http proxy written in Go.
 Go is the infrastructure computer language used by kubernetes, containerd, docker, Prometheus,....
 Learn one computer language and you are able to customize skipper for your needs.
