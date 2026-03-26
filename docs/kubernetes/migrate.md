@@ -188,7 +188,7 @@ spec:
 ```
 
 The Skipper native CRD is called
-[RouteGroup](../routegroup-crd.md)
+[RouteGroup](./routegroup-crd.md)
 and allows better control of complex routes than Ingress. You can
 create multiple routes with one RouteGroup.  The following example
 shows how to route:
@@ -238,7 +238,7 @@ spec:
 
 As you can see if you follow the RouteGroup example carefully, skipper
 routes by path first. Check out the
-[route matching algorithm](../reference/architecture/#route-matching)
+[route matching algorithm](../reference/architecture.md#route-matching)
 explained in our documentation.
 
 #### Rewrite path
@@ -821,7 +821,7 @@ Ingress Nginx uses a lot of annotations and every feature has a lot of
 knobs that you need to configure via annotations.
 You can not just use the same annotations!
 
-Skipper has [11 annotations](../ingress-usage/#skipper-ingress-annotations),
+Skipper has [11 annotations](./ingress-usage.md#skipper-ingress-annotations),
 the most used one is `zalando.org/skipper-filter`.  Skipper uses the
 composite pattern and the UNIX philosophy: every filter should do only
 one job and it should do it well. You will combine filters to make
