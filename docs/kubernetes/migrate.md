@@ -32,8 +32,8 @@ Balancer and Skipper. AWS Network Load Balancers (NLB) are shared and
 created by [kube-ingress-aws-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller).
 DNS Names pointing to NLBs are managed by [External-DNS](https://github.com/kubernetes-sigs/external-dns).
 
-Skipper was run with more than 800000 routes. This was of course not a
-Kubernetes Ingress controller. Contributors to skipper are known to
+Skipper has been run with more than 800000 routes. This was of course not as
+a Kubernetes Ingress controller. Contributors to skipper are known to
 run skipper with about 400000 routes. We run skipper as Kubernetes
 Ingress controller with more than 20000 routes in production and
 tested with up to 40000 routing objects successfully. On the other
