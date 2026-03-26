@@ -13,6 +13,8 @@ import (
 	"sync"
 
 	"github.com/andybalholm/brotli"
+	kpflate "github.com/klauspost/compress/flate"
+	kpgzip "github.com/klauspost/compress/gzip"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
@@ -342,12 +344,12 @@ func newEncoder(enc string, level int) (encoder, error) {
 		if level > gzip.BestCompression {
 			level = gzip.BestCompression
 		}
-		return gzip.NewWriterLevel(nil, level)
+		return kpgzip.NewWriterLevel(nil, level)
 	case "deflate":
 		if level > flate.BestCompression {
 			level = flate.BestCompression
 		}
-		return flate.NewWriter(nil, level)
+		return kpflate.NewWriter(nil, level)
 	default:
 		unsupported()
 		return nil, nil
