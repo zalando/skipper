@@ -455,7 +455,7 @@ Requests will be copied in an efficient way, such that you can test a
 new application with current production traffic. There are simple
 configurations that allow you to duplicate all traffic to another
 application and you can also achieve
-[weighted shadow traffic](.../tutorials/shadow-traffic.md) explained
+[weighted shadow traffic](../tutorials/shadow-traffic.md) explained
 in our documentation.  The response of the shadow backend will be
 dropped at the proxy level
 
