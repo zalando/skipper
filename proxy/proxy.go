@@ -1384,6 +1384,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			return errCircuitBreakerOpen
 		}
 
+		// OnRequest filter hook
 		for _, f := range ctx.route.Filters {
 			if bef, ok := f.Filter.(filters.BackendFilter); ok {
 				if err := bef.OnRequest(ctx); err != nil {
@@ -1392,9 +1393,10 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			}
 		}
 
-		// to drop
 		backendStart := time.Now()
 		backendContext := ctx.request.Context()
+
+		// backendTimeout()
 		if timeout, ok := ctx.StateBag()[filters.BackendTimeout]; ok {
 			defer ctx.cancelBackendContext()
 			backendContext, ctx.cancelBackendContext = stdlibcontext.WithTimeout(backendContext, timeout.(time.Duration))

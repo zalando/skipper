@@ -30,7 +30,7 @@ func NewRetry() filters.Spec { return &retrySpec{} }
 
 func (*retrySpec) Name() string { return filters.RetryName }
 
-func (s *retrySpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *retrySpec) CreateFilter(args []any) (filters.Filter, error) {
 	rf := &RetryFilter{}
 
 	if config, ok := args[0].(string); !ok {
@@ -86,12 +86,16 @@ func (rf *RetryFilter) Request(ctx filters.FilterContext) {
 func (rf *RetryFilter) OnRequest(ctx filters.FilterContext) error {
 	_, ok := ctx.StateBag()[filters.RetryName]
 	if ok {
-		var retryBuffer *skpio.CopyBodyStream
-		retryBuffer = skpio.NewCopyBodyStream(int(ctx.Request().ContentLength), &bytes.Buffer{}, ctx.Request().Body)
+		retryBuffer := skpio.NewCopyBodyStream(int(ctx.Request().ContentLength), &bytes.Buffer{}, ctx.Request().Body)
 		ctx.Request().Body = retryBuffer
 
 	}
 	return nil
 }
 
-func (rf *RetryFilter) OnResponse(ctx filters.FilterContext) error { return nil }
+func (rf *RetryFilter) OnResponse(ctx filters.FilterContext) error {
+	if rf.Check(ctx.Response()) {
+		// retry
+	}
+	return nil
+}

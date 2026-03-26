@@ -193,6 +193,7 @@ type FilterCloser interface {
 	io.Closer
 }
 
+// BackendFilter are filters that need to be processed just before the backend call
 type BackendFilter interface {
 	Filter
 	OnRequest(ctx FilterContext) error
