@@ -20,7 +20,7 @@ We run 500k-7M rps through the ingress data plane every day. There is
 no known limit other than node capacity and load balancer member
 limits (example AWS has TG member limits for each AZ).
 
-Skipper itself scales horizontally by the number of CPUs and can run
+Skipper itself scales linear by the number of CPUs and can run
 with sub-millisecond overhead. Of course it depends on route
 configurations, so features you put into a route, your autoscaling
 configuration and load patterns.
