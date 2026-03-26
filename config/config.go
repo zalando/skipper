@@ -340,6 +340,7 @@ type Config struct {
 	OpenPolicyAgentControlLoopMaxJitter                time.Duration `yaml:"open-policy-agent-control-loop-max-jitter"`
 	EnableOpenPolicyAgentDataPreProcessingOptimization bool          `yaml:"enable-open-policy-agent-data-preprocessing-optimization"`
 	EnableOpenPolicyAgentPreloading                    bool          `yaml:"enable-open-policy-agent-preloading"`
+	EnableOpenPolicyAgentPrintTracing                  bool          `yaml:"enable-open-policy-agent-print-tracing"`
 	OpenPolicyAgentConfigTemplate                      string        `yaml:"open-policy-agent-config-template"`
 	OpenPolicyAgentEnvoyMetadata                       string        `yaml:"open-policy-agent-envoy-metadata"`
 	OpenPolicyAgentCleanerInterval                     time.Duration `yaml:"open-policy-agent-cleaner-interval"`
@@ -607,6 +608,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.OpenPolicyAgentControlLoopInterval, "open-policy-agent-control-loop-interval", openpolicyagent.DefaultControlLoopInterval, "Interval between the execution of the control loop. Only applies if the custom control loop is enabled")
 	flag.DurationVar(&cfg.OpenPolicyAgentControlLoopMaxJitter, "open-policy-agent-control-loop-max-jitter", openpolicyagent.DefaultControlLoopMaxJitter, "Maximum jitter to add to the control loop interval. Only applies if the custom control loop is enabled")
 	flag.BoolVar(&cfg.EnableOpenPolicyAgentDataPreProcessingOptimization, "enable-open-policy-agent-data-preprocessing-optimization", false, "As a latency optimization, open policy agent will read values from in-memory storage as pre converted ASTs, removing conversion overhead at evaluation time. Currently experimental and if successful will be enabled by default")
+	flag.BoolVar(&cfg.EnableOpenPolicyAgentPrintTracing, "enable-open-policy-agent-print-tracing", false, "when enabled, OPA print() statements in policies are emitted as events on the OpenTracing span")
 	flag.StringVar(&cfg.OpenPolicyAgentConfigTemplate, "open-policy-agent-config-template", "", "file containing a template for an Open Policy Agent configuration file that is interpolated for each OPA filter instance")
 	flag.StringVar(&cfg.OpenPolicyAgentEnvoyMetadata, "open-policy-agent-envoy-metadata", "", "JSON file containing meta-data passed as input for compatibility with Envoy policies in the format")
 	flag.DurationVar(&cfg.OpenPolicyAgentCleanerInterval, "open-policy-agent-cleaner-interval", openpolicyagent.DefaultCleanIdlePeriod, "Duration in seconds to wait before cleaning up unused opa instances")
@@ -1127,6 +1129,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OpenPolicyAgentControlLoopMaxJitter:                c.OpenPolicyAgentControlLoopMaxJitter,
 		EnableOpenPolicyAgentDataPreProcessingOptimization: c.EnableOpenPolicyAgentDataPreProcessingOptimization,
 		EnableOpenPolicyAgentPreloading:                    c.EnableOpenPolicyAgentPreloading,
+		EnableOpenPolicyAgentPrintTracing:                  c.EnableOpenPolicyAgentPrintTracing,
 		OpenPolicyAgentConfigTemplate:                      c.OpenPolicyAgentConfigTemplate,
 		OpenPolicyAgentEnvoyMetadata:                       c.OpenPolicyAgentEnvoyMetadata,
 		OpenPolicyAgentCleanerInterval:                     c.OpenPolicyAgentCleanerInterval,

@@ -122,6 +122,7 @@ type OpenPolicyAgentRegistry struct {
 	controlLoopMaxJitter    time.Duration
 
 	enableDataPreProcessingOptimization bool
+	enablePrintTracing                  bool
 
 	valueCache iCache.InterQueryValueCache
 
@@ -202,6 +203,13 @@ func WithTracer(tracer opentracing.Tracer) func(*OpenPolicyAgentRegistry) error 
 func WithEnableCustomControlLoop(enabled bool) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.enableCustomControlLoop = enabled
+		return nil
+	}
+}
+
+func WithEnablePrintTracing(enabled bool) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.enablePrintTracing = enabled
 		return nil
 	}
 }
@@ -717,6 +725,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		store,
 		configLabelsInfo(*opaConfig),
 		plugins.Logger(logger),
+		plugins.EnablePrintStatements(registry.enablePrintTracing),
 		registry.withTracingOptions(bundleName),
 		plugins.WithHooks(hooks.New(configHooks...)),
 		plugins.WithPrometheusRegister(registerer))

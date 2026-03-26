@@ -1370,3 +1370,102 @@ func runWithTestCases(t *testing.T, cases []opaInstanceStartupTestCase, test fun
 		})
 	}
 }
+
+func TestPrintTracing(t *testing.T) {
+	for _, ti := range []struct {
+		msg                string
+		enablePrintTracing bool
+		expectPrintInSpan  bool
+	}{
+		{
+			msg:                "print output appears in span when print tracing is enabled",
+			enablePrintTracing: true,
+			expectPrintInSpan:  true,
+		},
+		{
+			msg:                "print output does not appear in span when print tracing is disabled",
+			enablePrintTracing: false,
+			expectPrintInSpan:  false,
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			opaControlPlane := opasdktest.MustNewServer(
+				opasdktest.MockBundle("/bundles/test", map[string]string{
+					"main.rego": `
+						package envoy.authz
+						import rego.v1
+
+						default allow := false
+
+						allow if {
+							print("hello from policy")
+							true
+						}
+					`,
+				}),
+			)
+			defer opaControlPlane.Stop()
+
+			config := fmt.Appendf(nil, `{
+				"services": {
+					"test": {
+						"url": %q
+					}
+				},
+				"bundles": {
+					"test": {
+						"resource": "/bundles/test"
+					}
+				},
+				"plugins": {
+					"envoy_ext_authz_grpc": {
+						"path": "envoy/authz/allow",
+						"dry-run": false
+					}
+				}
+			}`, opaControlPlane.URL())
+
+			registry, err := NewOpenPolicyAgentRegistry(
+				WithReuseDuration(1*time.Second),
+				WithCleanInterval(1*time.Second),
+				WithEnablePrintTracing(ti.enablePrintTracing),
+				WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
+			)
+			require.NoError(t, err)
+
+			inst, err := registry.GetOrStartInstance("test")
+			require.NoError(t, err)
+
+			tracer := tracingtest.NewTracer()
+			parentSpan := tracer.StartSpan("parent")
+			ctx := opentracing.ContextWithSpan(context.Background(), parentSpan)
+
+			_, err = inst.Eval(ctx, &authv3.CheckRequest{
+				Attributes: &authv3.AttributeContext{},
+			})
+			require.NoError(t, err)
+
+			parentSpan.Finish()
+
+			recspan := tracer.FindSpan("parent")
+			require.NotNil(t, recspan, "expected parent span")
+
+			var printLogs []string
+			for _, lr := range recspan.Logs() {
+				fields := make(map[string]string)
+				for _, f := range lr.Fields {
+					fields[f.Key] = f.ValueString
+				}
+				if fields["event"] == "print" {
+					printLogs = append(printLogs, fields["message"])
+				}
+			}
+
+			if ti.expectPrintInSpan {
+				assert.Contains(t, printLogs, "hello from policy", "expected print output in span logs")
+			} else {
+				assert.Empty(t, printLogs, "expected no print output in span logs")
+			}
+		})
+	}
+}
