@@ -630,7 +630,7 @@ Available algorithms:
 - `consistentHash`
 - `powerOfRandomNChoices`
 
-Your JIT based runtime applications have to ramp up slowly traffic.
+Your JIT based runtime applications have to ramp up slowly to traffic.
 You can use the [fadeIn](../reference/filters.md#fadein) filter to
 configure the traffic ramp up for new pods.
 
