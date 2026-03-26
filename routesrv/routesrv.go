@@ -81,8 +81,8 @@ func New(opts skipper.Options) (*RouteServer, error) {
 
 	mux.Handle("/routes", b)
 	mux.Handle("/routes/{zone}", b)
-
 	mux.Handle("/health", bs)
+
 	supportHandler := http.NewServeMux()
 	supportHandler.Handle("/metrics", metricsHandler)
 	supportHandler.Handle("/metrics/", metricsHandler)
