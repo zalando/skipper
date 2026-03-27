@@ -552,3 +552,36 @@ You can test the policy with
 - Authorized: `curl http://localhost:9090/foobar -H "Authorization: Basic charlie" -i`
 - Forbidden: `curl http://localhost:9090/foobar -i`
 
+### Debugging with print() and OpenTracing
+
+OPA's [`print()` built-in](https://www.openpolicyagent.org/docs/latest/policy-language/#print-function) can be used to emit diagnostic output from within Rego policies. By default this output is discarded by Skipper.
+
+Enable the `--enable-open-policy-agent-print-tracing` flag to capture `print()` output and emit it as events on the active OpenTracing span:
+
+```
+skipper -enable-open-policy-agent -open-policy-agent-config-template opaconfig.yaml \
+  --enable-open-policy-agent-print-tracing \
+  -inline-routes '...'
+```
+
+With this flag each `print()` call produces a span log event with:
+
+- `event`: `"print"`
+- `opa.print.location`: source location (e.g. `policy.rego:5`)
+- `message`: the printed value
+
+Example policy using `print()`:
+
+```rego
+package envoy.http.public
+
+default allow := false
+
+allow if {
+    print("checking method:", input.attributes.request.http.method)
+    input.attributes.request.http.method == "GET"
+}
+```
+
+This is useful for tracing policy logic on a per-request basis without relying on decision logs. The flag has no overhead when disabled.
+
