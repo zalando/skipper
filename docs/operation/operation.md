@@ -1078,6 +1078,16 @@ The following tags are added to the Span, labels are taken from the OPA configur
 
 The labels can for example be used to link to a specific decision in the control plane if they contain URL fragments for the receiving entity.
 
+#### Print statement tracing
+
+OPA policies can use `print()` for diagnostic output. By default this output is discarded. When Skipper is started with `--enable-open-policy-agent-print-tracing`, each `print()` call during policy evaluation is emitted as a log event on the active OpenTracing span with the following fields:
+
+- `event`: `"print"`
+- `opa.print.location`: source location of the `print()` call (e.g. `main.rego:10`)
+- `message`: the printed string
+
+This is opt-in and has no overhead when disabled.
+
 ### Redis rate limiting spans
 
 #### Operation: redis_allow_check_card
