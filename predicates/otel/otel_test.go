@@ -26,6 +26,10 @@ func TestOTelBaggage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create property: %v", err)
 	}
+	keyValPropertyExistsEmptyVal, err := baggage.NewKeyValueProperty("exists", "")
+	if err != nil {
+		t.Fatalf("Failed to create property: %v", err)
+	}
 
 	member, err := baggage.NewMember("exists", "val")
 	if err != nil {
@@ -44,6 +48,10 @@ func TestOTelBaggage(t *testing.T) {
 		t.Fatalf("Failed to create member: %v", err)
 	}
 	noMatchMemberWithMatchingProperties, err := baggage.NewMember("kproperty", "val", keyPropertyExists, keyValPropertyExists)
+	if err != nil {
+		t.Fatalf("Failed to create member: %v", err)
+	}
+	memberWithMatchingKeyEmptyVal, err := baggage.NewMember("exists", "", keyPropertyExists, keyValPropertyExistsEmptyVal)
 	if err != nil {
 		t.Fatalf("Failed to create member: %v", err)
 	}
@@ -82,7 +90,7 @@ func TestOTelBaggage(t *testing.T) {
 		},
 		{
 			name: "test no match member with key-val property",
-			args: []interface{}{"no-match"},
+			args: []interface{}{"no-match", "no-val"},
 			member: []baggage.Member{
 				memberWithKeyValProperty,
 			},
@@ -122,12 +130,21 @@ func TestOTelBaggage(t *testing.T) {
 		},
 		{
 			name: "test match member with key-val property",
-			args: []interface{}{"exists"},
+			args: []interface{}{"exists", "val"},
 			member: []baggage.Member{
 				memberWithKeyValProperty,
 			},
 			want: true,
-		}} {
+		},
+		{
+			name: "test match member with matching key and no val",
+			args: []interface{}{"exists"},
+			member: []baggage.Member{
+				memberWithMatchingKeyEmptyVal,
+			},
+			want: true,
+		},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := NewBaggage()
 			pred, err := spec.Create(tt.args)

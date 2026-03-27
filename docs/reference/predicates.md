@@ -776,10 +776,16 @@ predicates are able to match based on OTel data.
 ### OTelBaggage
 
 OpenTelemetry defined Baggage as [W3C spec](https://www.w3.org/TR/baggage/).
-OTelBaggage predicate is able to match the Baggage item by key.
+OTelBaggage predicate is able to match the Baggage item by key or by key and value.
 
-The example matches the key of a baggage item key `foo` whatever the baggage item value or property is:
+The example matches the key of a baggage item key `foo` regardless of value or properties:
 
 ```
 OTelBaggage("foo")
+```
+
+The example matches the key of baggage item key `foo` with its corresponding value `bar`:
+
+```
+OTelBaggage("foo", "bar")
 ```

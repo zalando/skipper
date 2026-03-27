@@ -11,7 +11,8 @@ import (
 type baggageSpec struct{}
 
 type baggagePredicate struct {
-	key string
+	key   string
+	value string
 }
 
 // NewBaggage provides a predicate spec to create a Predicate instance that matches a baggage by key.
@@ -23,22 +24,38 @@ func (*baggageSpec) Name() string {
 
 // Create a predicate instance that always evaluates to baggage
 func (*baggageSpec) Create(args []interface{}) (routing.Predicate, error) {
-	if len(args) != 1 {
+	if len(args) == 0 || len(args) > 2 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
 	var key string
+	var value string
+
 	if sarg, ok := args[0].(string); ok {
 		key = sarg
 	} else {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
+
+	if len(args) == 2 {
+		if sarg, ok := args[1].(string); ok {
+			value = sarg
+		} else {
+			return nil, predicates.ErrInvalidPredicateParameters
+		}
+	}
+
 	return &baggagePredicate{
-		key: key,
+		key:   key,
+		value: value,
 	}, nil
 }
 
 func (p *baggagePredicate) Match(r *http.Request) bool {
 	bp := baggage.FromContext(r.Context())
-	return bp.Member(p.key).Key() == p.key
+	member := bp.Member(p.key)
+	if p.value != "" {
+		return member.Key() == p.key && member.Value() == p.value
+	}
+	return member.Key() == p.key
 }
