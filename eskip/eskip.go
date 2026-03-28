@@ -360,7 +360,7 @@ func NewLBEndpoints(eps []string) []*LBEndpoint {
 	}
 	result := make([]*LBEndpoint, len(eps))
 
-	for i := 0; i < len(eps); i++ {
+	for i := range eps {
 		result[i] = &LBEndpoint{
 			Address: eps[i],
 		}
@@ -375,7 +375,7 @@ func LBEndpointString(eps []*LBEndpoint) []string {
 	}
 	result := make([]string, len(eps))
 
-	for i := 0; i < len(eps); i++ {
+	for i := range eps {
 		result[i] = eps[i].String()
 	}
 

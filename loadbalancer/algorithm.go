@@ -347,7 +347,7 @@ func setAlgorithm(r *routing.Route) error {
 func (p *algorithmProvider) Do(r []*routing.Route) []*routing.Route {
 	rr := make([]*routing.Route, 0, len(r))
 	for _, ri := range r {
-		if ri.Route.BackendType != eskip.LBBackend {
+		if ri.BackendType != eskip.LBBackend {
 			rr = append(rr, ri)
 			continue
 		}
