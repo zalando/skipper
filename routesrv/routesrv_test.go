@@ -273,14 +273,18 @@ func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
 func TestFetchedRoutesAreServedInEskipFormatDebug(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 
+	errCH := make(chan error)
 	go func() {
-		if err := tl.WaitFor("Inserted route 3 of 3", waitTimeout); err != nil {
-			t.Fatalf("Failed to get debug logs: %v", err)
-		}
+		err := tl.WaitFor("Inserted route 3 of 3", waitTimeout)
+		errCH <- err
 	}()
 
 	testFetchedRoutesAreServedInEskipFormat(t)
 
+	err := <-errCH
+	if err != nil {
+		t.Fatalf("Failed to get debug logs: %v", err)
+	}
 }
 
 func TestRedisEndpointSlices(t *testing.T) {
