@@ -95,7 +95,7 @@ func parseEskipFixture(t *testing.T, fileName string) []*eskip.Route {
 	return eskip.MustParse(string(eskipBytes))
 }
 
-func parseRedisIP(t *testing.T, fileName string) []byte {
+func parseIP(t *testing.T, fileName string) []byte {
 	t.Helper()
 	ipbytes, err := os.ReadFile(fileName)
 	ipbytes = bytes.TrimSuffix(ipbytes, []byte("\n"))
@@ -132,6 +132,14 @@ func getHealth(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 func getRedisURLs(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/swarm/redis/shards", nil)
+	rs.ServeHTTP(w, r)
+
+	return w
+}
+
+func getValkeyURLs(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/swarm/valkey/shards", nil)
 	rs.ServeHTTP(w, r)
 
 	return w
@@ -178,6 +186,18 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestWrongMethodToRouteSrv(t *testing.T) {
+	ks, _ := newKubeServer(t)
+	defer ks.Close()
+
+	rs := newRouteServer(t, ks)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/routes", bytes.NewBufferString("foo"))
+	rs.ServeHTTP(w, r)
+	wantHTTPCode(t, w, http.StatusMethodNotAllowed)
+}
+
 func TestNotInitializedRoutesAreNotServed(t *testing.T) {
 	defer tl.Reset()
 	ks, _ := newKubeServer(t)
@@ -217,7 +237,7 @@ func TestEmptyRoutesAreNotServed(t *testing.T) {
 	wantHTTPCode(t, w, http.StatusNotFound)
 }
 
-func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
+func testFetchedRoutesAreServedInEskipFormat(t *testing.T) {
 	defer tl.Reset()
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
 	ks.Start()
@@ -246,6 +266,23 @@ func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
 	wantHTTPCode(t, w, http.StatusNoContent)
 }
 
+func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
+	testFetchedRoutesAreServedInEskipFormat(t)
+}
+
+func TestFetchedRoutesAreServedInEskipFormatDebug(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
+
+	go func() {
+		if err := tl.WaitFor("Inserted route 3 of 3", waitTimeout); err != nil {
+			t.Fatalf("Failed to get debug logs: %v", err)
+		}
+	}()
+
+	testFetchedRoutesAreServedInEskipFormat(t)
+
+}
+
 func TestRedisEndpointSlices(t *testing.T) {
 	for _, f := range []string{
 		"testdata/redis-endpointslice-single.yaml",
@@ -270,7 +307,7 @@ func TestRedisEndpointSlices(t *testing.T) {
 
 		wantHTTPCode(t, w, http.StatusOK)
 
-		want := parseRedisIP(t, "testdata/redis-ip.json")
+		want := parseIP(t, "testdata/redis-ip.json")
 		assert.JSONEq(t, string(want), w.Body.String())
 	}
 }
@@ -293,7 +330,58 @@ func TestRedisEndpoints(t *testing.T) {
 
 	wantHTTPCode(t, w, http.StatusOK)
 
-	want := parseRedisIP(t, "testdata/redis-ip.json")
+	want := parseIP(t, "testdata/redis-ip.json")
+	assert.JSONEq(t, string(want), w.Body.String())
+}
+
+func TestValkeyEndpointSlices(t *testing.T) {
+	for _, f := range []string{
+		"testdata/valkey-endpointslice-single.yaml",
+		"testdata/valkey-endpointslice-multi.yaml",
+	} {
+
+		defer tl.Reset()
+		ks, _ := newKubeServer(t, loadKubeYAML(t, f))
+		ks.Start()
+		defer ks.Close()
+		rs := newRouteServerWithOptions(t, skipper.Options{
+			SourcePollTimeout:                pollInterval,
+			Kubernetes:                       true,
+			KubernetesURL:                    ks.URL,
+			KubernetesValkeyServiceNamespace: "namespace1",
+			KubernetesValkeyServiceName:      "service1",
+			KubernetesValkeyServicePort:      6379,
+			KubernetesEnableEndpointslices:   true,
+		})
+
+		w := getValkeyURLs(rs)
+
+		wantHTTPCode(t, w, http.StatusOK)
+
+		want := parseIP(t, "testdata/valkey-ip.json")
+		assert.JSONEq(t, string(want), w.Body.String())
+	}
+}
+
+func TestValkeyEndpoints(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/valkey.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:                pollInterval,
+		Kubernetes:                       true,
+		KubernetesURL:                    ks.URL,
+		KubernetesValkeyServiceNamespace: "namespace1",
+		KubernetesValkeyServiceName:      "service1",
+		KubernetesValkeyServicePort:      6379,
+	})
+
+	w := getValkeyURLs(rs)
+
+	wantHTTPCode(t, w, http.StatusOK)
+
+	want := parseIP(t, "testdata/valkey-ip.json")
 	assert.JSONEq(t, string(want), w.Body.String())
 }
 
