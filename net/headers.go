@@ -1,6 +1,7 @@
 package net
 
 import (
+	"crypto/tls"
 	"net"
 	"net/http"
 )
@@ -100,5 +101,33 @@ func (h *ContentLengthHeadersHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	h.Handler.ServeHTTP(w, r)
+}
+
+// ProxyProtoTLSHandler detects TLS from the destination port when PROXY protocol is used.
+// Since the NLB sends different ports for HTTP (9998) and HTTPS (9999), we can infer
+// the protocol from the local address port. This allows forwarded-headers with Proto=auto
+// to correctly set X-Forwarded-Proto based on req.TLS.
+type ProxyProtoTLSHandler struct {
+	Handler http.Handler
+}
+
+func (h *ProxyProtoTLSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// If req.TLS is already set, don't override it
+	if r.TLS == nil {
+		// Infer TLS state from the local address port
+		// Port 9999 is HTTPS, port 9998 is HTTP redirect
+		if localAddr, ok := r.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
+			if tcpAddr, ok := localAddr.(*net.TCPAddr); ok {
+				// For NLB PROXY protocol:
+				// 9999 = HTTPS connection
+				// 9998 = HTTP redirect connection
+				if tcpAddr.Port == 9999 {
+					// Set a minimal TLS connection state to indicate HTTPS
+					r.TLS = &tls.ConnectionState{}
+				}
+			}
+		}
+	}
 	h.Handler.ServeHTTP(w, r)
 }

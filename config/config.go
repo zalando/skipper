@@ -1189,6 +1189,16 @@ func (c *Config) ToOptions() skipper.Options {
 		return handler
 	}
 
+	// Add TLS detection from PROXY protocol before forwarded headers wrapper
+	// This ensures that req.TLS is set correctly for use by forwarded-headers with Proto=auto
+	if c.EnableProxyProtocol {
+		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
+			return &net.ProxyProtoTLSHandler{
+				Handler: handler,
+			}
+		})
+	}
+
 	if c.ForwardedHeaders != (net.ForwardedHeaders{}) {
 		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
 			return &net.ForwardedHeadersHandler{
