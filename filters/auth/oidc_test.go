@@ -23,9 +23,9 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"gopkg.in/go-jose/go-jose.v2"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"

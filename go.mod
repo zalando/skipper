@@ -73,7 +73,6 @@ require (
 	golang.org/x/text v0.35.0
 	golang.org/x/time v0.15.0
 	google.golang.org/protobuf v1.36.11
-	gopkg.in/go-jose/go-jose.v2 v2.6.3
 	gopkg.in/yaml.v2 v2.4.0
 	layeh.com/gopher-json v0.0.0-20201124131017-552bb3c4c3bf
 )
@@ -154,7 +153,7 @@ require (
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
