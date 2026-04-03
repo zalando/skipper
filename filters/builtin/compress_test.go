@@ -21,6 +21,7 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 
 	"github.com/andybalholm/brotli"
+	"github.com/klauspost/compress/zstd"
 )
 
 const (
@@ -74,6 +75,13 @@ func decoder(enc string, r io.Reader) io.Reader {
 	switch enc {
 	case "br":
 		rr := brotli.NewReader(r)
+
+		return rr
+	case "zstd":
+		rr, err := zstd.NewReader(r)
+		if err != nil {
+			panic(err)
+		}
 
 		return rr
 	case "gzip":
@@ -427,6 +435,33 @@ func TestCompress(t *testing.T) {
 			"Content-Encoding": []string{"br"},
 			"Vary":             []string{"Accept-Encoding"}},
 	}, {
+		"zstd",
+		http.Header{},
+		3 * 8192,
+		nil,
+		"x-custom,zstd",
+		http.Header{
+			"Content-Encoding": []string{"zstd"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"zstd, stdlib default",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(flate.DefaultCompression)},
+		"x-custom,zstd",
+		http.Header{
+			"Content-Encoding": []string{"zstd"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"zstd, best speed",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(flate.BestSpeed)},
+		"x-custom,zstd",
+		http.Header{
+			"Content-Encoding": []string{"zstd"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
 		"weighted first",
 		http.Header{},
 		3 * 8192,
@@ -461,6 +496,15 @@ func TestCompress(t *testing.T) {
 		"gzip,deflate",
 		http.Header{
 			"Content-Encoding": []string{"gzip"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"multiple compression, priority to zstd",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(brotli.BestCompression)},
+		"x-custom,br;q=0.8,gzip;q=0.8,zstd;q=1.0,deflate;q=0.8",
+		http.Header{
+			"Content-Encoding": []string{"zstd"},
 			"Vary":             []string{"Accept-Encoding"}},
 	}, {
 		"multiple compression, priority to gzip",
@@ -791,6 +835,12 @@ func BenchmarkCompressBrotli2(b *testing.B) { benchmarkCompress(b, 100, []string
 func BenchmarkCompressBrotli4(b *testing.B) { benchmarkCompress(b, 10000, []string{"br"}) }
 func BenchmarkCompressBrotli6(b *testing.B) { benchmarkCompress(b, 1000000, []string{"br"}) }
 func BenchmarkCompressBrotli8(b *testing.B) { benchmarkCompress(b, 100000000, []string{"br"}) }
+
+func BenchmarkCompressZstd0(b *testing.B) { benchmarkCompress(b, 0, []string{"zstd"}) }
+func BenchmarkCompressZstd2(b *testing.B) { benchmarkCompress(b, 100, []string{"zstd"}) }
+func BenchmarkCompressZstd4(b *testing.B) { benchmarkCompress(b, 10000, []string{"zstd"}) }
+func BenchmarkCompressZstd6(b *testing.B) { benchmarkCompress(b, 1000000, []string{"zstd"}) }
+func BenchmarkCompressZstd8(b *testing.B) { benchmarkCompress(b, 100000000, []string{"zstd"}) }
 
 func benchmarkCompressJSON(b *testing.B, n int64, encoding []string) {
 	// Repeating JSON pattern — highly compressible, realistic payload

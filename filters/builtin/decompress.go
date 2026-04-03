@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/andybalholm/brotli"
+	"github.com/klauspost/compress/zstd"
 
 	"github.com/zalando/skipper/filters"
 )
@@ -55,6 +56,31 @@ var supportedEncodingsDecompress = map[string]*sync.Pool{
 	"gzip":    {},
 	"deflate": {},
 	"br":      {},
+	"zstd":    {},
+}
+
+// workaround to make zstd library compatible with decompress
+type zstdWrapper struct {
+	*zstd.Decoder
+}
+
+func (w *zstdWrapper) Close() error {
+	if w.Decoder != nil {
+		w.Decoder.Close()
+	}
+	return nil
+}
+
+func (w *zstdWrapper) Reset(original io.Reader) error {
+	if w.Decoder == nil {
+		dec, err := zstd.NewReader(original)
+		if err != nil {
+			return err
+		}
+		w.Decoder = dec
+		return nil
+	}
+	return w.Decoder.Reset(original)
 }
 
 func init() {
@@ -74,6 +100,8 @@ func newDecoder(enc string) io.ReadCloser {
 		return new(gzip.Reader)
 	case "br":
 		return new(brotliWrapper)
+	case "zstd":
+		return new(zstdWrapper)
 	default:
 		return flate.NewReader(nil)
 	}
@@ -90,6 +118,8 @@ func reset(decoder, original io.ReadCloser, enc string) error {
 		return decoder.(*gzip.Reader).Reset(original)
 	case "br":
 		return decoder.(*brotliWrapper).Reset(original)
+	case "zstd":
+		return decoder.(*zstdWrapper).Reset(original)
 	default:
 		return decoder.(flate.Resetter).Reset(original, nil)
 	}
