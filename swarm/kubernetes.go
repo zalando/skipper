@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	log "github.com/sirupsen/logrus"
 )
 
