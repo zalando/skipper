@@ -2605,8 +2605,8 @@ with `429 Too Many Requests` when limit is reached.
 
 ### clusterLeakyBucketRatelimit
 
-Implements leaky bucket rate limit algorithm that uses Redis as a storage.
-Requires command line flags `-enable-ratelimits`, `-enable-swarm` and `-swarm-redis-urls` to be set.
+Implements leaky bucket rate limit algorithm that uses Redis or Valkey as a storage.
+Requires command line flags `-enable-ratelimits`, `-enable-swarm` and one of `-swarm-redis-urls` or `-swarm-valkey-urls` to be set.
 
 The leaky bucket is an algorithm based on an analogy of how a bucket with a constant leak will overflow if either
 the average rate at which water is poured in exceeds the rate at which the bucket leaks or if more water than
@@ -2706,7 +2706,7 @@ Path("/expensive") -> clusterLeakyBucketRatelimit("user-${request.cookie.Authori
 ### ratelimitFailClosed
 
 This filter changes the failure mode for all rate limit filters of the route.
-By default rate limit filters fail open on infrastructure errors (e.g. when redis is down) and allow requests.
+By default rate limit filters fail open on infrastructure errors (e.g. when Redis or Valkey is down) and allow requests.
 When this filter is present on the route, rate limit filters will fail closed in case of infrastructure errors and deny requests.
 
 Examples:
@@ -2715,7 +2715,7 @@ fail_open: * -> clusterRatelimit("g",10, "1s")
 fail_closed: * -> ratelimitFailClosed() -> clusterRatelimit("g", 10, "1s")
 ```
 
-In case `clusterRatelimit` could not reach the swarm (e.g. redis):
+In case `clusterRatelimit` could not reach the swarm (e.g. Redis or Valkey):
 
 * Route `fail_open` will allow the request
 * Route `fail_closed` will deny the request

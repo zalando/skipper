@@ -96,16 +96,27 @@ based on X-Forwarded-For headers, you can also ignore this.
 Ratelimits can be calculated for the whole cluster instead of having
 only the instance based ratelimits. The common term we use in skipper
 documentation is [cluster ratelimit](ratelimit.md#cluster-ratelimit).
-There are two option, but we highly recommend the use of Redis based
-cluster ratelimits. To support redis based cluster ratelimits you have to
-use `-enable-swarm` and add a list of URLs to redis
-`-swarm-redis-urls=skipper-ingress-redis-0.skipper-ingress-redis.kube-system.svc.cluster.local:6379,skipper-ingress-redis-1.skipper-ingress-redis.kube-system.svc.cluster.local:6379`. We
-run [redis as
-statefulset](https://github.com/zalando-incubator/kubernetes-on-aws/blob/beta/cluster/manifests/skipper/skipper-redis.yaml)
-with a [headless
-service](https://github.com/zalando-incubator/kubernetes-on-aws/blob/beta/cluster/manifests/skipper/skipper-redis-service.yaml)
-to have predictable names. We chose to not use a persistent volume,
-because storing the data in memory is good enough for this use case.
+There are two option, but we highly recommend the use of Valkey based
+cluster ratelimits. To support Valkey based cluster ratelimits you have to
+use `-enable-swarm` and add you can either use a static list of URLs to Valkey
+`-swarm-valkey-urls=skipper-ingress-valkey-0.skipper-ingress-valkey.kube-system.svc.cluster.local:6379,skipper-ingress-valkey-1.skipper-ingress-valkey.kube-system.svc.cluster.local:6379` or use autoscaling.
+
+We run [valkey as statefulset](https://github.com/zalando-incubator/kubernetes-on-aws/blob/stable/cluster/manifests/skipper/skipper-valkey.yaml)
+with a [headless service](https://github.com/zalando-incubator/kubernetes-on-aws/blob/stable/cluster/manifests/skipper/skipper-valkey-service.yaml)
+and [horizontal pod autoscaler](https://github.com/zalando-incubator/kubernetes-on-aws/blob/stable/cluster/manifests/skipper/hpa-valkey.yaml).
+
+To use autoscaling with routeserv you can use `-swarm-valkey-remote=http://skipper-ingress-routesrv.kube-system.svc.cluster.local/swarm/valkey/shards"`, depending on how you expose routesrv into your cluster.
+For more simple setup that do not run routesrv you can use these arguments to get valkey instance from kubernetes automatically updated:
+
+```
+-kubernetes-valkey-service-namespace=kube-system
+-kubernetes-valkey-service-name=skipper-ingress-valkey
+```
+
+To run valkey, we chose to not use a persistent volume, because
+storing the data in memory is good enough for the rate limiting use
+case.
+
 
 #### East West
 
