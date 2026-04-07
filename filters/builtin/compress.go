@@ -15,6 +15,7 @@ import (
 	"github.com/andybalholm/brotli"
 	kpflate "github.com/klauspost/compress/flate"
 	kpgzip "github.com/klauspost/compress/gzip"
+	kpzstd "github.com/klauspost/compress/zstd"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
@@ -48,7 +49,7 @@ type encoder interface {
 }
 
 var (
-	supportedEncodings     = []string{"gzip", "deflate", "br"}
+	supportedEncodings     = []string{"gzip", "deflate", "br", "zstd"}
 	errUnsupportedEncoding = errors.New("unsupported encoding")
 )
 
@@ -85,6 +86,13 @@ var (
 			log.Error(err)
 		}
 		return fe
+	}}
+	zstdPool = &sync.Pool{New: func() interface{} {
+		ze, err := newEncoder("zstd", flate.BestSpeed)
+		if err != nil {
+			log.Error(err)
+		}
+		return ze
 	}}
 )
 
@@ -136,7 +144,7 @@ func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 //
 // The filter also checks the incoming request, if it accepts the supported
 // encodings, explicitly stated in the Accept-Encoding header. The filter currently
-// supports brotli, gzip and deflate. It does not assume that the client accepts any
+// supports brotli, gzip, deflate, and zstd. It does not assume that the client accepts any
 // encoding if the Accept-Encoding header is not set. It ignores * in the
 // Accept-Encoding header.
 //
@@ -350,6 +358,29 @@ func newEncoder(enc string, level int) (encoder, error) {
 			level = flate.BestCompression
 		}
 		return kpflate.NewWriter(nil, level)
+	case "zstd":
+		var zlevel kpzstd.EncoderLevel
+		switch level {
+		case flate.NoCompression:
+			zlevel = kpzstd.SpeedFastest
+		case flate.BestSpeed:
+			zlevel = kpzstd.SpeedFastest
+		case flate.DefaultCompression:
+			zlevel = kpzstd.SpeedDefault
+		case flate.BestCompression:
+			zlevel = kpzstd.SpeedBestCompression
+		default:
+			if level < 3 {
+				zlevel = kpzstd.SpeedFastest
+			} else if level < 7 {
+				zlevel = kpzstd.SpeedDefault
+			} else if level < 11 {
+				zlevel = kpzstd.SpeedBetterCompression
+			} else {
+				zlevel = kpzstd.SpeedBestCompression
+			}
+		}
+		return kpzstd.NewWriter(nil, kpzstd.WithEncoderLevel(zlevel))
 	default:
 		unsupported()
 		return nil, nil
@@ -364,6 +395,8 @@ func encoderPool(enc string) *sync.Pool {
 		return gzipPool
 	case "deflate":
 		return deflatePool
+	case "zstd":
+		return zstdPool
 	default:
 		unsupported()
 		return nil

@@ -85,7 +85,7 @@ func defaultConfig(with func(*Config)) *Config {
 		PredicatePlugins:                        newPluginFlag(),
 		DataclientPlugins:                       newPluginFlag(),
 		MultiPlugins:                            newPluginFlag(),
-		CompressEncodings:                       commaListFlag("gzip", "deflate", "br"),
+		CompressEncodings:                       commaListFlag("gzip", "deflate", "br", "zstd"),
 		OpenTracing:                             "noop",
 		OpenTracingInitialSpan:                  "ingress",
 		OpentracingLogFilterLifecycleEvents:     true,

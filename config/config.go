@@ -386,7 +386,7 @@ func NewConfig() *Config {
 	cfg.RoutesURLs = commaListFlag()
 	cfg.ForwardedHeadersList = commaListFlag()
 	cfg.ForwardedHeadersExcludeCIDRList = commaListFlag()
-	cfg.CompressEncodings = commaListFlag("gzip", "deflate", "br")
+	cfg.CompressEncodings = commaListFlag("gzip", "deflate", "br", "zstd")
 	cfg.LuaModules = commaListFlag()
 	cfg.LuaSources = commaListFlag()
 	cfg.Oauth2GrantTokeninfoKeys = commaListFlag()
