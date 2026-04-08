@@ -84,9 +84,10 @@ have a powerful tool like the provided `clientRatelimit`.
 
 A cluster ratelimit computes all requests for all skipper peers. This
 requires, that you run skipper with `-enable-swarm` and select one of
-the two implementations:
+the three implementations:
 
 - [Redis](https://redis.io)
+- [Valkey](https://valkey.io/)
 - [SWIM](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
 
 Make sure all requirements, that are dependent on the implementation
@@ -151,6 +152,69 @@ following Redis commands:
 - [ZRANGEBYSCORE](https://redis.io/commands/zrangebyscore)
 
 ![Picture showing Skipper with Redis based swarm and ratelimit](../img/redis-and-cluster-ratelimit.svg)
+
+### Valkey based Cluster Ratelimits
+
+This solution is independent of the dataclient being used.
+You have to run one or more [Valkey](https://valkey.io/) instances.
+See also [Running with Valkey based Cluster Ratelimits](../kubernetes/ingress-controller.md#valkey-based).
+
+There are 3 different configurations to assign Valkey instances as a Skipper Valkey swarm.
+
+#### Static
+
+Specify `-swarm-valkey-urls`, multiple instances can be separated by comma,
+for example: `-swarm-valkey-urls=valkey1:6379,valkey2:6379`.
+Use this if you don't need to scale your Valkey instances.
+
+#### Kubernetes Service Selector
+
+Specify `-kubernetes-valkey-service-namespace=<namespace>`, `-kubernetes-valkey-service-name=<name>`
+and optional `-kubernetes-valkey-service-port=<port number>`.
+
+Skipper will update Valkey addresses every 10 seconds from specified service endpoints.
+This allows you to dynamically scale Valkey instances.
+Note that when `-kubernetes` is set Skipper also fetches `Ingresses` and `RouteGroups` for routing,
+see [ingress-controller deployment docs](../kubernetes/ingress-controller.md).
+
+#### HTTP Endpoint
+
+Specify `-swarm-valkey-remote=http://127.0.0.1/valkey/endpoints`,
+
+Skipper will update Valkey addresses every 10 seconds from this remote URL
+that should return data in the following JSON format:
+```json
+{
+    "endpoints": [
+        {"address": "10.2.0.1:6379"}, {"address": "10.2.0.2:6379"},
+        {"address": "10.2.0.3:6379"}, {"address": "10.2.0.4:6379"},
+        {"address": "10.2.0.5:6379"}
+    ]
+}
+```
+
+If you have [routesrv proxy](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#routesrv) enabled,
+you need to configure Skipper with the flag `-swarm-valkey-remote=http://<routesrv-service-name>.<routesrv-namespace>.svc.cluster.local/swarm/valkey/shards`.
+`Routesrv` will be responsible for collecting Valkey endpoints and Skipper will poll them from it.
+
+#### Implementation
+
+The implementation use [Valkey-Go
+library](https://github.com/valkey-io/valkey-go) and use a client side
+hash ring implementation on skipper side that is faster than the
+go-redis implementation to access a shard via client hashing and
+spread the load across multiple Valkey instances. Like this we are be
+able to scale out the shared rate limit storage.
+
+The ratelimit algorithm is a sliding window and makes use of the
+following Valkey commands:
+
+- [ZREMRANGEBYSCORE](https://valkey.io/commands/zremrangebyscore),
+- [ZCARD](https://valkey.io/commands/zcard),
+- [ZADD](https://valkey.io/commands/zadd) and
+- [ZRANGEBYSCORE](https://valkey.io/commands/zrangebyscore)
+
+![Picture showing Skipper with Valkey based swarm and ratelimit](../img/valkey-and-cluster-ratelimit.svg)
 
 ### SWIM based Cluster Ratelimits
 

@@ -714,6 +714,32 @@ by the default, and exposed among the timers via the following keys:
 
 See more details about rate limiting at [Rate limiting](../reference/filters.md#clusterclientratelimit).
 
+### Valkey - Rate limiting metrics
+
+System metrics exposed by the valkey client:
+
+Prometheus query to get the number of known Valkey shards by the skipper ringclient:
+```
+skipper_custom_gauges{key =~ "^swarm[.]valkey[.]shards"}
+```
+
+Timer metrics for the latencies and errors of the communication with the auxiliary Valkey instances are enabled
+by the default, and exposed among the timers via the following keys:
+
+```
+sum(rate(skipper_filter_request_duration_seconds_count{filter=~"cluster.*"}[1m]))
+```
+
+- skipper.swarm.valkey.query.allow.success: successful allow requests to the rate limiter, ungrouped
+- skipper.swarm.valkey.query.allow.failure: failed allow requests to the rate limiter, ungrouped, where the valkey
+  communication failed
+- skipper.swarm.valkey.query.retryafter.success.<group>: successful allow requests to the rate limiter, grouped
+  by the rate limiter group name when used
+- skipper.swarm.valkey.query.retryafter.failure.<group>: failed allow requests to the rate limiter, ungrouped,
+  where the Valkey communication failed, grouped by the rate limiter group name when used
+
+See more details about rate limiting at [Rate limiting](../reference/filters.md#clusterclientratelimit).
+
 ### Open Policy Agent metrics
 
 If Open Policy Agent filters are enabled, the following counters show up in the `/metrics` endpoint. The bundle-name is the first parameter of the filter so that for example increased error codes can be attributed to a specific source bundle / system.

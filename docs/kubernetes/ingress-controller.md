@@ -642,6 +642,7 @@ line option `-enable-swarm` and `-enable-ratelimits`.
 The rest depends on the implementation, that can be:
 
 - [Redis](https://redis.io)
+- [Valkey](https://valkey.io)
 - alpha version: [SWIM](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
 
 ### Redis based
@@ -654,7 +655,7 @@ resolve redis hostnames as shown in the example, if skipper does not
 have `dnsPolicy: ClusterFirstWithHostNet` in its Pod spec, see also
 [DNS policy in the official Kubernetes documentation](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy).
 
-This setup is considered experimental and should be carefully tested
+This setup is considered stable, but should be carefully tested
 before running it in production.
 
 Example redis statefulset with headless service:
@@ -719,6 +720,88 @@ spec:
     targetPort: 6379
   selector:
     application: skipper-redis
+  type: ClusterIP
+```
+
+### Valkey based
+
+Additionally you have to add `-swarm-valkey-urls` to skipper
+`args:`. For example: `-swarm-valkey-urls=skipper-valkey-0.skipper-valkey.kube-system.svc.cluster.local:6379,skipper-valkey-1.skipper-valkey.kube-system.svc.cluster.local:6379`.
+
+Running skipper with `hostNetwork` in kubernetes will not be able to
+resolve valkey hostnames as shown in the example, if skipper does not
+have `dnsPolicy: ClusterFirstWithHostNet` in its Pod spec, see also
+[DNS policy in the official Kubernetes documentation](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy).
+
+This setup is considered stable, but should be carefully tested
+before running it in production.
+
+Example valkey statefulset with headless service:
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    application: skipper-ingress
+	component: valkey
+    version: 9-alpine3.22-20260330
+  name: skipper-valkey
+  namespace: kube-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      statefulset: skipper-ingress-valkey
+  serviceName: skipper-ingress-valkey
+  template:
+    metadata:
+      labels:
+        application: skipper-ingress
+        component: valkey
+        version: 9-alpine3.22-20260330
+    spec:
+      containers:
+      - image: container-registry.zalando.net/library/valkey-9-alpine:9-alpine3.22-20260330
+        name: skipper-valkey
+        ports:
+        - containerPort: 6379
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - valkey-cli
+            - ping
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    application: skipper-ingress
+    component: valkey
+  name: skipper-ingress-valkey
+  namespace: kube-system
+spec:
+  clusterIP: None
+  ports:
+  - port: 6379
+    protocol: TCP
+    targetPort: 6379
+  selector:
+    application: skipper-ingress
+    component: valkey
   type: ClusterIP
 ```
 
