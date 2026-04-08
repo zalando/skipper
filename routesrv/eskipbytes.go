@@ -54,6 +54,7 @@ var (
 type eskipBytes struct {
 	mu           sync.RWMutex
 	data         []byte
+	zoneData     map[string][]byte
 	hash         string
 	lastModified time.Time
 	initialized  bool
@@ -70,7 +71,8 @@ type eskipBytes struct {
 // formatAndSet takes a slice of routes and stores them eskip-formatted
 // in a synchronized way. It returns the length of the stored data, and
 // flags signaling whether the data was initialized and updated.
-func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, _ string, initialized bool, updated bool) {
+func (e *eskipBytes) formatAndSet(routes []*eskip.Route, zoneAwareRoutes map[string][]*eskip.Route) (_ int, _ string, initialized bool, updated bool) {
+
 	buf := &bytes.Buffer{}
 	eskip.Fprint(buf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
 	data := buf.Bytes()
@@ -80,6 +82,14 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, _ string, initi
 
 	updated = !bytes.Equal(e.data, data)
 	if updated {
+		if len(zoneAwareRoutes) > 0 {
+			e.zoneData = make(map[string][]byte)
+			for zone, routes := range zoneAwareRoutes {
+				zoneBuf := &bytes.Buffer{}
+				eskip.Fprint(zoneBuf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
+				e.zoneData[zone] = zoneBuf.Bytes()
+			}
+		}
 		e.lastModified = e.now()
 		e.data = data
 		e.zdata = e.compressLocked(data)
@@ -141,6 +151,18 @@ func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	hash := e.hash
 	lastModified := e.lastModified
 	initialized := e.initialized
+
+	// if a zone is specified and there are at least three endpoints for that are zone, serve the zone aware routes
+	// else serve all routes
+	// we check for three endpoints because three is good choice for availability; it guarantees that at least one endpoint will be healthy even if the others are on update or have some issues
+	zone := r.PathValue("zone")
+	if zone != "" {
+		zoneData, ok := e.zoneData[zone]
+		if ok {
+			data = zoneData
+		}
+	}
+
 	e.mu.RUnlock()
 
 	if initialized {

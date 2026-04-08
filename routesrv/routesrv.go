@@ -70,16 +70,20 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	rs.tracerShutdown = shutdown
 
 	b := &eskipBytes{
-		tracer:  tracer,
-		metrics: m,
-		now:     time.Now,
+		tracer:   tracer,
+		metrics:  m,
+		now:      time.Now,
+		zoneData: make(map[string][]byte),
 	}
 	bs := &eskipBytesStatus{
 		b: b,
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/health", bs)
+
 	mux.Handle("/routes", b)
+	mux.Handle("/routes/{zone}", b)
+	mux.Handle("/health", bs)
+
 	supportHandler := http.NewServeMux()
 	supportHandler.Handle("/metrics", metricsHandler)
 	supportHandler.Handle("/metrics/", metricsHandler)

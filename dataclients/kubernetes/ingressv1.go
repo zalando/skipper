@@ -82,10 +82,13 @@ func convertPathRuleV1(
 	}
 
 	var (
-		eps []string
-		err error
-		svc *service
+		eps      []string
+		epSlices []skipperEndpoint
+		err      error
+		svc      *service
 	)
+
+	dataclientZone := ic.zone
 
 	var hostRegexp []string
 	if host != "" {
@@ -121,7 +124,14 @@ func convertPathRuleV1(
 			protocol = p
 		}
 
-		eps = state.GetEndpointsByService(ic.zone, ns, svcName, protocol, servicePort)
+		if state.enableEndpointSlices {
+			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort)
+			for _, ep := range epSlices {
+				eps = append(eps, ep.Address)
+			}
+		} else {
+			eps = state.GetEndpointsByService(ns, svcName, protocol, servicePort)
+		}
 	}
 	if len(eps) == 0 {
 		ic.logger.Tracef("Target endpoints not found, shuntroute for %s:%s", svcName, svcPort)
@@ -138,6 +148,7 @@ func convertPathRuleV1(
 	}
 
 	ic.logger.Tracef("Found %d endpoints for %s:%s", len(eps), svcName, svcPort)
+
 	if len(eps) == 1 {
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
@@ -154,10 +165,20 @@ func convertPathRuleV1(
 	r := &eskip.Route{
 		Id:          routeID(ns, name, host, prule.Path, svcName),
 		BackendType: eskip.LBBackend,
-		LBEndpoints: eps,
 		LBAlgorithm: getLoadBalancerAlgorithm(metadata, defaultLoadBalancerAlgorithm),
 		HostRegexps: hostRegexp,
 	}
+
+	if state.enableEndpointSlices {
+		var lbeps []*eskip.LBEndpoint
+		for _, ep := range epSlices {
+			lbeps = append(lbeps, &eskip.LBEndpoint{Address: ep.Address, Zone: ep.Zone})
+		}
+		r.LBEndpoints = lbeps
+	} else {
+		r.LBEndpoints = eskip.NewLBEndpoints(eps)
+	}
+
 	setPathV1(pathMode, r, prule.PathType, prule.Path)
 	traffic.apply(r)
 	return r, nil
@@ -348,13 +369,16 @@ func (ing *ingress) convertDefaultBackendV1(
 	}
 
 	var (
-		eps     []string
-		err     error
-		ns      = i.Metadata.Namespace
-		name    = i.Metadata.Name
-		svcName = i.Spec.DefaultBackend.Service.Name
-		svcPort = i.Spec.DefaultBackend.Service.Port
+		eps      []string
+		epSlices []skipperEndpoint
+		err      error
+		ns       = i.Metadata.Namespace
+		name     = i.Metadata.Name
+		svcName  = i.Spec.DefaultBackend.Service.Name
+		svcPort  = i.Spec.DefaultBackend.Service.Port
 	)
+
+	dataclientZone := ic.zone
 
 	svc, err := state.getService(ns, svcName)
 	if err != nil {
@@ -382,14 +406,20 @@ func (ing *ingress) convertDefaultBackendV1(
 			protocol = p
 		}
 
-		eps = state.GetEndpointsByService(
-			ing.zone,
-			ns,
-			svcName,
-			protocol,
-			servicePort,
-		)
-		ic.logger.Debugf("Found %d endpoints for %s: %v", len(eps), svcName, err)
+		if state.enableEndpointSlices {
+			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort)
+			for _, ep := range epSlices {
+				eps = append(eps, ep.Address)
+			}
+		} else {
+			eps = state.GetEndpointsByService(
+				ns,
+				svcName,
+				protocol,
+				servicePort,
+			)
+			ic.logger.Debugf("Found %d endpoints for %s: %v", len(eps), svcName, err)
+		}
 	}
 
 	if len(eps) == 0 {
@@ -408,12 +438,23 @@ func (ing *ingress) convertDefaultBackendV1(
 		}, true, nil
 	}
 
-	return &eskip.Route{
+	r := &eskip.Route{
 		Id:          routeID(ns, name, "", "", ""),
 		BackendType: eskip.LBBackend,
-		LBEndpoints: eps,
 		LBAlgorithm: getLoadBalancerAlgorithm(i.Metadata, ing.defaultLoadBalancerAlgorithm),
-	}, true, nil
+	}
+
+	if state.enableEndpointSlices {
+		var lbeps []*eskip.LBEndpoint
+		for _, ep := range epSlices {
+			lbeps = append(lbeps, &eskip.LBEndpoint{Address: ep.Address, Zone: ep.Zone})
+		}
+		r.LBEndpoints = lbeps
+	} else {
+		r.LBEndpoints = eskip.NewLBEndpoints(eps)
+	}
+
+	return r, true, nil
 }
 
 func serviceNameBackend(svcName, svcNamespace string, servicePort *servicePort) string {

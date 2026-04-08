@@ -284,6 +284,16 @@ func testFixture(t *testing.T, f fixtureSet) {
 		t.Fatalf("LoadAll failed: %v", err)
 	}
 
+	for _, r := range routes {
+		for i, ep := range r.LBEndpoints {
+			if ep.Zone != "" {
+				r.LBEndpoints[i] = &eskip.LBEndpoint{
+					Address: ep.Address,
+				}
+			}
+		}
+	}
+
 	if f.eskip != "" {
 		eskp, err := os.Open(f.eskip)
 		if err != nil {

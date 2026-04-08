@@ -188,14 +188,28 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 		return targetPortNotFound(backend.ServiceName, backend.ServicePort)
 	}
 
-	eps := ctx.state.GetEndpointsByTarget(
-		ctx.zone,
-		namespaceString(ctx.routeGroup.Metadata.Namespace),
-		s.Meta.Name,
-		"TCP",
-		protocol,
-		targetPort,
-	)
+	dataclientZone := ctx.zone
+
+	var eps []string
+	var epSlices []skipperEndpoint
+	if ctx.state.enableEndpointSlices {
+		epSlices = ctx.state.GetEndpointSlicesByTarget(dataclientZone, namespaceString(ctx.routeGroup.Metadata.Namespace),
+			s.Meta.Name,
+			"TCP",
+			protocol,
+			targetPort)
+		for _, epSlice := range epSlices {
+			eps = append(eps, epSlice.Address)
+		}
+	} else {
+		eps = ctx.state.GetEndpointsByTarget(
+			namespaceString(ctx.routeGroup.Metadata.Namespace),
+			s.Meta.Name,
+			"TCP",
+			protocol,
+			targetPort,
+		)
+	}
 
 	if len(eps) == 0 {
 		ctx.logger.Tracef("Target endpoints not found, shuntroute for %s:%d", backend.ServiceName, backend.ServicePort)
@@ -211,7 +225,13 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 	}
 
 	r.BackendType = eskip.LBBackend
-	r.LBEndpoints = eps
+	if ctx.state.enableEndpointSlices {
+		for _, ep := range epSlices {
+			r.LBEndpoints = append(r.LBEndpoints, &eskip.LBEndpoint{Address: ep.Address, Zone: ep.Zone})
+		}
+	} else {
+		r.LBEndpoints = eskip.NewLBEndpoints(eps)
+	}
 	r.LBAlgorithm = ctx.defaultLoadBalancerAlgorithm
 	if backend.Algorithm != loadbalancer.None {
 		r.LBAlgorithm = backend.Algorithm.String()
@@ -264,7 +284,7 @@ func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r
 			}
 		}
 
-		r.LBEndpoints = backend.Endpoints
+		r.LBEndpoints = eskip.NewLBEndpoints(backend.Endpoints)
 		r.LBAlgorithm = ctx.defaultLoadBalancerAlgorithm
 		if backend.Algorithm != loadbalancer.None {
 			r.LBAlgorithm = backend.Algorithm.String()

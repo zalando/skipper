@@ -43,7 +43,7 @@ func (eps *skipperEndpointSlice) getPort(protocol, pName string, pValue int) int
 
 	return port
 }
-func (eps *skipperEndpointSlice) targetsByServicePort(zone, protocol, scheme string, servicePort *servicePort) []string {
+func (eps *skipperEndpointSlice) targetsByServicePort(protocol, scheme string, servicePort *servicePort) []skipperEndpoint {
 	var port int
 	if servicePort.Name != "" {
 		port = eps.getPort(protocol, servicePort.Name, servicePort.Port)
@@ -57,35 +57,23 @@ func (eps *skipperEndpointSlice) targetsByServicePort(zone, protocol, scheme str
 		port = eps.getPort(protocol, servicePort.Name, servicePort.Port)
 	}
 
-	result := make([]string, 0, len(eps.Endpoints))
-	resultByZone := make([]string, 0, len(eps.Endpoints))
+	result := make([]skipperEndpoint, 0, len(eps.Endpoints))
 	for _, ep := range eps.Endpoints {
-		if ep.Zone == zone {
-			resultByZone = append(resultByZone, formatEndpointString(ep.Address, scheme, port))
-		}
-		result = append(result, formatEndpointString(ep.Address, scheme, port))
-	}
-	if len(resultByZone) >= minEndpointsByZone {
-		return resultByZone
+		addr := formatEndpointString(ep.Address, scheme, port)
+		result = append(result, skipperEndpoint{Address: addr, Zone: ep.Zone})
 	}
 	return result
 }
 
-func (eps *skipperEndpointSlice) targetsByServiceTarget(zone, protocol, scheme string, serviceTarget *definitions.BackendPort) []string {
+func (eps *skipperEndpointSlice) targetsByServiceTarget(protocol, scheme string, serviceTarget *definitions.BackendPort) []skipperEndpoint {
 	pName, _ := serviceTarget.Value.(string)
 	pValue, _ := serviceTarget.Value.(int)
 	port := eps.getPort(protocol, pName, pValue)
 
-	result := make([]string, 0, len(eps.Endpoints))
-	resultByZone := make([]string, 0, len(eps.Endpoints))
+	result := make([]skipperEndpoint, 0, len(eps.Endpoints))
 	for _, ep := range eps.Endpoints {
-		if ep.Zone == zone {
-			resultByZone = append(resultByZone, formatEndpointString(ep.Address, scheme, port))
-		}
-		result = append(result, formatEndpointString(ep.Address, scheme, port))
-	}
-	if len(resultByZone) >= minEndpointsByZone {
-		return resultByZone
+		addr := formatEndpointString(ep.Address, scheme, port)
+		result = append(result, skipperEndpoint{Address: addr, Zone: ep.Zone})
 	}
 	return result
 }
