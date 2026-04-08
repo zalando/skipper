@@ -105,11 +105,7 @@ func (state *clusterState) GetEndpointSlicesByService(zone, namespace, name, pro
 		state.cachedEndpointSlices[epID] = targets
 	}
 
-	if zone != "" {
-		targets = filterByZone(zone, targets)
-	}
-
-	return targets
+	return filterByZone(zone, targets)
 }
 
 // getEndpointAddresses returns the list of all addresses for the given service using endpoints or endpointslices.
@@ -196,22 +192,20 @@ func (state *clusterState) GetEndpointSlicesByTarget(zone, namespace, name, prot
 		state.cachedEndpointSlices[epID] = targets
 	}
 
-	if zone != "" {
-		targets = filterByZone(zone, targets)
-	}
-
-	return targets
+	return filterByZone(zone, targets)
 }
 
 func filterByZone(zone string, targets []skipperEndpoint) []skipperEndpoint {
-	var zoneTargets []skipperEndpoint
-	for _, target := range targets {
-		if target.Zone == zone {
-			zoneTargets = append(zoneTargets, target)
+	if zone != "" {
+		var zoneTargets []skipperEndpoint
+		for _, target := range targets {
+			if target.Zone == zone {
+				zoneTargets = append(zoneTargets, target)
+			}
 		}
-	}
-	if len(zoneTargets) >= minEndpointsByZone {
-		return zoneTargets
+		if len(zoneTargets) >= minEndpointsByZone {
+			return zoneTargets
+		}
 	}
 	return targets
 }
