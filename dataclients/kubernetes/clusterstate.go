@@ -65,12 +65,14 @@ func (state *clusterState) GetEndpointsByService(namespace, name, protocol strin
 	}
 
 	var targets []string
-	if ep, ok := state.endpoints[epID.ResourceID]; ok {
-		targets = ep.targetsByServicePort(protocol, servicePort)
-	} else {
+	var ep *endpoint
+	ep, ok := state.endpoints[epID.ResourceID] 
+	if !ok {
 		return nil
 	}
 
+	targets = ep.targetsByServicePort(protocol, servicePort)
+	
 	sort.Strings(targets)
 	state.cachedEndpoints[epID] = targets
 	return targets
@@ -104,15 +106,7 @@ func (state *clusterState) GetEndpointSlicesByService(zone, namespace, name, pro
 	}
 
 	if zone != "" {
-		var zoneTargets []skipperEndpoint
-		for _, target := range targets {
-			if target.Zone == zone {
-				zoneTargets = append(zoneTargets, target)
-			}
-		}
-		if len(zoneTargets) >= minEndpointsByZone {
-			return zoneTargets
-		}
+		targets = filterByZone(zone, targets)
 	}
 
 	return targets
@@ -148,7 +142,7 @@ func (state *clusterState) getEndpointAddresses(zone, namespace, name string) []
 	return addresses
 }
 
-// GetEndpointsByTarget returns the skipper endpoints for kubernetes endpoints or endpointslices.
+// GetEndpointsByTarget returns the skipper endpoints for kubernetes endpoints.
 func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol, scheme string, target *definitions.BackendPort) []string {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
@@ -163,18 +157,20 @@ func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol, schem
 	}
 
 	var targets []string
-
-	if ep, ok := state.endpoints[epID.ResourceID]; ok {
-		targets = ep.targetsByServiceTarget(scheme, target)
-	} else {
+	var ep *endpoint
+	ep, ok := state.endpoints[epID.ResourceID] 
+	if !ok {
 		return nil
 	}
+
+	targets = ep.targetsByServiceTarget(scheme, target)
 
 	sort.Strings(targets)
 	state.cachedEndpoints[epID] = targets
 	return targets
 }
 
+// GetEndpointSlicesByTarget returns the skipper endpointslices for kubernetes endpointslices.
 func (state *clusterState) GetEndpointSlicesByTarget(zone, namespace, name, protocol, scheme string, target *definitions.BackendPort) []skipperEndpoint {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
@@ -201,16 +197,21 @@ func (state *clusterState) GetEndpointSlicesByTarget(zone, namespace, name, prot
 	}
 
 	if zone != "" {
-		var zoneTargets []skipperEndpoint
-		for _, target := range targets {
-			if target.Zone == zone {
-				zoneTargets = append(zoneTargets, target)
-			}
-		}
-		if len(zoneTargets) >= minEndpointsByZone {
-			return zoneTargets
-		}
+		targets = filterByZone(zone, targets)
 	}
 
+	return targets
+}
+
+func filterByZone(zone string, targets []skipperEndpoint) []skipperEndpoint {
+	var zoneTargets []skipperEndpoint
+	for _, target := range targets {
+		if target.Zone == zone {
+			zoneTargets = append(zoneTargets, target)
+		}
+	}
+	if len(zoneTargets) >= minEndpointsByZone {
+		return zoneTargets
+	}
 	return targets
 }
