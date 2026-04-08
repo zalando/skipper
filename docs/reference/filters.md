@@ -2606,7 +2606,7 @@ with `429 Too Many Requests` when limit is reached.
 ### clusterLeakyBucketRatelimit
 
 Implements leaky bucket rate limit algorithm that uses Redis or Valkey as a storage.
-Requires command line flags `-enable-ratelimits`, `-enable-swarm` and one of `-swarm-redis-urls` or `-swarm-valkey-urls` to be set.
+Requires command line flags `-enable-ratelimits`, `-enable-swarm` and either `-swarm-redis-urls` or `-swarm-valkey-urls` to be set.
 
 The leaky bucket is an algorithm based on an analogy of how a bucket with a constant leak will overflow if either
 the average rate at which water is poured in exceeds the rate at which the bucket leaks or if more water than
