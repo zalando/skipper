@@ -66,13 +66,13 @@ func (state *clusterState) GetEndpointsByService(namespace, name, protocol strin
 
 	var targets []string
 	var ep *endpoint
-	ep, ok := state.endpoints[epID.ResourceID] 
+	ep, ok := state.endpoints[epID.ResourceID]
 	if !ok {
 		return nil
 	}
 
 	targets = ep.targetsByServicePort(protocol, servicePort)
-	
+
 	sort.Strings(targets)
 	state.cachedEndpoints[epID] = targets
 	return targets
@@ -158,7 +158,7 @@ func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol, schem
 
 	var targets []string
 	var ep *endpoint
-	ep, ok := state.endpoints[epID.ResourceID] 
+	ep, ok := state.endpoints[epID.ResourceID]
 	if !ok {
 		return nil
 	}
