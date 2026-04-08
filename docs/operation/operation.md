@@ -731,7 +731,7 @@ sum(rate(skipper_filter_request_duration_seconds_count{filter=~"cluster.*"}[1m])
 ```
 
 - skipper.swarm.valkey.query.allow.success: successful allow requests to the rate limiter, ungrouped
-- skipper.swarm.valkey.query.allow.failure: failed allow requests to the rate limiter, ungrouped, where the redis
+- skipper.swarm.valkey.query.allow.failure: failed allow requests to the rate limiter, ungrouped, where the valkey
   communication failed
 - skipper.swarm.valkey.query.retryafter.success.<group>: successful allow requests to the rate limiter, grouped
   by the rate limiter group name when used
