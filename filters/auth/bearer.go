@@ -53,7 +53,7 @@ func newBearerInjectorFilter(s string, sr secrets.SecretsReader) *bearerInjector
 func (f *bearerInjectorFilter) Request(ctx filters.FilterContext) {
 	b, ok := f.secretsReader.GetSecret(f.secretName)
 	if !ok {
-		log.Errorf("Secret %q not found for bearerinjector filter", f.secretName)
+		log.Errorf("Secret %q not found for bearerinjector filter. Make sure the file exists in a directory passed via -credentials-paths flag.", f.secretName)
 		return
 	}
 	ctx.Request().Header.Set(authHeaderName, authHeaderPrefix+string(b))
