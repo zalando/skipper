@@ -3464,7 +3464,7 @@ It is a special form of `setRequestHeaderFromSecret` with `"Authorization"` head
 `"Bearer "` prefix and empty suffix.
 
 The token file must be located in a directory passed via the `-credentials-paths` flag.
-See the [egress reference](https://opensource.zalando.com/skipper/reference/egress/#example-bearer-injection)
+See the [egress reference](egress.md#example-bearer-injection)
 for a complete configuration example.
 
 Example:
