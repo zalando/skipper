@@ -263,7 +263,7 @@ func TestPostProcessor(t *testing.T) {
 
 	t.Run("invalid endpoint address", func(t *testing.T) {
 		const routes = `
-			* -> fadeIn("1m") -> <"http://::">
+			* -> fadeIn("1m") -> <"http:/::">
 		`
 
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
