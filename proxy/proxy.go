@@ -1376,7 +1376,6 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		ctx.outgoingDebugRequest = debugReq
 		ctx.setResponse(&http.Response{Header: make(http.Header)}, p.flags.PreserveOriginal())
 	} else {
-
 		done, allow := p.checkBreaker(ctx)
 		if !allow {
 			tracing.LogKV("circuit_breaker", "open", ctx.request.Context())
@@ -1385,17 +1384,22 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			return errCircuitBreakerOpen
 		}
 
-		backendContext := ctx.request.Context()
-		if timeout, ok := ctx.StateBag()[filters.BackendTimeout]; ok {
-			backendContext, ctx.cancelBackendContext = stdlibcontext.WithTimeout(backendContext, timeout.(time.Duration))
+		// OnRequest filter hook
+		for _, f := range ctx.route.Filters {
+			if bef, ok := f.Filter.(filters.BackendFilter); ok {
+				if err := bef.OnRequest(ctx); err != nil {
+					ctx.Logger().Errorf("Failed to execute filter %s OnRequest: %v", f.Name, err)
+				}
+			}
 		}
 
 		backendStart := time.Now()
-		if d, ok := ctx.StateBag()[filters.ReadTimeout].(time.Duration); ok {
-			e := ctx.ResponseController().SetReadDeadline(backendStart.Add(d))
-			if e != nil {
-				ctx.Logger().Errorf("Failed to set read deadline: %v", e)
-			}
+		backendContext := ctx.request.Context()
+
+		// backendTimeout()
+		if timeout, ok := ctx.StateBag()[filters.BackendTimeout]; ok {
+			defer ctx.cancelBackendContext()
+			backendContext, ctx.cancelBackendContext = stdlibcontext.WithTimeout(backendContext, timeout.(time.Duration))
 		}
 
 		requestStopWatch.Stop()
@@ -1439,6 +1443,23 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 					p.applyFiltersOnError(ctx, processedFilters)
 					return perr2
 				}
+
+			} else if cbStream, ok := ctx.request.Body.(*skpio.CopyBodyStream); ok {
+				perr = nil
+				var perr2 *proxyError
+
+				ctx.request.Body = cbStream.GetBody()
+				rsp, perr2 = p.makeBackendRequest(ctx, backendContext)
+				if perr2 != nil {
+					ctx.Logger().Errorf("Failed to retry backend request by filter: %v", perr2)
+					if perr2.code >= http.StatusInternalServerError {
+						p.metrics.MeasureBackend5xx(backendStart)
+					}
+					p.makeErrorResponse(ctx, perr2)
+					p.applyFiltersOnError(ctx, processedFilters)
+					return perr2
+				}
+
 			} else {
 				requestStopWatch.Stop()
 				responseStopWatch.Start()
@@ -1451,6 +1472,21 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		}
 		if rsp.StatusCode >= http.StatusInternalServerError {
 			p.metrics.MeasureBackend5xx(backendStart)
+
+			if cbStream, ok := ctx.request.Body.(*skpio.CopyBodyStream); ok {
+				perr = nil
+				ctx.request.Body = cbStream.GetBody()
+				rsp, perr = p.makeBackendRequest(ctx, backendContext)
+				if perr != nil {
+					ctx.Logger().Errorf("Failed to retry backend request by filter: %v", perr)
+					if perr.code >= http.StatusInternalServerError {
+						p.metrics.MeasureBackend5xx(backendStart)
+					}
+					p.makeErrorResponse(ctx, perr)
+					p.applyFiltersOnError(ctx, processedFilters)
+					return perr
+				}
+			}
 		}
 
 		if done != nil {
