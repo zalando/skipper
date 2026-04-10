@@ -70,7 +70,7 @@ func (c *ClientKubernetes) Get(s string) (*http.Response, error) {
 	}
 
 	// backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), maxRetries),
-	_, err = backoff.Retry(context.TODO(), func() (string, error) {
+	_, err = backoff.Retry(context.Background(), func() (string, error) {
 		rsp, err = c.httpClient.Do(req)
 		if err != nil {
 			log.Infof("SWARM: request to %s failed: %v, retrying..", s, err)

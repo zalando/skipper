@@ -353,7 +353,7 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 func (r *RedisRingClient) RingAvailable() bool {
 	var err error
 
-	_, err = backoff.Retry(context.TODO(), func() (string, error) {
+	_, err = backoff.Retry(context.Background(), func() (string, error) {
 		_, err = r.ring.Ping(context.Background()).Result()
 		if err != nil {
 			r.log.Infof("Failed to ping redis, retry with backoff: %v", err)
