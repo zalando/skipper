@@ -1872,13 +1872,13 @@ func injectClientTraceByTag(ctx *context, t time.Time, req *http.Request, span o
 			span.SetTag(ClientTraceDNS, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 		ConnectDone: func(string, string, error) {
-			span.SetTag(ClientTraceConnect, time.Since(ctx.clientTraceTime).Milliseconds())
+			span.SetTag(ClientTraceConnect, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 		TLSHandshakeDone: func(tls.ConnectionState, error) {
 			span.SetTag(ClientTraceTLS, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 		GotConn: func(httptrace.GotConnInfo) {
-			span.SetTag(ClientTraceGetConn, time.Since(ctx.clientTraceTime).Nanoseconds())
+			span.SetTag(ClientTraceGetConn, time.Since(ctx.clientTraceTime).Microseconds())
 		},
 		Got100Continue: func() {
 			span.SetTag(ClientTraceGot100Continue, time.Since(ctx.clientTraceTime).Microseconds())
