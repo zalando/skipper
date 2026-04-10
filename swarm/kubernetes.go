@@ -69,7 +69,6 @@ func (c *ClientKubernetes) Get(s string) (*http.Response, error) {
 		return nil, err
 	}
 
-	// backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), maxRetries),
 	_, err = backoff.Retry(context.Background(), func() (string, error) {
 		rsp, err = c.httpClient.Do(req)
 		if err != nil {
