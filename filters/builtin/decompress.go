@@ -200,7 +200,7 @@ func (d decompress) Request(filters.FilterContext) {}
 
 func getEncodings(header string) []string {
 	var encs []string
-	for r := range splitSeq(header, ",") {
+	for r := range strings.SplitSeq(header, ",") {
 		r = strings.TrimSpace(r)
 		if r != "" {
 			encs = append(encs, r)

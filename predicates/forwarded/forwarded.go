@@ -132,8 +132,8 @@ type forwarded struct {
 func parseForwarded(fh string) *forwarded {
 	f := &forwarded{}
 
-	for forwardedFull := range splitSeq(fh, ",") {
-		for forwardedPair := range splitSeq(strings.TrimSpace(forwardedFull), ";") {
+	for forwardedFull := range strings.SplitSeq(fh, ",") {
+		for forwardedPair := range strings.SplitSeq(strings.TrimSpace(forwardedFull), ";") {
 			token, value, found := strings.Cut(forwardedPair, "=")
 			value = strings.Trim(value, `"`)
 			if found && value != "" {
@@ -147,22 +147,4 @@ func parseForwarded(fh string) *forwarded {
 		}
 	}
 	return f
-}
-
-// TODO: use [strings.SplitSeq] added in go1.24 once go1.25 is released.
-func splitSeq(s string, sep string) func(yield func(string) bool) {
-	return func(yield func(string) bool) {
-		for {
-			i := strings.Index(s, sep)
-			if i < 0 {
-				break
-			}
-			frag := s[:i]
-			if !yield(frag) {
-				return
-			}
-			s = s[i+len(sep):]
-		}
-		yield(s)
-	}
 }

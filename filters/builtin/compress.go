@@ -263,7 +263,7 @@ func canEncodeEntity(r *http.Response, mime []string) bool {
 func (c *compress) acceptedEncoding(r *http.Request) string {
 	var encs encodings
 
-	for s := range splitSeq(r.Header.Get("Accept-Encoding"), ",") {
+	for s := range strings.SplitSeq(r.Header.Get("Accept-Encoding"), ",") {
 
 		name, weight, hasWeight := strings.Cut(s, ";")
 
@@ -308,24 +308,6 @@ func (c *compress) acceptedEncoding(r *http.Request) string {
 
 	sort.Sort(encs)
 	return encs[0].name
-}
-
-// TODO: use [strings.SplitSeq] added in go1.24 once go1.25 is released.
-func splitSeq(s string, sep string) func(yield func(string) bool) {
-	return func(yield func(string) bool) {
-		for {
-			i := strings.Index(s, sep)
-			if i < 0 {
-				break
-			}
-			frag := s[:i]
-			if !yield(frag) {
-				return
-			}
-			s = s[i+len(sep):]
-		}
-		yield(s)
-	}
 }
 
 func responseHeader(r *http.Response, enc string) {
