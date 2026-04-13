@@ -3463,6 +3463,10 @@ from file providing the token as content.
 It is a special form of `setRequestHeaderFromSecret` with `"Authorization"` header name,
 `"Bearer "` prefix and empty suffix.
 
+The token file must be located in a directory passed via the `-credentials-paths` flag.
+See the [egress reference](egress.md#example-bearer-injection)
+for a complete configuration example.
+
 Example:
 
 ```
@@ -3470,6 +3474,9 @@ egress: * -> bearerinjector("/tmp/secrets/my-token") -> "https://api.example.com
 
 // equivalent to setRequestHeaderFromSecret("Authorization", "/tmp/secrets/my-token", "Bearer ")
 ```
+
+Note: You must start skipper with `-credentials-paths=/tmp/secrets` for the
+filter to find the token file.
 
 ## Open Tracing
 ### tracingBaggageToTag
