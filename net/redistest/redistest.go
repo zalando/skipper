@@ -65,7 +65,7 @@ func newTestRedisWithOptions(t testing.TB, opts options) (address string, done f
 			Networks:     []string{network.Name},
 			WaitingFor: wait.ForAll(
 				wait.ForLog("* Ready to accept connections"),
-				wait.NewHostPortStrategy(port),
+				wait.NewHostPortStrategy(port.Port()),
 			),
 		},
 		Started: true,

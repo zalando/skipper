@@ -1,6 +1,7 @@
 package swarm
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -10,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -52,7 +53,6 @@ type ClientKubernetes struct {
 	httpClient *http.Client
 	apiURL     string
 	token      string
-	retry      backoff.BackOff
 	quit       chan struct{}
 }
 
@@ -69,13 +69,13 @@ func (c *ClientKubernetes) Get(s string) (*http.Response, error) {
 		return nil, err
 	}
 
-	err = backoff.Retry(func() error {
+	_, err = backoff.Retry(context.Background(), func() (string, error) {
 		rsp, err = c.httpClient.Do(req)
 		if err != nil {
 			log.Infof("SWARM: request to %s failed: %v, retrying..", s, err)
 		}
-		return err
-	}, c.retry)
+		return "", err
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(5*time.Second)), backoff.WithMaxTries(maxRetries))
 
 	if err != nil {
 		log.Errorf("SWARM: Give up now, request to %s failed: %v", s, err)
@@ -113,7 +113,6 @@ func NewClientKubernetes(kubernetesInCluster bool, kubernetesURL string) (*Clien
 		httpClient: httpClient,
 		apiURL:     apiURL,
 		token:      token,
-		retry:      backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), maxRetries),
 		quit:       quit,
 	}, nil
 }
