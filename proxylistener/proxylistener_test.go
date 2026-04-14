@@ -529,3 +529,393 @@ func TestProxyListenerWithHttpClient(t *testing.T) {
 	}
 
 }
+
+func TestHasTLVSSL(t *testing.T) {
+	tests := []struct {
+		name     string
+		tlvs     []proxyproto.TLV
+		expected bool
+	}{
+		{
+			name: "with SSL TLV and SSL flag set",
+			tlvs: []proxyproto.TLV{
+				{Type: 0x20, Value: []byte{0x01}}, // SSL TLV with SSL flag set
+			},
+			expected: true,
+		},
+		{
+			name: "with SSL TLV but SSL flag not set",
+			tlvs: []proxyproto.TLV{
+				{Type: 0x20, Value: []byte{0x00}}, // PP2_TYPE_SSL without SSL flag (plain HTTP via PROXY)
+			},
+			expected: false,
+		},
+		{
+			name: "without SSL TLV",
+			tlvs: []proxyproto.TLV{
+				{Type: 0x01, Value: []byte("test")}, // PP2_TYPE_ALPN
+			},
+			expected: false,
+		},
+		{
+			name:     "empty TLVs",
+			tlvs:     []proxyproto.TLV{},
+			expected: false,
+		},
+		{
+			name: "SSL TLV with empty value",
+			tlvs: []proxyproto.TLV{
+				{Type: 0x20, Value: []byte{}}, // PP2_TYPE_SSL with empty value
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := hasTLVSSL(tt.tlvs)
+			if result != tt.expected {
+				t.Fatalf("hasTLVSSL(%v) = %v, want %v", tt.tlvs, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestProxyProtocolHTTPvsHTTPS(t *testing.T) {
+	tests := []struct {
+		name            string
+		sslFlag         byte
+		expectedSSLBool bool
+		description     string
+	}{
+		{
+			name:            "HTTP via PROXY (SSL flag 0x00)",
+			sslFlag:         0x00,
+			expectedSSLBool: false,
+			description:     "Client sends HTTP via PROXY protocol - should detect as non-SSL",
+		},
+		{
+			name:            "HTTPS via PROXY (SSL flag 0x01)",
+			sslFlag:         0x01,
+			expectedSSLBool: true,
+			description:     "Client sends HTTPS via PROXY protocol - should detect as SSL",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tlvs := []proxyproto.TLV{
+				{Type: 0x20, Value: []byte{tt.sslFlag}},
+			}
+
+			result := hasTLVSSL(tlvs)
+			if result != tt.expectedSSLBool {
+				t.Fatalf("%s: hasTLVSSL returned %v, expected %v", tt.description, result, tt.expectedSSLBool)
+			}
+
+			clientAddr := "192.0.2.1:54321"
+			localAddr := "10.0.0.1:80"
+			key := clientAddr + "|" + localAddr
+			proxySSLCache.Store(key, tt.expectedSSLBool)
+			defer proxySSLCache.Delete(key)
+
+			ssl, ok := GetProxyProtoSSL(clientAddr, localAddr)
+			if !ok {
+				t.Fatalf("%s: GetProxyProtoSSL lookup failed", tt.description)
+			}
+			if ssl != tt.expectedSSLBool {
+				t.Fatalf("%s: GetProxyProtoSSL returned %v, expected %v", tt.description, ssl, tt.expectedSSLBool)
+			}
+		})
+	}
+}
+
+func TestProxyProtocolFullHTTPvsHTTPS(t *testing.T) {
+	tests := []struct {
+		name        string
+		sslFlag     byte
+		expectHTTP  bool
+		description string
+	}{
+		{
+			name:        "HTTP request via PROXY",
+			sslFlag:     0x00,
+			expectHTTP:  true,
+			description: "External HTTP -> NLB -> PROXY:9998 with SSL flag 0x00 should be HTTP",
+		},
+		{
+			name:        "HTTPS request via PROXY",
+			sslFlag:     0x01,
+			expectHTTP:  false,
+			description: "External HTTPS -> NLB -> PROXY:9999 with SSL flag 0x01 should be HTTPS",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l, err := NewListener(Options{
+				Listener:       createTestListener(),
+				AllowListCIDRs: []string{"::/0", "0.0.0.0/0"},
+			})
+			if err != nil {
+				t.Fatalf("%s: Failed to create proxy listener: %v", tt.description, err)
+			}
+
+			addr := l.Addr().String()
+			serverString := "response"
+			srv := &http.Server{
+				Addr: addr,
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					var localAddr string
+					if addr, ok := r.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
+						localAddr = addr.String()
+					}
+
+					ssl, ok := GetProxyProtoSSL(r.RemoteAddr, localAddr)
+
+					if ok && ssl {
+						w.WriteHeader(http.StatusOK)
+					} else {
+						w.WriteHeader(http.StatusPermanentRedirect)
+					}
+					w.Write([]byte(serverString))
+				}),
+			}
+
+			client := &http.Client{
+				Transport: &http.Transport{
+					DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+						dialer := &net.Dialer{Timeout: 5 * time.Second}
+						conn, err := dialer.Dial(network, addr)
+						if err != nil {
+							return nil, err
+						}
+
+						header := &proxyproto.Header{
+							Version:           2,
+							Command:           proxyproto.PROXY,
+							TransportProtocol: proxyproto.TCPv4,
+							SourceAddr: &net.TCPAddr{
+								IP:   net.ParseIP(clientIP),
+								Port: clientPort,
+							},
+							DestinationAddr: &net.TCPAddr{
+								IP:   net.ParseIP("10.0.0.5"),
+								Port: 8080,
+							},
+						}
+
+						err = header.SetTLVs([]proxyproto.TLV{
+							{Type: 0x20, Value: []byte{tt.sslFlag}},
+						})
+						if err != nil {
+							conn.Close()
+							return nil, err
+						}
+
+						if _, err := header.WriteTo(conn); err != nil {
+							conn.Close()
+							return nil, err
+						}
+						return conn, nil
+					},
+				},
+			}
+
+			waitShutdownCH := make(chan struct{})
+			go func() {
+				time.Sleep(time.Second)
+				srv.Shutdown(context.Background())
+				close(waitShutdownCH)
+			}()
+
+			waitServeCH := make(chan struct{})
+			go func() {
+				srv.Serve(l)
+				close(waitServeCH)
+			}()
+
+			req, err := http.NewRequest("GET", "http://"+addr+"/test", nil)
+			if err != nil {
+				t.Fatalf("%s: Failed to create request: %v", tt.description, err)
+			}
+
+			rsp, err := client.Do(req)
+			if err != nil {
+				t.Fatalf("%s: Failed to get response: %v", tt.description, err)
+			}
+			defer rsp.Body.Close()
+
+			expectedCode := http.StatusOK
+			if tt.expectHTTP {
+				expectedCode = http.StatusPermanentRedirect
+			}
+
+			if rsp.StatusCode != expectedCode {
+				t.Fatalf("%s: Got status %d, expected %d", tt.description, rsp.StatusCode, expectedCode)
+			}
+
+			<-waitShutdownCH
+			<-waitServeCH
+		})
+	}
+}
+
+func TestProxyProtocolWithDeadlines(t *testing.T) {
+	tests := []struct {
+		name          string
+		readTimeout   time.Duration
+		writeTimeout  time.Duration
+		shouldSucceed bool
+		description   string
+	}{
+		{
+			name:          "read deadline not exceeded",
+			readTimeout:   2 * time.Second,
+			writeTimeout:  2 * time.Second,
+			shouldSucceed: true,
+			description:   "Normal read/write operations within deadline should succeed",
+		},
+		{
+			name:          "read deadline exceeded",
+			readTimeout:   10 * time.Millisecond,
+			writeTimeout:  2 * time.Second,
+			shouldSucceed: false,
+			description:   "Read operation with very short timeout should fail",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l, err := NewListener(Options{
+				Listener:       createTestListener(),
+				AllowListCIDRs: []string{"::/0", "0.0.0.0/0"},
+			})
+			if err != nil {
+				t.Fatalf("%s: Failed to create proxy listener: %v", tt.description, err)
+			}
+
+			addr := l.Addr().String()
+			srv := &http.Server{
+				Addr: addr,
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte("ok"))
+				}),
+			}
+
+			client := &http.Client{
+				Timeout: 3 * time.Second,
+				Transport: &http.Transport{
+					DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+						dialer := &net.Dialer{Timeout: 5 * time.Second}
+						conn, err := dialer.Dial(network, addr)
+						if err != nil {
+							return nil, err
+						}
+
+						conn.SetReadDeadline(time.Now().Add(tt.readTimeout))
+						conn.SetWriteDeadline(time.Now().Add(tt.writeTimeout))
+
+						header := &proxyproto.Header{
+							Version:           2,
+							Command:           proxyproto.PROXY,
+							TransportProtocol: proxyproto.TCPv4,
+							SourceAddr: &net.TCPAddr{
+								IP:   net.ParseIP(clientIP),
+								Port: clientPort,
+							},
+							DestinationAddr: &net.TCPAddr{
+								IP:   net.ParseIP("10.0.0.5"),
+								Port: 8080,
+							},
+						}
+
+						if _, err := header.WriteTo(conn); err != nil && !tt.shouldSucceed {
+							return nil, nil
+						}
+						if err != nil {
+							return nil, err
+						}
+						return conn, nil
+					},
+				},
+			}
+
+			waitShutdownCH := make(chan struct{})
+			go func() {
+				time.Sleep(time.Second)
+				srv.Shutdown(context.Background())
+				close(waitShutdownCH)
+			}()
+
+			waitServeCH := make(chan struct{})
+			go func() {
+				srv.Serve(l)
+				close(waitServeCH)
+			}()
+
+			req, err := http.NewRequest("GET", "http://"+addr+"/test", nil)
+			if err != nil {
+				t.Fatalf("%s: Failed to create request: %v", tt.description, err)
+			}
+
+			rsp, err := client.Do(req)
+			if !tt.shouldSucceed && (err != nil || rsp == nil) {
+				<-waitShutdownCH
+				<-waitServeCH
+				return
+			}
+
+			if tt.shouldSucceed {
+				if err != nil {
+					t.Fatalf("%s: Request should succeed but got error: %v", tt.description, err)
+				}
+				defer rsp.Body.Close()
+				if rsp.StatusCode != http.StatusOK {
+					t.Fatalf("%s: Expected 200, got %d", tt.description, rsp.StatusCode)
+				}
+			}
+
+			<-waitShutdownCH
+			<-waitServeCH
+		})
+	}
+}
+
+func TestTLVCacheCleanupConnDeadlines(t *testing.T) {
+	conn := &tlvCacheCleanupConn{
+		conn: &mockConn{},
+	}
+
+	deadline := time.Now().Add(time.Second)
+	err := conn.SetDeadline(deadline)
+	if err != nil {
+		t.Fatalf("SetDeadline failed: %v", err)
+	}
+
+	err = conn.SetReadDeadline(deadline)
+	if err != nil {
+		t.Fatalf("SetReadDeadline failed: %v", err)
+	}
+
+	err = conn.SetWriteDeadline(deadline)
+	if err != nil {
+		t.Fatalf("SetWriteDeadline failed: %v", err)
+	}
+}
+
+type mockConn struct {
+	readDeadline  time.Time
+	writeDeadline time.Time
+	deadline      time.Time
+}
+
+func (m *mockConn) Read(b []byte) (int, error)         { return 0, nil }
+func (m *mockConn) Write(b []byte) (int, error)        { return len(b), nil }
+func (m *mockConn) Close() error                       { return nil }
+func (m *mockConn) LocalAddr() net.Addr                { return &net.TCPAddr{} }
+func (m *mockConn) RemoteAddr() net.Addr               { return &net.TCPAddr{} }
+func (m *mockConn) SetDeadline(t time.Time) error      { m.deadline = t; return nil }
+func (m *mockConn) SetReadDeadline(t time.Time) error  { m.readDeadline = t; return nil }
+func (m *mockConn) SetWriteDeadline(t time.Time) error { m.writeDeadline = t; return nil }
