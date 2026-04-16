@@ -1127,6 +1127,7 @@ Notes:
 * redirects to the directory when a file `index.html` exists and it is requested, i.e. `GET /foo/index.html` redirects to `/foo/` which serves then the `/foo/index.html`
 * serves the content of the `index.html` when a directory is requested
 * does a simple directory listing of files / directories when no `index.html` is present
+* the second parameter must be a directory; pointing it at a single file path that ends in `/index.html` (e.g. `static("/foo", "/tmp/foo/index.html")`) inherits Go's [`http.FileServer`](https://pkg.go.dev/net/http#FileServer) behavior of redirecting any request ending in `/index.html` to the same path without the final `index.html`, which can produce surprising `301 Moved Permanently` responses with a `Location: ..//` header. Pass the parent directory instead (e.g. `static("/foo", "/tmp/foo")`).
 
 ### inlineContent
 
