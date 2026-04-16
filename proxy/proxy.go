@@ -906,7 +906,7 @@ func WithParams(p Params) *Proxy {
 }
 
 // applies filters to a request
-func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []*routing.RouteFilter {
+func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context, counter *int) []*routing.RouteFilter {
 	if len(f) == 0 {
 		return f
 	}
@@ -927,6 +927,7 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 		ctx.request = ctx.request.WithContext(labelCtx)
 
 		fi.Request(ctx)
+		(*counter)++
 
 		ctx.request = ctx.request.WithContext(parentCtx)
 		pprof.SetGoroutineLabels(parentCtx)
@@ -1246,6 +1247,7 @@ func stack() []byte {
 
 func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 	var requestElapsed, responseElapsed time.Duration
+	processedFiltersCounter := 0
 
 	requestStopWatch, responseStopWatch := newStopWatch(), newStopWatch()
 	requestStopWatch.Start()
@@ -1258,6 +1260,10 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 
 			perr := &proxyError{
 				err: fmt.Errorf("panic caused by: %v", r),
+			}
+
+			if processedFiltersCounter != 0 {
+				p.applyFiltersOnError(ctx, ctx.route.Filters[:processedFiltersCounter])
 			}
 			p.makeErrorResponse(ctx, perr)
 			err = perr
@@ -1302,7 +1308,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
 	requestStopWatch.Stop()
-	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
+	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx, &processedFiltersCounter)
 	requestStopWatch.Start()
 
 	// not every of these branches could end up in a response to the client
