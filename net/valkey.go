@@ -155,11 +155,21 @@ func (vr *valkeyRing) updateShards(addr []string) {
 	if len(addr) == 0 {
 		return
 	}
+	// Sort addresses to guarantee deterministic shard assignment across all
+	// instances. Without sorting, Go map iteration order is random, so the
+	// same key could hash to different physical shards on different Skipper
+	// instances, causing each shard to count independently instead of sharing
+	// a single global counter (effectively multiplying the rate limit by the
+	// number of shards).
+	sorted := make([]string, len(addr))
+	copy(sorted, addr)
+	sort.Strings(sorted)
+
 	cur := -1
-	shardSize := computeShardSize(len(addr))
-	clients := make([]valkey.Client, 0, len(addr))
-	for _, cl := range vr.clientMap {
-		clients = append(clients, cl)
+	shardSize := computeShardSize(len(sorted))
+	clients := make([]valkey.Client, 0, len(sorted))
+	for _, a := range sorted {
+		clients = append(clients, vr.clientMap[a])
 	}
 
 	for i := range ringSize {
