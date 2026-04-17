@@ -1095,7 +1095,7 @@ func TestFilterPanic(t *testing.T) {
 	}
 
 	// wait for updateMetrics to happen
-	time.Sleep(50*time.Millisecond - time.Since(now))
+	time.Sleep(d - time.Since(now))
 
 	// metrics should show that we cleaned up the active request
 	metrics.WithGauges(func(g map[string]float64) {
