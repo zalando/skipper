@@ -30,11 +30,14 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
+	fscheduler "github.com/zalando/skipper/filters/scheduler"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
+	"github.com/zalando/skipper/scheduler"
 
 	teePredicate "github.com/zalando/skipper/predicates/tee"
 )
@@ -1028,13 +1031,25 @@ func TestFilterPanic(t *testing.T) {
 	})
 	defer s.Close()
 
+	metrics := &metricstest.MockMetrics{}
+	defer metrics.Close()
+	d := 50 * time.Millisecond
+	reg := scheduler.RegistryWith(scheduler.Options{
+		Metrics:                metrics,
+		EnableRouteFIFOMetrics: true,
+		MetricsUpdateTimeout:   d,
+	})
+	defer reg.Close()
+
 	fr := make(filters.Registry)
 	fr.Register(builtin.NewAppendRequestHeader())
 	fr.Register(builtin.NewAppendResponseHeader())
+	fr.Register(fscheduler.NewFifo())
 	fr.Register(new(nilFilterSpec))
 
 	doc := fmt.Sprintf(`test:
 		Path("/foo") ->
+		fifo(2000,20,"1s") ->
 		appendRequestHeader("X-Expected", "before") ->
 		appendResponseHeader("X-Expected", "before") ->
 		nilFilter() ->
@@ -1042,13 +1057,32 @@ func TestFilterPanic(t *testing.T) {
 		appendResponseHeader("X-Expected", "after") ->
 		"%s"`, s.URL)
 
-	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
-	require.NoError(t, err)
-	defer tp.close()
+	dc, err := testdataclient.NewDoc(doc)
+	if err != nil {
+		t.Fatalf("Failed to create testdataclient: %v", err)
+	}
+	defer dc.Close()
+	ro := routing.Options{
+		SignalFirstLoad: true,
+		FilterRegistry:  fr,
+		DataClients:     []routing.DataClient{dc},
+		PostProcessors:  []routing.PostProcessor{reg},
+	}
+	rt := routing.New(ro)
+	defer rt.Close()
+	<-rt.FirstLoad()
+
+	pr := WithParams(Params{
+		Flags:   FlagsNone,
+		Metrics: metrics,
+		Routing: rt,
+	})
+	defer pr.Close()
 
 	r := httptest.NewRequest("GET", "/foo", nil)
 	w := httptest.NewRecorder()
-	tp.proxy.ServeHTTP(w, r)
+	now := time.Now()
+	pr.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Equal(t, int32(0), backendRequests, "expected no backend request")
@@ -1059,6 +1093,16 @@ func TestFilterPanic(t *testing.T) {
 	if err = testLog.WaitFor(msg, 100*time.Millisecond); err != nil {
 		t.Errorf("expected '%s' in logs", msg)
 	}
+
+	// wait for updateMetrics to happen
+	time.Sleep(d - time.Since(now))
+
+	// metrics should show that we cleaned up the active request
+	metrics.WithGauges(func(g map[string]float64) {
+		assert.Equal(t, float64(0), g["fifo.test.active"])
+		assert.Equal(t, float64(0), g["fifo.test.queued"])
+	})
+
 }
 
 func TestFilterPanicPrintStackRate(t *testing.T) {
