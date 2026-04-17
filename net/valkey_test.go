@@ -8,6 +8,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	xxhash "github.com/cespare/xxhash/v2"
+	"github.com/stretchr/testify/require"
 	"github.com/valkey-io/valkey-go"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/net/valkeytest"
@@ -1530,5 +1532,64 @@ func BenchmarkShardForKey(b *testing.B) {
 
 	for b.Loop() {
 		r.ring.shardForKey("A") // 9ns
+	}
+}
+
+// TestValkeyRingUpdateShardsDeterministic verifies that updateShards produces
+// the same key→shard mapping regardless of the order in which addresses are
+// provided.
+func TestValkeyRingUpdateShardsDeterministic(t *testing.T) {
+	valkeyAddr1, done1 := valkeytest.NewTestValkey(t)
+	defer done1()
+	valkeyAddr2, done2 := valkeytest.NewTestValkey(t)
+	defer done2()
+	valkeyAddr3, done3 := valkeytest.NewTestValkey(t)
+	defer done3()
+
+	addrs := []string{valkeyAddr1, valkeyAddr2, valkeyAddr3}
+
+	clientMap := make(map[string]valkey.Client, len(addrs))
+	for _, a := range addrs {
+		cli, err := valkey.NewClient(valkey.ClientOption{
+			InitAddress:  []string{a},
+			DisableRetry: true,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create valkey client for %s: %v", a, err)
+		}
+		clientMap[a] = cli
+	}
+	t.Cleanup(func() {
+		for _, cli := range clientMap {
+			cli.Close()
+		}
+	})
+
+	vr := &valkeyRing{opt: &ValkeyOptions{}, clientMap: clientMap}
+
+	vr.updateShards([]string{valkeyAddr1, valkeyAddr2, valkeyAddr3})
+	// Before
+	snapABC := make([]*valkey.Client, ringSize)
+	for i := range ringSize {
+		snapABC[i] = vr.shards[i].Load()
+	}
+
+	vr.updateShards([]string{valkeyAddr3, valkeyAddr2, valkeyAddr1})
+	// After
+	snapCBA := make([]*valkey.Client, ringSize)
+	for i := range ringSize {
+		snapCBA[i] = vr.shards[i].Load()
+	}
+
+	// Every slot must point to the same client in both snapshots.
+	testKeys := []string{
+		"group1:user:abc",
+		"group2:ip:1.2.3.4",
+		"somekey",
+		"ratelimit:s",
+	}
+	for _, key := range testKeys {
+		slot := xxhash.Sum64String(key) % ringSize
+		require.Equal(t, snapABC[slot], snapCBA[slot], "shard assignment should be the same")
 	}
 }
