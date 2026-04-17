@@ -444,6 +444,7 @@ func TestValkeyClient(t *testing.T) {
 					t.Fatalf("Failed to create ring client: %v", err)
 				}
 			}
+			startedUpdater := time.Now()
 
 			defer func() {
 				if !cli.closed {
@@ -476,7 +477,7 @@ func TestValkeyClient(t *testing.T) {
 			if tt.options.Metrics != nil {
 				updater.update()
 				updater.update()
-				time.Sleep(2 * cli.options.UpdateInterval)
+				time.Sleep(2*cli.options.UpdateInterval - time.Since(startedUpdater))
 
 				if mock, ok := cli.metrics.(*metricstest.MockMetrics); ok {
 					mock.WithGauges(func(m map[string]float64) {
