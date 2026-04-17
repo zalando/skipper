@@ -31,3 +31,13 @@ func TestIngressV1AnnotationConfig(t *testing.T) {
 		"testdata/ingressV1/annotation-backends",
 	)
 }
+
+// TestIngressV1AnnotateFromAnnotations validates that Kubernetes resource
+// annotations and labels configured via AnnotationsToRouteAnnotations /
+// LabelsToRouteAnnotations are injected as annotate() filters into the
+// generated route's filter chain. This is the Kubernetes-side companion to
+// the OIDC profile e2e tests: the annotate() filters set values that profile
+// templates can read via {{index .Annotations "key"}}.
+func TestIngressV1AnnotateFromAnnotations(t *testing.T) {
+	kubernetestest.FixturesToTest(t, "testdata/ingressV1/annotate-from-annotations")
+}

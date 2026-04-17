@@ -1,0 +1,4 @@
+# Test that a Kubernetes ingress label configured via labelsToRouteAnnotations
+# is injected as an annotate() filter prepended to the route's filter chain.
+labelsToRouteAnnotations:
+  - "app.kubernetes.io/component"
