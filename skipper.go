@@ -1868,6 +1868,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		log.Fatal("Failed to cast admission control filter to spec")
 	}
 
+	physicsShedderFilter := shedder.NewPhysicsShedder(shedder.PhysicsShedderOptions{
+		Tracer: tracer,
+	})
+	physicsShedderSpec, ok := physicsShedderFilter.(*shedder.PhysicsShedderSpec)
+	if !ok {
+		log.Fatal("Failed to cast physics shedder filter to spec")
+	}
+
 	o.CustomFilters = append(o.CustomFilters,
 		logfilter.NewAuditLog(o.MaxAuditBody),
 		block.NewBlock(o.MaxMatcherBufferSize),
@@ -1894,6 +1902,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			o.ApiUsageMonitoringRealmsTrackingPattern,
 		),
 		admissionControlFilter,
+		physicsShedderFilter,
 	)
 
 	if o.OIDCSecretsFile != "" {
@@ -2296,6 +2305,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			builtin.NewRouteCreationMetrics(mtr),
 			fadein.NewPostProcessor(fadein.PostProcessorOptions{EndpointRegistry: endpointRegistry}),
 			admissionControlSpec.PostProcessor(),
+			physicsShedderSpec.PostProcessor(),
 			builtin.CommentPostProcessor{},
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
@@ -2340,6 +2350,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	ro.PreProcessors = append(ro.PreProcessors, admissionControlSpec.PreProcessor())
+	ro.PreProcessors = append(ro.PreProcessors, physicsShedderSpec.PreProcessor())
 
 	ro.PreProcessors = append(ro.PreProcessors, eskip.ForwardPreProcessor(o.ForwardBackendURL))
 

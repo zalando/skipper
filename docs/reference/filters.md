@@ -2793,6 +2793,85 @@ probability you have to use values lower than 1:
 * 1/2: quadratic
 * 1/3: cubic
 
+### physicsShedder
+
+Implements a self-tuning, route-level load shedder that uses latency as
+a first-class signal. Unlike `admissionControl`, which only reacts to
+error rate, `physicsShedder` also catches gray failures: backends that
+keep returning HTTP 200 while getting slower.
+
+Each route carries a "resistance" score built from observed latency and
+error rate. A per-route EWMA baseline of that score is learned
+automatically, so there is no manual threshold to tune and the filter
+adapts to daily traffic patterns on its own. When the current resistance
+exceeds the learned baseline by a configurable number of standard
+deviations, the filter rejects a share of traffic with status 503, using
+the same probabilistic style as `admissionControl`.
+
+The resistance is computed per observation window as:
+
+$$ R = { avgLatency \over latencyTarget } + errorWeight \cdot errorRate $$
+
+The shed threshold is $\mu + k \cdot \sigma$, where $\mu$ and $\sigma$
+come from an exponentially weighted moving average of past resistance
+values. The reject probability is $(R - threshold) / R$, clamped to a
+maximum.
+
+Examples:
+
+    physicsShedder(metricSuffix, mode, latencyTarget)
+    physicsShedder(metricSuffix, mode, latencyTarget, window)
+    physicsShedder("myapp", "active", "200ms")
+    physicsShedder("myapp", "active", "200ms", "5s")
+
+Parameters:
+
+* metric suffix (string)
+* mode (enum)
+* latency target (time.Duration)
+* window (time.Duration, optional, default `"5s"`)
+
+Metric suffix is the chosen suffix key to expose reject and resistance
+metrics, should be unique by filter instance.
+
+Mode has 3 different possible values:
+
+* "active" will reject traffic
+* "inactive" will never reject traffic, but collect metrics
+* "logInactive" will not reject traffic, but log the filter's decisions
+  for tuning and dry-run deployments
+
+Latency target is the expected per-request latency for this route. It is
+the single knob operators tune: the filter considers the route healthy
+when average latency sits at or below this value. The baseline and
+variance are learned relative to it.
+
+Window is the observation window, i.e. how much history contributes to
+the current resistance calculation. It must be between `200ms` and `60s`.
+
+During filter startup the shedder does not reject any traffic until its
+baseline has primed, so newly loaded routes behave safely even under
+immediate load.
+
+Exposed metrics per metric suffix:
+
+* `shedder.physics.total.<suffix>` — counter of requests observed
+* `shedder.physics.reject.<suffix>` — counter of requests rejected with
+  503 in active mode
+* `shedder.physics.would_reject.<suffix>` — counter of requests that
+  would have been rejected in `inactive`/`logInactive` modes
+* `shedder.physics.resistance.<suffix>` — current resistance gauge
+* `shedder.physics.baseline.<suffix>` — EWMA baseline gauge
+* `shedder.physics.threshold.<suffix>` — current shed threshold gauge
+
+`physicsShedder` composes cleanly with `admissionControl`: both filters
+honor the `Admission-Control` response header so a filter upstream in
+the chain does not double-count 503s produced by a filter downstream.
+
+During load tests of the backend, run this filter in `inactive` or
+`logInactive` mode so the deliberately induced latency does not trigger
+shedding.
+
 ## lua
 
 See [the scripts page](scripts.md)
