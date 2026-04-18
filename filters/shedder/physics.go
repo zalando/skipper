@@ -305,8 +305,7 @@ func (ps *physicsShedder) tickWindows() {
 }
 
 // computeResistance collapses window-aggregated metrics into a single R
-// value. Pressure is the only component in v1; momentum/scar may be added
-// behind flags if scenario tests motivate them.
+// value combining latency-vs-target and error rate.
 func (ps *physicsShedder) computeResistance(sumReqs, sumErrs, sumLatNs int64) float64 {
 	if sumReqs <= 0 {
 		return 0
