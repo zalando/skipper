@@ -368,17 +368,6 @@ func (ps *physicsShedder) pReject() float64 {
 	return math.Float64frombits(b)
 }
 
-func (ps *physicsShedder) shouldReject() bool {
-	p := ps.pReject()
-	if p <= 0 {
-		return false
-	}
-	ps.muRand.Lock()
-	r := ps.rand()
-	ps.muRand.Unlock()
-	return p > r
-}
-
 func (ps *physicsShedder) setCommonTags(span opentracing.Span, r, threshold, p float64) {
 	span.SetTag("physicsShedder.group", ps.metricSuffix)
 	span.SetTag("physicsShedder.mode", ps.mode.String())
