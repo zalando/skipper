@@ -2794,6 +2794,66 @@ probability you have to use values lower than 1:
 * 1/2: quadratic
 * 1/3: cubic
 
+### physicsShedder
+
+Route-level load shedder that uses latency as a first-class signal. It
+catches gray failures (backends returning 200 but getting slower) that
+`admissionControl` misses because it only watches error rate.
+
+Per route, the filter computes a resistance score from observed latency
+and errors:
+
+$$ R = { avgLatency \over latencyTarget } + errorWeight \cdot errorRate $$
+
+It learns a baseline ($\mu$) and deviation ($\sigma$) of $R$ over time
+via EWMA, and starts rejecting some traffic when $R$ exceeds
+$\mu + k\sigma$, with reject probability $(R - threshold) / R$ clamped to
+a maximum.
+
+Examples:
+
+    physicsShedder(metricSuffix, mode, latencyTarget)
+    physicsShedder(metricSuffix, mode, latencyTarget, window)
+    physicsShedder("myapp", "active", "200ms")
+    physicsShedder("myapp", "active", "200ms", "5s")
+
+Parameters:
+
+* metric suffix (string) — unique per filter instance, used in metric keys
+* mode (enum) — `active`, `inactive`, or `logInactive`
+* latency target (time.Duration) — the expected per-request latency for
+  this route; the only knob operators tune
+* window (time.Duration, optional, default `"5s"`, range `200ms`–`60s`) —
+  observation window for the resistance calculation
+
+Modes:
+
+* `active` — reject traffic with 503
+* `inactive` — never reject, but expose `would_reject` counter for dry-run
+* `logInactive` — same as `inactive`, plus per-tick logs of $R$, $\mu$,
+  $\sigma$, threshold and reject probability
+
+The filter does not reject any traffic during startup until its baseline
+has primed.
+
+Metrics (per metric suffix):
+
+* `shedder.physics.total.<suffix>` — requests observed
+* `shedder.physics.reject.<suffix>` — requests rejected (active mode only)
+* `shedder.physics.would_reject.<suffix>` — requests that would have been
+  rejected (inactive/logInactive)
+* `shedder.physics.resistance.<suffix>` — current $R$ gauge
+* `shedder.physics.baseline.<suffix>` — current $\mu$ gauge
+* `shedder.physics.threshold.<suffix>` — current shed threshold gauge
+
+`physicsShedder` composes with `admissionControl` on the same route:
+both honor the `Admission-Control` response header so an upstream filter
+does not double-count 503s served by a downstream one.
+
+When load testing the backend, run this filter in `inactive` or
+`logInactive` mode so deliberately induced latency does not trigger
+shedding.
+
 ## lua
 
 See [the scripts page](scripts.md)
