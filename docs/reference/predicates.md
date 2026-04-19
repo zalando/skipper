@@ -162,8 +162,9 @@ Example: Forwarded: host=example.com;proto=https, host=example.org
 
 - `ForwardedHost(/^example\.com$/)` - does not match
 - `ForwardedHost(/^example\.org$/)` - matches
-- `ForwardedHost(/^example\.org$/) && ForwardedProto("https")` - matches
-- `ForwardedHost(/^example\.com$/) && ForwardedProto("https")` - does not match
+- `ForwardedHost(/^example\.org$/) && ForwardedProtocol("https")` - matches
+- `ForwardedHost(/^example\.org$/) && ForwardedProtocol("http")` - does not match
+- `ForwardedHost(/^example\.com$/) && ForwardedProtocol("https")` - does not match
 
 
 ### ForwardedHost
