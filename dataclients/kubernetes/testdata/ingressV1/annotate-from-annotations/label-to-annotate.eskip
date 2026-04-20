@@ -1,0 +1,9 @@
+kube___catchall__test_example_org____:
+  Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$")
+  -> <shunt>;
+
+kube_namespace1__ingress1__test_example_org___test1__service1:
+  Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$")
+  && PathRegexp("^(/test1)")
+  -> annotate("app.kubernetes.io/component", "frontend")
+  -> "http://42.0.1.2:8080";

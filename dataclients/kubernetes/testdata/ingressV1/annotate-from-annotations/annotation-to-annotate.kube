@@ -1,0 +1,4 @@
+# Test that a Kubernetes ingress annotation configured via annotationsToRouteAnnotations
+# is injected as an annotate() filter prepended to the route's filter chain.
+annotationsToRouteAnnotations:
+  - "oidc/client-id"

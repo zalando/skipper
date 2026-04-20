@@ -60,6 +60,10 @@ type kubeOptionsParser struct {
 	KubernetesAnnotationFiltersAppend              []kubernetes.AnnotationFilters    `yaml:"kubernetesAnnotationFiltersAppend"`
 	KubernetesEastWestRangeAnnotationPredicates    []kubernetes.AnnotationPredicates `yaml:"kubernetesEastWestRangeAnnotationPredicates"`
 	KubernetesEastWestRangeAnnotationFiltersAppend []kubernetes.AnnotationFilters    `yaml:"kubernetesEastWestRangeAnnotationFiltersAppend"`
+	AnnotationsToRouteAnnotations                  []string                          `yaml:"annotationsToRouteAnnotations"`
+	AnnotationsToRouteAnnotationsPrefix            string                            `yaml:"annotationsToRouteAnnotationsPrefix"`
+	LabelsToRouteAnnotations                       []string                          `yaml:"labelsToRouteAnnotations"`
+	LabelsToRouteAnnotationsPrefix                 string                            `yaml:"labelsToRouteAnnotationsPrefix"`
 }
 
 func baseNoExt(n string) string {
@@ -253,6 +257,10 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.DefaultLoadBalancerAlgorithm = kop.DefaultLoadBalancerAlgorithm
 		o.ForwardBackendURL = kop.ForwardBackendURL
 		o.TopologyZone = kop.TopologyZone
+		o.AnnotationsToRouteAnnotations = kop.AnnotationsToRouteAnnotations
+		o.AnnotationsToRouteAnnotationsPrefix = kop.AnnotationsToRouteAnnotationsPrefix
+		o.LabelsToRouteAnnotations = kop.LabelsToRouteAnnotations
+		o.LabelsToRouteAnnotationsPrefix = kop.LabelsToRouteAnnotationsPrefix
 
 		if kop.BackendTrafficAlgorithm != "" {
 			o.BackendTrafficAlgorithm, err = kubernetes.ParseBackendTrafficAlgorithm(kop.BackendTrafficAlgorithm)
