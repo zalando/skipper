@@ -1,0 +1,1 @@
+proxy: * -> physicsShedder("local", "logInactive", "50ms") -> latency("100ms") -> "http://127.0.0.1:9980";
