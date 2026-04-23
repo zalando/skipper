@@ -87,10 +87,22 @@ func (t *timeout) Request(ctx filters.FilterContext) {
 	case backendTimeout:
 		ctx.StateBag()[filters.BackendTimeout] = t.timeout
 	case readTimeout:
-		ctx.StateBag()[filters.ReadTimeout] = t.timeout
 	case writeTimeout:
 		ctx.StateBag()[filters.WriteTimeout] = t.timeout
 	}
 }
 
 func (*timeout) Response(filters.FilterContext) {}
+
+func (t *timeout) OnRequest(ctx filters.FilterContext) error {
+	switch t.typ {
+	case backendTimeout, writeTimeout:
+		// can not be implemented here, see proxy
+	case readTimeout:
+		return ctx.ResponseController().SetReadDeadline(time.Now().Add(t.timeout))
+	}
+
+	return nil
+}
+
+func (t *timeout) OnResponse(ctx filters.FilterContext) error { return nil }
