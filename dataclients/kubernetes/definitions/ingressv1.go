@@ -99,7 +99,7 @@ type ResourceID struct {
 
 // BackendPort is used for TargetPort similar to Kubernetes intOrString type
 type BackendPort struct {
-	Value interface{}
+	Value any
 }
 
 // ParseIngressV1JSON parse JSON into an IngressV1List
