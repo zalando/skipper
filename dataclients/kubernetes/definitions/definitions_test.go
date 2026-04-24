@@ -11,6 +11,48 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 )
 
+func TestToResourceID(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		meta *definitions.Metadata
+		want definitions.ResourceID
+	}{
+		{
+			name: "empty metadata",
+			meta: &definitions.Metadata{},
+			want: definitions.ResourceID{
+				Namespace: "default",
+				Name:      "",
+			},
+		},
+		{
+			name: "metadata",
+			meta: &definitions.Metadata{
+				Name: "foo",
+			},
+			want: definitions.ResourceID{
+				Namespace: "default",
+				Name:      "foo",
+			},
+		},
+		{
+			name: "metadata",
+			meta: &definitions.Metadata{
+				Namespace: "ns",
+				Name:      "foo",
+			},
+			want: definitions.ResourceID{
+				Namespace: "ns",
+				Name:      "foo",
+			},
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.meta.ToResourceID())
+		})
+	}
+
+}
+
 func TestRouteGroupValidation(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/validation")
 }
