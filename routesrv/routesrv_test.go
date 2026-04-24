@@ -121,6 +121,15 @@ func getZoneAwareRoutes(rs *routesrv.RouteServer, zone string) *httptest.Respons
 	return w
 }
 
+func getZoneAwareRoutesGzip(rs *routesrv.RouteServer, zone string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/routes/"+zone, nil)
+	r.Header.Set("Accept-Encoding", "gzip")
+	rs.ServeHTTP(w, r)
+
+	return w
+}
+
 func getHealth(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/health", nil)
@@ -1124,4 +1133,50 @@ func TestEtagWithZoneAwareRoutingFallback(t *testing.T) {
 	etag2 := w2.Header().Get("Etag")
 
 	require.NotEqual(t, etag1, etag2, "Etag should change after routes update")
+}
+
+func TestZoneAwareRoutesGzip(t *testing.T) {
+	defer tl.Reset()
+
+	// 3 endpoints per zone — enough to populate zoneData
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	// plain request returns zone-filtered routes
+	want := parseEskipFixture(t, "testdata/zone-aware-traffic/all-zones-3-addr.eskip")
+
+	plainResponse := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, plainResponse.Code)
+	gotPlain, err := eskip.Parse(plainResponse.Body.String())
+	require.NoError(t, err)
+	require.True(t, eskip.EqLists(gotPlain, want))
+
+	// gzip request must also return zone-filtered routes, not the full set
+	gzipResponse := getZoneAwareRoutesGzip(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, gzipResponse.Code)
+	require.Equal(t, "gzip", gzipResponse.Header().Get("Content-Encoding"))
+
+	zr, err := gzip.NewReader(gzipResponse.Body)
+	require.NoError(t, err)
+	defer zr.Close()
+
+	decompressed, err := io.ReadAll(zr)
+	require.NoError(t, err)
+
+	gotGzip, err := eskip.Parse(string(decompressed))
+	require.NoError(t, err)
+
+	require.True(t, eskip.EqLists(gotGzip, want))
 }
