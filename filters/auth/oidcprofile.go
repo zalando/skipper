@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"text/template"
 	"time"
 
@@ -23,6 +24,11 @@ import (
 const (
 	oidcProfilePrefix      = "profile:"
 	oidcProfileStateBagKey = "filter.oidcProfileDelegate"
+
+	// maxDelegateCache is the maximum number of per-host delegate entries that will
+	// be cached. Once exceeded, new delegates are built but not stored so a
+	// misconfigured route (e.g. no Host predicate) cannot grow memory unboundedly.
+	maxDelegateCache = 1000
 )
 
 // OidcProfile holds pre-configured OIDC connection parameters that can
@@ -45,13 +51,27 @@ type OidcProfile struct {
 	CookieName         string `yaml:"cookie-name"`
 }
 
-// Validate parses each field as a Go text/template, failing fast on syntax errors.
+// Validate checks the profile for configuration errors.
+// IdpURL must be a non-empty static URL (template expressions are not allowed).
+// ClientID and CallbackURL must be non-empty. All other string fields are parsed
+// as Go text/template to catch syntax errors early. Static (non-templated) values
+// for AuthCodeOpts, UpstreamHeaders, and SubdomainsToRemove are also validated
+// semantically so broken configs fail at route creation rather than on first request.
 func (p *OidcProfile) Validate() error {
 	if p.IdpURL == "" {
 		return fmt.Errorf("oidc profile: IdpURL is required")
 	}
+	if strings.Contains(p.IdpURL, "{{") {
+		return fmt.Errorf("oidc profile: IdpURL must be a static URL (no template expressions): %q", p.IdpURL)
+	}
+	if p.ClientID == "" {
+		return fmt.Errorf("oidc profile: ClientID is required")
+	}
+	if p.CallbackURL == "" {
+		return fmt.Errorf("oidc profile: CallbackURL is required")
+	}
 	for _, s := range []string{
-		p.IdpURL, p.ClientID, p.ClientSecret, p.CallbackURL,
+		p.ClientID, p.ClientSecret, p.CallbackURL,
 		p.Scopes, p.AuthCodeOpts, p.UpstreamHeaders, p.SubdomainsToRemove, p.CookieName,
 	} {
 		if s == "" {
@@ -59,6 +79,36 @@ func (p *OidcProfile) Validate() error {
 		}
 		if _, err := template.New("").Parse(s); err != nil {
 			return fmt.Errorf("oidc profile template parse error in %q: %w", s, err)
+		}
+	}
+	// For static (non-templated) fields that are also semantically validated at
+	// request time, pre-validate them now to surface errors at route creation.
+	if !strings.Contains(p.CallbackURL, "{{") {
+		u, err := url.Parse(p.CallbackURL)
+		if err != nil || u.Scheme == "" || u.Host == "" {
+			return fmt.Errorf("oidc profile: CallbackURL must be a valid URL with scheme and host, got %q", p.CallbackURL)
+		}
+		if u.Path == "" {
+			return fmt.Errorf("oidc profile: CallbackURL must include a path, got %q", p.CallbackURL)
+		}
+	}
+	if p.AuthCodeOpts != "" && !strings.Contains(p.AuthCodeOpts, "{{") {
+		if _, _, err := parseAuthCodeOpts(p.AuthCodeOpts); err != nil {
+			return fmt.Errorf("oidc profile: invalid AuthCodeOpts %q: %w", p.AuthCodeOpts, err)
+		}
+	}
+	if p.UpstreamHeaders != "" && !strings.Contains(p.UpstreamHeaders, "{{") {
+		if _, err := parseUpstreamHeaders(p.UpstreamHeaders); err != nil {
+			return fmt.Errorf("oidc profile: invalid UpstreamHeaders %q: %w", p.UpstreamHeaders, err)
+		}
+	}
+	if p.SubdomainsToRemove != "" && !strings.Contains(p.SubdomainsToRemove, "{{") {
+		n, err := strconv.Atoi(p.SubdomainsToRemove)
+		if err != nil {
+			return fmt.Errorf("oidc profile: SubdomainsToRemove must be an integer, got %q: %w", p.SubdomainsToRemove, err)
+		}
+		if n < 0 {
+			return fmt.Errorf("oidc profile: SubdomainsToRemove cannot be negative: %d", n)
 		}
 	}
 	return nil
@@ -109,7 +159,8 @@ type tokenOidcProfileFilter struct {
 	oidcOptions               OidcOptions
 	spec                      *tokenOidcSpec // for resolveClientCredential
 
-	delegates sync.Map // map[string]*tokenOidcFilter, keyed by profile name + host
+	delegates     sync.Map     // map[string]*tokenOidcFilter, keyed by cacheKey(...)
+	delegateCount atomic.Int64 // approximate number of entries in delegates
 }
 
 // resolvedProfile holds the template-resolved (but not secretRef-resolved) field values.
@@ -125,21 +176,23 @@ type resolvedProfile struct {
 }
 
 // cacheKey returns a stable key for the delegate cache.
-// profileName and host identify the logical OIDC configuration; clientID
-// (template-resolved, before any secretRef expansion) differentiates tenants
-// that share the same host and profile name but inject different credentials
-// via annotate() filters. Without clientID in the key, the first request's
-// delegate would be cached and reused for all tenants on the same host+profile,
-// sending them through the wrong OAuth2 client registration.
-//
-// \x00 is a safe separator: YAML map keys, HTTP Host header values, and OAuth2
-// client IDs cannot contain null bytes, so no two distinct (profileName, host,
-// clientID) triples can produce the same key string.
-//
-// clientSecret and other secret fields are intentionally excluded to avoid
-// unbounded cache growth on rotation and to keep secrets out of observable keys.
-func cacheKey(profileName, host, clientID string) string {
-	return profileName + "\x00" + host + "\x00" + clientID
+// All resolved fields except credentials are included so that delegates keyed
+// by different scopes, callbacks, auth-code options, upstream-headers, or
+// cookie names are correctly distinguished.  Credentials are excluded: the
+// delegate's oauth2.Config is updated in-place when a secretRef rotation is
+// detected (see Request), which avoids unbounded cache growth on rotation.
+// The key is the hex-encoded SHA-256 of all contributing fields, each
+// length-prefixed to prevent collisions between arbitrary field values.
+func cacheKey(profileName, host string, r *resolvedProfile) string {
+	h := sha256.New()
+	for _, s := range []string{
+		profileName, host,
+		r.clientID, r.callbackURL, r.scopes,
+		r.authCodeOpts, r.upstreamHeaders, r.subdomainsToRemove, r.cookieName,
+	} {
+		fmt.Fprintf(h, "%d\x00%s\x00", len(s), s)
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 // resolveAll resolves all profile template fields using request-time data.
@@ -186,10 +239,10 @@ func (f *tokenOidcProfileFilter) buildDelegate(r *resolvedProfile, host string) 
 		return nil, fmt.Errorf("ClientSecret secretRef: %w", err)
 	}
 
-	// Cookie name: use explicit value or derive a stable name from profile name, host,
-	// and template-resolved clientID. clientID is included (before secretRef expansion)
-	// to give each tenant on the same host+profile a distinct cookie namespace, preventing
-	// one tenant's session cookie from being accepted on another tenant's route.
+	// Cookie name: use explicit value or derive a stable name from auth-relevant inputs,
+	// aligned with the non-profile path which hashes all sargs except CallbackURL,
+	// SubdomainsToRemove, and CookieName. This prevents session cross-contamination
+	// when two routes share profile+host+clientID but differ in scopes or claims.
 	// clientSecret is intentionally excluded so the name does not change on rotation.
 	cookieName := r.cookieName
 	if cookieName == "" {
@@ -199,6 +252,14 @@ func (f *tokenOidcProfileFilter) buildDelegate(r *resolvedProfile, host string) 
 		h.Write([]byte(host))
 		h.Write([]byte{0})
 		h.Write([]byte(r.clientID))
+		h.Write([]byte{0})
+		h.Write([]byte(r.scopes))
+		h.Write([]byte{0})
+		h.Write([]byte(strings.Join(f.claims, " ")))
+		h.Write([]byte{0})
+		h.Write([]byte(r.authCodeOpts))
+		h.Write([]byte{0})
+		h.Write([]byte(r.upstreamHeaders))
 		cookieName = oauthOidcCookieName + fmt.Sprintf("%x", h.Sum(nil))[:8] + "-"
 	}
 
@@ -208,6 +269,9 @@ func (f *tokenOidcProfileFilter) buildDelegate(r *resolvedProfile, host string) 
 	redirectURL, err := url.Parse(r.callbackURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid CallbackURL %q: %w", r.callbackURL, err)
+	}
+	if redirectURL.Scheme == "" || redirectURL.Host == "" || redirectURL.Path == "" {
+		return nil, fmt.Errorf("CallbackURL must be an absolute URL with scheme, host, and path, got %q", r.callbackURL)
 	}
 
 	subdomainsToRemove := f.subdomainsToRemoveDefault
@@ -268,6 +332,31 @@ func (f *tokenOidcProfileFilter) internalServerError(ctx filters.FilterContext) 
 	ctx.Serve(&http.Response{StatusCode: http.StatusInternalServerError})
 }
 
+// refreshIfNeeded re-resolves secretRef-backed credentials and, if they differ
+// from the cached delegate, rebuilds the entire delegate (config + verifier)
+// and replaces the cache entry. This picks up secret rotation without requiring
+// a route reload. On transient resolution errors the existing delegate is
+// returned unchanged.
+func (f *tokenOidcProfileFilter) refreshIfNeeded(delegate *tokenOidcFilter, resolved *resolvedProfile, host, key string) *tokenOidcFilter {
+	clientID, err := f.spec.resolveClientCredential(resolved.clientID)
+	if err != nil {
+		return delegate
+	}
+	clientSecret, err := f.spec.resolveClientCredential(resolved.clientSecret)
+	if err != nil {
+		return delegate
+	}
+	if delegate.config.ClientID == clientID && delegate.config.ClientSecret == clientSecret {
+		return delegate
+	}
+	newDelegate, err := f.buildDelegate(resolved, host)
+	if err != nil {
+		return delegate
+	}
+	f.delegates.Store(key, newDelegate)
+	return newDelegate
+}
+
 // Request resolves profile templates using request-time data, looks up or builds
 // a cached tokenOidcFilter delegate, stores it in the StateBag, and delegates.
 func (f *tokenOidcProfileFilter) Request(ctx filters.FilterContext) {
@@ -287,10 +376,16 @@ func (f *tokenOidcProfileFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
+	if resolved.clientID == "" {
+		ctx.Logger().Errorf("oidc profile filter: resolved clientID is empty for profile %q — ensure ClientID template resolves to a non-empty value", f.name)
+		f.internalServerError(ctx)
+		return
+	}
+
 	host := data.Request.Host
-	key := cacheKey(f.name, host, resolved.clientID)
+	key := cacheKey(f.name, host, resolved)
 	if d, ok := f.delegates.Load(key); ok {
-		delegate := d.(*tokenOidcFilter)
+		delegate := f.refreshIfNeeded(d.(*tokenOidcFilter), resolved, host, key)
 		ctx.StateBag()[oidcProfileStateBagKey] = delegate
 		delegate.Request(ctx)
 		return
@@ -303,7 +398,17 @@ func (f *tokenOidcProfileFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	actual, _ := f.delegates.LoadOrStore(key, delegate)
+	if f.delegateCount.Load() >= maxDelegateCache {
+		ctx.Logger().Errorf("oidc profile filter: delegate cache full (%d entries), building delegate without caching for host %q", maxDelegateCache, host)
+		ctx.StateBag()[oidcProfileStateBagKey] = delegate
+		delegate.Request(ctx)
+		return
+	}
+
+	actual, loaded := f.delegates.LoadOrStore(key, delegate)
+	if !loaded {
+		f.delegateCount.Add(1)
+	}
 	delegate = actual.(*tokenOidcFilter)
 	ctx.StateBag()[oidcProfileStateBagKey] = delegate
 	delegate.Request(ctx)

@@ -75,3 +75,7 @@ func TestRouteGroupBackends(t *testing.T) {
 func TestRouteGroupZoneAwareneTraffic(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/routegroups/zone-aware-traffic")
 }
+
+func TestRouteGroupAnnotateFromAnnotations(t *testing.T) {
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/annotate-from-annotations")
+}

@@ -1,0 +1,16 @@
+kube___catchall__test_example_org____:
+  Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$")
+  -> <shunt>;
+
+kube_namespace1__ingress1__test_example_org___test1__service1:
+  Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$")
+  && PathRegexp("^(/test1)")
+  -> annotate("oidc/client-id", "my-client")
+  -> "http://42.0.1.2:8080";
+
+kube_namespace1__ingress1_r1_0__test_example_org_test1____:
+  Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$")
+  && Path("/extra")
+  && PathRegexp("^(/test1)")
+  -> annotate("oidc/client-id", "my-client")
+  -> "http://extra.example.org";

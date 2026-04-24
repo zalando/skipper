@@ -79,3 +79,10 @@ func (lf *listFlag) validate() error {
 }
 
 func (lf listFlag) String() string { return lf.value }
+
+func (lf *listFlag) Values() []string {
+	if lf == nil {
+		return nil
+	}
+	return lf.values
+}

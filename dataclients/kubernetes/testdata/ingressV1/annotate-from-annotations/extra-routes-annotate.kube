@@ -1,0 +1,3 @@
+# Test that annotate() filters are injected into routes from zalando.org/skipper-routes annotation.
+annotationsToRouteAnnotations:
+  - "oidc/client-id"

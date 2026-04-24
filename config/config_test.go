@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/openpolicyagent"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/net"
@@ -780,5 +781,66 @@ func TestParseAnnotationConfig(t *testing.T) {
 				assert.Equal(t, tc.expected, val)
 			})
 		}
+	})
+}
+
+func TestToOptionsOidcProfilesProgrammatic(t *testing.T) {
+	validProfile := auth.OidcProfile{
+		IdpURL:      "https://idp.example.com",
+		ClientID:    "my-client",
+		CallbackURL: "https://app.example.com/callback",
+	}
+
+	t.Run("inline profiles without ParseArgs", func(t *testing.T) {
+		profiles := map[string]auth.OidcProfile{"test": validProfile}
+		cfg := NewConfig()
+		cfg.OidcProfiles = &profiles
+		opts := cfg.ToOptions()
+		require.NotNil(t, opts.OidcProfiles)
+		assert.Equal(t, validProfile.IdpURL, opts.OidcProfiles["test"].IdpURL)
+	})
+
+	t.Run("file-backed profiles without ParseArgs", func(t *testing.T) {
+		tmp, err := os.CreateTemp("", "oidc-profiles-*.yaml")
+		require.NoError(t, err)
+		defer os.Remove(tmp.Name())
+		_, err = tmp.WriteString(`test:
+  idp-url: https://idp.example.com
+  client-id: my-client
+  callback-url: https://app.example.com/callback
+`)
+		require.NoError(t, err)
+		tmp.Close()
+
+		cfg := NewConfig()
+		cfg.OidcProfilesFile = tmp.Name()
+		opts := cfg.ToOptions()
+		require.NotNil(t, opts.OidcProfiles)
+		assert.Equal(t, "my-client", opts.OidcProfiles["test"].ClientID)
+	})
+
+	t.Run("invalid file returns nil profiles", func(t *testing.T) {
+		cfg := NewConfig()
+		cfg.OidcProfilesFile = "/no/such/file.yaml"
+		opts := cfg.ToOptions()
+		assert.Nil(t, opts.OidcProfiles)
+	})
+
+	t.Run("both inline and file is conflict", func(t *testing.T) {
+		profiles := map[string]auth.OidcProfile{"test": validProfile}
+		cfg := NewConfig()
+		cfg.OidcProfiles = &profiles
+		cfg.OidcProfilesFile = "/some/file.yaml"
+		opts := cfg.ToOptions()
+		assert.Nil(t, opts.OidcProfiles)
+	})
+
+	t.Run("nil annotation list fields do not panic", func(t *testing.T) {
+		cfg := NewConfig()
+		cfg.KubernetesAnnotationsToRouteAnnotations = nil
+		cfg.KubernetesLabelsToRouteAnnotations = nil
+		assert.NotPanics(t, func() {
+			cfg.ToOptions()
+		})
 	})
 }

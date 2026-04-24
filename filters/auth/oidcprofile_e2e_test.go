@@ -30,26 +30,42 @@ import (
 	"github.com/zalando/skipper/secrets/secrettest"
 )
 
-// createFlexOIDCServer creates an OIDC test server that does not require a
-// pre-configured callback URL. It stores the redirect_uri from each auth
-// request and validates it during the token exchange — matching the behavior
-// of a real OIDC server. This allows the callback URL to be determined at
-// request time (e.g. via {{.Request.Host}} in a profile template) rather than
-// at server start-up time.
-func createFlexOIDCServer(client, clientsecret string, extraClaims jwt.MapClaims, removeClaims []string) *httptest.Server {
-	var (
-		mu              sync.Mutex
-		lastRedirectURI string
-	)
+// flexOIDCServer wraps httptest.Server and adds the ability to pre-configure
+// an expected redirect_uri. When set, the auth and token handlers validate
+// the redirect_uri from the request against the expected value, rejecting
+// mismatches with 401. This turns the server into a proper fixture that
+// explicitly asserts what redirect_uri the OIDC filter will produce.
+type flexOIDCServer struct {
+	*httptest.Server
+	mu                  sync.Mutex
+	expectedRedirectURI string
+}
 
-	var oidcServer *httptest.Server
-	oidcServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (s *flexOIDCServer) setExpectedRedirectURI(uri string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.expectedRedirectURI = uri
+}
+
+func (s *flexOIDCServer) getExpectedRedirectURI() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.expectedRedirectURI
+}
+
+// createFlexOIDCServer creates an OIDC test server. Call setExpectedRedirectURI
+// after the proxy is started to make the server validate that the redirect_uri
+// produced by the OIDC filter matches the configured callback URL.
+func createFlexOIDCServer(client, clientsecret string, extraClaims jwt.MapClaims, removeClaims []string) *flexOIDCServer {
+	srv := &flexOIDCServer{}
+
+	srv.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
-			st := strings.ReplaceAll(testOpenIDConfig, "https://accounts.google.com", oidcServer.URL)
-			st = strings.ReplaceAll(st, "https://oauth2.googleapis.com", oidcServer.URL)
-			st = strings.ReplaceAll(st, "https://www.googleapis.com", oidcServer.URL)
-			st = strings.ReplaceAll(st, "https://openidconnect.googleapis.com", oidcServer.URL)
+			st := strings.ReplaceAll(testOpenIDConfig, "https://accounts.google.com", srv.URL)
+			st = strings.ReplaceAll(st, "https://oauth2.googleapis.com", srv.URL)
+			st = strings.ReplaceAll(st, "https://www.googleapis.com", srv.URL)
+			st = strings.ReplaceAll(st, "https://openidconnect.googleapis.com", srv.URL)
 			_, _ = w.Write([]byte(st))
 
 		case "/o/oauth2/v2/auth":
@@ -60,6 +76,10 @@ func createFlexOIDCServer(client, clientsecret string, extraClaims jwt.MapClaims
 			}
 			redirectURI := r.URL.Query().Get("redirect_uri")
 			if redirectURI == "" {
+				w.WriteHeader(401)
+				return
+			}
+			if expected := srv.getExpectedRedirectURI(); expected != "" && redirectURI != expected {
 				w.WriteHeader(401)
 				return
 			}
@@ -74,10 +94,6 @@ func createFlexOIDCServer(client, clientsecret string, extraClaims jwt.MapClaims
 				w.WriteHeader(401)
 				return
 			}
-
-			mu.Lock()
-			lastRedirectURI = redirectURI
-			mu.Unlock()
 
 			state := r.URL.Query().Get("state")
 			u, err := url.Parse(redirectURI + "?state=" + state + "&code=" + validCode)
@@ -101,10 +117,7 @@ func createFlexOIDCServer(client, clientsecret string, extraClaims jwt.MapClaims
 				return
 			}
 			redirectURI := r.Form.Get("redirect_uri")
-			mu.Lock()
-			expected := lastRedirectURI
-			mu.Unlock()
-			if redirectURI != expected {
+			if expected := srv.getExpectedRedirectURI(); expected != "" && redirectURI != expected {
 				w.WriteHeader(401)
 				return
 			}
@@ -115,7 +128,7 @@ func createFlexOIDCServer(client, clientsecret string, extraClaims jwt.MapClaims
 
 			claims := jwt.MapClaims{
 				testKey: testValue,
-				"iss":   oidcServer.URL,
+				"iss":   srv.URL,
 				"sub":   testSub,
 				"aud":   client,
 				"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
@@ -196,7 +209,7 @@ func createFlexOIDCServer(client, clientsecret string, extraClaims jwt.MapClaims
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	return oidcServer
+	return srv
 }
 
 // TestOIDCProfileSetup runs end-to-end tests for the OIDC profile feature.
@@ -218,6 +231,13 @@ func TestOIDCProfileSetup(t *testing.T) {
 		profiles     map[string]OidcProfile
 		routeFilters string // eskip filter chain for the injected route
 		expected     int    // expected HTTP status after the full OIDC flow
+		// callbackPath is the path portion of the redirect_uri the OIDC filter
+		// should produce (e.g. "/redirect"). When non-empty the OIDC test server is
+		// pre-configured with http://<proxy-host><callbackPath> as the only accepted
+		// redirect_uri, so a mismatch fails the flow instead of being silently ignored.
+		// Leave empty for test cases where the OIDC flow does not reach redirect_uri
+		// validation (e.g. wrong client-id, route not loaded).
+		callbackPath string
 	}{
 		{
 			msg: "static profile credentials — full auth code flow succeeds",
@@ -230,6 +250,7 @@ func TestOIDCProfileSetup(t *testing.T) {
 			},
 			routeFilters: `oauthOidcAnyClaims("profile:myprofile", "uid")`,
 			expected:     200,
+			callbackPath: "/redirect",
 		},
 		{
 			msg: "annotation-injected client-id — filter chain annotate() -> profile filter succeeds",
@@ -242,6 +263,7 @@ func TestOIDCProfileSetup(t *testing.T) {
 			},
 			routeFilters: `annotate("client-id", "valid-client") -> oauthOidcAnyClaims("profile:myprofile", "uid")`,
 			expected:     200,
+			callbackPath: "/redirect",
 		},
 		{
 			msg: "wrong client-id from annotation — OIDC server rejects, returns 401",
@@ -254,6 +276,7 @@ func TestOIDCProfileSetup(t *testing.T) {
 			},
 			routeFilters: `annotate("client-id", "wrong-client") -> oauthOidcAnyClaims("profile:myprofile", "uid")`,
 			expected:     401,
+			// OIDC server rejects at the client_id check before redirect_uri is validated.
 		},
 		{
 			msg: "unknown profile name — CreateFilter error, route not loaded, returns 404",
@@ -268,6 +291,7 @@ func TestOIDCProfileSetup(t *testing.T) {
 			// ErrInvalidFilterParameters → routing engine drops the route → 404.
 			routeFilters: `oauthOidcAnyClaims("profile:nonexistent", "uid")`,
 			expected:     404,
+			// Route not loaded; OIDC flow never starts.
 		},
 		{
 			msg: "templated IdpURL — CreateFilter rejects, route not loaded, returns 404",
@@ -285,6 +309,7 @@ func TestOIDCProfileSetup(t *testing.T) {
 			// The route uses this bad profile → CreateFilter returns error → 404.
 			routeFilters: `oauthOidcAnyClaims("profile:bad-idp", "uid")`,
 			expected:     404,
+			// Route not loaded; OIDC flow never starts.
 		},
 		{
 			msg: "profile with allClaims check — all required claims present, returns 200",
@@ -298,6 +323,7 @@ func TestOIDCProfileSetup(t *testing.T) {
 			},
 			routeFilters: `oauthOidcAllClaims("profile:myprofile", "sub uid")`,
 			expected:     200,
+			callbackPath: "/redirect",
 		},
 		{
 			msg: "profile with userInfo check — userinfo endpoint consulted, returns 200",
@@ -311,6 +337,7 @@ func TestOIDCProfileSetup(t *testing.T) {
 			},
 			routeFilters: `oauthOidcUserInfo("profile:myprofile", "uid")`,
 			expected:     200,
+			callbackPath: "/redirect",
 		},
 	} {
 		t.Run(tc.msg, func(t *testing.T) {
@@ -357,6 +384,13 @@ func TestOIDCProfileSetup(t *testing.T) {
 				DataClients: []routing.DataClient{dc},
 			})
 			defer proxy.Close()
+
+			// Configure the OIDC server with the redirect_uri the profile should produce.
+			// This asserts that the OIDC filter derives the correct callback URL from the
+			// profile template at request time.
+			if tc.callbackPath != "" {
+				oidcServer.setExpectedRedirectURI(proxy.URL + tc.callbackPath)
+			}
 
 			parsedFilters, err := eskip.ParseFilters(tc.routeFilters)
 			require.NoError(t, err)

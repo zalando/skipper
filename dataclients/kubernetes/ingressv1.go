@@ -197,9 +197,6 @@ func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *d
 		return fmt.Errorf("error while getting service: %w", err)
 	}
 
-	injectAnnotateFilters(ic.ingressV1.Metadata.Annotations, ing.annotationsToRouteAnnotations, ing.annotationsToRouteAnnotationsPrefix, endpointsRoute)
-	injectAnnotateFilters(ic.ingressV1.Metadata.Labels, ing.labelsToRouteAnnotations, ing.labelsToRouteAnnotationsPrefix, endpointsRoute)
-
 	if endpointsRoute.BackendType != eskip.ShuntBackend {
 		// safe prepend, see: https://play.golang.org/p/zg5aGKJpRyK
 		filters := make([]*eskip.Filter, len(endpointsRoute.Filters)+len(ic.annotationFilters))
@@ -216,6 +213,11 @@ func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *d
 		// it's safe to prepend, because type defaultFilters copies the slice during get()
 		endpointsRoute.Filters = append(df, endpointsRoute.Filters...)
 	}
+
+	// Inject annotate() filters last so they sit at the head of the final chain
+	// and their values are visible to all downstream filters (e.g. oauthOidc* profile filters).
+	injectAnnotateFilters(ic.ingressV1.Metadata.Annotations, ing.annotationsToRouteAnnotations, ing.annotationsToRouteAnnotationsPrefix, endpointsRoute)
+	injectAnnotateFilters(ic.ingressV1.Metadata.Labels, ing.labelsToRouteAnnotations, ing.labelsToRouteAnnotationsPrefix, endpointsRoute)
 
 	err = applyAnnotationPredicates(ic.pathMode, endpointsRoute, ic.annotationPredicate)
 	if err != nil {

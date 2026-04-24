@@ -266,11 +266,26 @@ func (s *tokenOidcSpec) createProfileFilter(sargs []string) (filters.Filter, err
 		return nil, fmt.Errorf("%w: oidc profile %q not found", filters.ErrInvalidFilterParameters, name)
 	}
 
-	if profile.IdpURL == "" {
-		return nil, fmt.Errorf("%w: oidc profile %q: IdpURL is required", filters.ErrInvalidFilterParameters, name)
+	if len(sargs) > 2 {
+		return nil, fmt.Errorf("%w: profile filter takes at most 2 arguments (profile name and claims), got %d", filters.ErrInvalidFilterParameters, len(sargs))
 	}
-	if strings.Contains(profile.IdpURL, "{{") {
-		return nil, fmt.Errorf("%w: oidc profile %q: IdpURL must be a static URL (no template expressions)", filters.ErrInvalidFilterParameters, name)
+
+	if err := profile.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", filters.ErrInvalidFilterParameters, err)
+	}
+
+	// Eagerly validate static secretRef-backed credentials at filter creation time,
+	// matching the non-profile path which resolves them immediately. Templated values
+	// are deferred to request time.
+	if !strings.Contains(profile.ClientID, "{{") {
+		if _, err := s.resolveClientCredential(profile.ClientID); err != nil {
+			return nil, fmt.Errorf("%w: ClientID: %w", filters.ErrInvalidFilterParameters, err)
+		}
+	}
+	if !strings.Contains(profile.ClientSecret, "{{") {
+		if _, err := s.resolveClientCredential(profile.ClientSecret); err != nil {
+			return nil, fmt.Errorf("%w: ClientSecret: %w", filters.ErrInvalidFilterParameters, err)
+		}
 	}
 
 	provider, err := oidc.NewProvider(context.Background(), profile.IdpURL)

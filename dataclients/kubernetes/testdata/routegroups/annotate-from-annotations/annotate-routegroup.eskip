@@ -1,0 +1,13 @@
+kube_rg____rg_example_org__catchall__0_0:
+  Host("^(rg[.]example[.]org[.]?(:[0-9]+)?)$")
+  -> annotate("team", "platform")
+  -> annotate("oidc/client-id", "my-rg-client")
+  -> <shunt>;
+
+kube_rg__default__myapp__all__0_0:
+  Host("^(rg[.]example[.]org[.]?(:[0-9]+)?)$")
+  && PathSubtree("/api")
+  -> annotate("team", "platform")
+  -> annotate("oidc/client-id", "my-rg-client")
+  -> oauthOidcAnyClaims("profile:myprofile", "uid")
+  -> "http://10.2.9.103:8080";

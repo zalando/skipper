@@ -1,0 +1,49 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: myapp
+  namespace: default
+  annotations:
+    oidc/client-id: my-rg-client
+  labels:
+    team: platform
+spec:
+  hosts:
+    - rg.example.org
+  backends:
+    - name: myapp
+      type: service
+      serviceName: myapp
+      servicePort: 80
+  routes:
+    - pathSubtree: /api
+      filters:
+        - oauthOidcAnyClaims("profile:myprofile", "uid")
+      backends:
+        - backendName: myapp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: default
+  name: myapp
+spec:
+  clusterIP: 10.3.190.97
+  ports:
+    - name: main
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  namespace: default
+  name: myapp
+subsets:
+  - addresses:
+      - ip: 10.2.9.103
+    ports:
+      - name: main
+        port: 8080
+        protocol: TCP

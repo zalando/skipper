@@ -245,6 +245,7 @@ type Config struct {
 	OIDCCookieRemoveSubdomains        int                          `yaml:"oidc-cookie-remove-subdomains"`
 	OidcProfiles                      *map[string]auth.OidcProfile `yaml:"oidc-profiles"`
 	OidcProfilesFile                  string                       `yaml:"oidc-profiles-file"`
+	oidcProfilesParsed                map[string]auth.OidcProfile  // parsed during ParseArgs
 	CredentialPaths                   *listFlag                    `yaml:"credentials-paths"`
 	CredentialsUpdateInterval         time.Duration                `yaml:"credentials-update-interval"`
 
@@ -828,6 +829,12 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 		return err
 	}
 
+	profiles, err := c.oidcProfilesMap()
+	if err != nil {
+		return err
+	}
+	c.oidcProfilesParsed = profiles
+
 	c.ApplicationLogLevel, _ = log.ParseLevel(c.ApplicationLogLevelString)
 	c.KubernetesPathMode, _ = kubernetes.ParsePathMode(c.KubernetesPathModeString)
 	c.KubernetesEastWestRangePredicates, _ = eskip.ParsePredicates(c.KubernetesEastWestRangePredicatesString)
@@ -1011,9 +1018,9 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesEastWestRangeAnnotationFiltersAppend: c.KubernetesEastWestRangeAnnotationFiltersAppend,
 		KubernetesAnnotationPredicates:                 c.KubernetesAnnotationPredicates,
 		KubernetesAnnotationFiltersAppend:              c.KubernetesAnnotationFiltersAppend,
-		KubernetesAnnotationsToRouteAnnotations:        c.KubernetesAnnotationsToRouteAnnotations.values,
+		KubernetesAnnotationsToRouteAnnotations:        c.KubernetesAnnotationsToRouteAnnotations.Values(),
 		KubernetesAnnotationsToRouteAnnotationsPrefix:  c.KubernetesAnnotationsToRouteAnnotationsPrefix,
-		KubernetesLabelsToRouteAnnotations:             c.KubernetesLabelsToRouteAnnotations.values,
+		KubernetesLabelsToRouteAnnotations:             c.KubernetesLabelsToRouteAnnotations.Values(),
 		KubernetesLabelsToRouteAnnotationsPrefix:       c.KubernetesLabelsToRouteAnnotationsPrefix,
 		EnableKubernetesExternalNames:                  c.EnableKubernetesExternalNames,
 		KubernetesOnlyAllowedExternalNames:             c.KubernetesOnlyAllowedExternalNames,
@@ -1066,7 +1073,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OIDCCookieValidity:                c.OIDCCookieValidity,
 		OIDCDistributedClaimsTimeout:      c.OidcDistributedClaimsTimeout,
 		OIDCCookieRemoveSubdomains:        c.OIDCCookieRemoveSubdomains,
-		OidcProfiles:                      c.oidcProfilesMap(),
+		OidcProfiles:                      c.oidcProfiles(),
 		CredentialsPaths:                  c.CredentialPaths.values,
 		CredentialsUpdateInterval:         c.CredentialsUpdateInterval,
 		ValidationWebhookEnabled:          c.ValidationWebhookEnabled,
@@ -1454,23 +1461,47 @@ func parseAnnotationConfig[T any](kvvs []string, parseValue func(annotationKey, 
 
 // oidcProfilesMap returns the configured OidcProfile map, or nil when no profiles are configured.
 // Exactly one of -oidc-profiles and -oidc-profiles-file may be set; using both is a fatal error.
-func (c *Config) oidcProfilesMap() map[string]auth.OidcProfile {
+func (c *Config) oidcProfilesMap() (map[string]auth.OidcProfile, error) {
 	if c.OidcProfiles != nil && c.OidcProfilesFile != "" {
-		log.Fatal("cannot use both -oidc-profiles and -oidc-profiles-file")
+		return nil, fmt.Errorf("cannot use both -oidc-profiles and -oidc-profiles-file")
 	}
 	if c.OidcProfiles != nil {
-		return *c.OidcProfiles
+		for name, p := range *c.OidcProfiles {
+			if err := p.Validate(); err != nil {
+				return nil, fmt.Errorf("invalid oidc profile %q: %w", name, err)
+			}
+		}
+		return *c.OidcProfiles, nil
 	}
 	if c.OidcProfilesFile != "" {
 		data, err := os.ReadFile(c.OidcProfilesFile)
 		if err != nil {
-			log.Fatalf("cannot read -oidc-profiles-file %q: %v", c.OidcProfilesFile, err)
+			return nil, fmt.Errorf("cannot read -oidc-profiles-file %q: %w", c.OidcProfilesFile, err)
 		}
 		var profiles map[string]auth.OidcProfile
 		if err := yaml.Unmarshal(data, &profiles); err != nil {
-			log.Fatalf("cannot parse -oidc-profiles-file %q: %v", c.OidcProfilesFile, err)
+			return nil, fmt.Errorf("cannot parse -oidc-profiles-file %q: %w", c.OidcProfilesFile, err)
 		}
-		return profiles
+		for name, p := range profiles {
+			if err := p.Validate(); err != nil {
+				return nil, fmt.Errorf("invalid oidc profile %q in %q: %w", name, c.OidcProfilesFile, err)
+			}
+		}
+		return profiles, nil
 	}
-	return nil
+	return nil, nil
+}
+
+// oidcProfiles returns the parsed profiles, falling back to oidcProfilesMap
+// for callers that bypass ParseArgs (e.g. programmatic Config construction).
+func (c *Config) oidcProfiles() map[string]auth.OidcProfile {
+	if c.oidcProfilesParsed != nil {
+		return c.oidcProfilesParsed
+	}
+	profiles, err := c.oidcProfilesMap()
+	if err != nil {
+		log.Errorf("Failed to parse OIDC profiles: %v", err)
+		return nil
+	}
+	return profiles
 }

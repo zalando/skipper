@@ -1,0 +1,6 @@
+# Test that annotate() filters from annotations and labels are injected at the
+# head of RouteGroup filter chains so values are visible to downstream filters.
+annotationsToRouteAnnotations:
+  - "oidc/client-id"
+labelsToRouteAnnotations:
+  - "team"

@@ -1,0 +1,5 @@
+# Test that injected annotate() filters are placed at the head of the chain
+# even when zalando.org/skipper-filter is also present, so that annotation
+# values are visible to downstream filters such as oauthOidc* profile filters.
+annotationsToRouteAnnotations:
+  - "oidc/client-id"

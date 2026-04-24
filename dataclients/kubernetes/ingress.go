@@ -252,6 +252,8 @@ func (ing *ingress) addExtraRoutes(ic *ingressContext, ruleHost, path, pathType 
 				appendAnnotationPredicates(ing.kubernetesAnnotationPredicates, ic.ingressV1.Metadata.Annotations, &route)
 				appendAnnotationFilters(ing.kubernetesAnnotationFiltersAppend, ic.ingressV1.Metadata.Annotations, &route)
 			}
+			injectAnnotateFilters(ic.ingressV1.Metadata.Annotations, ing.annotationsToRouteAnnotations, ing.annotationsToRouteAnnotationsPrefix, &route)
+			injectAnnotateFilters(ic.ingressV1.Metadata.Labels, ing.labelsToRouteAnnotations, ing.labelsToRouteAnnotationsPrefix, &route)
 			ic.addHostRoute(ruleHost, &route)
 			ic.redirect.updateHost(ruleHost)
 		} else {

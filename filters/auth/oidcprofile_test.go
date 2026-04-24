@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/zalando/skipper/filters"
 )
 
 func TestOidcProfileValidate(t *testing.T) {
@@ -36,14 +38,45 @@ func TestOidcProfileValidate(t *testing.T) {
 		assert.Contains(t, err.Error(), "IdpURL is required")
 	})
 
+	t.Run("templated IdpURL is rejected", func(t *testing.T) {
+		p := &OidcProfile{
+			IdpURL:   "http://{{.Request.Host}}/oidc",
+			ClientID: "client-id",
+		}
+		err := p.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "IdpURL must be a static URL")
+	})
+
+	t.Run("empty ClientID is rejected", func(t *testing.T) {
+		p := &OidcProfile{
+			IdpURL:      "https://idp.example.com",
+			CallbackURL: "https://app.example.com/callback",
+		}
+		err := p.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ClientID is required")
+	})
+
 	t.Run("invalid template in ClientID", func(t *testing.T) {
 		p := &OidcProfile{
-			IdpURL:   "https://idp.example.com",
-			ClientID: "{{unclosed",
+			IdpURL:      "https://idp.example.com",
+			ClientID:    "{{unclosed",
+			CallbackURL: "https://app.example.com/callback",
 		}
 		err := p.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "template parse error")
+	})
+
+	t.Run("missing CallbackURL is rejected", func(t *testing.T) {
+		p := &OidcProfile{
+			IdpURL:   "https://idp.example.com",
+			ClientID: "client-id",
+		}
+		err := p.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "CallbackURL is required")
 	})
 
 	t.Run("invalid template in CallbackURL", func(t *testing.T) {
@@ -57,11 +90,89 @@ func TestOidcProfileValidate(t *testing.T) {
 		assert.Contains(t, err.Error(), "template parse error")
 	})
 
+	t.Run("static CallbackURL must be a valid URL", func(t *testing.T) {
+		p := &OidcProfile{
+			IdpURL:      "https://idp.example.com",
+			ClientID:    "client-id",
+			CallbackURL: "not-a-url",
+		}
+		err := p.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "CallbackURL must be a valid URL")
+	})
+
+	t.Run("static CallbackURL must include a path", func(t *testing.T) {
+		p := &OidcProfile{
+			IdpURL:      "https://idp.example.com",
+			ClientID:    "client-id",
+			CallbackURL: "https://app.example.com",
+		}
+		err := p.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "must include a path")
+	})
+
+	t.Run("templated CallbackURL skips URL validation", func(t *testing.T) {
+		p := &OidcProfile{
+			IdpURL:      "https://idp.example.com",
+			ClientID:    "client-id",
+			CallbackURL: `https://{{.Request.Host}}/callback`,
+		}
+		assert.NoError(t, p.Validate())
+	})
+
+	t.Run("static invalid AuthCodeOpts is rejected", func(t *testing.T) {
+		p := &OidcProfile{
+			IdpURL:       "https://idp.example.com",
+			ClientID:     "client-id",
+			CallbackURL:  "https://app.example.com/callback",
+			AuthCodeOpts: "no-equals-sign",
+		}
+		err := p.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "AuthCodeOpts")
+	})
+
+	t.Run("templated AuthCodeOpts is allowed even if static form would fail", func(t *testing.T) {
+		p := &OidcProfile{
+			IdpURL:       "https://idp.example.com",
+			ClientID:     "client-id",
+			CallbackURL:  "https://app.example.com/callback",
+			AuthCodeOpts: `key={{index .Annotations "opt"}}`,
+		}
+		assert.NoError(t, p.Validate())
+	})
+
+	t.Run("static non-integer SubdomainsToRemove is rejected", func(t *testing.T) {
+		p := &OidcProfile{
+			IdpURL:             "https://idp.example.com",
+			ClientID:           "client-id",
+			CallbackURL:        "https://app.example.com/callback",
+			SubdomainsToRemove: "abc",
+		}
+		err := p.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "SubdomainsToRemove")
+	})
+
+	t.Run("negative SubdomainsToRemove is rejected", func(t *testing.T) {
+		p := &OidcProfile{
+			IdpURL:             "https://idp.example.com",
+			ClientID:           "client-id",
+			CallbackURL:        "https://app.example.com/callback",
+			SubdomainsToRemove: "-1",
+		}
+		err := p.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "SubdomainsToRemove")
+	})
+
 	t.Run("invalid template in CookieName", func(t *testing.T) {
 		p := &OidcProfile{
-			IdpURL:     "https://idp.example.com",
-			ClientID:   "client-id",
-			CookieName: "{{.Bad",
+			IdpURL:      "https://idp.example.com",
+			ClientID:    "client-id",
+			CallbackURL: "https://app.example.com/callback",
+			CookieName:  "{{.Bad",
 		}
 		err := p.Validate()
 		require.Error(t, err)
@@ -119,41 +230,67 @@ func TestResolveField(t *testing.T) {
 }
 
 func TestCacheKey(t *testing.T) {
-	t.Run("same profile, host and clientID produce same key", func(t *testing.T) {
-		assert.Equal(t, cacheKey("myprofile", "app.example.com", "client-a"), cacheKey("myprofile", "app.example.com", "client-a"))
+	r := func(clientID, callbackURL, scopes, authCodeOpts, upstreamHeaders, subdomainsToRemove, cookieName string) *resolvedProfile {
+		return &resolvedProfile{
+			clientID: clientID, callbackURL: callbackURL, scopes: scopes,
+			authCodeOpts: authCodeOpts, upstreamHeaders: upstreamHeaders,
+			subdomainsToRemove: subdomainsToRemove, cookieName: cookieName,
+		}
+	}
+	base := r("client-a", "https://app.example.com/cb", "openid", "", "", "0", "")
+
+	t.Run("same inputs produce same key", func(t *testing.T) {
+		assert.Equal(t,
+			cacheKey("myprofile", "app.example.com", base),
+			cacheKey("myprofile", "app.example.com", base))
 	})
 
 	t.Run("different profile name produces different key", func(t *testing.T) {
-		assert.NotEqual(t, cacheKey("profile-a", "app.example.com", "client"), cacheKey("profile-b", "app.example.com", "client"))
+		assert.NotEqual(t,
+			cacheKey("profile-a", "app.example.com", base),
+			cacheKey("profile-b", "app.example.com", base))
 	})
 
 	t.Run("different host produces different key", func(t *testing.T) {
-		assert.NotEqual(t, cacheKey("myprofile", "tenant-a.example.com", "client"), cacheKey("myprofile", "tenant-b.example.com", "client"))
+		assert.NotEqual(t,
+			cacheKey("myprofile", "tenant-a.example.com", base),
+			cacheKey("myprofile", "tenant-b.example.com", base))
 	})
 
 	t.Run("different clientID produces different key (tenant isolation)", func(t *testing.T) {
-		// Two tenants sharing the same host and profile but injecting different clientIDs
-		// via annotate() filters must get distinct cache entries so they are not served
-		// by each other's OAuth2 delegate.
-		assert.NotEqual(t, cacheKey("myprofile", "app.example.com", "client-a"), cacheKey("myprofile", "app.example.com", "client-b"))
+		assert.NotEqual(t,
+			cacheKey("myprofile", "app.example.com", r("client-a", "https://app.example.com/cb", "openid", "", "", "0", "")),
+			cacheKey("myprofile", "app.example.com", r("client-b", "https://app.example.com/cb", "openid", "", "", "0", "")))
 	})
 
-	t.Run("clientSecret does not affect key (rotation safety)", func(t *testing.T) {
-		// Rotating the secret must not produce a new cache entry, which would invalidate
-		// all in-flight sessions. Only the public clientID is included in the key.
-		assert.Equal(t, cacheKey("myprofile", "app.example.com", "client-a"), cacheKey("myprofile", "app.example.com", "client-a"))
+	t.Run("clientSecret does not affect key (updated in-place via refreshCredentials)", func(t *testing.T) {
+		old := &resolvedProfile{clientID: "client-a", clientSecret: "old-secret", callbackURL: "https://app.example.com/cb"}
+		rotated := &resolvedProfile{clientID: "client-a", clientSecret: "new-secret", callbackURL: "https://app.example.com/cb"}
+		assert.Equal(t,
+			cacheKey("myprofile", "app.example.com", old),
+			cacheKey("myprofile", "app.example.com", rotated))
 	})
 
-	t.Run("null byte separator prevents cross-field collisions", func(t *testing.T) {
-		// "ab" + "" must not equal "a" + "b" — the \x00 separator prevents this.
-		// YAML keys, HTTP Host values and OAuth2 client IDs cannot themselves contain
-		// null bytes, so no legitimate inputs can produce the same key string.
-		assert.NotEqual(t, cacheKey("a", "b", "c"), cacheKey("a\x00b", "", "c"))
-		assert.NotEqual(t, cacheKey("a", "b", "c"), cacheKey("a", "b\x00c", ""))
+	t.Run("different callbackURL produces different key", func(t *testing.T) {
+		assert.NotEqual(t,
+			cacheKey("p", "h", r("c", "https://a.example.com/cb", "openid", "", "", "", "")),
+			cacheKey("p", "h", r("c", "https://b.example.com/cb", "openid", "", "", "", "")))
+	})
+
+	t.Run("different scopes produces different key", func(t *testing.T) {
+		assert.NotEqual(t,
+			cacheKey("p", "h", r("c", "https://app.example.com/cb", "openid", "", "", "", "")),
+			cacheKey("p", "h", r("c", "https://app.example.com/cb", "openid email", "", "", "", "")))
+	})
+
+	t.Run("different cookieName produces different key", func(t *testing.T) {
+		assert.NotEqual(t,
+			cacheKey("p", "h", r("c", "https://app.example.com/cb", "openid", "", "", "", "cookie-a")),
+			cacheKey("p", "h", r("c", "https://app.example.com/cb", "openid", "", "", "", "cookie-b")))
 	})
 
 	t.Run("key is non-empty", func(t *testing.T) {
-		assert.NotEmpty(t, cacheKey("myprofile", "app.example.com", "client"))
+		assert.NotEmpty(t, cacheKey("myprofile", "app.example.com", base))
 	})
 }
 
@@ -241,7 +378,7 @@ func TestTokenOidcProfileFilterResolveAll(t *testing.T) {
 		r2, err := f.resolveAll(data)
 		require.NoError(t, err)
 
-		assert.Equal(t, cacheKey(f.name, data.Request.Host, r1.clientID), cacheKey(f.name, data.Request.Host, r2.clientID))
+		assert.Equal(t, cacheKey(f.name, data.Request.Host, r1), cacheKey(f.name, data.Request.Host, r2))
 	})
 
 	t.Run("subdomains to remove field resolved", func(t *testing.T) {
@@ -291,7 +428,7 @@ func TestOidcProfileDelegateCaching(t *testing.T) {
 	r2, err := f.resolveAll(data)
 	require.NoError(t, err)
 
-	assert.Equal(t, cacheKey(f.name, data.Request.Host, r1.clientID), cacheKey(f.name, data.Request.Host, r2.clientID), "same input should produce the same cache key")
+	assert.Equal(t, cacheKey(f.name, data.Request.Host, r1), cacheKey(f.name, data.Request.Host, r2), "same input should produce the same cache key")
 }
 
 // TestTenantIsolation verifies that two tenants sharing the same host and profile name
@@ -321,8 +458,8 @@ func TestTenantIsolation(t *testing.T) {
 	rB, err := f.resolveAll(dataTenantB)
 	require.NoError(t, err)
 
-	keyA := cacheKey(f.name, host, rA.clientID)
-	keyB := cacheKey(f.name, host, rB.clientID)
+	keyA := cacheKey(f.name, host, rA)
+	keyB := cacheKey(f.name, host, rB)
 	assert.NotEqual(t, keyA, keyB, "different tenants must get different delegate cache keys")
 }
 
@@ -400,5 +537,91 @@ func TestParseUpstreamHeaders(t *testing.T) {
 	t.Run("empty value returns error", func(t *testing.T) {
 		_, err := parseUpstreamHeaders("key:")
 		require.Error(t, err)
+	})
+}
+
+func TestCreateProfileFilterExtraArgs(t *testing.T) {
+	// createProfileFilter must reject routes with more than 2 arguments
+	// (profile:<name> + optional claims string). Extra args would otherwise
+	// be silently dropped, leading to misconfigured routes.
+	spec := &tokenOidcSpec{
+		typ: checkOIDCAnyClaims,
+		options: OidcOptions{
+			Profiles: map[string]OidcProfile{
+				"myprofile": {
+					IdpURL:      "https://idp.example.com",
+					CallbackURL: "https://app.example.com/callback",
+					ClientID:    "client-id",
+				},
+			},
+		},
+		secretsRegistry: nil,
+	}
+
+	_, err := spec.createProfileFilter([]string{"profile:myprofile", "uid", "unexpected-third-arg"})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
+}
+
+func TestCreateProfileFilterStaticSecretRefValidation(t *testing.T) {
+	t.Run("missing ClientSecret secretRef", func(t *testing.T) {
+		spec := &tokenOidcSpec{
+			typ: checkOIDCAnyClaims,
+			options: OidcOptions{
+				Profiles: map[string]OidcProfile{
+					"missing-secret": {
+						IdpURL:       "https://idp.example.com",
+						CallbackURL:  "https://app.example.com/callback",
+						ClientID:     "client-id",
+						ClientSecret: "secretRef:nonexistent-secret",
+					},
+				},
+			},
+		}
+		_, err := spec.createProfileFilter([]string{"profile:missing-secret"})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
+	})
+
+	t.Run("missing ClientID secretRef", func(t *testing.T) {
+		spec := &tokenOidcSpec{
+			typ: checkOIDCAnyClaims,
+			options: OidcOptions{
+				Profiles: map[string]OidcProfile{
+					"missing-id": {
+						IdpURL:       "https://idp.example.com",
+						CallbackURL:  "https://app.example.com/callback",
+						ClientID:     "secretRef:nonexistent-id",
+						ClientSecret: "literal-secret",
+					},
+				},
+			},
+		}
+		_, err := spec.createProfileFilter([]string{"profile:missing-id"})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
+	})
+
+	t.Run("templated secretRef is not resolved eagerly", func(t *testing.T) {
+		// Templated ClientID should NOT be eagerly resolved (contains "{{"),
+		// so this should not fail at filter creation even without a SecretsReader.
+		// Use a localhost URL to avoid real DNS lookups in CI/offline environments.
+		spec := &tokenOidcSpec{
+			typ: checkOIDCAnyClaims,
+			options: OidcOptions{
+				Profiles: map[string]OidcProfile{
+					"templated": {
+						IdpURL:       "http://127.0.0.1:0/no-such-idp",
+						CallbackURL:  "https://app.example.com/callback",
+						ClientID:     "secretRef:{{.Annotations.client_id_ref}}",
+						ClientSecret: "secretRef:{{.Annotations.client_secret_ref}}",
+					},
+				},
+			},
+		}
+		// This will fail at provider creation (no real IDP), not at secretRef resolution
+		_, err := spec.createProfileFilter([]string{"profile:templated"})
+		require.Error(t, err)
+		assert.NotContains(t, err.Error(), "secretRef")
 	})
 }

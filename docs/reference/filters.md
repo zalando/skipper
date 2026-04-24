@@ -2113,7 +2113,7 @@ skipper -oidc-secrets-file /path/to/secrets \
   -oidc-profiles '{myprofile: {idp-url: "https://idp.example.com", client-id: "my-client", client-secret: "secretRef:my-secret", callback-url: "https://app.example.com/.well-known/oauth2-callback", scopes: "email profile"}}'
 ```
 
-Or use a YAML config file:
+Or use a YAML config file (main Skipper config, not the separate profiles-only file):
 
 ```yaml
 oidc-profiles:
@@ -2123,6 +2123,17 @@ oidc-profiles:
     client-secret: secretRef:my-client-secret
     callback-url: https://app.example.com/.well-known/oauth2-callback
     scopes: email profile
+```
+
+When using `-oidc-profiles-file`, the file contains only the profile map without the `oidc-profiles:` wrapper:
+
+```yaml
+myprofile:
+  idp-url: https://idp.example.com
+  client-id: my-client-id
+  client-secret: secretRef:my-client-secret
+  callback-url: https://app.example.com/.well-known/oauth2-callback
+  scopes: email profile
 ```
 
 The **Client ID** and **Client Secret** profile fields also support the `secretRef:` prefix to read values from Skipper's secrets registry:
@@ -2152,19 +2163,21 @@ oidc-profiles:
   multi-tenant:
     idp-url: https://idp.example.com
     client-id: '{{index .Annotations "oidc/client-id"}}'
-    client-secret: '{{index .Annotations "oidc/client-secret"}}'
+    client-secret: secretRef:/mnt/secrets/oidc-client-secret
     callback-url: 'https://{{.Request.Host}}/.well-known/oauth2-callback'
     scopes: email profile
 ```
 
 **Note:** `idp-url` must be a static URL — template expressions are rejected. The provider is discovered once at filter creation time.
 
+**Security:** Template-expanded `client-id` and `client-secret` values must resolve to literal credentials, not `secretRef:` references. The `secretRef:` prefix is only allowed in static (non-templated) profile fields. This prevents annotation authors in multi-tenant clusters from referencing arbitrary secrets.
+
 ##### Annotation and label injection from Kubernetes resources
 
 To make Kubernetes Ingress or RouteGroup annotation values available to profile templates via `{{index .Annotations "key"}}`, use the `-kubernetes-annotations-to-route-annotations` flag:
 
 ```
-skipper -kubernetes-annotations-to-route-annotations=oidc/client-id,oidc/client-secret
+skipper -kubernetes-annotations-to-route-annotations=oidc/client-id
 ```
 
 When this flag is set, the Kubernetes dataclient automatically prepends `annotate(key, value)` filters to every route generated from a resource that carries one of the configured annotation keys. The injected annotation values then become accessible to the OIDC profile filter at request time.
@@ -2185,7 +2198,6 @@ kind: Ingress
 metadata:
   annotations:
     oidc/client-id: tenant-abc-client
-    oidc/client-secret: secretRef:/mnt/secrets/oidc-secret
     zalando.org/skipper-filter: 'oauthOidcAnyClaims("profile:multi-tenant", "groups")'
 spec:
   rules:
