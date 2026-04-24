@@ -145,8 +145,8 @@ func extractWildcardParamNames(r *Route) []string {
 	path = httppath.Clean(path)
 
 	var wildcards []string
-	pathTokens := strings.Split(path, "/")
-	for _, token := range pathTokens {
+	pathTokens := strings.SplitSeq(path, "/")
+	for token := range pathTokens {
 		if len(token) > 1 && (token[0] == ':' || token[0] == '*') {
 			//prepend
 			wildcards = append([]string{token[1:]}, wildcards...)

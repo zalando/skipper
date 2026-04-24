@@ -38,8 +38,8 @@ func (b breakerFlags) String() string {
 func (b *breakerFlags) Set(value string) error {
 	var s circuit.BreakerSettings
 
-	vs := strings.Split(value, ",")
-	for _, vi := range vs {
+	vs := strings.SplitSeq(value, ",")
+	for vi := range vs {
 		k, v, found := strings.Cut(vi, "=")
 		if !found {
 			return errInvalidBreakerConfig

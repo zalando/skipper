@@ -357,7 +357,7 @@ func readPluginConfig(plugin string) (conf []string, err error) {
 		}
 		return nil, err
 	}
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" && line[0] != '#' {
 			conf = append(conf, line)
