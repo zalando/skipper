@@ -34,8 +34,8 @@ func containsCount(s, substr string, count int) bool {
 }
 
 func containsEveryLineCount(s, substr string, count int) bool {
-	l := strings.Split(substr, "\n")
-	for _, li := range l {
+	l := strings.SplitSeq(substr, "\n")
+	for li := range l {
 		if !containsCount(s, li, count) {
 			return false
 		}

@@ -1299,8 +1299,8 @@ func (c *Config) parseHistogramBuckets(bucketString string, defaultBuckets []flo
 	}
 
 	var result []float64
-	thresholds := strings.Split(bucketString, ",")
-	for _, v := range thresholds {
+	thresholds := strings.SplitSeq(bucketString, ",")
+	for v := range thresholds {
 		bucket, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse histogram-metric-buckets: %w", err)

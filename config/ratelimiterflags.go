@@ -37,8 +37,8 @@ func (r ratelimitFlags) String() string {
 func (r *ratelimitFlags) Set(value string) error {
 	var s ratelimit.Settings
 
-	vs := strings.Split(value, ",")
-	for _, vi := range vs {
+	vs := strings.SplitSeq(value, ",")
+	for vi := range vs {
 		k, v, found := strings.Cut(vi, "=")
 		if !found {
 			return errInvalidRatelimitConfig

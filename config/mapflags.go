@@ -36,8 +36,8 @@ func (m *mapFlags) Set(value string) error {
 
 	m.values = make(map[string]string)
 
-	vs := strings.Split(value, ",")
-	for _, vi := range vs {
+	vs := strings.SplitSeq(value, ",")
+	for vi := range vs {
 		k, v, found := strings.Cut(vi, "=")
 		if !found {
 			return fmt.Errorf(formatErrorString, vi)

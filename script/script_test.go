@@ -1003,7 +1003,7 @@ func (f *exampleLogFormatter) Format(entry *log.Entry) ([]byte, error) {
 		b = &bytes.Buffer{}
 	}
 
-	for _, line := range strings.Split(entry.Message, "\n") {
+	for line := range strings.SplitSeq(entry.Message, "\n") {
 		// escape \r to use testable examples
 		line = strings.ReplaceAll(line, "\r", `\r`)
 		line = strings.TrimRight(line, " ")

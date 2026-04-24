@@ -190,7 +190,7 @@ func (p pathQuery) String() string {
 
 // Splits space-delimited GJSON queries ignoring spaces within quoted strings
 func splitQueries(s string) (q []string) {
-	for _, p := range strings.Split(s, " ") {
+	for p := range strings.SplitSeq(s, " ") {
 		if len(q) == 0 || strings.Count(q[len(q)-1], `"`)%2 == 0 {
 			q = append(q, p)
 		} else {

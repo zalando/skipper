@@ -314,7 +314,7 @@ func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
 		}
 		if strings.Contains(lookuperString, ",") {
 			var lookupers []ratelimit.Lookuper
-			for _, ls := range strings.Split(lookuperString, ",") {
+			for ls := range strings.SplitSeq(lookuperString, ",") {
 				lookupers = append(lookupers, getLookuper(ls))
 			}
 			s.Lookuper = ratelimit.NewTupleLookuper(lookupers...)
@@ -360,7 +360,7 @@ func clientRatelimitFilter(args []interface{}) (*filter, error) {
 		}
 		if strings.Contains(lookuperString, ",") {
 			var lookupers []ratelimit.Lookuper
-			for _, ls := range strings.Split(lookuperString, ",") {
+			for ls := range strings.SplitSeq(lookuperString, ",") {
 				lookupers = append(lookupers, getLookuper(ls))
 			}
 			lookuper = ratelimit.NewTupleLookuper(lookupers...)

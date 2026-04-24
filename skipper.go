@@ -1174,7 +1174,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
-		for _, rf := range strings.Split(o.RoutesFile, ",") {
+		for rf := range strings.SplitSeq(o.RoutesFile, ",") {
 			f, err := eskipfile.Open(rf)
 			if err != nil {
 				return nil, fmt.Errorf("error while opening eskip file: %w", err)
@@ -1185,7 +1185,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 	}
 
 	if o.WatchRoutesFile != "" {
-		for _, rf := range strings.Split(o.WatchRoutesFile, ",") {
+		for rf := range strings.SplitSeq(o.WatchRoutesFile, ",") {
 			clients = append(clients, eskipfile.Watch(rf))
 		}
 	}

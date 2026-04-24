@@ -83,9 +83,9 @@ func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) 
 			return nil, filters.ErrInvalidFilterParameters
 		}
 
-		headerKeys := strings.Split(headerKeysOption, ",")
+		headerKeys := strings.SplitSeq(headerKeysOption, ",")
 
-		for _, header := range headerKeys {
+		for header := range headerKeys {
 			valid := httpguts.ValidHeaderFieldName(header)
 			if !valid {
 				return nil, fmt.Errorf("header %s is invalid", header)

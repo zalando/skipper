@@ -211,7 +211,7 @@ func parseSelectors(r *http.Request) map[string]string {
 	}
 
 	selectors := map[string]string{}
-	for _, selector := range strings.Split(rawSelector, ",") {
+	for selector := range strings.SplitSeq(rawSelector, ",") {
 		kv := strings.Split(selector, "=")
 		selectors[kv[0]] = kv[1]
 	}

@@ -334,9 +334,9 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 
 	f.authCodeOptions = make([]oauth2.AuthCodeOption, 0)
 	if len(sargs) > paramAuthCodeOpts && sargs[paramAuthCodeOpts] != "" {
-		extraParameters := strings.Split(sargs[paramAuthCodeOpts], " ")
+		extraParameters := strings.SplitSeq(sargs[paramAuthCodeOpts], " ")
 
-		for _, p := range extraParameters {
+		for p := range extraParameters {
 			splitP := strings.Split(p, "=")
 			log.Debug(splitP)
 			if len(splitP) != 2 {
@@ -355,7 +355,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	if len(sargs) > paramUpstrHeaders && sargs[paramUpstrHeaders] != "" {
 		f.upstreamHeaders = make(map[string]string)
 
-		for _, header := range strings.Split(sargs[paramUpstrHeaders], " ") {
+		for header := range strings.SplitSeq(sargs[paramUpstrHeaders], " ") {
 			k, v, found := strings.Cut(header, ":")
 			if !found || k == "" || v == "" {
 				return nil, fmt.Errorf("%w: malformed filter for upstream headers %s", filters.ErrInvalidFilterParameters, header)

@@ -106,8 +106,8 @@ func stringPathToRef(s string) (r ast.Ref) {
 		return r
 	}
 
-	p := strings.Split(s, "/")
-	for _, x := range p {
+	p := strings.SplitSeq(s, "/")
+	for x := range p {
 		if x == "" {
 			continue
 		}
