@@ -54,6 +54,7 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 	if !isFileRemote(o.RemoteFile) {
 		return Watch(o.RemoteFile), nil
 	}
+	log.Infof("Watch routes url: %q", o.RemoteFile)
 
 	tempFilename, err := os.CreateTemp("", "routes")
 
