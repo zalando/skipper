@@ -130,6 +130,26 @@ func getZoneAwareRoutesGzip(rs *routesrv.RouteServer, zone string) *httptest.Res
 	return w
 }
 
+func getZoneAwareRoutesWithHeaders(rs *routesrv.RouteServer, zone string, headers map[string]string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/routes/"+zone, nil)
+	for k, v := range headers {
+		r.Header.Set(k, v)
+	}
+	rs.ServeHTTP(w, r)
+	return w
+}
+
+func decompressGzip(t *testing.T, b *bytes.Buffer) []byte {
+	t.Helper()
+	zr, err := gzip.NewReader(b)
+	require.NoError(t, err)
+	defer zr.Close()
+	out, err := io.ReadAll(zr)
+	require.NoError(t, err)
+	return out
+}
+
 func getHealth(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/health", nil)
@@ -1179,4 +1199,205 @@ func TestZoneAwareRoutesGzip(t *testing.T) {
 	require.NoError(t, err)
 
 	require.True(t, eskip.EqLists(gotGzip, want))
+}
+
+// TestZoneAwareXCount verifies that X-Count reflects the number of routes
+// in the zone-filtered response, not the full route set.
+func TestZoneAwareXCount(t *testing.T) {
+	defer tl.Reset()
+
+	// all-zones-3-addr has 3 zones × 3 endpoints each.
+	// Zone eu-central-1a produces 1 zone-filtered route (3 backends in that zone).
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	zoneWant := parseEskipFixture(t, "testdata/zone-aware-traffic/all-zones-3-addr.eskip")
+	expectedCount := strconv.Itoa(len(zoneWant))
+
+	plainResp := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, plainResp.Code)
+	assert.Equal(t, expectedCount, plainResp.Header().Get(routing.RoutesCountName), "X-Count must equal the number of zone-filtered routes")
+
+	gzipResp := getZoneAwareRoutesGzip(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, gzipResp.Code)
+	assert.Equal(t, expectedCount, gzipResp.Header().Get(routing.RoutesCountName), "gzip X-Count must also reflect zone-filtered route count")
+
+	gotPlain, err := eskip.Parse(plainResp.Body.String())
+	require.NoError(t, err)
+	assert.Equal(t, expectedCount, strconv.Itoa(len(gotPlain)), "X-Count must match the actual number of routes in the response body")
+}
+
+func TestZoneAwareEtag(t *testing.T) {
+	defer tl.Reset()
+
+	ks, handler := newKubeServer(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	plainResp := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, plainResp.Code)
+	plainEtag := plainResp.Header().Get("Etag")
+	require.NotEmpty(t, plainEtag)
+
+	gzipResp := getZoneAwareRoutesGzip(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, gzipResp.Code)
+	gzipEtag := gzipResp.Header().Get("Etag")
+	require.NotEmpty(t, gzipEtag)
+
+	assert.NotEqual(t, plainEtag, gzipEtag, "plain and gzip ETags must differ")
+	assert.Contains(t, gzipEtag, "+gzip", "gzip ETag must contain +gzip suffix")
+
+	fullResp := getRoutes(rs)
+	require.Equal(t, http.StatusOK, fullResp.Code)
+	fullEtag := fullResp.Header().Get("Etag")
+	assert.NotEqual(t, plainEtag, fullEtag, "zone ETag must differ from full-routes ETag")
+
+	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr-updated.yaml")))
+	require.NoError(t, tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout))
+
+	updatedResp := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, updatedResp.Code)
+	updatedEtag := updatedResp.Header().Get("Etag")
+	assert.NotEqual(t, plainEtag, updatedEtag, "zone ETag must change after routes update")
+}
+
+func TestZoneAwareConditionalGetEtag(t *testing.T) {
+	defer tl.Reset()
+
+	ks, handler := newKubeServer(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	w1 := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, w1.Code)
+	etag := w1.Header().Get("Etag")
+	require.NotEmpty(t, etag)
+
+	// Should return 304 when it gets the right Etag
+	w2 := getZoneAwareRoutesWithHeaders(rs, "eu-central-1a", map[string]string{"If-None-Match": etag})
+	assert.Equal(t, http.StatusNotModified, w2.Code)
+	assert.Empty(t, w2.Body.String())
+
+	// same with gzip ETag
+	wg1 := getZoneAwareRoutesGzip(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, wg1.Code)
+	gzipEtag := wg1.Header().Get("Etag")
+
+	wg2 := getZoneAwareRoutesWithHeaders(rs, "eu-central-1a", map[string]string{
+		"If-None-Match":   gzipEtag,
+		"Accept-Encoding": "gzip",
+	})
+	assert.Equal(t, http.StatusNotModified, wg2.Code)
+	assert.Empty(t, wg2.Body.String())
+
+	// update routes -> new Etag
+	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr-updated.yaml")))
+	require.NoError(t, tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout))
+
+	w3 := getZoneAwareRoutesWithHeaders(rs, "eu-central-1a", map[string]string{"If-None-Match": etag})
+	assert.Equal(t, http.StatusOK, w3.Code)
+	assert.NotEmpty(t, w3.Body.String())
+}
+
+func TestZoneAwareConditionalGetLastModified(t *testing.T) {
+	defer tl.Reset()
+
+	ks, handler := newKubeServer(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	w1 := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, w1.Code)
+	lastModified := w1.Header().Get("Last-Modified")
+	require.NotEmpty(t, lastModified)
+
+	w2 := getZoneAwareRoutesWithHeaders(rs, "eu-central-1a", map[string]string{"If-Modified-Since": lastModified})
+	assert.Equal(t, http.StatusNotModified, w2.Code)
+	assert.Empty(t, w2.Body.String())
+
+	// change Last-Modified
+	routesrv.SetNow(rs, func() time.Time { return time.Now().Add(2 * time.Second) })
+	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr-updated.yaml")))
+	require.NoError(t, tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout))
+
+	// old Last-Modified is now stale → 200 with new content
+	w3 := getZoneAwareRoutesWithHeaders(rs, "eu-central-1a", map[string]string{"If-Modified-Since": lastModified})
+	assert.Equal(t, http.StatusOK, w3.Code)
+	assert.NotEmpty(t, w3.Body.String())
+}
+
+func TestZoneAwareFallbackToAllRoutesWhenBelowThreshold(t *testing.T) {
+	defer tl.Reset()
+
+	// Serve full routing table
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-2-addr.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	expectedRoutes := parseEskipFixture(t, "testdata/zone-aware-traffic/all-zones-2-addr.eskip")
+
+	plainResp := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, plainResp.Code)
+	gotPlain, err := eskip.Parse(plainResp.Body.String())
+	require.NoError(t, err)
+	assert.True(t, eskip.EqLists(gotPlain, expectedRoutes), "expected full routes (fallback) when zone has <3 endpoints")
+
+	// same for gzip
+	gzipResp := getZoneAwareRoutesGzip(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, gzipResp.Code)
+	require.Equal(t, "gzip", gzipResp.Header().Get("Content-Encoding"))
+	gotGzip, err := eskip.Parse(string(decompressGzip(t, gzipResp.Body)))
+	require.NoError(t, err)
+	assert.True(t, eskip.EqLists(gotGzip, expectedRoutes), "gzip fallback must also serve full routes when zone has <3 endpoints")
+
+	// X-Count for both must match the full route count
+	fullCount := strconv.Itoa(len(expectedRoutes))
+	assert.Equal(t, fullCount, plainResp.Header().Get(routing.RoutesCountName))
+	assert.Equal(t, fullCount, gzipResp.Header().Get(routing.RoutesCountName))
 }
