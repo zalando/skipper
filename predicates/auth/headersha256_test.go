@@ -20,6 +20,12 @@ func TestHeaderSHA256Args(t *testing.T) {
 			args: []interface{}{"X-Secret", "00112233"},
 		},
 		{
+			args: []interface{}{5, "00112233"},
+		},
+		{
+			args: []interface{}{"X-Secret", 5},
+		},
+		{
 			args: []interface{}{"X-Secret", "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff", "AA"},
 		},
 	} {
@@ -31,6 +37,9 @@ func TestHeaderSHA256Args(t *testing.T) {
 
 func TestHeaderSHA256Match(t *testing.T) {
 	s := NewHeaderSHA256()
+	if s.Name() == "" {
+		t.Fatal("predicate should have a name")
+	}
 	p, err := s.Create([]interface{}{
 		"X-Secret",
 		"2bb80d537b1da3e38bd30361aa855686bde0eacd7162fef6a25fe97bf527a25b", // "secret"
