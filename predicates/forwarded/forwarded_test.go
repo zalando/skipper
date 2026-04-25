@@ -4,7 +4,53 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+
+	"github.com/zalando/skipper/predicates"
 )
+
+func TestForwardedHostCreateError(t *testing.T) {
+	spec := NewForwardedHost()
+	if spec.Name() == "" {
+		t.Fatal("predicate spec should have a name")
+	}
+
+	_, err := spec.Create([]any{})
+	if err != predicates.ErrInvalidPredicateParameters {
+		t.Fatalf("Failed to get expected error, got: %v", err)
+	}
+
+	_, err = spec.Create([]any{5})
+	if err != predicates.ErrInvalidPredicateParameters {
+		t.Fatalf("Failed to get expected error, got: %v", err)
+	}
+
+	_, err = spec.Create([]any{"^(?!4)"})
+	if err == nil || err == predicates.ErrInvalidPredicateParameters {
+		t.Fatalf("regexp is not valid RE2")
+	}
+}
+
+func TestForwardedProtoCreateError(t *testing.T) {
+	spec := NewForwardedProto()
+	if spec.Name() == "" {
+		t.Fatal("predicate spec should have a name")
+	}
+
+	_, err := spec.Create([]any{})
+	if err != predicates.ErrInvalidPredicateParameters {
+		t.Fatalf("Failed to get expected error, got: %v", err)
+	}
+
+	_, err = spec.Create([]any{5})
+	if err != predicates.ErrInvalidPredicateParameters {
+		t.Fatalf("Failed to get expected error, got: %v", err)
+	}
+
+	_, err = spec.Create([]any{"foo"})
+	if err != predicates.ErrInvalidPredicateParameters {
+		t.Fatalf("Failed to get expected error, got: %v", err)
+	}
+}
 
 type request struct {
 	url     string

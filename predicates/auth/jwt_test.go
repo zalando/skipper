@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"regexp"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
@@ -157,6 +159,12 @@ func Test_spec_Create(t *testing.T) {
 			matchBehavior: matchBehaviorAny,
 		},
 		wantErr: false,
+	}, {
+		name:    "many kv pair of args, one regexp error",
+		spec:    NewJWTPayloadAnyKVRegexp(),
+		args:    []interface{}{"uid", "^(?!4)", "claim1", "claimValue1"},
+		want:    nil,
+		wantErr: true,
 	}, {
 		name:    "many kv pair of args, one missing",
 		spec:    NewJWTPayloadAllKV(),
@@ -617,6 +625,69 @@ s: JWTPayloadAnyKVRegexp("https://identity.zalando.com/managed-id", "^ssz") -> s
 		})
 	}
 
+}
+
+func TestPredicateCacheClean(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		reg := &registry{
+			quit:         make(chan struct{}),
+			predicateMap: make(map[string]*predicate),
+		}
+		go reg.clean()
+		defer reg.Close()
+
+		spec := &spec{
+			name:          predicates.JWTPayloadAllKVRegexpName,
+			matchBehavior: matchBehaviorAll,
+			matchMode:     matchModeRegexp,
+			reg:           reg,
+		}
+
+		p, err := spec.Create([]any{"https://identity.zalando.com/managed-id", "^ssz", "https://identity.zalando.com/token", "^Bear"})
+		if err != nil {
+			t.Fatalf("Failed to create predicate: %v", err)
+		}
+
+		token := "eyJraWQiOiJwbGF0Zm9ybS1pYW0tdmNlaHloajYiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJjNGRkZmU5ZC1hMGQzLTRhZmItYmYyNi0yNGI5NTg4NzMxYTAiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3JlYWxtIjoidXNlcnMiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3Rva2VuIjoiQmVhcmVyIiwiaHR0cHM6Ly9pZGVudGl0eS56YWxhbmRvLmNvbS9tYW5hZ2VkLWlkIjoic3N6dWVjcyIsImF6cCI6Inp0b2tlbiIsImh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20vYnAiOiI4MTBkMWQwMC00MzEyLTQzZTUtYmQzMS1kODM3M2ZkZDI0YzciLCJhdXRoX3RpbWUiOjE1MjMyNTk0NjgsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20iLCJleHAiOjE1MjUwMjQyODUsImlhdCI6MTUyNTAyMDY3NX0.uxHcC7DJrkP-_G81Jmiba5liVP0LJOmkpal4wsUr7CmtMlE23P1bptIMxnJLv5EMSN1NFn-BJe9hcEB2A3LarA"
+
+		r := &http.Request{
+			Header: http.Header{
+				authHeaderName: []string{"Bearer " + token},
+			},
+		}
+		if !p.Match(r) {
+			t.Fatal("Failed to match")
+		}
+
+		if l := len(reg.predicateMap); l != 1 {
+			t.Fatalf("Failed to get predicateMap of len 1, got: %d", l)
+		}
+
+		ok := false
+		for _, p := range reg.predicateMap {
+			p.cache.Range(func(k, v any) bool {
+				ok = true
+				return true
+			})
+		}
+		if !ok {
+			t.Fatal("Failed to get cache filled")
+		}
+
+		time.Sleep(time.Hour + time.Minute)
+
+		ok = true
+		for _, p := range reg.predicateMap {
+			p.cache.Range(func(k, v any) bool {
+				ok = false
+				return true
+			})
+		}
+		if !ok {
+			t.Fatal("Failed to get cache cleaned")
+		}
+
+	})
 }
 
 func BenchmarkJWTPayloadAnyKV(b *testing.B) {

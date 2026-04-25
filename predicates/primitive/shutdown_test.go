@@ -9,7 +9,7 @@ import (
 
 func TestShutdown(t *testing.T) {
 	s, sigs := newShutdown()
-	p, err := s.Create([]interface{}{})
+	p, err := s.Create([]any{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,5 +24,17 @@ func TestShutdown(t *testing.T) {
 
 	if !p.Match(req) {
 		t.Error("expected shutdown")
+	}
+
+	if s.Name() == "" {
+		t.Fatal("predicate should have a name")
+	}
+}
+
+func TestShutdownErrors(t *testing.T) {
+	s := NewShutdown()
+	_, err := s.Create([]any{"wrong args"})
+	if err == nil {
+		t.Fatal("Failed to get err")
 	}
 }
