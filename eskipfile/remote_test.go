@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -57,18 +58,30 @@ func TestLoadAll(t *testing.T) {
 		routeContent    string
 		routeStatusCode int
 		expected        []*eskip.Route
+		failOnStartup   bool
 		fail            bool
-	}{{
-		title:           "Download not existing remote file fails in NewRemoteEskipFile",
-		routeContent:    "",
-		routeStatusCode: 404,
-		fail:            true,
-	}, {
-		title:           "Download valid remote file",
-		routeContent:    fmt.Sprintf("VALID: %v;", routeBody),
-		routeStatusCode: 200,
-		expected:        eskip.MustParse(fmt.Sprintf("VALID: %v;", routeBody)),
-	},
+	}{
+		{
+			title:           "Download not existing remote file fails in NewRemoteEskipFile fail on startup",
+			routeContent:    "",
+			routeStatusCode: 404,
+			failOnStartup:   true,
+			fail:            true,
+		},
+		{
+			title:           "Download not existing remote file fails in NewRemoteEskipFile",
+			routeContent:    "",
+			routeStatusCode: 404,
+			failOnStartup:   false,
+			fail:            false,
+		},
+		{
+			title:           "Download valid remote file",
+			routeContent:    fmt.Sprintf("VALID: %v;", routeBody),
+			routeStatusCode: 200,
+			failOnStartup:   true,
+			expected:        eskip.MustParse(fmt.Sprintf("VALID: %v;", routeBody)),
+		},
 	} {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(test.routeStatusCode)
@@ -77,7 +90,7 @@ func TestLoadAll(t *testing.T) {
 		defer ts.Close()
 
 		t.Run(test.title, func(t *testing.T) {
-			options := &RemoteWatchOptions{RemoteFile: ts.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
+			options := &RemoteWatchOptions{RemoteFile: ts.URL, Threshold: 10, Verbose: true, FailOnStartup: test.failOnStartup}
 			client, err := RemoteWatch(options)
 
 			if test.fail {
@@ -163,6 +176,50 @@ func TestLoadAllAndUpdate(t *testing.T) {
 			assert.Equal(t, r, expected)
 		})
 	}
+}
+
+func TestRemoteButLocalURL(t *testing.T) {
+	client, err := RemoteWatch(&RemoteWatchOptions{RemoteFile: "fixtures/test.eskip", FailOnStartup: true})
+	defer client.(*WatchClient).Close()
+	require.NoError(t, err)
+	r, err := client.LoadAll()
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(r))
+}
+
+func TestRemoteLoadAllFail(t *testing.T) {
+	count := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch count {
+		case 0:
+			// RemoteWatch() preloads
+			count++
+			b, err := os.ReadFile("fixtures/test.eskip")
+			if err != nil {
+				t.Fatalf("Failed to read file: %v", err)
+			}
+			w.WriteHeader(200)
+			w.Write(b)
+		default:
+			// LoadAll should fail
+			w.WriteHeader(500)
+			w.Write([]byte(http.StatusText(500)))
+		}
+	}))
+	defer server.Close()
+
+	client, err := RemoteWatch(&RemoteWatchOptions{RemoteFile: server.URL, FailOnStartup: true})
+	defer client.(*remoteEskipFile).Close()
+	require.NoError(t, err)
+
+	r, err := client.LoadAll()
+	require.Error(t, err)
+	assert.Equal(t, 0, len(r))
+
+	r, delR, err := client.LoadUpdate()
+	require.Error(t, err)
+	assert.Equal(t, 0, len(r))
+	assert.Equal(t, 0, len(delR))
 }
 
 func TestHTTPTimeout(t *testing.T) {
