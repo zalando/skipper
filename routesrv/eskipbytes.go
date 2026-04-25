@@ -52,16 +52,20 @@ var (
 // provides synchronized r/w access to them. Additionally it can
 // serve as an HTTP handler exposing its content.
 type eskipBytes struct {
-	mu           sync.RWMutex
-	data         []byte
-	zoneData     map[string][]byte
-	hash         string
-	lastModified time.Time
-	initialized  bool
-	count        int
+	mu               sync.RWMutex
+	data             []byte
+	zoneData         map[string][]byte
+	hash             string
+	zoneHash         map[string]string
+	lastModified     time.Time
+	zoneLastModified map[string]time.Time
+	initialized      bool
+	count            int
+	zoneCount        map[string]int
 
-	zw    *gzip.Writer
-	zdata []byte
+	zw                 *gzip.Writer
+	zdata              []byte
+	zoneDataCompressed map[string][]byte
 
 	tracer  ot.Tracer
 	metrics metrics.Metrics
@@ -82,15 +86,21 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route, zoneAwareRoutes map[str
 
 	updated = !bytes.Equal(e.data, data)
 	if updated {
-		if len(zoneAwareRoutes) > 0 {
-			e.zoneData = make(map[string][]byte)
-			for zone, routes := range zoneAwareRoutes {
-				zoneBuf := &bytes.Buffer{}
-				eskip.Fprint(zoneBuf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
-				e.zoneData[zone] = zoneBuf.Bytes()
-			}
+		now := e.now()
+		e.zoneData, e.zoneDataCompressed, e.zoneCount = make(map[string][]byte), make(map[string][]byte), make(map[string]int)
+		e.zoneHash = make(map[string]string)
+		e.zoneLastModified = make(map[string]time.Time)
+		for zone, routes := range zoneAwareRoutes {
+			zoneBuf := &bytes.Buffer{}
+			eskip.Fprint(zoneBuf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
+			zoneData := zoneBuf.Bytes()
+			e.zoneLastModified[zone] = now
+			e.zoneData[zone] = zoneData
+			e.zoneDataCompressed[zone] = e.compressLocked(zoneData)
+			e.zoneHash[zone] = fmt.Sprintf("%x", sha256.Sum256(zoneData))
+			e.zoneCount[zone] = len(routes)
 		}
-		e.lastModified = e.now()
+		e.lastModified = now
 		e.data = data
 		e.zdata = e.compressLocked(data)
 		e.hash = fmt.Sprintf("%x", sha256.Sum256(e.data))
@@ -157,9 +167,12 @@ func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// we check for three endpoints because three is good choice for availability; it guarantees that at least one endpoint will be healthy even if the others are on update or have some issues
 	zone := r.PathValue("zone")
 	if zone != "" {
-		zoneData, ok := e.zoneData[zone]
-		if ok {
-			data = zoneData
+		if zd, ok := e.zoneData[zone]; ok {
+			data = zd
+			zdata = e.zoneDataCompressed[zone]
+			count = e.zoneCount[zone]
+			hash = e.zoneHash[zone]
+			lastModified = e.zoneLastModified[zone]
 		}
 	}
 
