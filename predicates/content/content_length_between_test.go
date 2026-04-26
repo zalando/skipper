@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+
+	"github.com/zalando/skipper/predicates"
 )
 
 func TestContentLengthCreate(t *testing.T) {
@@ -13,6 +15,32 @@ func TestContentLengthCreate(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("expected error here, lower bound equals upper bound")
+	}
+}
+func TestContentLengthCreateError(t *testing.T) {
+	spec := NewContentLengthBetween()
+	if spec.Name() == "" {
+		t.Fatal("predicate spec should have a name")
+	}
+
+	_, err := spec.Create([]any{})
+	if err != predicates.ErrInvalidPredicateParameters {
+		t.Fatalf("Failed to get expected error, got: %v", err)
+	}
+
+	_, err = spec.Create([]any{"5.0", "8.2"})
+	if err != predicates.ErrInvalidPredicateParameters {
+		t.Fatalf("Failed to get expected error, got: %v", err)
+	}
+
+	_, err = spec.Create([]any{5.0, "8.2"})
+	if err != predicates.ErrInvalidPredicateParameters {
+		t.Fatalf("Failed to get expected error, got: %v", err)
+	}
+
+	_, err = spec.Create([]any{5, 1})
+	if err != predicates.ErrInvalidPredicateParameters {
+		t.Fatalf("Failed to get expected error, got: %v", err)
 	}
 }
 
