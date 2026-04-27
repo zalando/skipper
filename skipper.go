@@ -1678,6 +1678,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			metricsKind |= metrics.CodaHaleKind
 		case "prometheus":
 			metricsKind |= metrics.PrometheusKind
+		case "otel":
+			metricsKind |= metrics.OTelKind
 		}
 	}
 

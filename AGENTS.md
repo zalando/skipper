@@ -20,6 +20,7 @@ Backend is the thing to which skipper should proxy, for example:
 - Install deps: `make deps`
 - Build project: `make`
 - Start example proxy with one route: `./bin/skipper -inline-routes='r: * -> latency("1ms") -> status(201) -> <shunt>' -address :9001`
+  Call the proxy: curl http://localhost:9001/
 - Run tests by package for example proxy: `go test ./proxy`
 - Run all tests: `make check`
 - Run all tests with race detector: `make check-race`

@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"log"
 	"net/http"
 	"net/http/pprof"
 	"runtime"
@@ -21,7 +22,8 @@ const (
 	UnknownKind  Kind = 0
 	CodaHaleKind Kind = 1 << iota
 	PrometheusKind
-	AllKind = CodaHaleKind | PrometheusKind
+	OTelKind
+	AllKind = CodaHaleKind | PrometheusKind | OTelKind
 )
 
 func (k Kind) String() string {
@@ -30,6 +32,8 @@ func (k Kind) String() string {
 		return "codahale"
 	case PrometheusKind:
 		return "prometheus"
+	case OTelKind:
+		return "otel"
 	case AllKind:
 		return "all"
 	default:
@@ -45,6 +49,8 @@ func ParseMetricsKind(t string) Kind {
 		return CodaHaleKind
 	case "prometheus":
 		return PrometheusKind
+	case "otel":
+		return OTelKind
 	case "all":
 		return AllKind
 	default:
@@ -260,6 +266,13 @@ func NewMetrics(o Options) Metrics {
 		m = NewAll(o)
 	case PrometheusKind:
 		m = NewPrometheus(o)
+	case OTelKind:
+		var err error
+		m, err = NewOTel(o)
+		if err != nil {
+			log.Fatalf("Failed to create OTel metrics provider: %v", err)
+		}
+
 	default:
 		// CodaHale is the default metrics implementation.
 		m = NewCodaHale(o)
