@@ -38,6 +38,7 @@ Backend is the thing to which skipper should proxy, for example:
 - Use table driven tests if it makes sense
 - Find test helpers in subpackages like net/nettest
 - We use github.com/AlexanderYastrebov/noleak to enforce no leaks like goroutine leak or channel leak or not closed http.Body for example
+- Test also error cases
 
 ## PR instructions
 
