@@ -161,6 +161,10 @@ func New(o Options) (*Client, error) {
 		password:   o.Password}, nil
 }
 
+func (*Client) Name() string {
+	return "etcd"
+}
+
 func isTimeout(err error) bool {
 	nerr, ok := err.(net.Error)
 	return ok && nerr.Timeout()

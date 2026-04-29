@@ -147,6 +147,7 @@ type Config struct {
 	CloneRoute         routeChangerConfig   `yaml:"clone-route"`
 	SourcePollTimeout  int64                `yaml:"source-poll-timeout"`
 	WaitFirstRouteLoad bool                 `yaml:"wait-first-route-load"`
+	EnsureDataClients  *listFlag            `yaml:"ensure-dataclients"`
 
 	// Forwarded headers
 	ForwardedHeadersList            *listFlag            `yaml:"forwarded-headers"`
@@ -394,6 +395,7 @@ func NewConfig() *Config {
 	cfg.ProxyAllowListCIDRs = commaListFlag()
 	cfg.ProxyDenyListCIDRs = commaListFlag()
 	cfg.ProxySkipListCIDRs = commaListFlag()
+	cfg.EnsureDataClients = commaListFlag()
 
 	flag := flag.NewFlagSet("", flag.ExitOnError)
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
@@ -510,6 +512,7 @@ func NewConfig() *Config {
 	flag.Var(&cfg.EditRoute, "edit-route", "match and edit filters and predicates of all routes")
 	flag.Var(&cfg.CloneRoute, "clone-route", "clone all matching routes and replace filters and predicates of all matched routes")
 	flag.BoolVar(&cfg.WaitFirstRouteLoad, "wait-first-route-load", false, "prevent starting the listener before the first batch of routes were loaded")
+	flag.Var(cfg.EnsureDataClients, "ensure-dataclients", `comma separated list of routing.NamedDataClient names: "etcd", "eskipfile-watch", "eskipfile-remote", "eskipfile", "inline", "kubernetes"`)
 
 	// Forwarded headers
 	flag.Var(cfg.ForwardedHeadersList, "forwarded-headers", "comma separated list of headers to add to the incoming request before routing\n"+
@@ -976,6 +979,7 @@ func (c *Config) ToOptions() skipper.Options {
 		DisabledFilters:    c.DisabledFilters.values,
 		SourcePollTimeout:  time.Duration(c.SourcePollTimeout) * time.Millisecond,
 		WaitFirstRouteLoad: c.WaitFirstRouteLoad,
+		EnsureDataClient:   c.EnsureDataClients.values,
 
 		// Kubernetes:
 		Kubernetes:                                     c.KubernetesIngress,

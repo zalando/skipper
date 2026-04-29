@@ -372,6 +372,10 @@ func New(o Options) (*Client, error) {
 	}, nil
 }
 
+func (*Client) Name() string {
+	return "kubernetes"
+}
+
 func buildAPIURL(o Options) (string, error) {
 	if !o.KubernetesInCluster {
 		if o.KubernetesURL == "" {
