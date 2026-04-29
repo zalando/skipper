@@ -42,6 +42,10 @@ func Watch(name string) *WatchClient {
 	return c
 }
 
+func (*WatchClient) Name() string {
+	return "eskipfile-watch"
+}
+
 func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
 	m := make(map[string]*eskip.Route)
 	for i := range r {

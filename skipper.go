@@ -488,6 +488,8 @@ type Options struct {
 	// of routes were applied.
 	WaitFirstRouteLoad bool
 
+	EnsureDataClient []string
+
 	// SuppressRouteUpdateLogs indicates to log only summaries of the routing updates
 	// instead of full details of the updated/deleted routes.
 	SuppressRouteUpdateLogs bool
@@ -1240,6 +1242,20 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 			return nil, fmt.Errorf("error while creating kubernetes data client: %w", err)
 		}
 		clients = append(clients, kubernetesClient)
+	}
+
+	for _, s := range o.EnsureDataClient {
+		found := false
+		for _, client := range clients {
+			if ndc, ok := client.(routing.NamedDataClient); ok {
+				if ndc.Name() == s {
+					found = true
+				}
+			}
+		}
+		if !found {
+			log.Fatalf("Failed to find dataclient that was ensured: %q", s)
+		}
 	}
 
 	return clients, nil
