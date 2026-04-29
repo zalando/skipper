@@ -187,6 +187,7 @@ func defaultConfig(with func(*Config)) *Config {
 		ProxyAllowListCIDRs:                     commaListFlag(),
 		ProxyDenyListCIDRs:                      commaListFlag(),
 		ProxySkipListCIDRs:                      commaListFlag(),
+		RequiredDataClients:                     commaListFlag("kubernetes", "etcd", "routesfile", "routesurls", "inlineroutes", "plugins"),
 	}
 	with(cfg)
 	return cfg
@@ -642,6 +643,58 @@ func TestParseAnnotationConfigInvalid(t *testing.T) {
 				assert.Error(t, err)
 			})
 		}
+	})
+}
+
+func TestRequiredDataClientsFlag(t *testing.T) {
+	t.Run("valid single value parses correctly", func(t *testing.T) {
+		cfg := NewConfig()
+		err := cfg.ParseArgs("skipper", []string{"-required-dataclients=kubernetes"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"kubernetes"}, cfg.RequiredDataClients.values)
+	})
+
+	t.Run("valid comma-separated values parse correctly", func(t *testing.T) {
+		cfg := NewConfig()
+		err := cfg.ParseArgs("skipper", []string{"-required-dataclients=kubernetes,etcd"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"kubernetes", "etcd"}, cfg.RequiredDataClients.values)
+	})
+
+	t.Run("unknown value returns error when set directly", func(t *testing.T) {
+		lf := commaListFlag("kubernetes", "etcd", "routesfile", "routesurls", "inlineroutes", "plugins")
+		err := lf.Set("unknown")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "value not allowed: unknown")
+	})
+
+	t.Run("ToOptions propagates values", func(t *testing.T) {
+		cfg := NewConfig()
+		err := cfg.ParseArgs("skipper", []string{"-required-dataclients=kubernetes,routesfile"})
+		require.NoError(t, err)
+		opts := cfg.ToOptions()
+		assert.Equal(t, []string{"kubernetes", "routesfile"}, opts.RequiredDataClients)
+	})
+
+	t.Run("YAML parses correctly", func(t *testing.T) {
+		var lf listFlag
+		lf.allowed = map[string]bool{
+			"kubernetes": true, "etcd": true, "routesfile": true,
+			"routesurls": true, "inlineroutes": true, "plugins": true,
+		}
+		err := yaml.Unmarshal([]byte("- kubernetes\n- etcd\n"), &lf)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"kubernetes", "etcd"}, lf.values)
+	})
+
+	t.Run("YAML with unknown value returns error", func(t *testing.T) {
+		var lf listFlag
+		lf.allowed = map[string]bool{
+			"kubernetes": true, "etcd": true,
+		}
+		err := yaml.Unmarshal([]byte("- unknown\n"), &lf)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "value not allowed: unknown")
 	})
 }
 

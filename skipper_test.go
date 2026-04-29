@@ -630,3 +630,112 @@ func TestDataClients(t *testing.T) {
 
 	sigs <- syscall.SIGTERM
 }
+
+func TestCheckRequiredDataClients(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		opts    Options
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "empty required list",
+			opts:    Options{},
+			wantErr: false,
+		},
+		{
+			name:    "kubernetes required and configured",
+			opts:    Options{RequiredDataClients: []string{"kubernetes"}, Kubernetes: true},
+			wantErr: false,
+		},
+		{
+			name:    "kubernetes required but not configured",
+			opts:    Options{RequiredDataClients: []string{"kubernetes"}},
+			wantErr: true,
+			errMsg:  `required dataclient "kubernetes" is not configured`,
+		},
+		{
+			name:    "etcd required and configured",
+			opts:    Options{RequiredDataClients: []string{"etcd"}, EtcdUrls: []string{"http://127.0.0.1:2379"}},
+			wantErr: false,
+		},
+		{
+			name:    "etcd required but not configured",
+			opts:    Options{RequiredDataClients: []string{"etcd"}},
+			wantErr: true,
+			errMsg:  `required dataclient "etcd" is not configured`,
+		},
+		{
+			name:    "routesfile required and configured",
+			opts:    Options{RequiredDataClients: []string{"routesfile"}, WatchRoutesFile: "routes.eskip"},
+			wantErr: false,
+		},
+		{
+			name:    "routesfile required but not configured",
+			opts:    Options{RequiredDataClients: []string{"routesfile"}},
+			wantErr: true,
+			errMsg:  `required dataclient "routesfile" is not configured`,
+		},
+		{
+			name:    "routesurls required and configured",
+			opts:    Options{RequiredDataClients: []string{"routesurls"}, RoutesURLs: []string{"http://example.com/routes"}},
+			wantErr: false,
+		},
+		{
+			name:    "routesurls required but not configured",
+			opts:    Options{RequiredDataClients: []string{"routesurls"}},
+			wantErr: true,
+			errMsg:  `required dataclient "routesurls" is not configured`,
+		},
+		{
+			name:    "inlineroutes required and configured",
+			opts:    Options{RequiredDataClients: []string{"inlineroutes"}, InlineRoutes: `r: * -> <shunt>;`},
+			wantErr: false,
+		},
+		{
+			name:    "inlineroutes required but not configured",
+			opts:    Options{RequiredDataClients: []string{"inlineroutes"}},
+			wantErr: true,
+			errMsg:  `required dataclient "inlineroutes" is not configured`,
+		},
+		{
+			name:    "plugins required with dataclient plugins",
+			opts:    Options{RequiredDataClients: []string{"plugins"}, DataClientPlugins: [][]string{{"myplugin"}}},
+			wantErr: false,
+		},
+		{
+			name:    "plugins required but not configured",
+			opts:    Options{RequiredDataClients: []string{"plugins"}},
+			wantErr: true,
+			errMsg:  `required dataclient "plugins" is not configured`,
+		},
+		{
+			name:    "unknown dataclient name",
+			opts:    Options{RequiredDataClients: []string{"unknown"}},
+			wantErr: true,
+			errMsg:  `invalid dataclient name "unknown"`,
+		},
+		{
+			name:    "multiple required, all configured",
+			opts:    Options{RequiredDataClients: []string{"kubernetes", "etcd"}, Kubernetes: true, EtcdUrls: []string{"http://127.0.0.1:2379"}},
+			wantErr: false,
+		},
+		{
+			name:    "multiple required, one missing",
+			opts:    Options{RequiredDataClients: []string{"kubernetes", "etcd"}, Kubernetes: true},
+			wantErr: true,
+			errMsg:  `required dataclient "etcd" is not configured`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkRequiredDataClients(tt.opts)
+			if !tt.wantErr {
+				assert.NoError(t, err)
+				return
+			}
+
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errMsg)
+		})
+	}
+}

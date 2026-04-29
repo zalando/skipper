@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -471,6 +473,11 @@ type Options struct {
 
 	// Custom data clients to be used together with the default etcd and Innkeeper.
 	CustomDataClients []routing.DataClient
+
+	// RequiredDataClients lists dataclient names that must be configured at startup.
+	// Valid names: kubernetes, etcd, routesfile, routesurls, inlineroutes, plugins.
+	// If any listed dataclient is not active, skipper will refuse to start.
+	RequiredDataClients []string
 
 	// CustomHttpHandlerWrap provides ability to wrap http.Handler created by skipper.
 	// http.Handler is used for accepting incoming http requests.
@@ -1245,6 +1252,42 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 	return clients, nil
 }
 
+func checkRequiredDataClients(o Options) error {
+	validDataClients := map[string]struct{}{
+		"kubernetes":   {},
+		"etcd":         {},
+		"routesfile":   {},
+		"routesurls":   {},
+		"inlineroutes": {},
+		"plugins":      {},
+	}
+
+	for _, name := range o.RequiredDataClients {
+		if _, ok := validDataClients[name]; !ok {
+			return fmt.Errorf("invalid dataclient name %q; accepted names: %s", name, strings.Join(slices.Sorted(maps.Keys(validDataClients)), ", "))
+		}
+		var active bool
+		switch name {
+		case "kubernetes":
+			active = o.Kubernetes
+		case "etcd":
+			active = len(o.EtcdUrls) > 0
+		case "routesfile":
+			active = o.WatchRoutesFile != ""
+		case "routesurls":
+			active = len(o.RoutesURLs) > 0
+		case "inlineroutes":
+			active = o.InlineRoutes != ""
+		case "plugins":
+			active = len(o.DataClientPlugins) > 0 || len(o.Plugins) > 0
+		}
+		if !active {
+			return fmt.Errorf("required dataclient %q is not configured", name)
+		}
+	}
+	return nil
+}
+
 func getLogOutput(name string) (io.Writer, error) {
 	name = path.Clean(name)
 
@@ -1750,6 +1793,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	// append custom data clients
 	dataClients = append(dataClients, o.CustomDataClients...)
+
+	if err := checkRequiredDataClients(o); err != nil {
+		return err
+	}
 
 	if len(dataClients) == 0 {
 		log.Warning("no route source specified")

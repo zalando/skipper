@@ -129,24 +129,25 @@ type Config struct {
 	OpenTelemetry *otel.Options `yaml:"open-telemetry"`
 
 	// route sources:
-	EtcdUrls           string               `yaml:"etcd-urls"`
-	EtcdPrefix         string               `yaml:"etcd-prefix"`
-	EtcdTimeout        time.Duration        `yaml:"etcd-timeout"`
-	EtcdInsecure       bool                 `yaml:"etcd-insecure"`
-	EtcdOAuthToken     string               `yaml:"etcd-oauth-token"`
-	EtcdUsername       string               `yaml:"etcd-username"`
-	EtcdPassword       string               `yaml:"etcd-password"`
-	RoutesFile         string               `yaml:"routes-file"`
-	RoutesURLs         *listFlag            `yaml:"routes-urls"`
-	InlineRoutes       string               `yaml:"inline-routes"`
-	ForwardBackendURL  string               `yaml:"forward-backend-url"`
-	AppendFilters      *defaultFiltersFlags `yaml:"default-filters-append"`
-	PrependFilters     *defaultFiltersFlags `yaml:"default-filters-prepend"`
-	DisabledFilters    *listFlag            `yaml:"disabled-filters"`
-	EditRoute          routeChangerConfig   `yaml:"edit-route"`
-	CloneRoute         routeChangerConfig   `yaml:"clone-route"`
-	SourcePollTimeout  int64                `yaml:"source-poll-timeout"`
-	WaitFirstRouteLoad bool                 `yaml:"wait-first-route-load"`
+	EtcdUrls            string               `yaml:"etcd-urls"`
+	EtcdPrefix          string               `yaml:"etcd-prefix"`
+	EtcdTimeout         time.Duration        `yaml:"etcd-timeout"`
+	EtcdInsecure        bool                 `yaml:"etcd-insecure"`
+	EtcdOAuthToken      string               `yaml:"etcd-oauth-token"`
+	EtcdUsername        string               `yaml:"etcd-username"`
+	EtcdPassword        string               `yaml:"etcd-password"`
+	RoutesFile          string               `yaml:"routes-file"`
+	RoutesURLs          *listFlag            `yaml:"routes-urls"`
+	InlineRoutes        string               `yaml:"inline-routes"`
+	RequiredDataClients *listFlag            `yaml:"required-dataclients"`
+	ForwardBackendURL   string               `yaml:"forward-backend-url"`
+	AppendFilters       *defaultFiltersFlags `yaml:"default-filters-append"`
+	PrependFilters      *defaultFiltersFlags `yaml:"default-filters-prepend"`
+	DisabledFilters     *listFlag            `yaml:"disabled-filters"`
+	EditRoute           routeChangerConfig   `yaml:"edit-route"`
+	CloneRoute          routeChangerConfig   `yaml:"clone-route"`
+	SourcePollTimeout   int64                `yaml:"source-poll-timeout"`
+	WaitFirstRouteLoad  bool                 `yaml:"wait-first-route-load"`
 
 	// Forwarded headers
 	ForwardedHeadersList            *listFlag            `yaml:"forwarded-headers"`
@@ -385,6 +386,7 @@ func NewConfig() *Config {
 	cfg.EditRoute = routeChangerConfig{}
 	cfg.KubernetesEastWestRangeDomains = commaListFlag()
 	cfg.RoutesURLs = commaListFlag()
+	cfg.RequiredDataClients = commaListFlag("kubernetes", "etcd", "routesfile", "routesurls", "inlineroutes", "plugins")
 	cfg.ForwardedHeadersList = commaListFlag()
 	cfg.ForwardedHeadersExcludeCIDRList = commaListFlag()
 	cfg.CompressEncodings = commaListFlag("gzip", "deflate", "br", "zstd")
@@ -502,6 +504,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.RoutesFile, "routes-file", "", "file containing route definitions")
 	flag.Var(cfg.RoutesURLs, "routes-urls", "comma separated URLs to route definitions in eskip format")
 	flag.StringVar(&cfg.InlineRoutes, "inline-routes", "", "inline routes in eskip format")
+	flag.Var(cfg.RequiredDataClients, "required-dataclients", "comma-separated list of dataclients that must be configured at startup; valid values: kubernetes, etcd, routesfile, routesurls, inlineroutes, plugins")
 	flag.StringVar(&cfg.ForwardBackendURL, "forward-backend-url", "", "target url of the <forward> backend")
 	flag.Int64Var(&cfg.SourcePollTimeout, "source-poll-timeout", int64(3000), "polling timeout of the routing data sources, in milliseconds")
 	flag.Var(cfg.AppendFilters, "default-filters-append", "set of default filters to apply to append to all filters of all routes")
@@ -958,17 +961,18 @@ func (c *Config) ToOptions() skipper.Options {
 		OpenTelemetry: c.OpenTelemetry,
 
 		// route sources:
-		EtcdUrls:          eus,
-		EtcdPrefix:        c.EtcdPrefix,
-		EtcdWaitTimeout:   c.EtcdTimeout,
-		EtcdInsecure:      c.EtcdInsecure,
-		EtcdOAuthToken:    c.EtcdOAuthToken,
-		EtcdUsername:      c.EtcdUsername,
-		EtcdPassword:      c.EtcdPassword,
-		WatchRoutesFile:   c.RoutesFile,
-		RoutesURLs:        c.RoutesURLs.values,
-		InlineRoutes:      c.InlineRoutes,
-		ForwardBackendURL: c.ForwardBackendURL,
+		EtcdUrls:            eus,
+		EtcdPrefix:          c.EtcdPrefix,
+		EtcdWaitTimeout:     c.EtcdTimeout,
+		EtcdInsecure:        c.EtcdInsecure,
+		EtcdOAuthToken:      c.EtcdOAuthToken,
+		EtcdUsername:        c.EtcdUsername,
+		EtcdPassword:        c.EtcdPassword,
+		WatchRoutesFile:     c.RoutesFile,
+		RoutesURLs:          c.RoutesURLs.values,
+		InlineRoutes:        c.InlineRoutes,
+		RequiredDataClients: c.RequiredDataClients.values,
+		ForwardBackendURL:   c.ForwardBackendURL,
 		DefaultFilters: &eskip.DefaultFilters{
 			Prepend: c.PrependFilters.filters,
 			Append:  c.AppendFilters.filters,
