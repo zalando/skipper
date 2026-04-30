@@ -1066,6 +1066,14 @@ func TestRoutesWithZone(t *testing.T) {
 			ing:   "testdata/zone-aware-traffic/only-zone-a.yaml",
 			eskip: "testdata/zone-aware-traffic/only-zone-a.eskip",
 		},
+		{
+			// Routes that do not meet the per-zone endpoint threshold must still
+			// appear in the zone response with their original endpoints, not be dropped.
+			name:  "MixedZoneThreshold",
+			zone:  "eu-central-1a",
+			ing:   "testdata/zone-aware-traffic/mixed-zone-threshold.yaml",
+			eskip: "testdata/zone-aware-traffic/mixed-zone-threshold.eskip",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			defer tl.Reset()
