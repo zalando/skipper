@@ -62,6 +62,6 @@ func main() {
 
 	log.SetLevel(cfg.ApplicationLogLevel)
 	if err := skipper.Run(cfg.ToOptions()); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to start skipper: %v", err)
 	}
 }
