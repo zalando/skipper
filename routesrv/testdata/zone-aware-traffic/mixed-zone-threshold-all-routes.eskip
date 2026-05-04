@@ -1,0 +1,4 @@
+kube_default__ingress_above_threshold__above_example_org____svc_above_threshold: Host("^(above[.]example[.]org[.]?(:[0-9]+)?)$")
+	-> <roundRobin,"http://10.3.0.3:8080", "http://10.3.0.4:8080", "http://10.3.0.5:8080", "http://10.3.1.3:8080", "http://10.3.2.3:8080", "http://10.3.2.4:8080">;
+kube_default__ingress_below_threshold__below_example_org____svc_below_threshold: Host("^(below[.]example[.]org[.]?(:[0-9]+)?)$")
+	-> <roundRobin,"http://10.4.0.3:8080", "http://10.4.0.4:8080">;

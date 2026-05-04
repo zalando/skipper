@@ -141,6 +141,8 @@ func filterRoutesByZone(routes []*eskip.Route) map[string][]*eskip.Route {
 				rCopy := *r
 				rCopy.LBEndpoints = eps
 				zoneAwareRoutes[zone] = append(zoneAwareRoutes[zone], &rCopy)
+			} else {
+				zoneAwareRoutes[zone] = append(zoneAwareRoutes[zone], r)
 			}
 		}
 	}
