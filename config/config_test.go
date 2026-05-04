@@ -132,6 +132,7 @@ func defaultConfig(with func(*Config)) *Config {
 		ApiUsageMonitoringClientKeys:            "sub",
 		ApiUsageMonitoringRealmsTrackingPattern: "services",
 		WaitForHealthcheckInterval:              45 * time.Second,
+		EnsureDataClients:                       commaListFlag(),
 		IdleConnsPerHost:                        64,
 		CloseIdleConnsPeriod:                    20 * time.Second,
 		BackendFlushInterval:                    20 * time.Millisecond,
