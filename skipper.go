@@ -1254,7 +1254,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 			}
 		}
 		if !found {
-			log.Fatalf("Failed to find dataclient that was ensured: %q", s)
+			return nil, fmt.Errorf("failed to find dataclient that was ensured: %q", s)
 		}
 	}
 

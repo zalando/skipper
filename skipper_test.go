@@ -509,124 +509,313 @@ func createRoutesFile(route string) (string, error) {
 }
 
 func TestDataClients(t *testing.T) {
-	// routesfile
-	routesFileStatus := 201
-	routeStringFmt := `r%d: Path("/routes-file") -> disableAccessLog() -> status(%d) -> inlineContent("Got it") -> <shunt>;`
-	filePath, err := createRoutesFile(fmt.Sprintf(routeStringFmt, routesFileStatus, routesFileStatus))
-	if err != nil {
-		t.Fatalf("Failed to create routes file: %v", err)
-	}
-	defer os.Remove(filePath)
-
-	// application log
-	fdApp, err := os.CreateTemp("/tmp", "app_log_")
-	if err != nil {
-		t.Fatalf("Failed to create tempfile: %v", err)
-	}
-	defer fdApp.Close()
-
-	// access log
-	fdAccess, err := os.CreateTemp("/tmp", "access_log_")
-	if err != nil {
-		t.Fatalf("Failed to create tempfile: %v", err)
-	}
-	defer fdAccess.Close()
-
-	// run skipper proxy that we want to test
-	o := Options{
-		Address:                         ":8090",
-		EnableRatelimiters:              true,
-		SourcePollTimeout:               1500 * time.Millisecond,
-		WaitFirstRouteLoad:              true,
-		SuppressRouteUpdateLogs:         false,
-		MetricsListener:                 ":8091",
-		RoutesFile:                      filePath,
-		InlineRoutes:                    `healthz: Path("/healthz") -> status(200) -> inlineContent("OK") -> <shunt>;`,
-		ApplicationLogOutput:            fdApp.Name(),
-		AccessLogOutput:                 fdAccess.Name(),
-		AccessLogDisabled:               false,
-		MaxTCPListenerConcurrency:       0,
-		ExpectedBytesPerRequest:         1024,
-		ReadHeaderTimeoutServer:         0,
-		ReadTimeoutServer:               1 * time.Second,
-		MetricsFlavours:                 []string{"codahale"},
-		EnablePrometheusMetrics:         true,
-		LoadBalancerHealthCheckInterval: 3 * time.Second,
-		OAuthTokeninfoURL:               "http://127.0.0.1:12345",
-		CredentialsPaths:                []string{"/does-not-exist"},
-		CompressEncodings:               []string{"gzip"},
-		IgnoreTrailingSlash:             true,
-		EnableBreakers:                  true,
-		DebugListener:                   ":8092",
-		StatusChecks:                    []string{"http://127.0.0.1:8091/metrics", "http://127.0.0.1:8092"},
-	}
-
-	dcs, err := createDataClients(o, nil)
-	if err != nil {
-		t.Fatalf("Failed to createDataclients: %v", err)
-	}
-
-	fr := createFilterRegistry(
-		fscheduler.NewFifo(),
-		flog.NewDisableAccessLog(),
-		builtin.NewStatus(),
-		builtin.NewInlineContent(),
-	)
-	metrics := &metricstest.MockMetrics{}
-	reg := scheduler.RegistryWith(scheduler.Options{
-		Metrics:                metrics,
-		EnableRouteFIFOMetrics: true,
-	})
-	defer reg.Close()
-
-	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
-	defer endpointRegistry.Close()
-
-	// create LB in front of apiservers to be able to switch the data served by apiserver
-	ro := routing.Options{
-		SignalFirstLoad: true,
-		FilterRegistry:  fr,
-		DataClients:     dcs, //[]routing.DataClient{dc},
-		PostProcessors: []routing.PostProcessor{
-			loadbalancer.NewAlgorithmProvider(),
-			endpointRegistry,
-			reg,
-		},
-		SuppressLogs: true,
-	}
-	rt := routing.New(ro)
-	defer rt.Close()
-	<-rt.FirstLoad()
-	tracer := tracingtest.NewTracer()
-	pr := proxy.WithParams(proxy.Params{
-		Routing:     rt,
-		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
-	})
-	defer pr.Close()
-	lb := stdlibhttptest.NewServer(pr)
-	defer lb.Close()
-
-	sigs := make(chan os.Signal, 1)
-	go run(o, sigs, nil)
-
-	for range 30 {
-		t.Logf("Waiting for proxy being ready")
-
-		rsp, _ := http.DefaultClient.Get("http://localhost:8090/healthz")
-		if rsp != nil && rsp.StatusCode == 200 {
-			break
+	t.Run("all dataclients work as expected", func(t *testing.T) {
+		// routesfile
+		routesFileStatus := 201
+		routeStringFmt := `r%d: Path("/routes-file") -> disableAccessLog() -> status(%d) -> inlineContent("Got it") -> <shunt>;`
+		filePath, err := createRoutesFile(fmt.Sprintf(routeStringFmt, routesFileStatus, routesFileStatus))
+		if err != nil {
+			t.Fatalf("Failed to create routes file: %v", err)
 		}
-		time.Sleep(100 * time.Millisecond)
-	}
+		defer os.Remove(filePath)
 
-	rsp, err := http.DefaultClient.Get("http://localhost:8090/routes-file")
-	if err != nil {
-		t.Fatalf("Failed to GET routes file route: %v", err)
-	}
+		// application log
+		fdApp, err := os.CreateTemp("/tmp", "app_log_")
+		if err != nil {
+			t.Fatalf("Failed to create tempfile: %v", err)
+		}
+		defer fdApp.Close()
 
-	if rsp.StatusCode != routesFileStatus {
-		t.Fatalf("Failed to GET the status of routes file route: %d", rsp.StatusCode)
-	}
+		// access log
+		fdAccess, err := os.CreateTemp("/tmp", "access_log_")
+		if err != nil {
+			t.Fatalf("Failed to create tempfile: %v", err)
+		}
+		defer fdAccess.Close()
 
-	sigs <- syscall.SIGTERM
+		// run skipper proxy that we want to test
+		o := Options{
+			Address:                         ":8090",
+			EnableRatelimiters:              true,
+			SourcePollTimeout:               1500 * time.Millisecond,
+			WaitFirstRouteLoad:              true,
+			SuppressRouteUpdateLogs:         false,
+			MetricsListener:                 ":8091",
+			RoutesFile:                      filePath,
+			InlineRoutes:                    `healthz: Path("/healthz") -> status(200) -> inlineContent("OK") -> <shunt>;`,
+			ApplicationLogOutput:            fdApp.Name(),
+			AccessLogOutput:                 fdAccess.Name(),
+			AccessLogDisabled:               false,
+			MaxTCPListenerConcurrency:       0,
+			ExpectedBytesPerRequest:         1024,
+			ReadHeaderTimeoutServer:         0,
+			ReadTimeoutServer:               1 * time.Second,
+			MetricsFlavours:                 []string{"codahale"},
+			EnablePrometheusMetrics:         true,
+			LoadBalancerHealthCheckInterval: 3 * time.Second,
+			OAuthTokeninfoURL:               "http://127.0.0.1:12345",
+			CredentialsPaths:                []string{"/does-not-exist"},
+			CompressEncodings:               []string{"gzip"},
+			IgnoreTrailingSlash:             true,
+			EnableBreakers:                  true,
+			DebugListener:                   ":8092",
+			StatusChecks:                    []string{"http://127.0.0.1:8091/metrics", "http://127.0.0.1:8092"},
+		}
+
+		dcs, err := createDataClients(o, nil)
+		if err != nil {
+			t.Fatalf("Failed to createDataclients: %v", err)
+		}
+
+		fr := createFilterRegistry(
+			fscheduler.NewFifo(),
+			flog.NewDisableAccessLog(),
+			builtin.NewStatus(),
+			builtin.NewInlineContent(),
+		)
+		metrics := &metricstest.MockMetrics{}
+		reg := scheduler.RegistryWith(scheduler.Options{
+			Metrics:                metrics,
+			EnableRouteFIFOMetrics: true,
+		})
+		defer reg.Close()
+
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
+
+		// create LB in front of apiservers to be able to switch the data served by apiserver
+		ro := routing.Options{
+			SignalFirstLoad: true,
+			FilterRegistry:  fr,
+			DataClients:     dcs,
+			PostProcessors: []routing.PostProcessor{
+				loadbalancer.NewAlgorithmProvider(),
+				endpointRegistry,
+				reg,
+			},
+			SuppressLogs: true,
+		}
+		rt := routing.New(ro)
+		defer rt.Close()
+		<-rt.FirstLoad()
+		tracer := tracingtest.NewTracer()
+		pr := proxy.WithParams(proxy.Params{
+			Routing:     rt,
+			OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+		})
+		defer pr.Close()
+		lb := stdlibhttptest.NewServer(pr)
+		defer lb.Close()
+
+		sigs := make(chan os.Signal, 1)
+		go run(o, sigs, nil)
+
+		for range 30 {
+			t.Logf("Waiting for proxy being ready")
+
+			rsp, _ := http.DefaultClient.Get("http://localhost:8090/healthz")
+			if rsp != nil && rsp.StatusCode == 200 {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		rsp, err := http.DefaultClient.Get("http://localhost:8090/routes-file")
+		if err != nil {
+			t.Fatalf("Failed to GET routes file route: %v", err)
+		}
+
+		if rsp.StatusCode != routesFileStatus {
+			t.Fatalf("Failed to GET the status of routes file route: %d", rsp.StatusCode)
+		}
+
+		sigs <- syscall.SIGTERM
+	})
+
+	t.Run("ensure all dataclients work as expected", func(t *testing.T) {
+		// routesfile
+		routesFileStatus := 201
+		routeStringFmt := `r%d: Path("/routes-file") -> disableAccessLog() -> status(%d) -> inlineContent("Got it") -> <shunt>;`
+		filePath, err := createRoutesFile(fmt.Sprintf(routeStringFmt, routesFileStatus, routesFileStatus))
+		if err != nil {
+			t.Fatalf("Failed to create routes file: %v", err)
+		}
+		defer os.Remove(filePath)
+
+		// application log
+		fdApp, err := os.CreateTemp("/tmp", "app_log_")
+		if err != nil {
+			t.Fatalf("Failed to create tempfile: %v", err)
+		}
+		defer fdApp.Close()
+
+		// access log
+		fdAccess, err := os.CreateTemp("/tmp", "access_log_")
+		if err != nil {
+			t.Fatalf("Failed to create tempfile: %v", err)
+		}
+		defer fdAccess.Close()
+
+		// run skipper proxy that we want to test
+		o := Options{
+			EnsureDataClient:                []string{"inline", "eskipfile"},
+			Address:                         ":8090",
+			EnableRatelimiters:              true,
+			SourcePollTimeout:               1500 * time.Millisecond,
+			WaitFirstRouteLoad:              true,
+			SuppressRouteUpdateLogs:         false,
+			MetricsListener:                 ":8091",
+			RoutesFile:                      filePath,
+			InlineRoutes:                    `healthz: Path("/healthz") -> status(200) -> inlineContent("OK") -> <shunt>;`,
+			ApplicationLogOutput:            fdApp.Name(),
+			AccessLogOutput:                 fdAccess.Name(),
+			AccessLogDisabled:               false,
+			MaxTCPListenerConcurrency:       0,
+			ExpectedBytesPerRequest:         1024,
+			ReadHeaderTimeoutServer:         0,
+			ReadTimeoutServer:               1 * time.Second,
+			MetricsFlavours:                 []string{"prometheus"},
+			EnablePrometheusMetrics:         true,
+			LoadBalancerHealthCheckInterval: 3 * time.Second,
+			OAuthTokeninfoURL:               "http://127.0.0.1:12345",
+			CredentialsPaths:                []string{"/does-not-exist"},
+			CompressEncodings:               []string{"gzip"},
+			IgnoreTrailingSlash:             true,
+			EnableBreakers:                  true,
+			DebugListener:                   ":8092",
+			StatusChecks:                    []string{"http://127.0.0.1:8091/metrics", "http://127.0.0.1:8092"},
+		}
+
+		dcs, err := createDataClients(o, nil)
+		if err != nil {
+			t.Fatalf("Failed to createDataclients: %v", err)
+		}
+
+		fr := createFilterRegistry(
+			fscheduler.NewFifo(),
+			flog.NewDisableAccessLog(),
+			builtin.NewStatus(),
+			builtin.NewInlineContent(),
+		)
+		metrics := &metricstest.MockMetrics{}
+		reg := scheduler.RegistryWith(scheduler.Options{
+			Metrics:                metrics,
+			EnableRouteFIFOMetrics: true,
+		})
+		defer reg.Close()
+
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
+
+		// create LB in front of apiservers to be able to switch the data served by apiserver
+		ro := routing.Options{
+			SignalFirstLoad: true,
+			FilterRegistry:  fr,
+			DataClients:     dcs, //[]routing.DataClient{dc},
+			PostProcessors: []routing.PostProcessor{
+				loadbalancer.NewAlgorithmProvider(),
+				endpointRegistry,
+				reg,
+			},
+			SuppressLogs: true,
+		}
+		rt := routing.New(ro)
+		defer rt.Close()
+		<-rt.FirstLoad()
+		tracer := tracingtest.NewTracer()
+		pr := proxy.WithParams(proxy.Params{
+			Routing:     rt,
+			OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+		})
+		defer pr.Close()
+		lb := stdlibhttptest.NewServer(pr)
+		defer lb.Close()
+
+		sigs := make(chan os.Signal, 1)
+		go run(o, sigs, nil)
+
+		for range 30 {
+			t.Logf("Waiting for proxy being ready")
+
+			rsp, _ := http.DefaultClient.Get("http://localhost:8090/healthz")
+			if rsp != nil && rsp.StatusCode == 200 {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		rsp, err := http.DefaultClient.Get("http://localhost:8090/routes-file")
+		if err != nil {
+			t.Fatalf("Failed to GET routes file route: %v", err)
+		}
+
+		if rsp.StatusCode != routesFileStatus {
+			t.Fatalf("Failed to GET the status of routes file route: %d", rsp.StatusCode)
+		}
+
+		sigs <- syscall.SIGTERM
+	})
+
+	t.Run("ensure fail if dataclients do not work as expected", func(t *testing.T) {
+		// routesfile
+		routesFileStatus := 201
+		routeStringFmt := `r%d: Path("/routes-file") -> disableAccessLog() -> status(%d) -> inlineContent("Got it") -> <shunt>;`
+		filePath, err := createRoutesFile(fmt.Sprintf(routeStringFmt, routesFileStatus, routesFileStatus))
+		if err != nil {
+			t.Fatalf("Failed to create routes file: %v", err)
+		}
+		defer os.Remove(filePath)
+
+		// application log
+		fdApp, err := os.CreateTemp("/tmp", "app_log_")
+		if err != nil {
+			t.Fatalf("Failed to create tempfile: %v", err)
+		}
+		defer fdApp.Close()
+
+		// access log
+		fdAccess, err := os.CreateTemp("/tmp", "access_log_")
+		if err != nil {
+			t.Fatalf("Failed to create tempfile: %v", err)
+		}
+		defer fdAccess.Close()
+
+		// run skipper proxy that we want to test
+		o := Options{
+			EnsureDataClient:        []string{"inline", "eskipfile"},
+			Address:                 ":8090",
+			EnableRatelimiters:      true,
+			SourcePollTimeout:       1500 * time.Millisecond,
+			WaitFirstRouteLoad:      true,
+			SuppressRouteUpdateLogs: false,
+			MetricsListener:         ":8091",
+			// broken route-file
+			// RoutesFile:                      filePath,
+			InlineRoutes:                    `healthz: Path("/healthz") -> status(200) -> inlineContent("OK") -> <shunt>;`,
+			ApplicationLogOutput:            fdApp.Name(),
+			AccessLogOutput:                 fdAccess.Name(),
+			AccessLogDisabled:               false,
+			MaxTCPListenerConcurrency:       0,
+			ExpectedBytesPerRequest:         1024,
+			ReadHeaderTimeoutServer:         0,
+			ReadTimeoutServer:               1 * time.Second,
+			MetricsFlavours:                 []string{"prometheus"},
+			EnablePrometheusMetrics:         true,
+			LoadBalancerHealthCheckInterval: 3 * time.Second,
+			OAuthTokeninfoURL:               "http://127.0.0.1:12345",
+			CredentialsPaths:                []string{"/does-not-exist"},
+			CompressEncodings:               []string{"gzip"},
+			IgnoreTrailingSlash:             true,
+			EnableBreakers:                  true,
+			DebugListener:                   ":8092",
+			StatusChecks:                    []string{"http://127.0.0.1:8091/metrics", "http://127.0.0.1:8092"},
+		}
+
+		if _, err := createDataClients(o, nil); err != nil {
+			t.Logf("Detected broken dataclient routes: %v", err)
+		} else {
+			t.Fatal(`Failed to detect broken dataclient routes "eskipfile"`)
+		}
+	})
+
 }
