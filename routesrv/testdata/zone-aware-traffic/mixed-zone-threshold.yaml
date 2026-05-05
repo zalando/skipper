@@ -118,8 +118,8 @@ endpoints:
     - 10.4.0.3
     zone: eu-central-1a
   - addresses:
-    - 10.4.0.4
-    zone: eu-central-1a
+    - 10.4.1.4
+    zone: eu-central-1b
 ports:
   - name: web
     port: 8080
