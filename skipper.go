@@ -1244,20 +1244,6 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 		clients = append(clients, kubernetesClient)
 	}
 
-	for _, s := range o.EnsureDataClient {
-		found := false
-		for _, client := range clients {
-			if ndc, ok := client.(routing.NamedDataClient); ok {
-				if ndc.Name() == s {
-					found = true
-				}
-			}
-		}
-		if !found {
-			return nil, fmt.Errorf("failed to find dataclient that was ensured: %q", s)
-		}
-	}
-
 	return clients, nil
 }
 
@@ -1766,6 +1752,20 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	// append custom data clients
 	dataClients = append(dataClients, o.CustomDataClients...)
+
+	for _, s := range o.EnsureDataClient {
+		found := false
+		for _, client := range dataClients {
+			if ndc, ok := client.(routing.NamedDataClient); ok {
+				if ndc.Name() == s {
+					found = true
+				}
+			}
+		}
+		if !found {
+			return fmt.Errorf("failed to find dataclient that was ensured: %q", s)
+		}
+	}
 
 	if len(dataClients) == 0 {
 		log.Warning("no route source specified")
