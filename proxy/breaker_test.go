@@ -280,13 +280,6 @@ func wait(d time.Duration) scenarioStep {
 	}
 }
 
-func trace(msg string) scenarioStep {
-	return func(c *breakerTestContext) {
-		c.t.Helper()
-		println(msg)
-	}
-}
-
 func TestBreakerConsecutive(t *testing.T) {
 	for _, s := range []breakerScenario{{
 		title: "no breaker",
@@ -543,7 +536,6 @@ func TestBreakerMultipleHosts(t *testing.T) {
 			checkBackendHostCounter("foo", testRateWindow),
 			checkBackendHostCounter("bar", testRateWindow),
 			setBackendFail,
-			trace("setting fail"),
 			setBackendHostFail("foo"),
 			setBackendHostFail("bar"),
 			times(testRateFailures,
