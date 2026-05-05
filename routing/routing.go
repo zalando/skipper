@@ -58,8 +58,7 @@ type DataClient interface {
 // NamedDataClient is like DataClient but has a name, which can be
 // used to EnsureDataClient or -ensure-dataclients.
 type NamedDataClient interface {
-	LoadAll() ([]*eskip.Route, error)
-	LoadUpdate() ([]*eskip.Route, []string, error)
+	DataClient
 	Name() string
 }
 
