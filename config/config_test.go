@@ -162,6 +162,7 @@ func defaultConfig(with func(*Config)) *Config {
 		SwarmValkeyConnLifetime:                 time.Minute,
 		SwarmValkeyConnWriteTimeout:             25 * time.Millisecond,
 		SwarmValkeyDialTimeout:                  25 * time.Millisecond,
+		SwarmValkeyKeepAlive:                    time.Second,
 		SwarmValkeyUpdateInterval:               10 * time.Second,
 		SwarmKubernetesNamespace:                "kube-system",
 		SwarmKubernetesLabelSelectorKey:         "application",
