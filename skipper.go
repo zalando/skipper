@@ -1753,18 +1753,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// append custom data clients
 	dataClients = append(dataClients, o.CustomDataClients...)
 
-	for _, s := range o.EnsureDataClient {
-		found := false
-		for _, client := range dataClients {
-			if ndc, ok := client.(routing.NamedDataClient); ok {
-				if ndc.Name() == s {
-					found = true
-				}
-			}
-		}
-		if !found {
-			return fmt.Errorf("failed to find dataclient that was ensured: %q", s)
-		}
+	if err = ensureExpectedDataclients(o, dataClients); err != nil {
+		return err
 	}
 
 	if len(dataClients) == 0 {
@@ -2490,6 +2480,23 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr, cr)
+}
+
+func ensureExpectedDataclients(o Options, dataClients []routing.DataClient) error {
+	for _, s := range o.EnsureDataClient {
+		found := false
+		for _, client := range dataClients {
+			if ndc, ok := client.(routing.NamedDataClient); ok {
+				if ndc.Name() == s {
+					found = true
+				}
+			}
+		}
+		if !found {
+			return fmt.Errorf("failed to find dataclient that was ensured: %q", s)
+		}
+	}
+	return nil
 }
 
 // Run skipper.
