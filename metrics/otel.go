@@ -600,3 +600,7 @@ func (o *OTel) RegisterHandler(_ string, _ *http.ServeMux) {}
 func (o *OTel) Close() {
 	_ = o.provider.Shutdown(context.Background())
 }
+
+func (o *OTel) String() string {
+	return "otel"
+}

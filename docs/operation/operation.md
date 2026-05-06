@@ -248,13 +248,13 @@ You may add static metrics labels like `version` using Prometheus [relabeling fe
 ### OpenTelemetry (OTel)
 
 Skipper can push metrics to any [OpenTelemetry](https://opentelemetry.io/) compatible backend
-(Grafana Alloy, OpenTelemetry Collector, Jaeger, Tempo, etc.) using the OTLP/HTTP exporter.
+(OpenTelemetry Collector, Jaeger, etc.) using the OTLP/HTTP exporter.
 Unlike the Prometheus and Codahale backends, the OTel backend **pushes** metrics on a periodic
 interval rather than exposing a scrape endpoint. There is no HTTP handler registered on
-`:9911/metrics` when this backend is active.
+`:9911/metrics` when only this backend is active.
 
-The OTel backend is not yet wired into the `-metrics-flavour` flag and must be instantiated
-programmatically when embedding skipper as a library (set `skipper.Options.MetricsBackend`).
+The OTel backend can be enabled by flag `-metrics-flavour=otel` or as
+a skipper library user you can set `skipper.Options.MetricsBackend`.
 
 #### Required environment variables
 

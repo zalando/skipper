@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -25,38 +25,6 @@ const (
 	OTelKind
 	AllKind = CodaHaleKind | PrometheusKind | OTelKind
 )
-
-func (k Kind) String() string {
-	switch k {
-	case CodaHaleKind:
-		return "codahale"
-	case PrometheusKind:
-		return "prometheus"
-	case OTelKind:
-		return "otel"
-	case AllKind:
-		return "all"
-	default:
-		return "unknown"
-	}
-}
-
-// ParseMetricsKind parses a string and returns the correct Metrics kind.
-func ParseMetricsKind(t string) Kind {
-	t = strings.ToLower(t)
-	switch t {
-	case "codahale":
-		return CodaHaleKind
-	case "prometheus":
-		return PrometheusKind
-	case "otel":
-		return OTelKind
-	case "all":
-		return AllKind
-	default:
-		return UnknownKind
-	}
-}
 
 // Metrics is the generic interface that all the required backends
 // should implement to be a skipper metrics compatible backend.
@@ -88,6 +56,7 @@ type Metrics interface {
 	UpdateGauge(key string, value float64)
 	SetInvalidRoute(routeId, reason string)
 	Close()
+	String() string
 }
 
 // PrometheusMetrics is an optional interface that a Metrics flavour can implement.
@@ -261,21 +230,59 @@ func NewDefaultHandler(o Options) http.Handler {
 // NewMetrics creates a metrics collector instance based on the Format option.
 func NewMetrics(o Options) Metrics {
 	var m Metrics
+
 	switch o.Format {
 	case AllKind:
+		o.Format &^= AllKind
 		m = NewAll(o)
 	case PrometheusKind:
+		o.Format &^= PrometheusKind
 		m = NewPrometheus(o)
 	case OTelKind:
+		o.Format &^= OTelKind
 		var err error
 		m, err = NewOTel(o)
 		if err != nil {
 			log.Fatalf("Failed to create OTel metrics provider: %v", err)
 		}
+	case CodaHaleKind:
+		m = NewCodaHale(o)
+		return m
 
 	default:
-		// CodaHale is the default metrics implementation.
-		m = NewCodaHale(o)
+		if o.Format <= 0 {
+			m = NewCodaHale(o)
+			return m
+		}
+
+		a := &All{}
+		providers := make([]Metrics, 0)
+		for o.Format > 0 {
+			switch {
+			case o.Format&OTelKind != 0:
+				o.Format &^= OTelKind
+				otel, err := NewOTel(o)
+				if err != nil {
+					logrus.Errorf("Failed to crete otel: %v", err)
+				} else {
+					a.otel = otel
+					providers = append(providers, otel)
+				}
+
+			case o.Format&PrometheusKind != 0:
+				o.Format &^= PrometheusKind
+				a.prometheus = NewPrometheus(o)
+				providers = append(providers, a.prometheus)
+			case o.Format&CodaHaleKind != 0:
+				o.Format &^= CodaHaleKind
+				a.codaHale = NewCodaHale(o)
+				providers = append(providers, a.codaHale)
+			default:
+				log.Fatalf("Failed to find metrics format: %v", o.Format)
+			}
+		}
+		a.providers = providers
+		m = a
 	}
 
 	return m

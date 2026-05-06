@@ -544,6 +544,8 @@ func (p *Prometheus) SetInvalidRoute(routeId, reason string) {
 
 func (p *Prometheus) Close() {}
 
+func (p *Prometheus) String() string { return "prometheus" }
+
 // ScopedPrometheusRegisterer implements the PrometheusMetrics interface
 func (p *Prometheus) ScopedPrometheusRegisterer(subsystem string) prometheus.Registerer {
 	return prometheus.WrapRegistererWithPrefix(p.namespace+"_"+subsystem+"_", p.registry)

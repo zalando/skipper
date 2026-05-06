@@ -230,3 +230,5 @@ func (m *MockMetrics) SetInvalidRoute(routeID, reason string) {
 }
 
 func (*MockMetrics) Close() {}
+
+func (*MockMetrics) String() string { return "mock" }

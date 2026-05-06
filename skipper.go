@@ -1688,7 +1688,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		metricsKind = metrics.CodaHaleKind
 	}
 
-	log.Infof("Expose metrics in %s format", metricsKind)
 	mtrOpts := metrics.Options{
 		Format:                             metricsKind,
 		Prefix:                             o.MetricsPrefix,
@@ -1727,6 +1726,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	if mtr == nil {
 		mtr = metrics.NewMetrics(mtrOpts)
 	}
+	log.Infof("Expose metrics in format: %q", mtr.String())
 	// set global instance for backwards compatibility
 	metrics.Default = mtr
 
