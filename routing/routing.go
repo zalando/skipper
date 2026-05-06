@@ -55,6 +55,13 @@ type DataClient interface {
 	LoadUpdate() ([]*eskip.Route, []string, error)
 }
 
+// NamedDataClient is like DataClient but has a name, which can be
+// used to EnsureDataClient or -ensure-dataclients.
+type NamedDataClient interface {
+	DataClient
+	Name() string
+}
+
 // Predicate instances are used as custom user defined route
 // matching predicates.
 type Predicate interface {

@@ -96,6 +96,10 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 	return dataClient, nil
 }
 
+func (*remoteEskipFile) Name() string {
+	return "eskipfile-remote"
+}
+
 // LoadAll returns the parsed route definitions found in the file.
 func (client *remoteEskipFile) LoadAll() ([]*eskip.Route, error) {
 	var err error = nil

@@ -26,6 +26,10 @@ func New(r string) (routing.DataClient, error) {
 	return &routes{parsed: parsed}, nil
 }
 
+func (*routes) Name() string {
+	return "inline"
+}
+
 func (r *routes) LoadAll() ([]*eskip.Route, error) {
 	return r.parsed, nil
 }

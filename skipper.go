@@ -488,6 +488,8 @@ type Options struct {
 	// of routes were applied.
 	WaitFirstRouteLoad bool
 
+	EnsureDataClient []string
+
 	// SuppressRouteUpdateLogs indicates to log only summaries of the routing updates
 	// instead of full details of the updated/deleted routes.
 	SuppressRouteUpdateLogs bool
@@ -1751,6 +1753,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// append custom data clients
 	dataClients = append(dataClients, o.CustomDataClients...)
 
+	if err = ensureExpectedDataclients(o, dataClients); err != nil {
+		return err
+	}
+
 	if len(dataClients) == 0 {
 		log.Warning("no route source specified")
 	}
@@ -2474,6 +2480,23 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr, cr)
+}
+
+func ensureExpectedDataclients(o Options, dataClients []routing.DataClient) error {
+	for _, s := range o.EnsureDataClient {
+		found := false
+		for _, client := range dataClients {
+			if ndc, ok := client.(routing.NamedDataClient); ok {
+				if ndc.Name() == s {
+					found = true
+				}
+			}
+		}
+		if !found {
+			return fmt.Errorf("failed to find dataclient that was ensured: %q", s)
+		}
+	}
+	return nil
 }
 
 // Run skipper.
