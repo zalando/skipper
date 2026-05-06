@@ -1007,6 +1007,7 @@ type Options struct {
 	SwarmValkeyPassword           string
 	SwarmValkeyConnWriteTimeout   time.Duration
 	SwarmValkeyDialTimeout        time.Duration
+	SwarmValkeyKeepAlive          time.Duration
 	SwarmValkeyConnLifetime       time.Duration
 	SwarmValkeyUpdateInterval     time.Duration
 	// swim based swarm
@@ -1943,6 +1944,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				Password:         o.SwarmValkeyPassword,
 				ConnWriteTimeout: o.SwarmValkeyConnWriteTimeout,
 				DialTimeout:      o.SwarmValkeyDialTimeout,
+				KeepAlive:        o.SwarmValkeyKeepAlive,
 				ConnLifetime:     o.SwarmValkeyConnLifetime,
 				Tracer:           tracer,
 				Log:              log.New(),
