@@ -319,6 +319,8 @@ type Config struct {
 	SwarmValkeyPassword           string        `yaml:"swarm-valkey-password"`
 	SwarmValkeyConnLifetime       time.Duration `yaml:"swarm-valkey-conn-lifetime"`
 	SwarmValkeyConnWriteTimeout   time.Duration `yaml:"swarm-valkey-conn-timeout"`
+	SwarmValkeyDialTimeout        time.Duration `yaml:"swarm-valkey-dial-timeout"`
+	SwarmValkeyKeepAlive          time.Duration `yaml:"swarm-valkey-keepalive"`
 	SwarmValkeyUpdateInterval     time.Duration `yaml:"swarm-valkey-update-interval"`
 	// swim based
 	SwarmKubernetesNamespace          string        `yaml:"swarm-namespace"`
@@ -689,6 +691,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.SwarmValkeyEndpointsRemoteURL, "swarm-valkey-remote", "", "Remote URL to pull valkey endpoints from.")
 	flag.DurationVar(&cfg.SwarmValkeyConnLifetime, "swarm-valkey-conn-lifetime", net.DefaultConnLifeTime, "set valkey client connection life time")
 	flag.DurationVar(&cfg.SwarmValkeyConnWriteTimeout, "swarm-valkey-conn-timeout", net.DefaultConnWriteTimeout, "set valkey client timeout for connect,read,write")
+	flag.DurationVar(&cfg.SwarmValkeyDialTimeout, "swarm-valkey-dial-timeout", net.DefaultDialTimeout, "set valkey client dial timeout")
+	flag.DurationVar(&cfg.SwarmValkeyKeepAlive, "swarm-valkey-keepalive", net.DefaultKeepAlive, "set valkey keepalive probes interval")
 	flag.DurationVar(&cfg.SwarmValkeyUpdateInterval, "swarm-valkey-update-interval", net.DefaultUpdateInterval, "set update interval to update valkey addresses")
 	// swim
 	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
@@ -1112,6 +1116,8 @@ func (c *Config) ToOptions() skipper.Options {
 		SwarmValkeyPassword:           c.SwarmValkeyPassword,
 		SwarmValkeyConnLifetime:       c.SwarmValkeyConnLifetime,
 		SwarmValkeyConnWriteTimeout:   c.SwarmValkeyConnWriteTimeout,
+		SwarmValkeyDialTimeout:        c.SwarmValkeyDialTimeout,
+		SwarmValkeyKeepAlive:          c.SwarmValkeyKeepAlive,
 		SwarmValkeyUpdateInterval:     c.SwarmValkeyUpdateInterval,
 		// swim based
 		SwarmKubernetesNamespace:          c.SwarmKubernetesNamespace,

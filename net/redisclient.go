@@ -108,8 +108,6 @@ const (
 	DefaultWriteTimeout = 25 * time.Millisecond
 	// DefaultPoolTimeout is the default timeout to access the connection pool
 	DefaultPoolTimeout = 25 * time.Millisecond
-	// DefaultDialTimeout is the default dial timeout
-	DefaultDialTimeout = 25 * time.Millisecond
 	// DefaultMinConns is the default minimum of connections
 	DefaultMinConns = 100
 	// DefaultMaxConns is the default maximum of connections
