@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net"
 	"slices"
 	"sort"
 	"strings"
@@ -53,8 +54,11 @@ type ValkeyOptions struct {
 	// Password is the password needed to connect to Valkey server
 	Password string
 
-	// ConnWriteTimeout for valkey socket read,write,dial timeouts https://pkg.go.dev/github.com/valkey-io/valkey-go#ClientOption
+	// ConnWriteTimeout for valkey socket read,write timeouts https://pkg.go.dev/github.com/valkey-io/valkey-go#ClientOption
 	ConnWriteTimeout time.Duration
+
+	// DialTimeout for valkey socket dial timeouts https://pkg.go.dev/github.com/valkey-io/valkey-go#ClientOption
+	DialTimeout time.Duration
 
 	// ConnLifetime connections will close after passing lifetime, see https://pkg.go.dev/github.com/valkey-io/valkey-go#ClientOption
 	ConnLifetime time.Duration
@@ -83,8 +87,10 @@ func createValkeyClient(addr string, opt *ValkeyOptions) (valkey.Client, error) 
 		Password:    opt.Password,
 		InitAddress: []string{addr},
 
-		ConnWriteTimeout: opt.ConnWriteTimeout, // Write,Read,Dial Timeout is the same
+		ConnWriteTimeout: opt.ConnWriteTimeout, // Write, Read Timeouts are  the same
 		ConnLifetime:     opt.ConnLifetime,
+
+		Dialer: net.Dialer{Timeout: opt.DialTimeout},
 
 		MaxFlushDelay: 20 * time.Microsecond, // reduce CPU load without much impact, ref: https://github.com/redis/rueidis/issues/156
 
