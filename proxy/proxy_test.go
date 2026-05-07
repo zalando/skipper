@@ -1928,7 +1928,7 @@ func TestHopHeaderRemoval(t *testing.T) {
 
 func TestLogsAccess(t *testing.T) {
 	var accessLog bytes.Buffer
-	logging.Init(logging.Options{AccessLogOutput: &accessLog})
+	al := logging.NewAccessLogger(logging.Options{AccessLogOutput: &accessLog})
 
 	response := "7 bytes"
 
@@ -1941,7 +1941,8 @@ func TestLogsAccess(t *testing.T) {
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
 
-	tp, err := newTestProxy(doc, FlagsNone)
+	newTestProxy(doc, FlagsNone)
+	tp, err := newTestProxyWithParams(doc, Params{Flags: FlagsNone, AccessLogger: al})
 	if err != nil {
 		t.Error(err)
 		return
@@ -1959,7 +1960,7 @@ func TestLogsAccess(t *testing.T) {
 
 func TestDisableAccessLog(t *testing.T) {
 	var buf bytes.Buffer
-	logging.Init(logging.Options{
+	al := logging.NewAccessLogger(logging.Options{
 		AccessLogOutput: &buf})
 
 	response := "7 bytes"
@@ -1975,6 +1976,7 @@ func TestDisableAccessLog(t *testing.T) {
 
 	tp, err := newTestProxyWithParams(doc, Params{
 		AccessLogDisabled: true,
+		AccessLogger:      al,
 	})
 	if err != nil {
 		t.Error(err)
@@ -2024,7 +2026,7 @@ func TestDisableAccessLogWithFilter(t *testing.T) {
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			var buf bytes.Buffer
-			logging.Init(logging.Options{
+			al := logging.NewAccessLogger(logging.Options{
 				AccessLogOutput: &buf})
 
 			response := "7 bytes"
@@ -2040,6 +2042,7 @@ func TestDisableAccessLogWithFilter(t *testing.T) {
 
 			tp, err := newTestProxyWithParams(doc, Params{
 				AccessLogDisabled: false,
+				AccessLogger:      al,
 			})
 			if err != nil {
 				t.Error(err)
@@ -2091,7 +2094,7 @@ func TestEnableAccessLogWithFilter(t *testing.T) {
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			var buf bytes.Buffer
-			logging.Init(logging.Options{
+			al := logging.NewAccessLogger(logging.Options{
 				AccessLogOutput: &buf})
 
 			response := "7 bytes"
@@ -2107,6 +2110,7 @@ func TestEnableAccessLogWithFilter(t *testing.T) {
 
 			tp, err := newTestProxyWithParams(doc, Params{
 				AccessLogDisabled: true,
+				AccessLogger:      al,
 			})
 			if err != nil {
 				t.Error(err)
@@ -2129,9 +2133,13 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 	testLog := NewTestLog()
 	defer testLog.Close()
 
-	logging.Init(logging.Options{AccessLogOutput: testLog})
+	al := logging.NewAccessLogger(logging.Options{AccessLogOutput: testLog})
 
-	p, err := newTestProxy(`* -> "http://bad-gateway.test"`, FlagsNone)
+	p, err := newTestProxyWithParams(`* -> "http://bad-gateway.test"`, Params{
+		AccessLogDisabled: true,
+		AccessLogger:      al,
+		Flags:             FlagsNone,
+	})
 	if err != nil {
 		t.Fatalf("Failed to create test proxy: %v", err)
 		return

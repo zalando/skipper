@@ -25,8 +25,8 @@ type accessLogContextKey struct{}
 func (c accessCustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 	if entry.Context != nil {
-		if traceId, ok := entry.Context.Value(accessLogContextKey{}).(string); ok {
-			return fmt.Appendf(nil, "%s\n", traceId), nil
+		if traceID, ok := entry.Context.Value(accessLogContextKey{}).(string); ok {
+			return fmt.Appendf(nil, "%s\n", traceID), nil
 		}
 	}
 	return fmt.Appendf(nil, "%s\n", entry.Message), nil
@@ -71,14 +71,14 @@ func testAccessLog(t *testing.T, entry *AccessEntry, expectedOutput string, o Op
 }
 
 func testAccessLogExtended(t *testing.T, entry *AccessEntry,
-	additional map[string]interface{},
+	additional map[string]any,
 	expectedOutput string,
 	o Options,
 ) {
 	var buf bytes.Buffer
 	o.AccessLogOutput = &buf
-	Init(o)
-	LogAccess(entry, additional)
+	lg := NewAccessLogger(o)
+	lg.LogAccess(entry, additional)
 	got := buf.String()
 	if got != "" {
 		got = got[:len(got)-1]
@@ -97,9 +97,9 @@ func testAccessLogDefault(t *testing.T, entry *AccessEntry, expectedOutput strin
 
 func TestAccessLogWithContext(t *testing.T) {
 	entry := testAccessEntry()
-	traceId := "c4ddfe9d-a0d3-4afb-bf26-24b9588731a0"
-	entry.Request = entry.Request.WithContext(context.WithValue(entry.Request.Context(), accessLogContextKey{}, traceId))
-	expectedOutput := traceId
+	traceID := "c4ddfe9d-a0d3-4afb-bf26-24b9588731a0"
+	entry.Request = entry.Request.WithContext(context.WithValue(entry.Request.Context(), accessLogContextKey{}, traceID))
+	expectedOutput := traceID
 
 	var buf bytes.Buffer
 	o := Options{
@@ -123,7 +123,7 @@ func TestAccessLogFormatJSONWithAdditionalData(t *testing.T) {
 }
 
 func TestAccessLogFormatJSONWithMaskedQueryParameters(t *testing.T) {
-	additional := map[string]interface{}{al.KeyMaskedQueryParams: map[string]struct{}{"foo": {}}}
+	additional := map[string]any{al.KeyMaskedQueryParams: map[string]struct{}{"foo": {}}}
 
 	params := url.Values{}
 	params.Add("foo", "bar")

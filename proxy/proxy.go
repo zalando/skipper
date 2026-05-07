@@ -287,6 +287,9 @@ type Params struct {
 	// printed. The choice can be overridden by filters
 	AccessLogDisabled bool
 
+	// AccessLogger if set the proxy will be able write access logs
+	AccessLogger *logging.AccessLogger
+
 	// EnableCopyStreamPoolExperimental if set to true the Proxy will use a
 	// sync.Pool to reduce memory garbage in copy stream.
 	EnableCopyStreamPoolExperimental bool
@@ -465,6 +468,7 @@ type Proxy struct {
 	breakers                 *circuit.Registry
 	limiters                 *ratelimit.Registry
 	log                      logging.Logger
+	accessLogger             *logging.AccessLogger
 	tracing                  *proxyTracing
 	upgradeAuditLogOut       io.Writer
 	upgradeAuditLogErr       io.Writer
@@ -893,6 +897,7 @@ func WithParams(p Params) *Proxy {
 		breakers:                 p.CircuitBreakers,
 		limiters:                 p.RateLimiters,
 		log:                      &logging.DefaultLog{},
+		accessLogger:             p.AccessLogger,
 		defaultHTTPStatus:        defaultHTTPStatus,
 		tracing:                  newProxyTracing(p.OpenTracing),
 		copyStreamPoolEnabled:    p.EnableCopyStreamPoolExperimental,
@@ -1757,7 +1762,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]interface{})
-			logging.LogAccess(entry, additionalData)
+			if p.accessLogger != nil {
+				p.accessLogger.LogAccess(entry, additionalData)
+			}
 		}
 
 		// This flush is required in I/O error

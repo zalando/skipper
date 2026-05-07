@@ -53,13 +53,10 @@ type AccessEntry struct {
 	AuthUser string
 }
 
-// TODO: create individual instances from the access log and
-// delegate the ownership from the package level to the user
-// code.
-var (
-	accessLog  *logrus.Logger
+type AccessLogger struct {
+	log        *logrus.Logger
 	stripQuery bool
-)
+}
 
 // strip port from addresses with hostname, ipv4 or ipv6
 func stripPort(address string) string {
@@ -101,7 +98,7 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 		"status", "response-size", "referer", "user-agent",
 		"duration", "requested-host", "flow-id", "audit"}
 
-	values := make([]interface{}, len(keys))
+	values := make([]any, len(keys))
 	for i, key := range keys {
 		if s, ok := e.Data[key].(string); ok {
 			values[i] = omitWhitespace(s)
@@ -110,7 +107,7 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 		}
 	}
 
-	return []byte(fmt.Sprintf(f.format, values...)), nil
+	return fmt.Appendf(nil, f.format, values...), nil
 }
 
 func stripQueryString(u string) string {
@@ -127,7 +124,7 @@ func maskQueryParams(req *http.Request, maskedQueryParams map[string]struct{}) s
 	strippedURI := stripQueryString(req.RequestURI)
 
 	params := req.URL.Query()
-	for k := range maps.Keys(maskedQueryParams) {
+	for k := range maskedQueryParams {
 		val := params.Get(k)
 		if val == "" {
 			continue
@@ -144,8 +141,8 @@ func hash(val string) uint64 {
 
 // LogAccess logs an access event in Apache combined log format (with a minor customization with the duration).
 // Additional allows to provide extra data that may be also logged, depending on the specific log format.
-func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
-	if accessLog == nil || entry == nil {
+func (alog *AccessLogger) LogAccess(entry *AccessEntry, additional map[string]any) {
+	if entry == nil {
 		return
 	}
 
@@ -156,7 +153,7 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 	referer := ""
 	userAgent := ""
 	requestedHost := ""
-	flowId := ""
+	flowID := ""
 	auditHeader := ""
 
 	ts := entry.RequestTime.Format(dateFormat)
@@ -172,10 +169,10 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		referer = entry.Request.Referer()
 		userAgent = entry.Request.UserAgent()
 		requestedHost = entry.Request.Host
-		flowId = entry.Request.Header.Get(flowidFilter.HeaderName)
+		flowID = entry.Request.Header.Get(flowidFilter.HeaderName)
 
 		uri = entry.Request.RequestURI
-		if stripQuery {
+		if alog.stripQuery {
 			uri = stripQueryString(uri)
 		} else if keys, ok := additional[al.KeyMaskedQueryParams].(map[string]struct{}); ok && len(keys) > 0 {
 			uri = maskQueryParams(entry.Request, keys)
@@ -196,7 +193,7 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		"response-size":  responseSize,
 		"requested-host": requestedHost,
 		"duration":       duration,
-		"flow-id":        flowId,
+		"flow-id":        flowID,
 		"audit":          auditHeader,
 		"auth-user":      authUser,
 	}
@@ -205,7 +202,7 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 
 	maps.Copy(logData, additional)
 
-	logEntry := accessLog.WithFields(logData)
+	logEntry := alog.log.WithFields(logData)
 	if entry.Request != nil {
 		logEntry = logEntry.WithContext(entry.Request.Context())
 	}
