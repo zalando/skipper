@@ -607,6 +607,21 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 	return engine, nil
 }
 
+// decisionLogTask holds everything needed to call logDecision off the hot path.
+// If sync is non-nil it is a flush sentinel: the worker closes it and skips logDecision.
+type decisionLogTask struct {
+	ctx    context.Context
+	input  interface{}
+	result *envoyauth.EvalResult
+	err    error
+	sync   chan struct{}
+}
+
+// defaultDecisionLogBufferSize is the number of pending decision log tasks that
+// can be queued before new ones are dropped. Each entry is a small struct; the
+// real memory cost is the decision payload held by *envoyauth.EvalResult.
+const defaultDecisionLogBufferSize = 1000
+
 type OpenPolicyAgentInstance struct {
 	manager                     *plugins.Manager
 	instanceConfig              OpenPolicyAgentInstanceConfig
@@ -631,6 +646,9 @@ type OpenPolicyAgentInstance struct {
 	bodyReadBufferSize int64
 
 	idGenerator flowid.Generator
+
+	decisionLogChan chan decisionLogTask
+	decisionLogDone chan struct{}
 }
 
 func envVariablesMap() map[string]string {
@@ -765,7 +783,12 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 
 		idGenerator: uniqueIDGenerator,
 		logger:      logging.Get().WithFields(map[string]any{"bundle-name": bundleName}),
+
+		decisionLogChan: make(chan decisionLogTask, defaultDecisionLogBufferSize),
+		decisionLogDone: make(chan struct{}),
 	}
+
+	go opa.runDecisionLogger()
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
 	manager.RegisterPluginStatusListener("instance-health-check", func(_ map[string]*plugins.Status) {
@@ -979,8 +1002,44 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 	opa.closingOnce.Do(func() {
 		opa.Logger().Info("Closing OPA instance...")
 		opa.closing = true
+		close(opa.decisionLogChan)
+		select {
+		case <-opa.decisionLogDone:
+		case <-ctx.Done():
+		}
 		opa.manager.Stop(ctx)
 	})
+}
+
+// runDecisionLogger drains decisionLogChan in the background so that logDecision
+// is never called on the request goroutine. The goroutine exits when the channel
+// is closed (during Close) and signals completion via decisionLogDone.
+func (opa *OpenPolicyAgentInstance) runDecisionLogger() {
+	defer close(opa.decisionLogDone)
+	for task := range opa.decisionLogChan {
+		if task.sync != nil {
+			close(task.sync) // unblock waitDecisionLogDrained
+			continue
+		}
+		if err := opa.logDecision(task.ctx, task.input, task.result, task.err); err != nil {
+			opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
+		}
+	}
+}
+
+// waitDecisionLogDrained blocks until all tasks enqueued before this call have
+// been processed by the background decision log goroutine. It is only used in
+// tests to synchronise before calling dlPlugin.Trigger().
+func (opa *OpenPolicyAgentInstance) waitDecisionLogDrained(ctx context.Context) {
+	sync := make(chan struct{})
+	select {
+	case opa.decisionLogChan <- decisionLogTask{sync: sync}:
+		select {
+		case <-sync:
+		case <-ctx.Done():
+		}
+	case <-ctx.Done():
+	}
 }
 
 func (opa *OpenPolicyAgentInstance) Logger() logging.Logger {
