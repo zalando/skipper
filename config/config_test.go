@@ -80,7 +80,7 @@ func defaultConfig(with func(*Config)) *Config {
 		DefaultHTTPStatus:                       404,
 		MaxAuditBody:                            1024,
 		MaxMatcherBufferSize:                    2097152,
-		MetricsFlavour:                          commaListFlag("codahale", "prometheus"),
+		MetricsFlavour:                          commaListFlag("codahale", "prometheus", "otel"),
 		FilterPlugins:                           newPluginFlag(),
 		PredicatePlugins:                        newPluginFlag(),
 		DataclientPlugins:                       newPluginFlag(),

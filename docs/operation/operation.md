@@ -245,6 +245,71 @@ To monitor skipper we recommend the following queries:
 
 You may add static metrics labels like `version` using Prometheus [relabeling feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config).
 
+### OpenTelemetry (OTel)
+
+Skipper can push metrics to any [OpenTelemetry](https://opentelemetry.io/) compatible backend
+(OpenTelemetry Collector, Jaeger, etc.) using the OTLP/HTTP exporter.
+Unlike the Prometheus and Codahale backends, the OTel backend **pushes** metrics on a periodic
+interval rather than exposing a scrape endpoint. There is no HTTP handler registered on
+`:9911/metrics` when only this backend is active.
+
+The OTel backend can be enabled by flag `-metrics-flavour=otel` or as
+a skipper library user you can set `skipper.Options.MetricsBackend`.
+
+#### Required environment variables
+
+| Variable | Description |
+|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base URL of the OTLP receiver, e.g. `http://collector:4318`. The metrics path `/v1/metrics` is appended automatically. |
+
+Alternatively you can target the metrics endpoint directly:
+
+| Variable | Description |
+|---|---|
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | Full URL of the OTLP metrics endpoint, e.g. `http://collector:4318/v1/metrics`. Takes precedence over `OTEL_EXPORTER_OTLP_ENDPOINT` for metrics. |
+
+#### Optional environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_HEADERS` | — | Comma-separated `key=value` pairs sent as HTTP headers with every export request. Useful for authentication tokens: `Authorization=Bearer <token>`. |
+| `OTEL_EXPORTER_OTLP_METRICS_HEADERS` | — | Same as above but only for the metrics signal. Takes precedence over `OTEL_EXPORTER_OTLP_HEADERS`. |
+| `OTEL_EXPORTER_OTLP_TIMEOUT` | `10s` | Timeout for each export request, e.g. `30s`. |
+| `OTEL_EXPORTER_OTLP_METRICS_TIMEOUT` | — | Metrics-specific export timeout. Takes precedence over `OTEL_EXPORTER_OTLP_TIMEOUT`. |
+| `OTEL_EXPORTER_OTLP_COMPRESSION` | none | Payload compression. Set to `gzip` to enable. |
+| `OTEL_EXPORTER_OTLP_METRICS_COMPRESSION` | — | Metrics-specific compression. Takes precedence over `OTEL_EXPORTER_OTLP_COMPRESSION`. |
+| `OTEL_EXPORTER_OTLP_CERTIFICATE` | — | Path to a PEM-encoded CA certificate file used to verify the collector's TLS certificate. |
+| `OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE` | — | Path to the client TLS certificate (mTLS). |
+| `OTEL_EXPORTER_OTLP_CLIENT_KEY` | — | Path to the client TLS private key (mTLS). |
+| `OTEL_METRIC_EXPORT_INTERVAL` | `60s` | How often metrics are pushed to the collector, e.g. `30s`. |
+| `OTEL_METRIC_EXPORT_TIMEOUT` | `30s` | Timeout for a single collection + export cycle. |
+| `OTEL_RESOURCE_ATTRIBUTES` | — | Comma-separated `key=value` resource attributes attached to every exported metric, e.g. `service.name=skipper,deployment.environment=production`. |
+| `OTEL_SERVICE_NAME` | — | Shorthand for setting the `service.name` resource attribute. Takes precedence over the same key in `OTEL_RESOURCE_ATTRIBUTES`. |
+
+#### Metric names and attributes
+
+The OTel backend uses the same metric names and attribute (label) keys as the Prometheus backend,
+so existing dashboards and alert rules can be reused with minor adjustments:
+
+| Prometheus label | OTel attribute |
+|---|---|
+| `code` | `code` |
+| `method` | `method` |
+| `route` | `route` |
+| `host` | `host` |
+| `filter` | `filter` |
+| `key` | `key` (custom metrics via `MeasureSince`, `IncCounter`, `UpdateGauge`) |
+| `route_id` / `reason` | `route_id` / `reason` (invalid routes) |
+
+Example resource configuration for a Kubernetes deployment:
+
+```sh
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.monitoring:4318
+OTEL_SERVICE_NAME=skipper-ingress
+OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production,k8s.cluster.name=my-cluster
+OTEL_METRIC_EXPORT_INTERVAL=30s
+```
+
 ### Proxy Metrics
 
 Skipper Proxy Metrics provides information about the time spent by skipper in processing a request i.e., the time spent by a request inside skipper (this excludes the response application of filters to a req/res, the backend roundtrip and serving the response). The total proxy metrics are enabled by default and these metrics can be used to build KPIs / SLOs, so as to understand and monitor the performance of skipper.

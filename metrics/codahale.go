@@ -274,6 +274,10 @@ func (c *CodaHale) Close() {
 	close(c.quit)
 }
 
+func (c *CodaHale) String() string {
+	return "codahale"
+}
+
 func (c *CodaHale) collectStats(capture func(r metrics.Registry)) {
 	ticker := time.NewTicker(statsRefreshDuration)
 	defer ticker.Stop()
@@ -343,7 +347,7 @@ func filterMetrics(reg metrics.Registry, prefix, key string) skipperMetrics {
 	if m != nil {
 		metrics[key] = m
 	} else {
-		reg.Each(func(name string, i interface{}) {
+		reg.Each(func(name string, i any) {
 			if key == "" || (strings.HasPrefix(name, canonicalKey)) {
 				metrics[prefix+name] = i
 			}
@@ -352,13 +356,13 @@ func filterMetrics(reg metrics.Registry, prefix, key string) skipperMetrics {
 	return metrics
 }
 
-type skipperMetrics map[string]interface{}
+type skipperMetrics map[string]any
 
 // This listener is used to expose the collected metrics.
 func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
-	data := make(map[string]map[string]interface{})
+	data := make(map[string]map[string]any)
 	for name, metric := range sm {
-		values := make(map[string]interface{})
+		values := make(map[string]any)
 		var metricsFamily string
 
 		switch m := metric.(type) {
@@ -410,7 +414,7 @@ func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 			values["error"] = fmt.Sprintf("unknown metrics type %T", m)
 		}
 		if data[metricsFamily] == nil {
-			data[metricsFamily] = make(map[string]interface{})
+			data[metricsFamily] = make(map[string]any)
 		}
 		data[metricsFamily][name] = values
 	}
