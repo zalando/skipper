@@ -10,8 +10,8 @@ import (
 	"time"
 
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
-	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/open-policy-agent/opa/v1/plugins/logs"
+	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -92,7 +92,6 @@ func TestDecisionLogDeliveredAfterClientCancel(t *testing.T) {
 	require.NoError(t, err)
 
 	// Simulate client disconnect: cancel the context before calling Eval.
-	// Matches purchase-service.log sub-pattern A (pre-eval cancel, HTTP 499).
 	canceledCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 
