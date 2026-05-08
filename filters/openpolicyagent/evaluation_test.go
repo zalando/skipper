@@ -19,6 +19,12 @@ import (
 // buildConfigWithManualDecisionLogs returns an OPA config with decision_logs using
 // trigger=manual so the upload loop never fires automatically. Tests call
 // Trigger() explicitly to flush, giving full control over upload timing.
+//
+// The envoy_ext_authz_grpc plugin is intentionally omitted: it binds a gRPC
+// listener on :9191 which can conflict with other tests running in parallel in
+// CI, causing a 30s startup timeout. These tests only exercise bundle download
+// and decision log delivery; EnvoyPluginConfig() falls back to safe defaults
+// when the plugin is absent.
 func buildConfigWithManualDecisionLogs(t *testing.T, opaURL, dlServiceURL string) []byte {
 	t.Helper()
 	return fmt.Appendf(nil, `{
@@ -33,13 +39,6 @@ func buildConfigWithManualDecisionLogs(t *testing.T, opaURL, dlServiceURL string
 			"service": "dl",
 			"reporting": {
 				"trigger": "manual"
-			}
-		},
-		"plugins": {
-			"envoy_ext_authz_grpc": {
-				"path": "envoy/authz/allow",
-				"dry-run": false,
-				"skip-request-body-parse": false
 			}
 		}
 	}`, opaURL, dlServiceURL)
