@@ -830,15 +830,8 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 }
 
 // TestAuthorizeRequestFilterWithS3DecisionLogPlugin_SlowS3BlocksClientResponse
-// verifies that a slow S3 upload does NOT delay the HTTP response to the client.
-//
-// Before the fix: evaluation.go called logDecision synchronously on the request
-// goroutine. With "unbuffered" eopa_dl, every millisecond S3 took to respond was
-// added to the client round-trip.
-//
-// After the fix: logDecision is dispatched to a background goroutine via a bounded
-// channel. The request goroutine returns immediately after enqueuing the task, so
-// S3 latency is fully decoupled from the client response time.
+// verifies that a slow S3 upload does NOT delay the HTTP response to the client
+// Even when using the "unbuffered" memory buffer, which directly couples the S3 upload ACK to the client response.
 func TestAuthorizeRequestFilterWithS3DecisionLogPlugin_SlowS3BlocksClientResponse(t *testing.T) {
 	if testing.Short() {
 		t.Skip("timing-sensitive test, skipped in short mode")
@@ -938,31 +931,13 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin_SlowS3BlocksClientRespons
 	defer rsp.Body.Close()
 	assert.Equal(t, http.StatusOK, rsp.StatusCode)
 
-	// logDecision now runs on a background goroutine, so S3 latency is fully
-	// decoupled from the client round-trip.
 	assert.Less(t, elapsed, s3Delay,
 		"client round-trip (%v) should not be delayed by the S3 upload (%v); "+
 			"logDecision must not run on the request goroutine", elapsed, s3Delay)
 }
 
-// TestFullDecisionLogBufferBlocksClientResponse is the regression test for Issue 1:
-// when the eopa_dl memory buffer is full, decision log processing must not delay
-// the HTTP response to the upstream client.
-//
-// How Benthos memory buffer backpressure works (and why it previously hit clients):
-//
-//  1. prod(ctx, msg) sends on an unbuffered tChan and waits for resChan.
-//  2. The buffer's inputLoop reads tChan, calls WriteBatch(ctx, msg, ackFn).
-//  3. WriteBatch calls ackFn immediately (ACKs upstream), then checks capacity.
-//     If (m.bytes + extraBytes) > m.cap it blocks on cond.Wait().
-//  4. While inputLoop is stuck in WriteBatch, it cannot read the next transaction
-//     from tChan (unbuffered). The next prod() call blocks on "tChan <-".
-//
-// Before the fix: logDecision ran synchronously on the request goroutine, so
-// request N+2's prod() call blocked the HTTP response.
-//
-// After the fix: logDecision is dispatched to a background goroutine. Buffer
-// backpressure stays within the background goroutine and never reaches the client.
+// TestFullDecisionLogBufferBlocksClientResponse is the regression test for the buffer full scenario when
+// the eopa_dl memory buffer is full, decision log processing must not delay the HTTP response to the upstream client.
 func TestFullDecisionLogBufferBlocksClientResponse(t *testing.T) {
 	if testing.Short() {
 		t.Skip("timing-sensitive test, skipped in short mode")
@@ -1016,10 +991,8 @@ func TestFullDecisionLogBufferBlocksClientResponse(t *testing.T) {
 	)
 	defer opaControlPlane.Stop()
 
-	// max_bytes=1200: large enough for one event (~874 bytes, so no ErrMessageTooLarge),
+	// max_bytes=1200: large enough for one event (~874 bytes),
 	// too small for two (1748 > 1200). After event 1 is in the buffer and S3 stalls,
-	// WriteBatch for event 2 blocks in cond.Wait(); inputLoop stops reading tChan;
-	// event 3's prod() call blocks on the unbuffered tChan send.
 	// batching.at_bytes=1 ensures events are flushed to S3 immediately.
 	config := []byte(fmt.Sprintf(`{
 		"services": { "test": { "url": %q } },
@@ -1069,8 +1042,7 @@ func TestFullDecisionLogBufferBlocksClientResponse(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, proxy.URL+"/allow", nil)
 	require.NoError(t, err)
 
-	// Request 1: fills the buffer. S3 receives and stalls on this batch, keeping
-	// the ReadBatch ack pending so m.bytes stays at the event size.
+	// Request 1: fills the buffer. S3 receives and stalls on this batch
 	rsp1, err := proxy.Client().Do(req)
 	require.NoError(t, err)
 	rsp1.Body.Close()
@@ -1092,11 +1064,6 @@ func TestFullDecisionLogBufferBlocksClientResponse(t *testing.T) {
 	rsp2.Body.Close()
 	assert.Equal(t, http.StatusOK, rsp2.StatusCode)
 
-	// Request 3: prod() tries to send on tChan (unbuffered). inputLoop is stuck in
-	// WriteBatch and cannot read from tChan, so this send blocks. Since logDecision
-	// runs synchronously on the request goroutine (current behaviour), the client
-	// round-trip is delayed >= stallDuration.
-	// After the fix, logDecision is off the hot path and elapsed < stallDuration.
 	client := proxy.Client()
 	client.Timeout = stallDuration + 2*time.Second
 	start := time.Now()
@@ -1107,8 +1074,6 @@ func TestFullDecisionLogBufferBlocksClientResponse(t *testing.T) {
 		rsp3.Body.Close()
 	}
 
-	// After the fix: logDecision runs on a background goroutine, so buffer
-	// backpressure never reaches the request goroutine.
 	assert.Less(t, elapsed, stallDuration,
 		"client round-trip (%v) should not be delayed by the full decision log buffer (%v stall); "+
 			"logDecision must not block the request goroutine", elapsed, stallDuration)
