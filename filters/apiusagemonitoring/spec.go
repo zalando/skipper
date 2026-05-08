@@ -75,10 +75,12 @@ func NewApiUsageMonitoring(
 	realmsTrackingMatcher, err := loadOrCompileRegex(realmsTrackingPattern)
 	if err != nil {
 		log.Errorf(
-			"api-usage-monitoring-realmsTrackingPattern-tracking-pattern (global config) ignored: error compiling regular expression %q: %v",
+			"api-usage-monitoring-realmsTrackingPattern-tracking-pattern"+
+				" (global config) ignored: error compiling regular expression %q: %v",
 			realmsTrackingPattern, err)
 		realmsTrackingMatcher = regexp.MustCompile("services")
-		log.Warn("defaulting to 'services' as api-usage-monitoring-realmsTrackingPattern-tracking-pattern (global config)")
+		log.Warn("defaulting to 'services' as api-usage-monitoring-" +
+			"realmsTrackingPattern-tracking-pattern (global config)")
 	}
 
 	// Create the filter Spec
@@ -253,24 +255,31 @@ func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*a
 }
 
 func (s *apiUsageMonitoringSpec) buildUnknownPathInfo(paths []*pathInfo) *pathInfo {
-	var applicationId *string
-	for i := range paths {
-		path := paths[i]
-		if applicationId != nil && *applicationId != path.ApplicationId {
-			return s.unknownPath
-		}
-		applicationId = &path.ApplicationId
+	if len(paths) == 0 {
+		return s.unknownPath
 	}
 
-	if applicationId != nil && *applicationId != "" {
-		return newPathInfo(
-			*applicationId,
-			s.unknownPath.Tag,
-			s.unknownPath.ApiId,
-			s.unknownPath.PathTemplate,
-			s.unknownPath.ClientTracking)
+	var applicationId, apiId *string
+	for i := range paths {
+		path := paths[i]
+		if applicationId == nil {
+			applicationId = &path.ApplicationId
+		} else if *applicationId != path.ApplicationId {
+			applicationId = &s.unknownPath.ApplicationId
+		}
+		if apiId == nil {
+			apiId = &path.ApiId
+		} else if *apiId != path.ApiId {
+			apiId = &s.unknownPath.ApiId
+		}
 	}
-	return s.unknownPath
+
+	return newPathInfo(
+		*applicationId,
+		s.unknownPath.Tag,
+		*apiId,
+		s.unknownPath.PathTemplate,
+		s.unknownPath.ClientTracking)
 }
 
 func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
@@ -328,20 +337,20 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 			// Detect regular expression duplicates
 			if existingMatcher, ok := existingPathPattern[pathPattern]; ok {
 				s.warnf(
-					"args[%d].path_templates[%d] ignored: two path templates yielded the same regular expression %q (%q and %q)",
-					apiIndex, templateIndex, pathPattern, info.PathTemplate, existingMatcher.PathTemplate)
+					"args[%d].path_templates[%d] ignored: two path templates"+
+						" yielded the same regular expression %q (%q and %q)",
+					apiIndex, templateIndex, pathPattern, info.PathTemplate,
+					existingMatcher.PathTemplate)
 				continue
 			}
 			existingPathPattern[pathPattern] = info
 
 			pathPatternMatcher, err := loadOrCompileRegex(pathPattern)
-			if err != nil {
+			if err != nil || pathPatternMatcher == nil {
 				s.warnf(
-					"args[%d].path_templates[%d] ignored: error compiling regular expression %q for path %q: %v",
+					"args[%d].path_templates[%d] ignored: error compiling regular"+
+						" expression %q for path %q: %v",
 					apiIndex, templateIndex, pathPattern, info.PathTemplate, err)
-				continue
-			}
-			if pathPatternMatcher == nil {
 				continue
 			}
 
@@ -358,34 +367,34 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 	return paths
 }
 
-func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiConfig, realmsTrackingMatcher *regexp.Regexp) *clientTrackingInfo {
+func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(
+	apiIndex int, api *apiConfig, realmsTrackingMatcher *regexp.Regexp,
+) *clientTrackingInfo {
 	if len(s.realmKeys) == 0 {
 		s.infof(
-			`args[%d]: skipper wide configuration "api-usage-monitoring-realm-keys" not provided, not tracking client metrics`,
-			apiIndex)
+			`args[%d]: skipper wide configuration "api-usage-monitoring-realm-keys"`+
+				` not provided, not tracking client metrics`, apiIndex)
 		return nil
 	}
 	if len(s.clientKeys) == 0 {
 		s.infof(
-			`args[%d]: skipper wide configuration "api-usage-monitoring-client-keys" not provided, not tracking client metrics`,
-			apiIndex)
+			`args[%d]: skipper wide configuration "api-usage-monitoring-client-keys"`+
+				` not provided, not tracking client metrics`, apiIndex)
 		return nil
 	}
 	if api.ClientTrackingPattern == "" {
 		s.debugf(
-			`args[%d]: empty client_tracking_pattern disables the client metrics for its endpoints`,
-			apiIndex)
+			`args[%d]: empty client_tracking_pattern disables the client metrics for`+
+				` its endpoints`, apiIndex)
 		return nil
 	}
 
 	clientTrackingMatcher, err := loadOrCompileRegex(api.ClientTrackingPattern)
-	if err != nil {
+	if err != nil || clientTrackingMatcher == nil {
 		s.errorf(
-			"args[%d].client_tracking_pattern ignored (no client tracking): error compiling regular expression %q: %v",
+			"args[%d].client_tracking_pattern ignored (no client tracking): error"+
+				" compiling regular expression %q: %v",
 			apiIndex, api.ClientTrackingPattern, err)
-		return nil
-	}
-	if clientTrackingMatcher == nil {
 		return nil
 	}
 
