@@ -829,6 +829,285 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 	}
 }
 
+// TestAuthorizeRequestFilterWithS3DecisionLogPlugin_SlowS3BlocksClientResponse
+// verifies that a slow S3 upload does NOT delay the HTTP response to the client.
+//
+// Before the fix: evaluation.go called logDecision synchronously on the request
+// goroutine. With "unbuffered" eopa_dl, every millisecond S3 took to respond was
+// added to the client round-trip.
+//
+// After the fix: logDecision is dispatched to a background goroutine via a bounded
+// channel. The request goroutine returns immediately after enqueuing the task, so
+// S3 latency is fully decoupled from the client response time.
+func TestAuthorizeRequestFilterWithS3DecisionLogPlugin_SlowS3BlocksClientResponse(t *testing.T) {
+	const s3Delay = 300 * time.Millisecond
+
+	s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(s3Delay)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer s3Server.Close()
+
+	clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Welcome!"))
+	}))
+	defer clientServer.Close()
+
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/test", map[string]string{
+			"main.rego": `
+				package envoy.authz
+				default allow = false
+				allow if { input.parsed_path == [ "allow" ] }
+			`,
+		}),
+		opasdktest.MockBundle("/bundles/discovery", map[string]string{
+			"data.json": `{
+			  "discovery": {
+				"bundles": {
+				  "bundles/test": {
+					"persist": false,
+					"resource": "bundles/test",
+					"service": "test"
+				  }
+			}}
+			}`,
+		}),
+	)
+	defer opaControlPlane.Stop()
+
+	// "unbuffered" removes the memory buffer so Consume blocks directly on the S3
+	// output ACK, making the coupling between S3 latency and client latency visible.
+	config := []byte(fmt.Sprintf(`{
+		"services": { "test": { "url": %q } },
+		"discovery": {
+			"name": "discovery",
+			"resource": "/bundles/discovery",
+			"service": "test"
+		},
+		"labels": { "environment": "test" },
+		"decision_logs": { "plugin": "eopa_dl" },
+		"plugins": {
+			"envoy_ext_authz_grpc": {
+				"path": "envoy/authz/allow",
+				"dry-run": false
+			},
+			"eopa_dl": {
+				"buffer": { "type": "unbuffered" },
+				"output": {
+					"type": "s3",
+					"bucket": "slow-s3",
+					"endpoint": %q,
+					"force_path": true,
+					"region": "eu-central-1",
+					"timeout": "10s",
+					"batching": { "at_bytes": 1, "at_period": "1ms" }
+				}
+			}
+		}
+	}`, opaControlPlane.URL(), s3Server.URL))
+
+	fr := make(filters.Registry)
+	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(
+		openpolicyagent.WithTracer(tracingtest.NewTracer()),
+		openpolicyagent.WithOpenPolicyAgentInstanceConfig(
+			openpolicyagent.WithConfigTemplate(config),
+		),
+	)
+	require.NoError(t, err)
+
+	ftSpec := NewOpaAuthorizeRequestSpec(opaFactory)
+	fr.Register(ftSpec)
+	fr.Register(builtin.NewSetPath())
+
+	r := eskip.MustParse(fmt.Sprintf(`* -> opaAuthorizeRequest("test") -> %q`, clientServer.URL))
+	proxy := proxytest.New(fr, r...)
+	defer proxy.Close()
+
+	req, err := http.NewRequest(http.MethodGet, proxy.URL+"/allow", nil)
+	require.NoError(t, err)
+
+	start := time.Now()
+	rsp, err := proxy.Client().Do(req)
+	elapsed := time.Since(start)
+
+	require.NoError(t, err)
+	defer rsp.Body.Close()
+	assert.Equal(t, http.StatusOK, rsp.StatusCode)
+
+	// logDecision now runs on a background goroutine, so S3 latency is fully
+	// decoupled from the client round-trip.
+	assert.Less(t, elapsed, s3Delay,
+		"client round-trip (%v) should not be delayed by the S3 upload (%v); "+
+			"logDecision must not run on the request goroutine", elapsed, s3Delay)
+}
+
+// TestFullDecisionLogBufferBlocksClientResponse is the regression test for Issue 1:
+// when the eopa_dl memory buffer is full, decision log processing must not delay
+// the HTTP response to the upstream client.
+//
+// How Benthos memory buffer backpressure works (and why it previously hit clients):
+//
+//  1. prod(ctx, msg) sends on an unbuffered tChan and waits for resChan.
+//  2. The buffer's inputLoop reads tChan, calls WriteBatch(ctx, msg, ackFn).
+//  3. WriteBatch calls ackFn immediately (ACKs upstream), then checks capacity.
+//     If (m.bytes + extraBytes) > m.cap it blocks on cond.Wait().
+//  4. While inputLoop is stuck in WriteBatch, it cannot read the next transaction
+//     from tChan (unbuffered). The next prod() call blocks on "tChan <-".
+//
+// Before the fix: logDecision ran synchronously on the request goroutine, so
+// request N+2's prod() call blocked the HTTP response.
+//
+// After the fix: logDecision is dispatched to a background goroutine. Buffer
+// backpressure stays within the background goroutine and never reaches the client.
+func TestFullDecisionLogBufferBlocksClientResponse(t *testing.T) {
+	// stallDuration must be long enough to be unambiguous, short enough for a fast test.
+	const stallDuration = 300 * time.Millisecond
+
+	// s3Server never responds until the test ends, keeping the buffer occupied.
+	s3Stalled := make(chan struct{})
+	s3Reached := make(chan struct{}, 1)
+	s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case s3Reached <- struct{}{}:
+		default:
+		}
+		select {
+		case <-s3Stalled:
+		case <-r.Context().Done():
+		}
+	}))
+	defer func() {
+		close(s3Stalled)
+		s3Server.Close()
+	}()
+
+	clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Welcome!"))
+	}))
+	defer clientServer.Close()
+
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/test", map[string]string{
+			"main.rego": `
+				package envoy.authz
+				default allow = false
+				allow if { input.parsed_path == [ "allow" ] }
+			`,
+		}),
+		opasdktest.MockBundle("/bundles/discovery", map[string]string{
+			"data.json": `{
+			  "discovery": {
+				"bundles": {
+				  "bundles/test": {
+					"persist": false,
+					"resource": "bundles/test",
+					"service": "test"
+				  }
+			}}
+			}`,
+		}),
+	)
+	defer opaControlPlane.Stop()
+
+	// max_bytes=1200: large enough for one event (~874 bytes, so no ErrMessageTooLarge),
+	// too small for two (1748 > 1200). After event 1 is in the buffer and S3 stalls,
+	// WriteBatch for event 2 blocks in cond.Wait(); inputLoop stops reading tChan;
+	// event 3's prod() call blocks on the unbuffered tChan send.
+	// batching.at_bytes=1 ensures events are flushed to S3 immediately.
+	config := []byte(fmt.Sprintf(`{
+		"services": { "test": { "url": %q } },
+		"discovery": {
+			"name": "discovery",
+			"resource": "/bundles/discovery",
+			"service": "test"
+		},
+		"labels": { "environment": "test" },
+		"decision_logs": { "plugin": "eopa_dl" },
+		"plugins": {
+			"envoy_ext_authz_grpc": {
+				"path": "envoy/authz/allow",
+				"dry-run": false
+			},
+			"eopa_dl": {
+				"buffer": { "type": "memory", "max_bytes": 1200 },
+				"output": {
+					"type": "s3",
+					"bucket": "stalled-s3",
+					"endpoint": %q,
+					"force_path": true,
+					"region": "eu-central-1",
+					"timeout": "60s",
+					"batching": { "at_bytes": 1, "at_period": "1ms" }
+				}
+			}
+		}
+	}`, opaControlPlane.URL(), s3Server.URL))
+
+	fr := make(filters.Registry)
+	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(
+		openpolicyagent.WithTracer(tracingtest.NewTracer()),
+		openpolicyagent.WithOpenPolicyAgentInstanceConfig(
+			openpolicyagent.WithConfigTemplate(config),
+		),
+	)
+	require.NoError(t, err)
+
+	ftSpec := NewOpaAuthorizeRequestSpec(opaFactory)
+	fr.Register(ftSpec)
+
+	r := eskip.MustParse(fmt.Sprintf(`* -> opaAuthorizeRequest("test") -> %q`, clientServer.URL))
+	proxy := proxytest.New(fr, r...)
+	defer proxy.Close()
+
+	req, err := http.NewRequest(http.MethodGet, proxy.URL+"/allow", nil)
+	require.NoError(t, err)
+
+	// Request 1: fills the buffer. S3 receives and stalls on this batch, keeping
+	// the ReadBatch ack pending so m.bytes stays at the event size.
+	rsp1, err := proxy.Client().Do(req)
+	require.NoError(t, err)
+	rsp1.Body.Close()
+	assert.Equal(t, http.StatusOK, rsp1.StatusCode)
+
+	// Wait until S3 is actually blocking so the buffer cannot drain.
+	select {
+	case <-s3Reached:
+	case <-time.After(5 * time.Second):
+		t.Fatal("S3 server never received a request — decision log was not flushed")
+	}
+
+	// Request 2: WriteBatch for this event triggers cond.Wait() inside the buffer
+	// (buffer now holds event1 bytes + event2 bytes > max_bytes=1200). WriteBatch
+	// ACKs request 2's producer before blocking, so request 2 itself returns quickly.
+	// But inputLoop is now stuck in WriteBatch and stops reading tChan.
+	rsp2, err := proxy.Client().Do(req)
+	require.NoError(t, err)
+	rsp2.Body.Close()
+	assert.Equal(t, http.StatusOK, rsp2.StatusCode)
+
+	// Request 3: prod() tries to send on tChan (unbuffered). inputLoop is stuck in
+	// WriteBatch and cannot read from tChan, so this send blocks. Since logDecision
+	// runs synchronously on the request goroutine (current behaviour), the client
+	// round-trip is delayed >= stallDuration.
+	// After the fix, logDecision is off the hot path and elapsed < stallDuration.
+	client := proxy.Client()
+	client.Timeout = stallDuration + 2*time.Second
+	start := time.Now()
+	rsp3, err := client.Do(req)
+	elapsed := time.Since(start)
+
+	if err == nil {
+		rsp3.Body.Close()
+	}
+
+	// After the fix: logDecision runs on a background goroutine, so buffer
+	// backpressure never reaches the request goroutine.
+	assert.Less(t, elapsed, stallDuration,
+		"client round-trip (%v) should not be delayed by the full decision log buffer (%v stall); "+
+			"logDecision must not block the request goroutine", elapsed, stallDuration)
+}
+
 func TestCreateFilterArguments(t *testing.T) {
 	opaRegistry, err := openpolicyagent.NewOpenPolicyAgentRegistry(
 		openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate([]byte(""))))
