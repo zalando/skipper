@@ -2121,7 +2121,7 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 	al := logging.NewAccessLogger(logging.Options{AccessLogOutput: testLog})
 
 	p, err := newTestProxyWithParams(`* -> "http://bad-gateway.test"`, Params{
-		AccessLogDisabled: true,
+		AccessLogDisabled: false,
 		AccessLogger:      al,
 		Flags:             FlagsNone,
 	})
