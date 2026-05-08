@@ -451,13 +451,14 @@ func TestRetries(t *testing.T) {
 			// To avoid guessing which endpoint round robin picks first,
 			// make two requests and compare response codes ignoring request order
 			var codes []int
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				req, err := http.NewRequest(tt.method, ps.URL, tt.body())
 				require.NoError(t, err)
 
 				rsp, err := http.DefaultClient.Do(req)
 				require.NoError(t, err)
 
+				io.Copy(io.Discard, rsp.Body)
 				rsp.Body.Close()
 				codes = append(codes, rsp.StatusCode)
 			}
@@ -1944,10 +1945,8 @@ func TestLogsAccess(t *testing.T) {
 	newTestProxy(doc, FlagsNone)
 	tp, err := newTestProxyWithParams(doc, Params{Flags: FlagsNone, AccessLogger: al})
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
-
 	defer tp.close()
 
 	tp.proxy.ServeHTTP(w, r)
@@ -1979,10 +1978,8 @@ func TestDisableAccessLog(t *testing.T) {
 		AccessLogger:      al,
 	})
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
-
 	defer tp.close()
 
 	tp.proxy.ServeHTTP(w, r)
@@ -2045,8 +2042,7 @@ func TestDisableAccessLogWithFilter(t *testing.T) {
 				AccessLogger:      al,
 			})
 			if err != nil {
-				t.Error(err)
-				return
+				t.Fatal(err)
 			}
 
 			defer tp.close()
@@ -2113,8 +2109,7 @@ func TestEnableAccessLogWithFilter(t *testing.T) {
 				AccessLogger:      al,
 			})
 			if err != nil {
-				t.Error(err)
-				return
+				t.Fatal(err)
 			}
 
 			defer tp.close()
@@ -2152,12 +2147,12 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 	rsp, err := ps.Client().Get(ps.URL)
 	if err != nil {
 		t.Fatalf("Failed to GET: %v", err)
-		return
 	}
+	io.Copy(io.Discard, rsp.Body)
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusBadGateway {
-		t.Errorf("failed to return 502 Bad Gateway on failing backend connection: %d", rsp.StatusCode)
+		t.Fatalf("failed to return 502 Bad Gateway on failing backend connection: %d", rsp.StatusCode)
 	}
 
 	const expected = `"GET / HTTP/1.1" 502 12 "-" "Go-http-client/1.1"`
@@ -2193,10 +2188,8 @@ func TestHopHeaderRemovalDisabled(t *testing.T) {
 
 	tp, err := newTestProxy(doc, FlagsNone)
 	if err != nil {
-		t.Error()
-		return
+		t.Fatal(err)
 	}
-
 	defer tp.close()
 
 	tp.proxy.ServeHTTP(w, r)
@@ -2327,10 +2320,10 @@ func TestForwardToProxy(t *testing.T) {
 }
 
 func TestProxyFromEmptyContext(t *testing.T) {
-	proxyUrl, err := proxyFromContext(&http.Request{})
+	proxyURL, err := proxyFromContext(&http.Request{})
 
 	assert.NoError(t, err)
-	assert.Nil(t, proxyUrl)
+	assert.Nil(t, proxyURL)
 }
 
 func BenchmarkAccessLogNoFilter(b *testing.B) { benchmarkAccessLog(b, "", 200) }
