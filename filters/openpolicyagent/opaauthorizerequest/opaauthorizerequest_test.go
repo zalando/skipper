@@ -840,6 +840,9 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
 // channel. The request goroutine returns immediately after enqueuing the task, so
 // S3 latency is fully decoupled from the client response time.
 func TestAuthorizeRequestFilterWithS3DecisionLogPlugin_SlowS3BlocksClientResponse(t *testing.T) {
+	if testing.Short() {
+		t.Skip("timing-sensitive test, skipped in short mode")
+	}
 	const s3Delay = 300 * time.Millisecond
 
 	s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -961,6 +964,9 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin_SlowS3BlocksClientRespons
 // After the fix: logDecision is dispatched to a background goroutine. Buffer
 // backpressure stays within the background goroutine and never reaches the client.
 func TestFullDecisionLogBufferBlocksClientResponse(t *testing.T) {
+	if testing.Short() {
+		t.Skip("timing-sensitive test, skipped in short mode")
+	}
 	// stallDuration must be long enough to be unambiguous, short enough for a fast test.
 	const stallDuration = 300 * time.Millisecond
 
