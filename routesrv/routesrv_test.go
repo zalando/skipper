@@ -114,12 +114,7 @@ func getRoutes(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 }
 
 func getRoutesGzip(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/routes", nil)
-	r.Header.Set("Accept-Encoding", "gzip")
-	rs.ServeHTTP(w, r)
-
-	return w
+	return getRoutesWithRequestHeadersSetting(rs, map[string]string{"Accept-Encoding": "gzip"})
 }
 
 func getZoneAwareRoutes(rs *routesrv.RouteServer, zone string) *httptest.ResponseRecorder {
