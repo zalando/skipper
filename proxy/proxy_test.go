@@ -1599,6 +1599,7 @@ func TestRoundtripperRetry(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	io.Copy(io.Discard, rsp.Body)
 	rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusOK {
@@ -1701,8 +1702,7 @@ func TestBranding(t *testing.T) {
 
 	p, err := newTestProxy(routes, FlagsNone)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	defer p.close()
 
@@ -1735,15 +1735,13 @@ func TestBranding(t *testing.T) {
 		t.Run(ti.uri, func(t *testing.T) {
 			rsp, err := http.Get(ps.URL + ti.uri)
 			if err != nil {
-				t.Error(err)
-				return
+				t.Fatal(err)
 			}
-
+			io.Copy(io.Discard, rsp.Body)
 			defer rsp.Body.Close()
 
 			if rsp.StatusCode == http.StatusNotFound {
-				t.Error("not found")
-				return
+				t.Fatal("not found")
 			}
 
 			if rsp.Header.Get("Server") != ti.header {
@@ -1764,8 +1762,7 @@ func TestFixNoAppLogFor404(t *testing.T) {
 
 	p, err := newTestProxy("", FlagsNone)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	defer p.close()
 
@@ -1774,10 +1771,9 @@ func TestFixNoAppLogFor404(t *testing.T) {
 
 	rsp, err := http.Get(ps.URL)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
-
+	io.Copy(io.Discard, rsp.Body)
 	defer rsp.Body.Close()
 
 	if err := p.log.WaitFor(unknownRouteID, 120*time.Millisecond); err == nil {
@@ -1793,24 +1789,21 @@ func TestRequestContentHeaders(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		b, err := io.ReadAll(r.Body)
 		if err != nil {
-			t.Error(err)
-			return
+			t.Fatal(err)
 		}
+		defer r.Body.Close()
 
 		if len(b) != contentLength {
-			t.Error("failed to forward content")
-			return
+			t.Fatal("failed to forward content")
 		}
 
 		if r.URL.Path == "/with-content-length" {
 			if r.ContentLength != contentLength {
-				t.Error("failed to forward content length")
-				return
+				t.Fatal("failed to forward content length")
 			}
 
 			if len(r.TransferEncoding) != 0 {
-				t.Error("unexpected transfer encoding")
-				return
+				t.Fatal("unexpected transfer encoding")
 			}
 
 			return
@@ -1821,7 +1814,7 @@ func TestRequestContentHeaders(t *testing.T) {
 		}
 
 		if len(r.TransferEncoding) != 1 || r.TransferEncoding[0] != "chunked" {
-			t.Error("failed to set chunked encoding")
+			t.Fatal("failed to set chunked encoding")
 			return
 		}
 	}))
@@ -1829,8 +1822,7 @@ func TestRequestContentHeaders(t *testing.T) {
 
 	p, err := newTestProxy(fmt.Sprintf(`* -> "%s"`, backend.URL), FlagsNone)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	defer p.close()
 
@@ -1862,7 +1854,7 @@ func TestRequestContentHeaders(t *testing.T) {
 			t.Error(err)
 			return
 		}
-
+		io.Copy(io.Discard, rsp.Body)
 		rsp.Body.Close()
 	}
 
@@ -1917,7 +1909,6 @@ func TestHopHeaderRemoval(t *testing.T) {
 		t.Error()
 		return
 	}
-
 	defer tp.close()
 
 	tp.proxy.ServeHTTP(w, r)
@@ -1942,7 +1933,6 @@ func TestLogsAccess(t *testing.T) {
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
 
-	newTestProxy(doc, FlagsNone)
 	tp, err := newTestProxyWithParams(doc, Params{Flags: FlagsNone, AccessLogger: al})
 	if err != nil {
 		t.Fatal(err)
@@ -2157,7 +2147,7 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 
 	const expected = `"GET / HTTP/1.1" 502 12 "-" "Go-http-client/1.1"`
 	if err = testLog.WaitFor(expected, 100*time.Millisecond); err != nil {
-		t.Errorf("Failed to get accesslog %v: %v", expected, err)
+		t.Errorf("Failed to get accesslog expected:\n%v\ngot:\n%v", expected, err)
 		t.Logf("%s", cmp.Diff(testLog.String(), expected))
 	}
 }
