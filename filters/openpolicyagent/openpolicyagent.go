@@ -1027,21 +1027,6 @@ func (opa *OpenPolicyAgentInstance) runDecisionLogger() {
 	}
 }
 
-// waitDecisionLogDrained blocks until all tasks enqueued before this call have
-// been processed by the background decision log goroutine. It is only used in
-// tests to synchronise before calling dlPlugin.Trigger().
-func (opa *OpenPolicyAgentInstance) waitDecisionLogDrained(ctx context.Context) {
-	sync := make(chan struct{})
-	select {
-	case opa.decisionLogChan <- decisionLogTask{sync: sync}:
-		select {
-		case <-sync:
-		case <-ctx.Done():
-		}
-	case <-ctx.Done():
-	}
-}
-
 func (opa *OpenPolicyAgentInstance) Logger() logging.Logger {
 	if opa.logger != nil {
 		return opa.logger
