@@ -37,6 +37,7 @@ import (
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/block"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/filters/cache"
 	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/filters/openpolicyagent"
@@ -138,6 +139,16 @@ type Options struct {
 	// EnableCopyStreamPoolExperimental if set to true the Proxy will use a
 	// sync.Pool to reduce memory garbage in copy stream.
 	EnableCopyStreamPoolExperimental bool
+
+	// ResponseCacheMaxMemoryBytes sets the in-memory budget for the cache()
+	// filter. When zero, the budget is derived from the cgroup memory limit
+	// using a fixed 25% fraction. Set explicitly to override that behaviour.
+	ResponseCacheMaxMemoryBytes int64
+
+	// ReadMemoryLimit, when set, is called by the cache() filter initialiser
+	// to determine the container memory limit. Defaults to reading cgroup files.
+	// Override in tests or on non-standard platforms.
+	ReadMemoryLimit func() (int64, error)
 
 	// List of custom filter specifications.
 	CustomFilters []filters.Spec
@@ -1295,6 +1306,52 @@ func initLog(o Options) error {
 	return nil
 }
 
+// readCgroupMemoryLimit reads the container memory limit from the cgroup
+// filesystem (v2 path first, v1 fallback).
+func readCgroupMemoryLimit() (int64, error) {
+	const (
+		memoryLimitFileV2 = "/sys/fs/cgroup/memory.max"
+		memoryLimitFileV1 = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+	)
+	data, err := os.ReadFile(memoryLimitFileV2)
+	if err != nil {
+		data, err = os.ReadFile(memoryLimitFileV1)
+	}
+	if err != nil {
+		return 0, err
+	}
+	limit, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return limit, nil
+}
+
+// cacheBudget returns the in-memory byte budget for the cache() filter.
+// If ResponseCacheMaxMemoryBytes is set it is used directly. Otherwise the
+// budget is derived from ReadMemoryLimit (defaults to readCgroupMemoryLimit)
+// at 25% of the reported limit. Falls back to 2 GB if the limit is
+// unavailable.
+func (o *Options) cacheBudget() int64 {
+	const (
+		// 2 << 30 shifts the bits to represent 2 * 1024 * 1024 * 1024 bytes (2 GB)
+		defaultBudget  = 2 << 30
+		cgroupFraction = 4
+	)
+	if o.ResponseCacheMaxMemoryBytes > 0 {
+		return o.ResponseCacheMaxMemoryBytes
+	}
+	readLimit := o.ReadMemoryLimit
+	if readLimit == nil {
+		readLimit = readCgroupMemoryLimit
+	}
+	limit, _ := readLimit()
+	if limit <= 0 {
+		return defaultBudget
+	}
+	return limit / cgroupFraction
+}
+
 // filterRegistry creates a filter registry with the builtin and
 // custom filter specs registered excluding disabled filters.
 // If [Options.RegisterFilters] callback is set, it will be called.
@@ -1310,6 +1367,10 @@ func (o *Options) filterRegistry() filters.Registry {
 		if _, ok := disabledFilters[f.Name()]; !ok {
 			registry.Register(f)
 		}
+	}
+
+	if _, ok := disabledFilters[cache.Name]; !ok {
+		registry.Register(cache.NewCacheFilter(o.cacheBudget(), o.Address))
 	}
 
 	for _, f := range o.CustomFilters {
@@ -1399,32 +1460,17 @@ func listen(o *Options, address string, mtr metrics.Metrics) (net.Listener, erro
 
 	var memoryLimit int64
 	if o.MaxTCPListenerConcurrency <= 0 {
-		// cgroup v1: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
-		// cgroup v2: https://www.kernel.org/doc/Documentation/cgroup-v2.txt
 		// Note that in containers this will be the container limit.
 		// Runtimes without these files will use defaults defined in `queuelistener` package.
-		const (
-			memoryLimitFileV1 = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
-			memoryLimitFileV2 = "/sys/fs/cgroup/memory.max"
-		)
-		memoryLimitBytes, err := os.ReadFile(memoryLimitFileV2)
+		var err error
+		memoryLimit, err = readCgroupMemoryLimit()
 		if err != nil {
-			memoryLimitBytes, err = os.ReadFile(memoryLimitFileV1)
-			if err != nil {
-				log.Errorf("Failed to read memory limits, fall back to defaults: %v", err)
-			}
+			log.Errorf("Failed to read memory limits, fall back to defaults: %v", err)
 		}
-		if err == nil {
-			memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
-			memoryLimit, err = strconv.ParseInt(memoryLimitString, 10, 64)
-			if err != nil {
-				log.Errorf("Failed to convert memory limits, fall back to defaults: %v", err)
-			}
 
-			// 4GB, temporarily, as a tested magic number until a better mechanism is in place:
-			if memoryLimit > 1<<32 {
-				memoryLimit = 1 << 32
-			}
+		// 4GB, temporarily, as a tested magic number until a better mechanism is in place:
+		if memoryLimit > 1<<32 {
+			memoryLimit = 1 << 32
 		}
 	}
 
