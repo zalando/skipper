@@ -62,7 +62,7 @@ const (
 	defaultShutdownGracePeriod      = 30 * time.Second
 	DefaultOpaStartupTimeout        = 30 * time.Second
 	DefaultBackgroundTaskBufferSize = 100
-	DefaultDecisionLogQueueSize   = 1000
+	DefaultDecisionLogQueueSize     = 1000
 
 	DefaultMaxRequestBodySize    = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing  = 100 * DefaultMaxRequestBodySize
@@ -130,7 +130,7 @@ type OpenPolicyAgentRegistry struct {
 	// New fields for pre-loading support
 	preloadingEnabled bool
 
-	asyncDecisionLogging   bool
+	asyncDecisionLogging bool
 	decisionLogQueueSize int
 
 	// Background task system
