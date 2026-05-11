@@ -16,6 +16,13 @@ type Entry struct {
 	ETag                 string
 	LastModified         string
 	VaryHeaders          []string
+	// RFC 9111 §4.2.3 Age fields. Zero-value safe: setAgeHeader falls back to
+	// legacy formula when ResponseTime.IsZero().
+	CorrectedInitialAge time.Duration
+	ResponseTime        time.Time
+	// StaleIfError is used by storage to extend the hard-expiry window; the filter
+	// uses f.staleIfError directly for the SIE window check.
+	StaleIfError time.Duration
 }
 
 // IsStale returns true when the entry is past its TTL but still within the SWR window.
