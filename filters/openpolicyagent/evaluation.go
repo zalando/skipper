@@ -53,21 +53,27 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 			return
 		}
 
-		task := decisionLogTask{
-			// Detach from the request context so a client disconnect or timeout
-			// does not silently drop the event inside the OPA plugin.
-			ctx:    context.WithoutCancel(ctx),
-			input:  input,
-			result: result,
-			err:    err,
-		}
-		select {
-		case opa.decisionLogChan <- task:
-		default:
-			// Buffer full: drop the event rather than blocking the request goroutine.
-			opa.Logger().WithFields(map[string]interface{}{
-				"decision_id": result.DecisionID,
-			}).Warn("Decision log dropped: async buffer full.")
+		if opa.decisionLogChan != nil {
+			task := decisionLogTask{
+				// Detach from the request context so a client disconnect or timeout
+				// does not silently drop the event inside the OPA plugin.
+				ctx:    context.WithoutCancel(ctx),
+				input:  input,
+				result: result,
+				err:    err,
+			}
+			select {
+			case opa.decisionLogChan <- task:
+			default:
+				// Buffer full: drop the event rather than blocking the request goroutine.
+				opa.Logger().WithFields(map[string]interface{}{
+					"decision_id": result.DecisionID,
+				}).Warn("Decision log dropped: async buffer full.")
+			}
+		} else {
+			if err := opa.logDecision(ctx, input, result, err); err != nil {
+				opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
+			}
 		}
 	}()
 

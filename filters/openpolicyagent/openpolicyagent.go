@@ -62,6 +62,7 @@ const (
 	defaultShutdownGracePeriod      = 30 * time.Second
 	DefaultOpaStartupTimeout        = 30 * time.Second
 	DefaultBackgroundTaskBufferSize = 100
+	DefaultDecisionLogChannelSize   = 1000
 
 	DefaultMaxRequestBodySize    = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing  = 100 * DefaultMaxRequestBodySize
@@ -128,6 +129,9 @@ type OpenPolicyAgentRegistry struct {
 
 	// New fields for pre-loading support
 	preloadingEnabled bool
+
+	asyncDecisionLogging   bool
+	decisionLogChannelSize int
 
 	// Background task system
 	backgroundTaskChan       chan *BackgroundTask
@@ -268,6 +272,20 @@ func (registry *OpenPolicyAgentRegistry) initializeCache() error {
 func WithPreloadingEnabled(enabled bool) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.preloadingEnabled = enabled
+		return nil
+	}
+}
+
+func WithAsyncDecisionLogging(enabled bool) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.asyncDecisionLogging = enabled
+		return nil
+	}
+}
+
+func WithDecisionLogChannelSize(size int) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.decisionLogChannelSize = size
 		return nil
 	}
 }
@@ -608,19 +626,12 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 }
 
 // decisionLogTask holds everything needed to call logDecision off the hot path.
-// If sync is non-nil it is a flush sentinel: the worker closes it and skips logDecision.
 type decisionLogTask struct {
 	ctx    context.Context
 	input  interface{}
 	result *envoyauth.EvalResult
 	err    error
-	sync   chan struct{}
 }
-
-// defaultDecisionLogBufferSize is the number of pending decision log tasks that
-// can be queued before new ones are dropped. Each entry is a small struct; the
-// real memory cost is the decision payload held by *envoyauth.EvalResult.
-const defaultDecisionLogBufferSize = 1000
 
 type OpenPolicyAgentInstance struct {
 	manager                     *plugins.Manager
@@ -647,8 +658,8 @@ type OpenPolicyAgentInstance struct {
 
 	idGenerator flowid.Generator
 
-	decisionLogChan chan decisionLogTask
-	decisionLogDone chan struct{}
+	decisionLogChan    chan decisionLogTask
+	decisionsProcessed chan struct{}
 }
 
 func envVariablesMap() map[string]string {
@@ -783,12 +794,17 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 
 		idGenerator: uniqueIDGenerator,
 		logger:      logging.Get().WithFields(map[string]any{"bundle-name": bundleName}),
-
-		decisionLogChan: make(chan decisionLogTask, defaultDecisionLogBufferSize),
-		decisionLogDone: make(chan struct{}),
 	}
 
-	go opa.runDecisionLogger()
+	if registry.asyncDecisionLogging {
+		bufSize := registry.decisionLogChannelSize
+		if bufSize <= 0 {
+			bufSize = DefaultDecisionLogChannelSize
+		}
+		opa.decisionLogChan = make(chan decisionLogTask, bufSize)
+		opa.decisionsProcessed = make(chan struct{})
+		go opa.runDecisionLogger()
+	}
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
 	manager.RegisterPluginStatusListener("instance-health-check", func(_ map[string]*plugins.Status) {
@@ -1002,10 +1018,12 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 	opa.closingOnce.Do(func() {
 		opa.Logger().Info("Closing OPA instance...")
 		opa.closing = true
-		close(opa.decisionLogChan)
-		select {
-		case <-opa.decisionLogDone:
-		case <-ctx.Done():
+		if opa.decisionLogChan != nil {
+			close(opa.decisionLogChan)
+			select {
+			case <-opa.decisionsProcessed:
+			case <-ctx.Done():
+			}
 		}
 		opa.manager.Stop(ctx)
 	})
@@ -1013,14 +1031,10 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 
 // runDecisionLogger drains decisionLogChan in the background so that logDecision
 // is never called on the request goroutine. The goroutine exits when the channel
-// is closed (during Close) and signals completion via decisionLogDone.
+// is closed (during Close) and signals completion via decisionsProcessed.
 func (opa *OpenPolicyAgentInstance) runDecisionLogger() {
-	defer close(opa.decisionLogDone)
+	defer close(opa.decisionsProcessed)
 	for task := range opa.decisionLogChan {
-		if task.sync != nil {
-			close(task.sync) // unblock waitDecisionLogDrained
-			continue
-		}
 		if err := opa.logDecision(task.ctx, task.input, task.result, task.err); err != nil {
 			opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
 		}

@@ -906,6 +906,7 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin_SlowS3BlocksClientRespons
 	fr := make(filters.Registry)
 	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(
 		openpolicyagent.WithTracer(tracingtest.NewTracer()),
+		openpolicyagent.WithAsyncDecisionLogging(true),
 		openpolicyagent.WithOpenPolicyAgentInstanceConfig(
 			openpolicyagent.WithConfigTemplate(config),
 		),
@@ -1026,6 +1027,7 @@ func TestFullDecisionLogBufferBlocksClientResponse(t *testing.T) {
 	fr := make(filters.Registry)
 	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(
 		openpolicyagent.WithTracer(tracingtest.NewTracer()),
+		openpolicyagent.WithAsyncDecisionLogging(true),
 		openpolicyagent.WithOpenPolicyAgentInstanceConfig(
 			openpolicyagent.WithConfigTemplate(config),
 		),
