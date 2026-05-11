@@ -19,7 +19,7 @@ func makeEntry(payload string, ttl time.Duration) *Entry {
 }
 
 func TestLRUStorage_HitAndMiss(t *testing.T) {
-	s := NewLRUStorage(1 << 20) // 1 MB
+	s := NewLRUStorage(1<<20, nil) // 1 MB
 	ctx := context.Background()
 
 	got, err := s.Get(ctx, "missing")
@@ -48,7 +48,7 @@ func TestLRUStorage_HitAndMiss(t *testing.T) {
 }
 
 func TestLRUStorage_HardExpiry(t *testing.T) {
-	s := NewLRUStorage(1 << 20)
+	s := NewLRUStorage(1<<20, nil)
 	ctx := context.Background()
 
 	entry := makeEntry("stale", time.Millisecond)
@@ -75,7 +75,7 @@ func TestLRUStorage_HardExpiry(t *testing.T) {
 }
 
 func TestLRUStorage_Delete(t *testing.T) {
-	s := NewLRUStorage(1 << 20)
+	s := NewLRUStorage(1<<20, nil)
 	ctx := context.Background()
 
 	if err := s.Set(ctx, "del", makeEntry("x", time.Minute)); err != nil {
@@ -94,7 +94,7 @@ func TestLRUStorage_Delete(t *testing.T) {
 func TestLRUStorage_InPlaceUpdate(t *testing.T) {
 	sample, _ := json.Marshal(makeEntry("v1", time.Minute))
 	entrySize := int64(len(sample)) + 20
-	s := NewLRUStorage(entrySize * shardCount)
+	s := NewLRUStorage(entrySize*shardCount, nil)
 	ctx := context.Background()
 
 	// Overwrite an existing key — Get must return the new payload.
@@ -115,7 +115,7 @@ func TestLRUStorage_InPlaceUpdate(t *testing.T) {
 }
 
 func TestLRUStorage_ImmutabilityAfterSet(t *testing.T) {
-	s := NewLRUStorage(1 << 20)
+	s := NewLRUStorage(1<<20, nil)
 	ctx := context.Background()
 
 	entry := makeEntry("original", time.Minute)
@@ -140,7 +140,7 @@ func TestLRUShard_CrossKeyEviction(t *testing.T) {
 	dataA := []byte("aaaa")
 	dataB := []byte("bbbb")
 	// maxBytes fits exactly one entry; writing a second must evict the first.
-	shard := newLRUShard(int64(len(dataA)))
+	shard := newLRUShard(int64(len(dataA)), nil)
 
 	shard.set("a", dataA)
 	if _, ok := shard.get("a"); !ok {

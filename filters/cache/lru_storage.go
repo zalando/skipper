@@ -17,9 +17,9 @@ type LRUStorage struct {
 }
 
 // NewLRUStorage returns an LRUStorage backed by a ShardedByteLRU sized to totalMaxBytes.
-func NewLRUStorage(totalMaxBytes int64) *LRUStorage {
+func NewLRUStorage(totalMaxBytes int64, onEvict func()) *LRUStorage {
 	return &LRUStorage{
-		lru: NewShardedByteLRU(totalMaxBytes),
+		lru: NewShardedByteLRU(totalMaxBytes, onEvict),
 	}
 }
 
@@ -34,10 +34,14 @@ func (s *LRUStorage) Get(_ context.Context, key string) (*Entry, error) {
 		return nil, fmt.Errorf("cache: decode entry: %w", err)
 	}
 
-	hardExpiry := e.CreatedAt.Add(e.TTL + e.StaleWhileRevalidate)
-	if time.Now().After(hardExpiry) {
-		s.lru.Delete(key)
-		return nil, nil
+	// TTL==0 means "always stale but keep for conditional revalidation" (no-cache entries).
+	// Only hard-evict when TTL>0 and the entry has passed its full retention window.
+	if e.TTL > 0 {
+		sieWindow := max(e.StaleIfError, e.StaleWhileRevalidate)
+		if time.Now().After(e.CreatedAt.Add(e.TTL + sieWindow)) {
+			s.lru.Delete(key)
+			return nil, nil
+		}
 	}
 
 	return &e, nil

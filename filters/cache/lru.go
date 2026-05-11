@@ -33,11 +33,12 @@ type lruShard struct {
 	mu sync.Mutex
 }
 
-func newLRUShard(maxBytes int64) *lruShard {
+func newLRUShard(maxBytes int64, onEvict func()) *lruShard {
 	return &lruShard{
 		maxBytes: maxBytes,
 		ll:       list.New(),
 		cache:    make(map[string]*list.Element),
+		onEvict:  onEvict,
 	}
 }
 
@@ -125,12 +126,12 @@ type ShardedByteLRU struct {
 }
 
 // NewShardedByteLRU distributes total allowed memory evenly across all shards.
-func NewShardedByteLRU(totalMaxBytes int64) *ShardedByteLRU {
+func NewShardedByteLRU(totalMaxBytes int64, onEvict func()) *ShardedByteLRU {
 	s := &ShardedByteLRU{}
 	bytesPerShard := totalMaxBytes / int64(shardCount)
 
 	for i := 0; i < shardCount; i++ {
-		s.shards[i] = newLRUShard(bytesPerShard)
+		s.shards[i] = newLRUShard(bytesPerShard, onEvict)
 	}
 	return s
 }
