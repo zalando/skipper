@@ -13,6 +13,13 @@ import (
 	"github.com/zalando/skipper/metrics/metricstest"
 )
 
+func Test_Filter_HandleErrorResponse(t *testing.T) {
+	filter, err := createFilterForTest()
+	assert.NoError(t, err)
+	f := filter.(*apiUsageMonitoringFilter)
+	assert.True(t, f.HandleErrorResponse())
+}
+
 func Test_Filter_NoPathTemplate(t *testing.T) {
 	testWithFilter(
 		t,
@@ -21,7 +28,7 @@ func Test_Filter_NoPathTemplate(t *testing.T) {
 		"https://www.example.org/a/b/c",
 		299,
 		func(pass int, m *metricstest.MockMetrics) {
-			pre := "apiUsageMonitoring.custom.my_app.{no-tag}.{unknown}.GET.{no-match}.*.*."
+			pre := "apiUsageMonitoring.custom.my_app.{no-tag}.my_api.GET.{no-match}.*.*."
 			// no path matching: tracked as unknown
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
@@ -219,7 +226,7 @@ func Test_Filter_NonConfiguredPathTrackedUnderNoMatch(t *testing.T) {
 		"https://www.example.org/lapin/malin",
 		200,
 		func(pass int, m *metricstest.MockMetrics) {
-			pre := "apiUsageMonitoring.custom.my_app.{no-tag}.{unknown}.GET.{no-match}.*.*."
+			pre := "apiUsageMonitoring.custom.my_app.{no-tag}.my_api.GET.{no-match}.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
 					map[string]int64{
@@ -261,7 +268,7 @@ func Test_Filter_AllHttpMethodsAreSupported(t *testing.T) {
 				200,
 				func(pass int, m *metricstest.MockMetrics) {
 					pre := fmt.Sprintf(
-						"apiUsageMonitoring.custom.my_app.{no-tag}.{unknown}.%s.{no-match}.*.*.",
+						"apiUsageMonitoring.custom.my_app.{no-tag}.my_api.%s.{no-match}.*.*.",
 						testCase.expectedMethodInMetric)
 					m.WithCounters(func(counters map[string]int64) {
 						assert.Equal(t,
@@ -403,6 +410,75 @@ func Test_Filter_PathTemplateMatchesPathFromRequestChain(t *testing.T) {
 					})
 					m.WithMeasures(func(measures map[string][]time.Duration) {
 						assert.Contains(t, measures, pre+"latency")
+					})
+				})
+		})
+	}
+}
+
+var multiApiArgs = []interface{}{
+	`{
+		"application_id": "my_app",
+		"api_id": "orders_api",
+		"path_templates": [
+			"foo/orders/{order-id}"
+		]
+	}`,
+	`{
+		"application_id": "my_app",
+		"api_id": "customers_api",
+		"path_templates": [
+			"foo/customers/{customer-id}"
+		]
+	}`,
+}
+
+func createMultiApiFilter() (filters.Filter, error) {
+	spec := NewApiUsageMonitoring(true, "", "", "")
+	return spec.CreateFilter(multiApiArgs)
+}
+
+func Test_Filter_MultipleApisAsMultipleArgs(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		url         string
+		expectedPre string
+	}{
+		{
+			name:        "orders_api",
+			url:         "https://www.example.org/foo/orders/1234",
+			expectedPre: "apiUsageMonitoring.custom.my_app.{no-tag}.orders_api.GET.foo/orders/{order-id}.*.*.",
+		},
+		{
+			name:        "customers_api",
+			url:         "https://www.example.org/foo/customers/loremipsum",
+			expectedPre: "apiUsageMonitoring.custom.my_app.{no-tag}.customers_api.GET.foo/customers/{customer-id}.*.*.",
+		},
+		{
+			name:        "no_match",
+			url:         "https://www.example.org/foo/unknown",
+			expectedPre: "apiUsageMonitoring.custom.my_app.{no-tag}.{unknown}.GET.{no-match}.*.*.",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testWithFilter(
+				t,
+				createMultiApiFilter,
+				http.MethodGet,
+				tc.url,
+				200,
+				func(pass int, m *metricstest.MockMetrics) {
+					m.WithCounters(func(counters map[string]int64) {
+						assert.Equal(t,
+							map[string]int64{
+								tc.expectedPre + "http_count":    int64(pass),
+								tc.expectedPre + "http2xx_count": int64(pass),
+							},
+							counters,
+						)
+					})
+					m.WithMeasures(func(measures map[string][]time.Duration) {
+						assert.Contains(t, measures, tc.expectedPre+"latency")
 					})
 				})
 		})

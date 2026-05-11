@@ -108,8 +108,8 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 
 func getClientMetricsNames(realmClientKey string, path *pathInfo) *clientMetricNames {
 	if value, ok := path.metricPrefixedPerClient.Load(realmClientKey); ok {
-		if prefixes, ok := value.(clientMetricNames); ok {
-			return &prefixes
+		if prefixes, ok := value.(*clientMetricNames); ok {
+			return prefixes
 		}
 	}
 
