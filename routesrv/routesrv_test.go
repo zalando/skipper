@@ -1417,7 +1417,7 @@ func TestZoneAwareFallbackToAllRoutesWhenBelowThreshold(t *testing.T) {
 func TestXCountShouldBeSameForZoneAwareAndZoneUnawareRoutes(t *testing.T) {
 	defer tl.Reset()
 
-	// Serve full routing table
+	// Serve all endpoints
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/zone-aware-traffic/mixed-zone-threshold.yaml"))
 	ks.Start()
 	defer ks.Close()
@@ -1431,13 +1431,13 @@ func TestXCountShouldBeSameForZoneAwareAndZoneUnawareRoutes(t *testing.T) {
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
 
-	expectedAllRoutes := parseEskipFixture(t, "testdata/zone-aware-traffic/mixed-zone-threshold-all-routes.eskip")
+	expectedAllRoutes := parseEskipFixture(t, "testdata/zone-aware-traffic/mixed-zone-threshold-all-endpoints.eskip")
 
 	plainRespAllRoutes := getRoutes(rs)
 	require.Equal(t, http.StatusOK, plainRespAllRoutes.Code)
 	gotPlain, err := eskip.Parse(plainRespAllRoutes.Body.String())
 	require.NoError(t, err)
-	assert.Equal(t, expectedAllRoutes, gotPlain, "expected all routes from /routes endpoint")
+	assert.Equal(t, expectedAllRoutes, gotPlain, "expected all endpoints from /routes")
 
 	// same for gzip
 	gzipAllRoutesResp := getRoutesGzip(rs)
@@ -1445,22 +1445,23 @@ func TestXCountShouldBeSameForZoneAwareAndZoneUnawareRoutes(t *testing.T) {
 	require.Equal(t, "gzip", gzipAllRoutesResp.Header().Get("Content-Encoding"))
 	gotGzip, err := eskip.Parse(string(decompressGzip(t, gzipAllRoutesResp.Body)))
 	require.NoError(t, err)
-	assert.Equal(t, gotGzip, expectedAllRoutes, "gzip /routes endpoint must also serve full routes")
+	assert.Equal(t, gotGzip, expectedAllRoutes, "gzip /routes must also serve all endpoints")
 
+	// Serve zone-aware endpoints
 	expectedZoneAwareRoutes := parseEskipFixture(t, "testdata/zone-aware-traffic/mixed-zone-threshold.eskip")
 
 	plainRespZoneAwareRoutes := getZoneAwareRoutes(rs, "eu-central-1a")
 	require.Equal(t, http.StatusOK, plainRespZoneAwareRoutes.Code)
 	gotPlain, err = eskip.Parse(plainRespZoneAwareRoutes.Body.String())
 	require.NoError(t, err)
-	assert.Equal(t, gotPlain, expectedZoneAwareRoutes, "expected full routes and zone-aware routes from /routes/{zone} endpoint")
+	assert.Equal(t, gotPlain, expectedZoneAwareRoutes, "expected zone aware endpoints and all endpoints for routes with <3 endpoints from /routes/{zone}")
 
 	gzipZoneAwareRoutesResp := getZoneAwareRoutesGzip(rs, "eu-central-1a")
 	require.Equal(t, http.StatusOK, gzipZoneAwareRoutesResp.Code)
 	require.Equal(t, "gzip", gzipZoneAwareRoutesResp.Header().Get("Content-Encoding"))
 	gotGzip, err = eskip.Parse(string(decompressGzip(t, gzipZoneAwareRoutesResp.Body)))
 	require.NoError(t, err)
-	assert.Equal(t, gotGzip, expectedZoneAwareRoutes, "gzip /routes/{zone} endpoint must also serve full routes and zone-aware routes")
+	assert.Equal(t, gotGzip, expectedZoneAwareRoutes, "gzip /routes/{zone} must also serve zone aware endpoints and all endpoints for routes with <3 endpoints")
 
 	// X-Count for `/routes` and `/routes/{zone}` must match since both return the same full route set (zone-aware fallback to all routes when below threshold).
 	assert.Equal(t, plainRespAllRoutes.Header().Get(routing.RoutesCountName), plainRespZoneAwareRoutes.Header().Get(routing.RoutesCountName))
