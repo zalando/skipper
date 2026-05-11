@@ -203,6 +203,10 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filters.Filte
 		f, ok := s.filterMap[key]
 		if ok {
 			s.mu.Unlock()
+			if f == nil {
+				// cached a broken regexp
+				return nil, fmt.Errorf("failed to get valid regexp")
+			}
 			return f, nil
 		}
 		s.mu.Unlock()
