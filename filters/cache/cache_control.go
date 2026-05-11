@@ -20,7 +20,7 @@ type cacheDirectives struct {
 
 type requestCacheDirectives struct {
 	NoStore      bool
-	NoCache      bool  // includes max-age=0
+	NoCache      bool // includes max-age=0
 	OnlyIfCached bool
 	MaxStale     int64 // -1 = not present; >= 0 = max staleness seconds client accepts
 	MinFresh     int64 // -1 = not present; >= 0 = min remaining freshness seconds required

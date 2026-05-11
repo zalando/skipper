@@ -3681,3 +3681,96 @@ pr: Path("/products/:productId")
 ```
 consistentHashBalanceFactor(3)
 ```
+
+## Caching
+
+### cache
+
+Caches HTTP responses in a shared in-memory LRU store. Operates in two modes
+selected by the number of arguments.
+
+**RFC mode** (zero arguments): upstream `Cache-Control` is fully authoritative.
+Freshness, `no-store`, `private`, `Vary`, `s-maxage`, heuristic TTL
+(RFC 9111 §4.2.2), and conditional revalidation (`ETag`/`Last-Modified`) are
+all honoured.
+
+**Force mode** (3–5 arguments): operator TTL is authoritative; upstream
+`Cache-Control` freshness directives are ignored. Semantic blockers (`no-store`,
+`private`) are respected in RFC mode but ignored in force mode.
+
+Stale-while-revalidate (SWR): a stale entry within the SWR window is served
+immediately while a background fetch refreshes the entry. Concurrent cold-miss
+requests for the same key are coalesced into a single upstream fetch.
+
+Unsafe methods (`POST`, `PUT`, `DELETE`, `PATCH`) invalidate the cached entry on
+success. `HEAD 200` freshens stored headers without replacing the body.
+
+Parameters (force mode):
+
+* `ttl` – freshness duration for 200 responses (string, e.g. `"5m"`)
+* `errorTTL` – freshness duration for 404/5xx responses (string)
+* `swrWindow` – stale-while-revalidate window after TTL expires (string)
+* `staleIfError` – optional; how long a stale entry may be served on upstream
+  5xx (string, RFC 5861)
+* `keyHeaders` – optional; comma-separated request header names folded into the
+  cache key for per-header isolation (string, e.g. `"Authorization,X-Tenant-ID"`)
+
+Examples:
+
+RFC mode — upstream `Cache-Control` is authoritative:
+
+```
+-> cache() -> "https://cdn.example.org"
+```
+
+Force mode — 5 minute TTL, 15 second error TTL, 30 second SWR window:
+
+```
+-> cache("5m", "15s", "30s") -> "https://cdn.example.org"
+```
+
+Force mode with stale-if-error fallback:
+
+```
+-> cache("5m", "15s", "30s", "60s") -> "https://cdn.example.org"
+```
+
+Force mode with per-tenant cache key isolation:
+
+```
+-> cache("5m", "15s", "30s", "0s", "X-Tenant-ID") -> "https://cdn.example.org"
+```
+
+**Cache key**
+
+The key is derived from route ID + HTTP method + host + path + query string.
+Route ID is included so entries from different routes never collide when sharing
+the same storage instance. Additional request headers can be folded in via
+`keyHeaders`. Without `keyHeaders`, all requests to the same path share one
+cache entry regardless of caller identity.
+
+**Safety**
+
+The filter stores whatever the upstream returns and serves it to any request
+matching the same key. It has no awareness of other filters in the chain.
+
+* **Only use on routes where the response is identical for all callers** —
+  public CMS content, unauthenticated APIs, static assets.
+* **Do not use on routes that return user-specific data or set user-scoped
+  cookies** — those responses will be served to other users.
+* **`Authorization` is not in the key by default.** Requests from different
+  users hitting the same path share a cache entry unless `Authorization` is
+  added to `keyHeaders` or stripped before the filter.
+* **`Cache-Control: private` is ignored in force mode.** Audit the upstream
+  response before enabling force mode on any authenticated route.
+
+!!! note
+    The LRU store is shared across all `cache()` filter instances created from
+    the same spec. The storage budget is divided evenly across 256 internal
+    shards; a single entry larger than one shard's budget is dropped with a
+    warning log.
+
+!!! note
+    `s-maxage` implies `proxy-revalidate` per RFC 9111 §5.2.2.10: stale entries
+    stored under `s-maxage` are never served without revalidation, regardless of
+    the SWR window.
