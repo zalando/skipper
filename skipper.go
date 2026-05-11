@@ -1055,7 +1055,7 @@ type Options struct {
 	EnableOpenPolicyAgentDataPreProcessingOptimization bool
 	EnableOpenPolicyAgentPreloading                    bool
 	EnableOpenPolicyAgentAsyncDecisionLogging          bool
-	OpenPolicyAgentDecisionLogChannelSize              int
+	OpenPolicyAgentDecisionLogQueueSize                int
 	EnableOpenPolicyAgentPrintTracing                  bool
 	OpenPolicyAgentConfigTemplate                      string
 	OpenPolicyAgentEnvoyMetadata                       string
@@ -2179,7 +2179,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			openpolicyagent.WithEnableDataPreProcessingOptimization(o.EnableOpenPolicyAgentDataPreProcessingOptimization),
 			openpolicyagent.WithPreloadingEnabled(o.EnableOpenPolicyAgentPreloading),
 			openpolicyagent.WithAsyncDecisionLogging(o.EnableOpenPolicyAgentAsyncDecisionLogging),
-			openpolicyagent.WithDecisionLogChannelSize(o.OpenPolicyAgentDecisionLogChannelSize),
+			openpolicyagent.WithDecisionLogQueueSize(o.OpenPolicyAgentDecisionLogQueueSize),
 			openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...),
 		}
 

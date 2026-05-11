@@ -345,7 +345,7 @@ type Config struct {
 	EnableOpenPolicyAgentDataPreProcessingOptimization bool          `yaml:"enable-open-policy-agent-data-preprocessing-optimization"`
 	EnableOpenPolicyAgentPreloading                    bool          `yaml:"enable-open-policy-agent-preloading"`
 	EnableOpenPolicyAgentAsyncDecisionLogging          bool          `yaml:"enable-open-policy-agent-async-decision-logging"`
-	OpenPolicyAgentDecisionLogBufferSize               int           `yaml:"open-policy-agent-decision-log-buffer-size"`
+	OpenPolicyAgentDecisionLogQueueSize                int           `yaml:"open-policy-agent-decision-log-queue-size"`
 	EnableOpenPolicyAgentPrintTracing                  bool          `yaml:"enable-open-policy-agent-print-tracing"`
 	OpenPolicyAgentConfigTemplate                      string        `yaml:"open-policy-agent-config-template"`
 	OpenPolicyAgentEnvoyMetadata                       string        `yaml:"open-policy-agent-envoy-metadata"`
@@ -615,7 +615,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.EnableOpenPolicyAgentCustomControlLoop, "enable-open-policy-agent-custom-control-loop", false, "when enabled skipper will use a custom control loop to orchestrate certain opa behaviour (like the download of new bundles) instead of relying on periodic plugin triggers")
 	flag.BoolVar(&cfg.EnableOpenPolicyAgentPreloading, "enable-open-policy-agent-preloading", false, "EXPERIMENTAL: when enabled, OPA instances will be pre-loaded during route processing instead of during filter creation, making filter creation non-blocking")
 	flag.BoolVar(&cfg.EnableOpenPolicyAgentAsyncDecisionLogging, "enable-open-policy-agent-async-decision-logging", false, "when enabled, decision log events are offloaded to a background goroutine so that slow decision log plugins (e.g. eopa_dl with S3 output) do not delay HTTP responses")
-	flag.IntVar(&cfg.OpenPolicyAgentDecisionLogBufferSize, "open-policy-agent-decision-log-buffer-size", openpolicyagent.DefaultDecisionLogChannelSize, "number of decision log events that can be queued before new ones are dropped; only applies when async decision logging is enabled")
+	flag.IntVar(&cfg.OpenPolicyAgentDecisionLogQueueSize, "open-policy-agent-decision-log-queue-size", openpolicyagent.DefaultDecisionLogQueueSize, "number of decision log events that can be queued before new ones are dropped; only applies when async decision logging is enabled")
 	flag.DurationVar(&cfg.OpenPolicyAgentControlLoopInterval, "open-policy-agent-control-loop-interval", openpolicyagent.DefaultControlLoopInterval, "Interval between the execution of the control loop. Only applies if the custom control loop is enabled")
 	flag.DurationVar(&cfg.OpenPolicyAgentControlLoopMaxJitter, "open-policy-agent-control-loop-max-jitter", openpolicyagent.DefaultControlLoopMaxJitter, "Maximum jitter to add to the control loop interval. Only applies if the custom control loop is enabled")
 	flag.BoolVar(&cfg.EnableOpenPolicyAgentDataPreProcessingOptimization, "enable-open-policy-agent-data-preprocessing-optimization", false, "As a latency optimization, open policy agent will read values from in-memory storage as pre converted ASTs, removing conversion overhead at evaluation time. Currently experimental and if successful will be enabled by default")
@@ -1147,7 +1147,7 @@ func (c *Config) ToOptions() skipper.Options {
 		EnableOpenPolicyAgentDataPreProcessingOptimization: c.EnableOpenPolicyAgentDataPreProcessingOptimization,
 		EnableOpenPolicyAgentPreloading:                    c.EnableOpenPolicyAgentPreloading,
 		EnableOpenPolicyAgentAsyncDecisionLogging:          c.EnableOpenPolicyAgentAsyncDecisionLogging,
-		OpenPolicyAgentDecisionLogChannelSize:              c.OpenPolicyAgentDecisionLogBufferSize,
+		OpenPolicyAgentDecisionLogQueueSize:                c.OpenPolicyAgentDecisionLogQueueSize,
 		EnableOpenPolicyAgentPrintTracing:                  c.EnableOpenPolicyAgentPrintTracing,
 		OpenPolicyAgentConfigTemplate:                      c.OpenPolicyAgentConfigTemplate,
 		OpenPolicyAgentEnvoyMetadata:                       c.OpenPolicyAgentEnvoyMetadata,

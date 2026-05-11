@@ -62,7 +62,7 @@ const (
 	defaultShutdownGracePeriod      = 30 * time.Second
 	DefaultOpaStartupTimeout        = 30 * time.Second
 	DefaultBackgroundTaskBufferSize = 100
-	DefaultDecisionLogChannelSize   = 1000
+	DefaultDecisionLogQueueSize   = 1000
 
 	DefaultMaxRequestBodySize    = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing  = 100 * DefaultMaxRequestBodySize
@@ -131,7 +131,7 @@ type OpenPolicyAgentRegistry struct {
 	preloadingEnabled bool
 
 	asyncDecisionLogging   bool
-	decisionLogChannelSize int
+	decisionLogQueueSize int
 
 	// Background task system
 	backgroundTaskChan       chan *BackgroundTask
@@ -283,9 +283,9 @@ func WithAsyncDecisionLogging(enabled bool) func(*OpenPolicyAgentRegistry) error
 	}
 }
 
-func WithDecisionLogChannelSize(size int) func(*OpenPolicyAgentRegistry) error {
+func WithDecisionLogQueueSize(size int) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
-		cfg.decisionLogChannelSize = size
+		cfg.decisionLogQueueSize = size
 		return nil
 	}
 }
@@ -797,9 +797,9 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	}
 
 	if registry.asyncDecisionLogging {
-		bufSize := registry.decisionLogChannelSize
+		bufSize := registry.decisionLogQueueSize
 		if bufSize <= 0 {
-			bufSize = DefaultDecisionLogChannelSize
+			bufSize = DefaultDecisionLogQueueSize
 		}
 		opa.decisionLogChan = make(chan decisionLogTask, bufSize)
 		opa.decisionsProcessed = make(chan struct{})
