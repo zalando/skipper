@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/otel"
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -810,6 +811,14 @@ type Options struct {
 
 	// BreakerSettings contain global and host specific settings for the circuit breakers.
 	BreakerSettings []circuit.BreakerSettings
+
+	// EnableLetsencrypt
+	EnableLetsencrypt bool
+
+	LetsencryptEmail        string
+	LetsencryptDirectoryURL string
+	LetsencryptUserAgent    string
+	LetsencryptDomains      []string
 
 	// EnableRatelimiters enables the usage of the ratelimiter in the route definitions without initializing any
 	// by default. It is a shortcut for setting the RatelimitSettings to:
@@ -2091,7 +2100,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	var (
 		swarmer       ratelimit.Swarmer
 		redisOptions  *skpnet.RedisOptions
+		redisClient   *skpnet.RedisRingClient
 		valkeyOptions *skpnet.ValkeyOptions
+		valkeyClient  *skpnet.ValkeyRingClient
 	)
 	log.Infof("enable swarm: %v", o.EnableSwarm)
 	if o.EnableSwarm {
@@ -2243,16 +2254,47 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 	}
 
+	if redisOptions != nil {
+		redisClient = skpnet.NewRedisRingClient(redisOptions)
+	}
 	var valkeyRing *skpnet.ValkeyRingClient
 	if valkeyOptions != nil {
 		if valkeyOptions.MetricsPrefix == "" {
 			valkeyOptions.MetricsPrefix = ratelimit.ValkeyMetricsPrefix
 		}
-		valkeyRing, err = skpnet.NewValkeyRingClient(valkeyOptions)
+		valkeyClient, err = skpnet.NewValkeyRingClient(valkeyOptions)
 		if err != nil {
 			return err
 		}
 		defer valkeyRing.Close()
+	}
+
+	if o.EnableLetsencrypt {
+		var cache autocert.Cache
+		switch o.LetsencryptCache {
+		case "directory":
+			cache = autocert.DirCache(os.TempDir())
+		case "remote":
+			cache = &net.RemoteCache{
+				Client: redisClient,
+			}
+
+		case "inmemory":
+			cache = &skpnet.InmemoryCache{}
+		default:
+
+		}
+
+		le := skpnet.NewLetsencrypt(
+			cache,
+			o.LetsencryptEmail,
+			o.LetsencryptDirectoryURL,
+			o.LetsencryptUserAgent,
+			o.LetsencryptDomains,
+		)
+		_ = le
+		// le.Handler(o.CustomHttpHandlerWrap)
+		// o.CustomHttpHandlerWrap = leHandler()
 	}
 
 	var (
