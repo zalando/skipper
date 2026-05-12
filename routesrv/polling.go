@@ -130,7 +130,11 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 func filterRoutesByZone(routes []*eskip.Route) map[string][]*eskip.Route {
 	zoneAwareRoutes := make(map[string][]*eskip.Route)
 	for _, r := range routes {
-		byZone := make(map[string][]*eskip.LBEndpoint)
+		byZone := map[string][]*eskip.LBEndpoint{
+			"eu-central-1a": make([]*eskip.LBEndpoint, 0),
+			"eu-central-1b": make([]*eskip.LBEndpoint, 0),
+			"eu-central-1c": make([]*eskip.LBEndpoint, 0),
+		}
 		for _, ep := range r.LBEndpoints {
 			if ep.Zone != "" {
 				byZone[ep.Zone] = append(byZone[ep.Zone], ep)

@@ -1,0 +1,4 @@
+kube_default__ingress_all_zones__allzones_example_org____svc_all_zones: Host("^(allzones[.]example[.]org[.]?(:[0-9]+)?)$")
+  -> <roundRobin,"http://10.2.0.3:8080","http://10.2.0.4:8080","http://10.2.0.5:8080">;
+kube_default__ingress_no_zone_a__noa_example_org____svc_no_zone_a: Host("^(noa[.]example[.]org[.]?(:[0-9]+)?)$")
+  -> <roundRobin,"http://10.2.3.3:8080","http://10.2.3.4:8080","http://10.2.3.5:8080","http://10.2.4.3:8080","http://10.2.4.4:8080","http://10.2.4.5:8080">;
