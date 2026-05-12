@@ -24,6 +24,7 @@ import (
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	opaconf "github.com/open-policy-agent/opa/v1/config"
 	"github.com/open-policy-agent/opa/v1/download"
+	"github.com/open-policy-agent/opa/v1/logging"
 	"github.com/open-policy-agent/opa/v1/plugins"
 	"github.com/open-policy-agent/opa/v1/plugins/bundle"
 	"github.com/open-policy-agent/opa/v1/plugins/discovery"
@@ -35,6 +36,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing/tracingtest"
@@ -1468,4 +1470,33 @@ func TestPrintTracing(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAsyncDecisionLogDroppedCounter verifies the decision_log.dropped counter
+func TestAsyncDecisionLogDroppedCounter(t *testing.T) {
+	mockMetrics := &metricstest.MockMetrics{}
+	origDefault := metrics.Default
+	metrics.Default = mockMetrics
+	t.Cleanup(func() { metrics.Default = origDefault })
+
+	// Buffered cap=1 with no reader: first send fits, every send after drops.
+	opa := &OpenPolicyAgentInstance{
+		registry:        &OpenPolicyAgentRegistry{},
+		bundleName:      "test",
+		logger:          logging.Get().WithFields(map[string]any{"bundle-name": "test"}),
+		decisionLogChan: make(chan decisionLogTask, 1),
+	}
+	result := &envoyauth.EvalResult{DecisionID: "decision-1"}
+
+	require.NoError(t, opa.logDecision(context.Background(), nil, result, nil))
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		assert.Zero(t, counters["decision_log.dropped.test"], "no drop expected when channel has room")
+	})
+
+	// Channel is now full: subsequent sends drop and increment the counter.
+	require.NoError(t, opa.logDecision(context.Background(), nil, result, nil))
+	require.NoError(t, opa.logDecision(context.Background(), nil, result, nil))
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		assert.Equal(t, int64(2), counters["decision_log.dropped.test"])
+	})
 }
