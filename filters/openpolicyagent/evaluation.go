@@ -55,9 +55,6 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 
 		if opa.decisionLogChan != nil {
 			task := decisionLogTask{
-				// Detach from the request context so a client disconnect or timeout
-				// does not silently drop the event inside the OPA plugin.
-				ctx:    context.WithoutCancel(ctx),
 				input:  input,
 				result: result,
 				err:    err,

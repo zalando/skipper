@@ -627,7 +627,6 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 
 // decisionLogTask holds everything needed to call logDecision off the hot path.
 type decisionLogTask struct {
-	ctx    context.Context
 	input  interface{}
 	result *envoyauth.EvalResult
 	err    error
@@ -1035,7 +1034,7 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 func (opa *OpenPolicyAgentInstance) runDecisionLogger() {
 	defer close(opa.decisionsProcessed)
 	for task := range opa.decisionLogChan {
-		if err := opa.logDecision(task.ctx, task.input, task.result, task.err); err != nil {
+		if err := opa.logDecision(context.Background(), task.input, task.result, task.err); err != nil {
 			opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
 		}
 	}
