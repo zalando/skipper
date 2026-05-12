@@ -84,6 +84,10 @@ func NewLetsencrypt(cache autocert.Cache, email, directoryURL, userAgent string,
 		}
 	}
 
+	if directoryURL == "" {
+		directoryURL = autocert.DefaultACMEDirectory
+	}
+
 	manager := &autocert.Manager{
 		Cache:      cache,
 		Email:      email,
@@ -123,7 +127,7 @@ func (le *Letsencrypt) Close() {
 	le.Listener().Close()
 }
 
-var domainRegex = regexp.MustCompile("^[a-z0-9]+$")
+var domainRegex = regexp.MustCompile("^[a-z0-9-]+$")
 
 func validateDomain(s string) bool {
 	i := 0

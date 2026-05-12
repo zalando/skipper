@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/acme/autocert"
 	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -662,10 +661,10 @@ func NewConfig() *Config {
 
 	// Letsencrypt
 	flag.BoolVar(&cfg.EnableLetsencrypt, "enable-letsencrypt", false, "enables letsencrypt autocert handling on the proxy")
-	flag.StringVar(&cfg.LetsencryptCache, "letsencrypt-cache", "", "Configure the autocert cert cache <inmemory|remote|directory>")
+	flag.StringVar(&cfg.LetsencryptCache, "letsencrypt-cache", "directory", "Configure the autocert cert cache <inmemory|remote|directory>. If you use certbot, you need to use directory.")
 	flag.StringVar(&cfg.LetsencryptEmail, "letsencrypt-email", "", "Sets letsencrypt email address such that you can be reached by letsencrypt if something goes wrong")
 	flag.Var(cfg.LetsencryptDomains, "letsencrypt-domains", "An allow list of domains for autocert handling")
-	flag.StringVar(&cfg.LetsencryptDirectoryURL, "letsencrypt-directory-url", "", "Sets directory URL for testing")
+	flag.StringVar(&cfg.LetsencryptDirectoryURL, "letsencrypt-directory-url", "", "Sets directory URL for testing, defaults to autocert.DefaultACMEDirectory")
 	flag.StringVar(&cfg.LetsencryptUserAgent, "letsencrypt-user-agent", "", "Sets httpclient useragent that calls letsencrypt that enables letsencrypt to limit you if something goes wrong")
 
 	// API Monitoring:
@@ -956,6 +955,11 @@ func (c *Config) ToOptions() skipper.Options {
 		MaxMatcherBufferSize:             c.MaxMatcherBufferSize,
 		EnableBreakers:                   c.EnableBreakers,
 		BreakerSettings:                  c.Breakers,
+		EnableLetsencrypt:                c.EnableLetsencrypt,
+		LetsencryptEmail:                 c.LetsencryptEmail,
+		LetsencryptDirectoryURL:          c.LetsencryptDirectoryURL,
+		LetsencryptUserAgent:             c.LetsencryptUserAgent,
+		LetsencryptDomains:               c.LetsencryptDomains.values,
 		EnableRatelimiters:               c.EnableRatelimiters,
 		RatelimitSettings:                c.Ratelimits,
 		EnableRouteFIFOMetrics:           c.EnableRouteFIFOMetrics,
@@ -1318,32 +1322,19 @@ func (c *Config) ToOptions() skipper.Options {
 		})
 	}
 
-	if c.EnableLetsencrypt {
-		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
-			return net.NewLetsencrypt(
-				c.getLetsencryptCache(),
-				c.LetsencryptEmail,
-				c.LetsencryptDirectoryURL,
-				c.LetsencryptUserAgent,
-				c.LetsencryptDomains.values,
-			).Handler(handler)
-		})
-	}
+	// if c.EnableLetsencrypt {
+	// 	wrappers = append(wrappers, func(handler http.Handler) http.Handler {
+	// 		return net.NewLetsencrypt(
+	// 			c.getLetsencryptCache(),
+	// 			c.LetsencryptEmail,
+	// 			c.LetsencryptDirectoryURL,
+	// 			c.LetsencryptUserAgent,
+	// 			c.LetsencryptDomains.values,
+	// 		).Handler(handler)
+	// 	})
+	// }
 
 	return options
-}
-
-func (c *Config) getLetsencryptCache() autocert.Cache {
-	switch c.LetsencryptCache {
-	case "directory":
-		return autocert.DirCache(os.TempDir())
-	case "remote":
-		return &net.RemoteCache{
-			Client: &net.RedisRingClient{},
-		}
-	default:
-		return &net.InmemoryCache{}
-	}
 }
 
 func (c *Config) getMinTLSVersion() uint16 {
