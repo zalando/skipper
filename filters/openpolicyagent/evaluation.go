@@ -53,24 +53,8 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 			return
 		}
 
-		if opa.decisionLogChan != nil {
-			task := decisionLogTask{
-				input:  input,
-				result: result,
-				err:    err,
-			}
-			select {
-			case opa.decisionLogChan <- task:
-			default:
-				// Buffer full: drop the event rather than blocking the request goroutine.
-				opa.Logger().WithFields(map[string]interface{}{
-					"decision_id": result.DecisionID,
-				}).Warn("Decision log dropped: async buffer full.")
-			}
-		} else {
-			if err := opa.logDecision(ctx, input, result, err); err != nil {
-				opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
-			}
+		if err := opa.logDecision(ctx, input, result, err); err != nil {
+			opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
 		}
 	}()
 
@@ -131,6 +115,22 @@ func FormOpenPolicyAgentMetaDataObject(decisionId string) (*pbstruct.Struct, err
 }
 
 func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input interface{}, result *envoyauth.EvalResult, err error) error {
+	if opa.decisionLogChan != nil {
+		task := decisionLogTask{input: input, result: result, err: err}
+		select {
+		case opa.decisionLogChan <- task:
+		default:
+			opa.Logger().WithFields(map[string]interface{}{
+				"decision_id": result.DecisionID,
+			}).Warn("Decision log dropped: async buffer full.")
+		}
+		return nil
+	}
+
+	return opa.doLogDecision(ctx, input, result, err)
+}
+
+func (opa *OpenPolicyAgentInstance) doLogDecision(ctx context.Context, input interface{}, result *envoyauth.EvalResult, err error) error {
 	info := &server.Info{
 		Timestamp: time.Now(),
 		Input:     &input,

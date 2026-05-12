@@ -3,6 +3,7 @@ package openpolicyagent
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	dl "github.com/open-policy-agent/eopa/pkg/plugins/decision_logs"
+	"github.com/open-policy-agent/opa/v1/plugins/logs"
 	"github.com/open-policy-agent/opa/v1/util"
 
 	"google.golang.org/protobuf/proto"
@@ -62,7 +64,6 @@ const (
 	defaultShutdownGracePeriod      = 30 * time.Second
 	DefaultOpaStartupTimeout        = 30 * time.Second
 	DefaultBackgroundTaskBufferSize = 100
-	DefaultDecisionLogQueueSize     = 1000
 
 	DefaultMaxRequestBodySize    = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing  = 100 * DefaultMaxRequestBodySize
@@ -131,7 +132,6 @@ type OpenPolicyAgentRegistry struct {
 	preloadingEnabled bool
 
 	asyncDecisionLogging bool
-	decisionLogQueueSize int
 
 	// Background task system
 	backgroundTaskChan       chan *BackgroundTask
@@ -279,13 +279,6 @@ func WithPreloadingEnabled(enabled bool) func(*OpenPolicyAgentRegistry) error {
 func WithAsyncDecisionLogging(enabled bool) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.asyncDecisionLogging = enabled
-		return nil
-	}
-}
-
-func WithDecisionLogQueueSize(size int) func(*OpenPolicyAgentRegistry) error {
-	return func(cfg *OpenPolicyAgentRegistry) error {
-		cfg.decisionLogQueueSize = size
 		return nil
 	}
 }
@@ -796,10 +789,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	}
 
 	if registry.asyncDecisionLogging {
-		bufSize := registry.decisionLogQueueSize
-		if bufSize <= 0 {
-			bufSize = DefaultDecisionLogQueueSize
-		}
+		bufSize := decisionLogBufferSize(opaConfig.DecisionLogs)
 		opa.decisionLogChan = make(chan decisionLogTask, bufSize)
 		opa.decisionsProcessed = make(chan struct{})
 		go opa.runDecisionLogger()
@@ -827,6 +817,21 @@ func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ..
 		}
 	}
 	return true
+}
+
+func decisionLogBufferSize(rawConfig json.RawMessage) int {
+	const defaultBufferSize = 1000
+	if rawConfig == nil {
+		return defaultBufferSize
+	}
+	var cfg logs.Config
+	if err := json.Unmarshal(rawConfig, &cfg); err != nil {
+		return defaultBufferSize
+	}
+	if cfg.Reporting.BufferSizeLimitEvents != nil && *cfg.Reporting.BufferSizeLimitEvents > 0 {
+		return int(*cfg.Reporting.BufferSizeLimitEvents)
+	}
+	return defaultBufferSize
 }
 
 func (opa *OpenPolicyAgentInstance) Start() error {
@@ -1034,7 +1039,7 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 func (opa *OpenPolicyAgentInstance) runDecisionLogger() {
 	defer close(opa.decisionsProcessed)
 	for task := range opa.decisionLogChan {
-		if err := opa.logDecision(context.Background(), task.input, task.result, task.err); err != nil {
+		if err := opa.doLogDecision(context.Background(), task.input, task.result, task.err); err != nil {
 			opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
 		}
 	}
