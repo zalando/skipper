@@ -18,6 +18,8 @@ import (
 	"github.com/open-policy-agent/opa/v1/topdown/print"
 	"github.com/opentracing/opentracing-go"
 	pbstruct "google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/zalando/skipper/metrics"
 )
 
 func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.CheckRequest) (*envoyauth.EvalResult, error) {
@@ -120,6 +122,7 @@ func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input inter
 		select {
 		case opa.decisionLogChan <- task:
 		default:
+			metrics.Default.IncCounter(opa.MetricsKey("decision_log.dropped"))
 			opa.Logger().WithFields(map[string]interface{}{
 				"decision_id": result.DecisionID,
 			}).Warn("Decision log dropped: async buffer full.")
