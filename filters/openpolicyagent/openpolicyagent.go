@@ -3,6 +3,7 @@ package openpolicyagent
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	dl "github.com/open-policy-agent/eopa/pkg/plugins/decision_logs"
+	"github.com/open-policy-agent/opa/v1/plugins/logs"
 	"github.com/open-policy-agent/opa/v1/util"
 
 	"google.golang.org/protobuf/proto"
@@ -128,6 +130,8 @@ type OpenPolicyAgentRegistry struct {
 
 	// New fields for pre-loading support
 	preloadingEnabled bool
+
+	asyncDecisionLogging bool
 
 	// Background task system
 	backgroundTaskChan       chan *BackgroundTask
@@ -268,6 +272,13 @@ func (registry *OpenPolicyAgentRegistry) initializeCache() error {
 func WithPreloadingEnabled(enabled bool) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.preloadingEnabled = enabled
+		return nil
+	}
+}
+
+func WithAsyncDecisionLogging(enabled bool) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.asyncDecisionLogging = enabled
 		return nil
 	}
 }
@@ -607,6 +618,13 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 	return engine, nil
 }
 
+// decisionLogTask holds everything needed to call logDecision off the hot path.
+type decisionLogTask struct {
+	input  interface{}
+	result *envoyauth.EvalResult
+	err    error
+}
+
 type OpenPolicyAgentInstance struct {
 	manager                     *plugins.Manager
 	instanceConfig              OpenPolicyAgentInstanceConfig
@@ -631,6 +649,9 @@ type OpenPolicyAgentInstance struct {
 	bodyReadBufferSize int64
 
 	idGenerator flowid.Generator
+
+	decisionLogChan    chan decisionLogTask
+	decisionsProcessed chan struct{}
 }
 
 func envVariablesMap() map[string]string {
@@ -767,6 +788,13 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		logger:      logging.Get().WithFields(map[string]any{"bundle-name": bundleName}),
 	}
 
+	if registry.asyncDecisionLogging {
+		bufSize := decisionLogBufferSize(opaConfig.DecisionLogs)
+		opa.decisionLogChan = make(chan decisionLogTask, bufSize)
+		opa.decisionsProcessed = make(chan struct{})
+		go opa.runDecisionLogger()
+	}
+
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
 	manager.RegisterPluginStatusListener("instance-health-check", func(_ map[string]*plugins.Status) {
 		// Get fresh status to workaround OPA issue https://github.com/open-policy-agent/opa/issues/8009
@@ -789,6 +817,21 @@ func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ..
 		}
 	}
 	return true
+}
+
+func decisionLogBufferSize(rawConfig json.RawMessage) int {
+	const defaultBufferSize = 1000
+	if rawConfig == nil {
+		return defaultBufferSize
+	}
+	var cfg logs.Config
+	if err := json.Unmarshal(rawConfig, &cfg); err != nil {
+		return defaultBufferSize
+	}
+	if cfg.Reporting.BufferSizeLimitEvents != nil && *cfg.Reporting.BufferSizeLimitEvents > 0 {
+		return int(*cfg.Reporting.BufferSizeLimitEvents)
+	}
+	return defaultBufferSize
 }
 
 func (opa *OpenPolicyAgentInstance) Start() error {
@@ -979,8 +1022,27 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 	opa.closingOnce.Do(func() {
 		opa.Logger().Info("Closing OPA instance...")
 		opa.closing = true
+		if opa.decisionLogChan != nil {
+			close(opa.decisionLogChan)
+			select {
+			case <-opa.decisionsProcessed:
+			case <-ctx.Done():
+			}
+		}
 		opa.manager.Stop(ctx)
 	})
+}
+
+// runDecisionLogger drains decisionLogChan in the background so that logDecision
+// is never called on the request goroutine. The goroutine exits when the channel
+// is closed (during Close) and signals completion via decisionsProcessed.
+func (opa *OpenPolicyAgentInstance) runDecisionLogger() {
+	defer close(opa.decisionsProcessed)
+	for task := range opa.decisionLogChan {
+		if err := opa.doLogDecision(context.Background(), task.input, task.result, task.err); err != nil {
+			opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
+		}
+	}
 }
 
 func (opa *OpenPolicyAgentInstance) Logger() logging.Logger {
