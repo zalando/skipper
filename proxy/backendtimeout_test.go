@@ -34,6 +34,7 @@ func TestSlowService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	io.Copy(io.Discard, rsp.Body)
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusGatewayTimeout {
@@ -61,6 +62,7 @@ func TestFastService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	io.Copy(io.Discard, rsp.Body)
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusOK {
@@ -172,6 +174,7 @@ func TestRetryAndSlowService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	io.Copy(io.Discard, rsp.Body)
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusGatewayTimeout {
@@ -203,6 +206,7 @@ func TestRetryAndFastService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	io.Copy(io.Discard, rsp.Body)
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusOK {

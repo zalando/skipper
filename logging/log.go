@@ -76,7 +76,7 @@ func initApplicationLog(o Options) {
 	}
 }
 
-func initAccessLog(o Options) {
+func createAccessLog(o Options) *AccessLogger {
 	l := logrus.New()
 	if o.AccessLogFormatter != nil {
 		l.Formatter = o.AccessLogFormatter
@@ -91,17 +91,18 @@ func initAccessLog(o Options) {
 	}
 	l.Out = o.AccessLogOutput
 	l.Level = logrus.InfoLevel
-	accessLog = l
-	stripQuery = o.AccessLogStripQuery
+
+	return &AccessLogger{
+		stripQuery: o.AccessLogStripQuery,
+		log:        l,
+	}
 }
 
-// Initializes logging.
-func Init(o Options) {
+func NewAccessLogger(o Options) *AccessLogger {
 	initApplicationLog(o)
 
 	if o.AccessLogOutput == nil {
 		o.AccessLogOutput = os.Stderr
 	}
-
-	initAccessLog(o)
+	return createAccessLog(o)
 }

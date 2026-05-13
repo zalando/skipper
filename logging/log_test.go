@@ -14,7 +14,7 @@ import (
 
 func TestCustomOutputForApplicationLog(t *testing.T) {
 	var buf bytes.Buffer
-	Init(Options{ApplicationLogOutput: &buf})
+	_ = NewAccessLogger(Options{ApplicationLogOutput: &buf})
 	msg := "Hello, world!"
 	log.Info(msg)
 	if !strings.Contains(buf.String(), msg) {
@@ -25,7 +25,7 @@ func TestCustomOutputForApplicationLog(t *testing.T) {
 func TestCustomPrefixForApplicationLog(t *testing.T) {
 	var buf bytes.Buffer
 	prefix := "[TEST_PREFIX]"
-	Init(Options{
+	_ = NewAccessLogger(Options{
 		ApplicationLogOutput: &buf,
 		ApplicationLogPrefix: prefix})
 	log.Infof("Hello, world!")
@@ -37,8 +37,8 @@ func TestCustomPrefixForApplicationLog(t *testing.T) {
 
 func TestCustomOutputForAccessLog(t *testing.T) {
 	var buf bytes.Buffer
-	Init(Options{AccessLogOutput: &buf})
-	LogAccess(&AccessEntry{StatusCode: http.StatusTeapot}, nil)
+	lg := NewAccessLogger(Options{AccessLogOutput: &buf})
+	lg.LogAccess(&AccessEntry{StatusCode: http.StatusTeapot}, nil)
 	if !strings.Contains(buf.String(), strconv.Itoa(http.StatusTeapot)) {
 		t.Error("failed to use custom access log output")
 	}
@@ -46,7 +46,7 @@ func TestCustomOutputForAccessLog(t *testing.T) {
 
 func TestApplicationLogJSONEnabled(t *testing.T) {
 	var buf bytes.Buffer
-	Init(Options{ApplicationLogOutput: &buf, ApplicationLogJSONEnabled: true})
+	_ = NewAccessLogger(Options{ApplicationLogOutput: &buf, ApplicationLogJSONEnabled: true})
 	msg := "Hello, world!"
 	log.Info(msg)
 
@@ -80,7 +80,7 @@ func TestApplicationLogJSONEnabled(t *testing.T) {
 
 func TestApplicationLogJSONWithCustomFormatter(t *testing.T) {
 	var buf bytes.Buffer
-	Init(Options{
+	_ = NewAccessLogger(Options{
 		ApplicationLogOutput:      &buf,
 		ApplicationLogJSONEnabled: true,
 		ApplicationLogJsonFormatter: &log.JSONFormatter{
@@ -139,8 +139,8 @@ func (f *customFormatter) Format(entry *log.Entry) ([]byte, error) {
 func TestAccessLogFormatterTakesPrecedence(t *testing.T) {
 	var buf bytes.Buffer
 	f := &customFormatter{innerFormatter: &log.JSONFormatter{}}
-	Init(Options{AccessLogOutput: &buf, AccessLogFormatter: f})
-	LogAccess(&AccessEntry{StatusCode: http.StatusTeapot}, nil)
+	lg := NewAccessLogger(Options{AccessLogOutput: &buf, AccessLogFormatter: f})
+	lg.LogAccess(&AccessEntry{StatusCode: http.StatusTeapot}, nil)
 	s := buf.String()
 	if !strings.Contains(s, " - Custom Suffix") {
 		t.Error("failed to use custom access log output")

@@ -451,13 +451,14 @@ func TestRetries(t *testing.T) {
 			// To avoid guessing which endpoint round robin picks first,
 			// make two requests and compare response codes ignoring request order
 			var codes []int
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				req, err := http.NewRequest(tt.method, ps.URL, tt.body())
 				require.NoError(t, err)
 
 				rsp, err := http.DefaultClient.Do(req)
 				require.NoError(t, err)
 
+				io.Copy(io.Discard, rsp.Body)
 				rsp.Body.Close()
 				codes = append(codes, rsp.StatusCode)
 			}
@@ -1598,6 +1599,7 @@ func TestRoundtripperRetry(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	io.Copy(io.Discard, rsp.Body)
 	rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusOK {
@@ -1700,8 +1702,7 @@ func TestBranding(t *testing.T) {
 
 	p, err := newTestProxy(routes, FlagsNone)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	defer p.close()
 
@@ -1734,15 +1735,13 @@ func TestBranding(t *testing.T) {
 		t.Run(ti.uri, func(t *testing.T) {
 			rsp, err := http.Get(ps.URL + ti.uri)
 			if err != nil {
-				t.Error(err)
-				return
+				t.Fatal(err)
 			}
-
+			io.Copy(io.Discard, rsp.Body)
 			defer rsp.Body.Close()
 
 			if rsp.StatusCode == http.StatusNotFound {
-				t.Error("not found")
-				return
+				t.Fatal("not found")
 			}
 
 			if rsp.Header.Get("Server") != ti.header {
@@ -1763,8 +1762,7 @@ func TestFixNoAppLogFor404(t *testing.T) {
 
 	p, err := newTestProxy("", FlagsNone)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	defer p.close()
 
@@ -1773,10 +1771,9 @@ func TestFixNoAppLogFor404(t *testing.T) {
 
 	rsp, err := http.Get(ps.URL)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
-
+	io.Copy(io.Discard, rsp.Body)
 	defer rsp.Body.Close()
 
 	if err := p.log.WaitFor(unknownRouteID, 120*time.Millisecond); err == nil {
@@ -1792,24 +1789,21 @@ func TestRequestContentHeaders(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		b, err := io.ReadAll(r.Body)
 		if err != nil {
-			t.Error(err)
-			return
+			t.Fatal(err)
 		}
+		defer r.Body.Close()
 
 		if len(b) != contentLength {
-			t.Error("failed to forward content")
-			return
+			t.Fatal("failed to forward content")
 		}
 
 		if r.URL.Path == "/with-content-length" {
 			if r.ContentLength != contentLength {
-				t.Error("failed to forward content length")
-				return
+				t.Fatal("failed to forward content length")
 			}
 
 			if len(r.TransferEncoding) != 0 {
-				t.Error("unexpected transfer encoding")
-				return
+				t.Fatal("unexpected transfer encoding")
 			}
 
 			return
@@ -1820,7 +1814,7 @@ func TestRequestContentHeaders(t *testing.T) {
 		}
 
 		if len(r.TransferEncoding) != 1 || r.TransferEncoding[0] != "chunked" {
-			t.Error("failed to set chunked encoding")
+			t.Fatal("failed to set chunked encoding")
 			return
 		}
 	}))
@@ -1828,8 +1822,7 @@ func TestRequestContentHeaders(t *testing.T) {
 
 	p, err := newTestProxy(fmt.Sprintf(`* -> "%s"`, backend.URL), FlagsNone)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	defer p.close()
 
@@ -1861,7 +1854,7 @@ func TestRequestContentHeaders(t *testing.T) {
 			t.Error(err)
 			return
 		}
-
+		io.Copy(io.Discard, rsp.Body)
 		rsp.Body.Close()
 	}
 
@@ -1916,7 +1909,6 @@ func TestHopHeaderRemoval(t *testing.T) {
 		t.Error()
 		return
 	}
-
 	defer tp.close()
 
 	tp.proxy.ServeHTTP(w, r)
@@ -1928,7 +1920,7 @@ func TestHopHeaderRemoval(t *testing.T) {
 
 func TestLogsAccess(t *testing.T) {
 	var accessLog bytes.Buffer
-	logging.Init(logging.Options{AccessLogOutput: &accessLog})
+	al := logging.NewAccessLogger(logging.Options{AccessLogOutput: &accessLog})
 
 	response := "7 bytes"
 
@@ -1941,12 +1933,10 @@ func TestLogsAccess(t *testing.T) {
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
 
-	tp, err := newTestProxy(doc, FlagsNone)
+	tp, err := newTestProxyWithParams(doc, Params{Flags: FlagsNone, AccessLogger: al})
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
-
 	defer tp.close()
 
 	tp.proxy.ServeHTTP(w, r)
@@ -1959,7 +1949,7 @@ func TestLogsAccess(t *testing.T) {
 
 func TestDisableAccessLog(t *testing.T) {
 	var buf bytes.Buffer
-	logging.Init(logging.Options{
+	al := logging.NewAccessLogger(logging.Options{
 		AccessLogOutput: &buf})
 
 	response := "7 bytes"
@@ -1975,12 +1965,11 @@ func TestDisableAccessLog(t *testing.T) {
 
 	tp, err := newTestProxyWithParams(doc, Params{
 		AccessLogDisabled: true,
+		AccessLogger:      al,
 	})
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
-
 	defer tp.close()
 
 	tp.proxy.ServeHTTP(w, r)
@@ -2024,7 +2013,7 @@ func TestDisableAccessLogWithFilter(t *testing.T) {
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			var buf bytes.Buffer
-			logging.Init(logging.Options{
+			al := logging.NewAccessLogger(logging.Options{
 				AccessLogOutput: &buf})
 
 			response := "7 bytes"
@@ -2040,10 +2029,10 @@ func TestDisableAccessLogWithFilter(t *testing.T) {
 
 			tp, err := newTestProxyWithParams(doc, Params{
 				AccessLogDisabled: false,
+				AccessLogger:      al,
 			})
 			if err != nil {
-				t.Error(err)
-				return
+				t.Fatal(err)
 			}
 
 			defer tp.close()
@@ -2091,7 +2080,7 @@ func TestEnableAccessLogWithFilter(t *testing.T) {
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			var buf bytes.Buffer
-			logging.Init(logging.Options{
+			al := logging.NewAccessLogger(logging.Options{
 				AccessLogOutput: &buf})
 
 			response := "7 bytes"
@@ -2107,10 +2096,10 @@ func TestEnableAccessLogWithFilter(t *testing.T) {
 
 			tp, err := newTestProxyWithParams(doc, Params{
 				AccessLogDisabled: true,
+				AccessLogger:      al,
 			})
 			if err != nil {
-				t.Error(err)
-				return
+				t.Fatal(err)
 			}
 
 			defer tp.close()
@@ -2129,9 +2118,13 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 	testLog := NewTestLog()
 	defer testLog.Close()
 
-	logging.Init(logging.Options{AccessLogOutput: testLog})
+	al := logging.NewAccessLogger(logging.Options{AccessLogOutput: testLog})
 
-	p, err := newTestProxy(`* -> "http://bad-gateway.test"`, FlagsNone)
+	p, err := newTestProxyWithParams(`* -> "http://bad-gateway.test"`, Params{
+		AccessLogDisabled: false,
+		AccessLogger:      al,
+		Flags:             FlagsNone,
+	})
 	if err != nil {
 		t.Fatalf("Failed to create test proxy: %v", err)
 		return
@@ -2144,17 +2137,17 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 	rsp, err := ps.Client().Get(ps.URL)
 	if err != nil {
 		t.Fatalf("Failed to GET: %v", err)
-		return
 	}
+	io.Copy(io.Discard, rsp.Body)
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusBadGateway {
-		t.Errorf("failed to return 502 Bad Gateway on failing backend connection: %d", rsp.StatusCode)
+		t.Fatalf("failed to return 502 Bad Gateway on failing backend connection: %d", rsp.StatusCode)
 	}
 
 	const expected = `"GET / HTTP/1.1" 502 12 "-" "Go-http-client/1.1"`
 	if err = testLog.WaitFor(expected, 100*time.Millisecond); err != nil {
-		t.Errorf("Failed to get accesslog %v: %v", expected, err)
+		t.Errorf("Failed to get accesslog expected:\n%v\ngot:\n%v", expected, err)
 		t.Logf("%s", cmp.Diff(testLog.String(), expected))
 	}
 }
@@ -2185,10 +2178,8 @@ func TestHopHeaderRemovalDisabled(t *testing.T) {
 
 	tp, err := newTestProxy(doc, FlagsNone)
 	if err != nil {
-		t.Error()
-		return
+		t.Fatal(err)
 	}
-
 	defer tp.close()
 
 	tp.proxy.ServeHTTP(w, r)
@@ -2319,10 +2310,10 @@ func TestForwardToProxy(t *testing.T) {
 }
 
 func TestProxyFromEmptyContext(t *testing.T) {
-	proxyUrl, err := proxyFromContext(&http.Request{})
+	proxyURL, err := proxyFromContext(&http.Request{})
 
 	assert.NoError(t, err)
-	assert.Nil(t, proxyUrl)
+	assert.Nil(t, proxyURL)
 }
 
 func BenchmarkAccessLogNoFilter(b *testing.B) { benchmarkAccessLog(b, "", 200) }

@@ -1264,7 +1264,7 @@ func getLogOutput(name string) (io.Writer, error) {
 	return os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.ModePerm)
 }
 
-func initLog(o Options) error {
+func initLog(o Options) (*logging.AccessLogger, error) {
 	var (
 		logOutput       io.Writer
 		accessLogOutput io.Writer
@@ -1274,18 +1274,18 @@ func initLog(o Options) error {
 	if o.ApplicationLogOutput != "" {
 		logOutput, err = getLogOutput(o.ApplicationLogOutput)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	if !o.AccessLogDisabled && o.AccessLogOutput != "" {
 		accessLogOutput, err = getLogOutput(o.AccessLogOutput)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	logging.Init(logging.Options{
+	lg := logging.NewAccessLogger(logging.Options{
 		ApplicationLogPrefix:        o.ApplicationLogPrefix,
 		ApplicationLogOutput:        logOutput,
 		ApplicationLogJSONEnabled:   o.ApplicationLogJSONEnabled,
@@ -1297,7 +1297,7 @@ func initLog(o Options) error {
 		AccessLogFormatter:          o.AccessLogFormatter,
 	})
 
-	return nil
+	return lg, nil
 }
 
 // filterRegistry creates a filter registry with the builtin and
@@ -1667,7 +1667,7 @@ func getRemoteURLShardAddrUpdater(address string) func() ([]string, error) {
 
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// init log
-	err := initLog(o)
+	accessLogger, err := initLog(o)
 	if err != nil {
 		return err
 	}
@@ -2386,6 +2386,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		MaxIdleConns:                     o.MaxIdleConnsBackend,
 		DisableHTTPKeepalives:            o.DisableHTTPKeepalives,
 		AccessLogDisabled:                o.AccessLogDisabled,
+		AccessLogger:                     accessLogger,
 		EnableCopyStreamPoolExperimental: o.EnableCopyStreamPoolExperimental,
 		ClientTLS:                        o.ClientTLS,
 		CustomHttpRoundTripperWrap:       o.CustomHttpRoundTripperWrap,

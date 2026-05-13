@@ -136,6 +136,7 @@ func TestHijack(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to dial to %s: %v", u.Host, err)
 		}
+		defer conn.Close()
 
 		err = req.Write(conn)
 		if err != nil {
