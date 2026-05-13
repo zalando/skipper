@@ -127,21 +127,41 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 	}
 }
 
-func filterRoutesByZone(routes []*eskip.Route) map[string][]*eskip.Route {
-	zoneAwareRoutes := make(map[string][]*eskip.Route)
+func getZones(routes []*eskip.Route) map[string]struct{} {
+	zones := make(map[string]struct{})
 	for _, r := range routes {
-		byZone := make(map[string][]*eskip.LBEndpoint)
 		for _, ep := range r.LBEndpoints {
 			if ep.Zone != "" {
-				byZone[ep.Zone] = append(byZone[ep.Zone], ep)
+				zones[ep.Zone] = struct{}{}
 			}
 		}
-		for zone, eps := range byZone {
-			if len(eps) >= minEndpointsByZone {
-				rCopy := *r
-				rCopy.LBEndpoints = eps
-				zoneAwareRoutes[zone] = append(zoneAwareRoutes[zone], &rCopy)
-			}
+	}
+	return zones
+}
+
+func getRouteForZone(zone string, route *eskip.Route) *eskip.Route {
+	var zoneAwareEps []*eskip.LBEndpoint
+	for _, eps := range route.LBEndpoints {
+		if eps.Zone == zone {
+			zoneAwareEps = append(zoneAwareEps, eps)
+		}
+	}
+
+	if len(zoneAwareEps) >= minEndpointsByZone {
+		routeCopy := *route
+		routeCopy.LBEndpoints = zoneAwareEps
+		return &routeCopy
+	}
+	return route
+}
+
+func filterRoutesByZone(routes []*eskip.Route) map[string][]*eskip.Route {
+	zones := getZones(routes)
+
+	zoneAwareRoutes := make(map[string][]*eskip.Route)
+	for _, r := range routes {
+		for zone := range zones {
+			zoneAwareRoutes[zone] = append(zoneAwareRoutes[zone], getRouteForZone(zone, r))
 		}
 	}
 	return zoneAwareRoutes

@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: app-above-threshold
+  name: svc-above-threshold
+spec:
+  clusterIP: 10.3.190.1
+  ports:
+    - name: web
+      port: 80
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app: app-above-threshold
+  type: ClusterIP
+---
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  labels:
+    app: app-above-threshold
+  name: rg-above-threshold
+spec:
+  hosts:
+  - above.example.org
+  backends:
+  - name: app-above-threshold
+    type: service
+    serviceName: svc-above-threshold
+    servicePort: 80
+  defaultBackends:
+  - backendName: app-above-threshold
+---
+apiVersion: v1
+kind: EndpointSlice
+metadata:
+  labels:
+    app: app-above-threshold
+    kubernetes.io/service-name: svc-above-threshold
+  name: svc-above-threshold-eps
+  namespace: default
+endpoints:
+  - addresses:
+    - 10.3.0.3
+    zone: eu-central-1a
+  - addresses:
+    - 10.3.0.4
+    zone: eu-central-1a
+  - addresses:
+    - 10.3.0.5
+    zone: eu-central-1a
+  - addresses:
+    - 10.3.1.3
+    zone: eu-central-1b
+  - addresses:
+    - 10.3.1.4
+    zone: eu-central-1b
+  - addresses:
+    - 10.3.1.5
+    zone: eu-central-1b
+ports:
+  - name: web
+    port: 8080
+    protocol: TCP
+apiVersion: v1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: app-below-threshold
+  name: svc-below-threshold
+spec:
+  clusterIP: 10.3.190.1
+  ports:
+    - name: web
+      port: 80
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app: app-below-threshold
+  type: ClusterIP
+---
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  labels:
+    app: app-below-threshold
+  name: rg-below-threshold
+spec:
+  hosts:
+  - below.example.org
+  backends:
+  - name: app-below-threshold
+    type: service
+    serviceName: svc-below-threshold
+    servicePort: 80
+  defaultBackends:
+  - backendName: app-below-threshold
+---
+apiVersion: v1
+kind: EndpointSlice
+metadata:
+  labels:
+    app: app-below-threshold
+    kubernetes.io/service-name: svc-below-threshold
+  name: svc-below-threshold-eps
+  namespace: default
+endpoints:
+  - addresses:
+    - 10.4.0.3
+    zone: eu-central-1a
+  - addresses:
+    - 10.4.1.4
+    zone: eu-central-1b
+ports:
+  - name: web
+    port: 8080
+    protocol: TCP
+apiVersion: v1
