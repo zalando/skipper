@@ -127,12 +127,12 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 	}
 }
 
-func getZones(routes []*eskip.Route) map[string]bool {
-	zones := make(map[string]bool)
+func getZones(routes []*eskip.Route) map[string]struct{} {
+	zones := make(map[string]struct{})
 	for _, r := range routes {
 		for _, ep := range r.LBEndpoints {
 			if ep.Zone != "" {
-				zones[ep.Zone] = true
+				zones[ep.Zone] = struct{}{}
 			}
 		}
 	}
