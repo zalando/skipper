@@ -265,6 +265,14 @@ type Config struct {
 	// TLS Config
 	KubernetesEnableTLS bool `yaml:"kubernetes-enable-tls"`
 
+	// Letsencrypt
+	EnableLetsencrypt       bool      `yaml:"enable-letsencrypt"`
+	LetsencryptCache        string    `yaml:"letsencrypt-cache"`
+	LetsencryptEmail        string    `yaml:"letsencrypt-email"`
+	LetsencryptDomains      *listFlag `yaml:"letsencrypt-domains"`
+	LetsencryptDirectoryURL string    `yaml:"letsencrypt-directory-url"`
+	LetsencryptUserAgent    string    `yaml:"letsencrypt-user-agent"`
+
 	// API Monitoring
 	ApiUsageMonitoringEnable                       bool   `yaml:"enable-api-usage-monitoring"`
 	ApiUsageMonitoringRealmKeys                    string `yaml:"api-usage-monitoring-realm-keys"`
@@ -399,6 +407,7 @@ func NewConfig() *Config {
 	cfg.ProxyDenyListCIDRs = commaListFlag()
 	cfg.ProxySkipListCIDRs = commaListFlag()
 	cfg.EnsureDataClients = commaListFlag()
+	cfg.LetsencryptDomains = commaListFlag()
 
 	flag := flag.NewFlagSet("", flag.ExitOnError)
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
@@ -638,6 +647,14 @@ func NewConfig() *Config {
 
 	// Exclude insecure cipher suites
 	flag.BoolVar(&cfg.ExcludeInsecureCipherSuites, "exclude-insecure-cipher-suites", false, "excludes insecure cipher suites")
+
+	// Letsencrypt
+	flag.BoolVar(&cfg.EnableLetsencrypt, "enable-letsencrypt", false, "enables letsencrypt autocert handling on the proxy")
+	flag.StringVar(&cfg.LetsencryptCache, "letsencrypt-cache", "directory", "Configure the autocert cert cache <inmemory|remote|directory>. If you use certbot, you need to use directory.")
+	flag.StringVar(&cfg.LetsencryptEmail, "letsencrypt-email", "", "Sets letsencrypt email address such that you can be reached by letsencrypt if something goes wrong")
+	flag.Var(cfg.LetsencryptDomains, "letsencrypt-domains", "An allow list of domains for autocert handling")
+	flag.StringVar(&cfg.LetsencryptDirectoryURL, "letsencrypt-directory-url", "", "Sets directory URL for testing, defaults to autocert.DefaultACMEDirectory")
+	flag.StringVar(&cfg.LetsencryptUserAgent, "letsencrypt-user-agent", "", "Sets httpclient useragent that calls letsencrypt that enables letsencrypt to limit you if something goes wrong")
 
 	// API Monitoring:
 	flag.BoolVar(&cfg.ApiUsageMonitoringEnable, "enable-api-usage-monitoring", false, "enables the apiUsageMonitoring filter")
@@ -904,6 +921,11 @@ func (c *Config) ToOptions() skipper.Options {
 		MaxMatcherBufferSize:             c.MaxMatcherBufferSize,
 		EnableBreakers:                   c.EnableBreakers,
 		BreakerSettings:                  c.Breakers,
+		EnableLetsencrypt:                c.EnableLetsencrypt,
+		LetsencryptEmail:                 c.LetsencryptEmail,
+		LetsencryptDirectoryURL:          c.LetsencryptDirectoryURL,
+		LetsencryptUserAgent:             c.LetsencryptUserAgent,
+		LetsencryptDomains:               c.LetsencryptDomains.values,
 		EnableRatelimiters:               c.EnableRatelimiters,
 		RatelimitSettings:                c.Ratelimits,
 		EnableRouteFIFOMetrics:           c.EnableRouteFIFOMetrics,
@@ -1240,6 +1262,7 @@ func (c *Config) ToOptions() skipper.Options {
 			}
 		})
 	}
+
 	if c.ValidateQueryLog {
 		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
 			return &net.ValidateQueryLogHandler{
@@ -1256,6 +1279,18 @@ func (c *Config) ToOptions() skipper.Options {
 			}
 		})
 	}
+
+	// if c.EnableLetsencrypt {
+	// 	wrappers = append(wrappers, func(handler http.Handler) http.Handler {
+	// 		return net.NewLetsencrypt(
+	// 			c.getLetsencryptCache(),
+	// 			c.LetsencryptEmail,
+	// 			c.LetsencryptDirectoryURL,
+	// 			c.LetsencryptUserAgent,
+	// 			c.LetsencryptDomains.values,
+	// 		).Handler(handler)
+	// 	})
+	// }
 
 	return options
 }
