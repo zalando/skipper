@@ -89,25 +89,30 @@ type PrometheusOverride struct {
 }
 
 func (p *PrometheusOverride) OnConfig(ctx context.Context, config *config.Config) (*config.Config, error) {
-	var (
-		statusConfig status.Config
-		message      []byte
-	)
+	return enablePrometheusForStatus(config)
+}
 
-	if config.Status != nil {
-		err := json.Unmarshal(config.Status, &statusConfig)
-		if err != nil {
-			return nil, err
-		}
+func (p *PrometheusOverride) OnConfigDiscovery(ctx context.Context, config *config.Config) (*config.Config, error) {
+	return enablePrometheusForStatus(config)
+}
 
-		statusConfig.Prometheus = true
-
-		message, err = json.Marshal(statusConfig)
-		if err != nil {
-			return nil, err
-		}
-		config.Status = message
+func enablePrometheusForStatus(config *config.Config) (*config.Config, error) {
+	if config.Status == nil {
+		return config, nil
 	}
+
+	var statusConfig status.Config
+	if err := json.Unmarshal(config.Status, &statusConfig); err != nil {
+		return nil, err
+	}
+
+	statusConfig.Prometheus = true
+
+	message, err := json.Marshal(statusConfig)
+	if err != nil {
+		return nil, err
+	}
+	config.Status = message
 
 	return config, nil
 }
