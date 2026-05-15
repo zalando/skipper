@@ -251,15 +251,15 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 }
 
 func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
-	return newCustomTestProxy(nil, fr, doc, Params{Flags: flags, PriorityRoutes: pr}, nil)
+	return newTestProxyWithFiltersAndParams(fr, doc, Params{Flags: flags, PriorityRoutes: pr}, nil)
 }
 
 func newTestProxyWithFiltersAndPreProcessors(fr filters.Registry, doc string, flags Flags, preprocs []routing.PreProcessor) (*testProxy, error) {
-	return newCustomTestProxy(nil, fr, doc, Params{Flags: flags}, preprocs)
+	return newTestProxyWithFiltersAndParams(fr, doc, Params{Flags: flags}, preprocs)
 }
 
 func newTestProxyWithParams(doc string, params Params) (*testProxy, error) {
-	return newCustomTestProxy(nil, nil, doc, params, nil)
+	return newTestProxyWithFiltersAndParams(nil, doc, params, nil)
 }
 
 func newTestProxyWithPredicatesAndParams(predicates []routing.PredicateSpec, doc string, params Params) (*testProxy, error) {
@@ -267,7 +267,7 @@ func newTestProxyWithPredicatesAndParams(predicates []routing.PredicateSpec, doc
 }
 
 func newTestProxy(doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
-	return newCustomTestProxy(nil, nil, doc, Params{Flags: flags, PriorityRoutes: pr}, nil)
+	return newTestProxyWithFiltersAndParams(nil, doc, Params{Flags: flags, PriorityRoutes: pr}, nil)
 }
 
 func (tp *testProxy) close() {
