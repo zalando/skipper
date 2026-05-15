@@ -47,6 +47,7 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 const (
@@ -1786,6 +1787,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if bridgeTracer, ok := p.tracing.tracer.(*otBridge.BridgeTracer); ok {
 		ctxWithSpan = bridgeTracer.ContextWithSpanHook(ctxWithSpan, span)
 	}
+
+	// Always extract baggage headers even when no valid trace context is present.
+	ctxWithSpan = propagation.Baggage{}.Extract(ctxWithSpan, propagation.HeaderCarrier(r.Header))
 
 	rCtx := routing.NewContext(ctxWithSpan)
 

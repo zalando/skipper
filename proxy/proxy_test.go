@@ -208,7 +208,7 @@ func (srw *syncResponseWriter) Len() int {
 	return srw.body.Len()
 }
 
-func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Params, preprocs []routing.PreProcessor) (*testProxy, error) {
+func newCustomTestProxy(predicates []routing.PredicateSpec, fr filters.Registry, doc string, params Params, preprocs []routing.PreProcessor) (*testProxy, error) {
 	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		return nil, err
@@ -228,7 +228,7 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 		DataClients:    []routing.DataClient{dc},
 		PostProcessors: []routing.PostProcessor{loadbalancer.NewAlgorithmProvider(), params.EndpointRegistry},
 		Log:            tl,
-		Predicates:     []routing.PredicateSpec{teePredicate.New()},
+		Predicates:     append([]routing.PredicateSpec{teePredicate.New()}, predicates...),
 	}
 	if len(preprocs) > 0 {
 		opts.PreProcessors = preprocs
@@ -247,19 +247,23 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 }
 
 func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
-	return newTestProxyWithFiltersAndParams(fr, doc, Params{Flags: flags, PriorityRoutes: pr}, nil)
+	return newCustomTestProxy(nil, fr, doc, Params{Flags: flags, PriorityRoutes: pr}, nil)
 }
 
 func newTestProxyWithFiltersAndPreProcessors(fr filters.Registry, doc string, flags Flags, preprocs []routing.PreProcessor) (*testProxy, error) {
-	return newTestProxyWithFiltersAndParams(fr, doc, Params{Flags: flags}, preprocs)
+	return newCustomTestProxy(nil, fr, doc, Params{Flags: flags}, preprocs)
 }
 
 func newTestProxyWithParams(doc string, params Params) (*testProxy, error) {
-	return newTestProxyWithFiltersAndParams(nil, doc, params, nil)
+	return newCustomTestProxy(nil, nil, doc, params, nil)
+}
+
+func newTestProxyWithPredicatesAndParams(predicates []routing.PredicateSpec, doc string, params Params) (*testProxy, error) {
+	return newCustomTestProxy(predicates, nil, doc, params, nil)
 }
 
 func newTestProxy(doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
-	return newTestProxyWithFiltersAndParams(nil, doc, Params{Flags: flags, PriorityRoutes: pr}, nil)
+	return newCustomTestProxy(nil, nil, doc, Params{Flags: flags, PriorityRoutes: pr}, nil)
 }
 
 func (tp *testProxy) close() {
