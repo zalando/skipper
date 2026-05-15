@@ -246,6 +246,10 @@ func newCustomTestProxy(predicates []routing.PredicateSpec, fr filters.Registry,
 	return &testProxy{tl, dc, rt, p}, nil
 }
 
+func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Params, preprocs []routing.PreProcessor) (*testProxy, error) {
+	return newCustomTestProxy(nil, fr, doc, params, preprocs)
+}
+
 func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
 	return newCustomTestProxy(nil, fr, doc, Params{Flags: flags, PriorityRoutes: pr}, nil)
 }

@@ -821,27 +821,6 @@ func TestSetTagWithEmptySpan(t *testing.T) {
 // Baggage values may contain "=" characters (e.g. sub_key=sub_value)
 // which baggage.FromContext can also understand even if it's percent-encoded.
 func TestOTelBaggagePredicateWithIncomingHeader(t *testing.T) {
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("raw baggage header seen at backend: %q", r.Header.Get("baggage"))
-	}))
-	defer backend.Close()
-
-	doc := fmt.Sprintf(`
-matched:  OTelBaggage("baggage_key", "sub_key=sub_value") -> "%s";
-`, backend.URL)
-
-	tracer := tracingtest.NewTracer()
-	tp, err := newTestProxyWithPredicatesAndParams([]routing.PredicateSpec{skpotel.NewBaggage()}, doc, Params{
-		OpenTracing: &OpenTracingParams{
-			Tracer: tracer,
-		},
-	})
-	require.NoError(t, err)
-	defer tp.close()
-
-	ps := httptest.NewServer(tp.proxy)
-	defer ps.Close()
-
 	for _, tc := range []struct {
 		name          string
 		baggageHeader string
@@ -855,6 +834,27 @@ matched:  OTelBaggage("baggage_key", "sub_key=sub_value") -> "%s";
 			baggageHeader: "baggage_key=sub_key%3Dsub_value",
 		},
 	} {
+		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Logf("raw baggage header seen at backend: %q", r.Header.Get("baggage"))
+		}))
+		defer backend.Close()
+
+		doc := fmt.Sprintf(`
+matched:  OTelBaggage("baggage_key", "sub_key=sub_value") -> "%s";
+`, backend.URL)
+
+		tracer := tracingtest.NewTracer()
+		tp, err := newTestProxyWithPredicatesAndParams([]routing.PredicateSpec{skpotel.NewBaggage()}, doc, Params{
+			OpenTracing: &OpenTracingParams{
+				Tracer: tracer,
+			},
+		})
+		require.NoError(t, err)
+		defer tp.close()
+
+		ps := httptest.NewServer(tp.proxy)
+		defer ps.Close()
+
 		t.Run(tc.name, func(t *testing.T) {
 			req, err := http.NewRequest("GET", ps.URL+"/", nil)
 			require.NoError(t, err)

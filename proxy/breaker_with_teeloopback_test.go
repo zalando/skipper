@@ -31,7 +31,7 @@ func TestBreakerLeak(t *testing.T) {
 		CircuitBreakers:      circuit.NewRegistry(settings...),
 	}
 
-	tp, err := newCustomTestProxy(nil, fr, doc, params, nil)
+	tp, err := newTestProxyWithFiltersAndParams(fr, doc, params, nil)
 	if err != nil {
 		t.Error(err)
 		return
