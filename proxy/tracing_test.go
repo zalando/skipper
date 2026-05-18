@@ -13,6 +13,8 @@ import (
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
+	skpotel "github.com/zalando/skipper/predicates/otel"
+	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 
 	"github.com/stretchr/testify/assert"
@@ -812,6 +814,62 @@ func TestSetTagWithEmptySpan(t *testing.T) {
 
 	// should not panic
 	tracing.setTag(nil, "test", "val")
+}
+
+// TestOTelBaggagePredicateWithIncomingHeader verifies that the OTelBaggage predicate
+// can match baggage values that arrive via the W3C baggage HTTP header.
+// Baggage values may contain "=" characters (e.g. sub_key=sub_value)
+// which baggage.FromContext can also understand even if it's percent-encoded.
+func TestOTelBaggagePredicateWithIncomingHeader(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		baggageHeader string
+	}{
+		{
+			name:          "plain equals sign in value",
+			baggageHeader: "baggage_key=sub_key=sub_value",
+		},
+		{
+			name:          "percent-encoded equals sign (%3D) in value",
+			baggageHeader: "baggage_key=sub_key%3Dsub_value",
+		},
+	} {
+		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Logf("raw baggage header seen at backend: %q", r.Header.Get("baggage"))
+		}))
+		defer backend.Close()
+
+		doc := fmt.Sprintf(`
+matched:  OTelBaggage("baggage_key", "sub_key=sub_value") -> "%s";
+`, backend.URL)
+
+		tracer := tracingtest.NewTracer()
+		tp, err := newTestProxyWithPredicatesAndParams([]routing.PredicateSpec{skpotel.NewBaggage()}, doc, Params{
+			OpenTracing: &OpenTracingParams{
+				Tracer: tracer,
+			},
+		})
+		require.NoError(t, err)
+		defer tp.close()
+
+		ps := httptest.NewServer(tp.proxy)
+		defer ps.Close()
+
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", ps.URL+"/", nil)
+			require.NoError(t, err)
+			req.Header.Set("baggage", tc.baggageHeader)
+			t.Logf("sending baggage header: %q", tc.baggageHeader)
+
+			rsp, err := ps.Client().Do(req)
+			require.NoError(t, err)
+			defer rsp.Body.Close()
+			io.Copy(io.Discard, rsp.Body)
+
+			assert.Equal(t, http.StatusOK, rsp.StatusCode,
+				"OTelBaggage predicate did not match: baggage from incoming W3C header was not extracted into context")
+		})
+	}
 }
 
 func findSpanByRouteID(tracer *tracingtest.MockTracer, routeID string) (*tracingtest.MockSpan, bool) {
