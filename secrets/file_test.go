@@ -53,7 +53,10 @@ func TestSecretPaths(t *testing.T) {
 	})
 
 	t.Run("errors when path is not a file or directory", func(t *testing.T) {
-		path := t.TempDir() + "/foo"
+		dir, err := os.MkdirTemp("", "sp")
+		require.NoError(t, err)
+		t.Cleanup(func() { os.RemoveAll(dir) })
+		path := dir + "/foo"
 
 		l, err := net.Listen("unix", path)
 		require.NoError(t, err)
