@@ -49,9 +49,9 @@ require (
 	github.com/tsenart/vegeta v12.7.0+incompatible
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
-	github.com/valkey-io/valkey-go v1.0.74
-	github.com/valkey-io/valkey-go/valkeyhook v1.0.74
-	github.com/valkey-io/valkey-go/valkeyotel v1.0.74
+	github.com/valkey-io/valkey-go v1.0.75
+	github.com/valkey-io/valkey-go/valkeyhook v1.0.75
+	github.com/valkey-io/valkey-go/valkeyotel v1.0.75
 	github.com/yookoala/gofast v0.8.0
 	github.com/yuin/gopher-lua v1.1.2
 	go.opentelemetry.io/contrib/exporters/autoexport v0.68.0
@@ -168,7 +168,7 @@ require (
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/flatbuffers v25.9.23+incompatible // indirect
-	github.com/google/pprof v0.0.0-20251007162407-5df77e3f7d1d // indirect
+	github.com/google/pprof v0.0.0-20260402051712-545e8a4df936 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.7 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
