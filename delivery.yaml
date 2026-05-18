@@ -19,6 +19,7 @@ pipeline:
   vm_config:
     type: linux
     image: "cdp-runtime/go"
+    size: large
   type: script
   commands:
   - desc: Setup BuildKit
