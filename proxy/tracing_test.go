@@ -822,16 +822,24 @@ func TestSetTagWithEmptySpan(t *testing.T) {
 // which baggage.FromContext can also understand even if it's percent-encoded.
 func TestOTelBaggagePredicateWithIncomingHeader(t *testing.T) {
 	for _, tc := range []struct {
-		name          string
-		baggageHeader string
+		name                 string
+		baggageHeader        string
+		expectedResponseCode int
 	}{
 		{
-			name:          "plain equals sign in value",
-			baggageHeader: "baggage_key=sub_key=sub_value",
+			name:                 "plain equals sign in value",
+			baggageHeader:        "baggage_key=sub_key=sub_value",
+			expectedResponseCode: http.StatusOK,
 		},
 		{
-			name:          "percent-encoded equals sign (%3D) in value",
-			baggageHeader: "baggage_key=sub_key%3Dsub_value",
+			name:                 "percent-encoded equals sign (%3D) in value",
+			baggageHeader:        "baggage_key=sub_key%3Dsub_value",
+			expectedResponseCode: http.StatusOK,
+		},
+		{
+			name:                 "empty baggage header",
+			baggageHeader:        "",
+			expectedResponseCode: http.StatusNotFound,
 		},
 	} {
 		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -866,7 +874,7 @@ matched:  OTelBaggage("baggage_key", "sub_key=sub_value") -> "%s";
 			defer rsp.Body.Close()
 			io.Copy(io.Discard, rsp.Body)
 
-			assert.Equal(t, http.StatusOK, rsp.StatusCode,
+			assert.Equal(t, tc.expectedResponseCode, rsp.StatusCode,
 				"OTelBaggage predicate did not match: baggage from incoming W3C header was not extracted into context")
 		})
 	}
