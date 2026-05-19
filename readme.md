@@ -154,6 +154,13 @@ Build and test all packages:
 > On Mac the tests may fail because of low max open file limit. Please make sure you have correct limits setup
 by following [these instructions](https://gist.github.com/tombigel/d503800a282fcadbee14b537735d202c).
 
+> When using Podman or Colima container runtimes, tests using [testcontainers](https://golang.testcontainers.org/) 
+> fail because the [moby-ryuk](https://github.com/testcontainers/moby-ryuk) module does not support these runtimes.
+> See [moby-ryuk/issue](https://github.com/testcontainers/moby-ryuk/issues/23).
+>
+> To work around this, disable ryuk by setting the environment variable `TESTCONTAINERS_RYUK_DISABLED="true"` when 
+> running tests with Podman or Colima.
+
 ##### Working from IntelliJ / GoLand
 
 To run or debug skipper from _IntelliJ IDEA_ or _GoLand_, you need to create this configuration:
