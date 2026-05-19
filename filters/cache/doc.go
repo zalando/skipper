@@ -1,2 +1,2 @@
-// Package cache implements an HTTP response caching filter for Skipper.
+// Package cache implements a caching family of filters.
 package cache

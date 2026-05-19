@@ -3743,7 +3743,8 @@ Force mode with per-tenant cache key isolation:
 
 **Cache key**
 
-The key is derived from route ID + HTTP method + host + path + query string.
+The key is derived from route ID + HTTP method + host + path + query string,
+hashed with SHA-256 for uniform shard distribution.
 Route ID is included so entries from different routes never collide when sharing
 the same storage instance. Additional request headers can be folded in via
 `keyHeaders`. Without `keyHeaders`, all requests to the same path share one
@@ -3758,17 +3759,24 @@ matching the same key. It has no awareness of other filters in the chain.
   public CMS content, unauthenticated APIs, static assets.
 * **Do not use on routes that return user-specific data or set user-scoped
   cookies** — those responses will be served to other users.
-* **`Authorization` is not in the key by default.** Requests from different
-  users hitting the same path share a cache entry unless `Authorization` is
-  added to `keyHeaders` or stripped before the filter.
+* **`Authorization` is not in the key by default.** Responses are stored and
+  served without regard to caller identity. To isolate per-user responses, add
+  `Authorization` to `keyHeaders`; without it, a response stored for one user
+  will be served to all others on the same path.
 * **`Cache-Control: private` is ignored in force mode.** Audit the upstream
   response before enabling force mode on any authenticated route.
 
 !!! note
-    The LRU store is shared across all `cache()` filter instances created from
-    the same spec. The storage budget is divided evenly across 256 internal
-    shards; a single entry larger than one shard's budget is dropped with a
-    warning log.
+    The LRU store is shared across all `cache()` filter instances. The storage
+    budget is divided evenly across 256 internal shards; a single entry larger
+    than one shard's budget is dropped with a warning log.
+
+!!! note
+    Three metrics track LRU behaviour: `lru_eviction` (counter, incremented each
+    time an entry is evicted due to memory pressure), `lru_bytes` (gauge,
+    updated on every eviction to reflect current storage usage in bytes), and
+    `lru_oversized` (counter, incremented when an entry is too large to fit in
+    any shard and is silently dropped).
 
 !!! note
     `s-maxage` implies `proxy-revalidate` per RFC 9111 §5.2.2.10: stale entries

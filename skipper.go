@@ -1374,10 +1374,6 @@ func (o *Options) filterRegistry() filters.Registry {
 		}
 	}
 
-	if _, ok := disabledFilters[cache.Name]; !ok {
-		registry.Register(cache.NewCacheFilter(o.cacheBudget(), o.Address))
-	}
-
 	for _, f := range o.CustomFilters {
 		if _, ok := disabledFilters[f.Name()]; !ok {
 			registry.Register(f)
@@ -1868,6 +1864,23 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
 		}),
 	)
+
+	// cache() filter registered here (not in filterRegistry) so the resolved tracer
+	// and connection options from skipper.Options can be wired through.
+	if _, ok := disabledFilters[cache.Name]; !ok {
+		o.CustomFilters = append(o.CustomFilters, cache.NewCacheFilter(
+			o.cacheBudget(),
+			o.Address,
+			skpnet.Options{
+				IdleConnTimeout:         o.CloseIdleConnsPeriod,
+				MaxIdleConnsPerHost:     o.IdleConnectionsPerHost,
+				Tracer:                  tracer,
+				OpentracingComponentTag: "skipper",
+				OpentracingSpanName:     "cache_revalidation",
+				OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
+			},
+		))
+	}
 
 	if o.OAuthTokeninfoURL != "" {
 		tio := auth.TokeninfoOptions{

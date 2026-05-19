@@ -2,8 +2,9 @@ package cache
 
 import (
 	"container/list"
-	"hash/fnv"
 	"sync"
+
+	"github.com/cespare/xxhash/v2"
 )
 
 // shardCount is set to 256 to balance lock contention with baseline memory overhead.
@@ -21,16 +22,17 @@ type lruItem struct {
 }
 
 // lruShard is a bounded LRU cache protected by a single mutex.
+// mu is a standard Mutex (not RWMutex) because LRU reads (Get) modify the
+// linked list. Contention is mitigated by sharding.
 type lruShard struct {
-	maxBytes     int64
+	// Immutable after construction; not protected by mu.
+	maxBytes int64
+	onEvict  func() // called once per evicted item; nil = no-op
+
+	mu           sync.Mutex
 	currentBytes int64
 	ll           *list.List
 	cache        map[string]*list.Element
-	onEvict      func() // called once per evicted item; nil = no-op
-
-	// mu is a standard Mutex (not RWMutex) because LRU reads (Get)
-	// modify linked list. Contention is mitigated by sharding.
-	mu sync.Mutex
 }
 
 func newLRUShard(maxBytes int64, onEvict func()) *lruShard {
@@ -136,12 +138,10 @@ func NewShardedByteLRU(totalMaxBytes int64, onEvict func()) *ShardedByteLRU {
 	return s
 }
 
-// getShard routes a key to its shard via FNV-1a. Keys are expected to be
+// getShard routes a key to its shard via xxhash. Keys are expected to be
 // pre-hashed (e.g. SHA-256) by the caller.
 func (s *ShardedByteLRU) getShard(key string) *lruShard {
-	h := fnv.New32a()
-	h.Write([]byte(key))
-	return s.shards[h.Sum32()%shardCount]
+	return s.shards[xxhash.Sum64String(key)%shardCount]
 }
 
 // ExceedsShard reports whether data is too large to fit in any shard.
@@ -159,4 +159,15 @@ func (s *ShardedByteLRU) Get(key string) ([]byte, bool) {
 
 func (s *ShardedByteLRU) Delete(key string) {
 	s.getShard(key).delete(key)
+}
+
+// Bytes returns the total number of bytes currently stored across all shards.
+func (s *ShardedByteLRU) Bytes() int64 {
+	var total int64
+	for _, shard := range s.shards {
+		shard.mu.Lock()
+		total += shard.currentBytes
+		shard.mu.Unlock()
+	}
+	return total
 }

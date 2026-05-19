@@ -7,6 +7,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/metrics"
 )
 
 // LRUStorage wraps ShardedByteLRU and implements Storage.
@@ -58,6 +59,8 @@ func (s *LRUStorage) Set(_ context.Context, key string, entry *Entry) error {
 			"size_bytes": len(data),
 			"shard_max":  s.lru.shards[0].maxBytes,
 		}).Warn("cache: entry exceeds shard capacity and will not be stored")
+		metrics.Default.IncCounter("lru_oversized")
+		return nil
 	}
 	s.lru.Set(key, data)
 	return nil

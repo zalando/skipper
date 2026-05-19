@@ -15,11 +15,12 @@ import (
 
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/metrics/metricstest"
+	skpnet "github.com/zalando/skipper/net"
 )
 
 func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) *cacheFilter {
 	t.Helper()
-	spec := NewCacheFilter(1<<20, "localhost:9090")
+	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
 	args := []interface{}{
 		ttl.String(),
 		errorTTL.String(),
@@ -38,6 +39,8 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 	cf.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
 	}
+	t.Cleanup(cf.Close)
+	t.Cleanup(spec.(*cacheSpec).client.Close)
 	return cf
 }
 
@@ -48,7 +51,7 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 // but are ignored — pure RFC mode has no operator TTL.
 func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *cacheFilter {
 	t.Helper()
-	spec := NewCacheFilter(1<<20, "localhost:9090")
+	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatal(err)
@@ -57,6 +60,8 @@ func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *
 	cf.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
 	}
+	t.Cleanup(cf.Close)
+	t.Cleanup(spec.(*cacheSpec).client.Close)
 	return cf
 }
 
@@ -126,7 +131,7 @@ func TestCacheFilter_MissAndHit(t *testing.T) {
 }
 
 func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090")
+	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
 	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m", "0s", "Authorization"})
 	if err != nil {
 		t.Fatal(err)
@@ -243,7 +248,7 @@ func TestCacheFilter_TTLExpiry(t *testing.T) {
 }
 
 func TestCreateFilter_InvalidArgs(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090")
+	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
 	cases := []struct {
 		name string
 		args []interface{}
@@ -764,12 +769,12 @@ func TestCacheFilter_Vary_Star_NotCached(t *testing.T) {
 }
 
 func TestCacheFilter_ConditionalRevalidation_ETag_304(t *testing.T) {
-	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
 	url := "https://cdn.contentful.com/spaces/abc/entries/etag"
 
 	var revalReq *http.Request
 
 	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		rsp := upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
@@ -813,12 +818,12 @@ func TestCacheFilter_ConditionalRevalidation_ETag_304(t *testing.T) {
 }
 
 func TestCacheFilter_ConditionalRevalidation_LastModified_304(t *testing.T) {
-	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
 	url := "https://cdn.contentful.com/spaces/abc/entries/lastmod"
 
 	var revalReq *http.Request
 
 	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		rsp := upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
@@ -850,12 +855,12 @@ func TestCacheFilter_ConditionalRevalidation_LastModified_304(t *testing.T) {
 }
 
 func TestCacheFilter_RevalidationError_MetricIncremented(t *testing.T) {
-	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
-	mockMetrics := &metricstest.MockMetrics{}
-	f.metrics = mockMetrics
 	url := "https://cdn.contentful.com/spaces/abc/entries/reval-err"
 
 	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		mockMetrics := &metricstest.MockMetrics{}
+		f.metrics = mockMetrics
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		rsp := upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "public, max-age=300")
@@ -1163,7 +1168,7 @@ func TestCacheFilter_SMaxAge_ImpliesProxyRevalidate(t *testing.T) {
 }
 
 func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090")
+	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
 
 	makeFilter := func(t *testing.T) *cacheFilter {
 		t.Helper()
@@ -1688,10 +1693,8 @@ func TestCacheFilter_HopByHop_NotStored(t *testing.T) {
 }
 
 func TestCacheFilter_304Merge_HopByHop_NotMerged(t *testing.T) {
-	// filter created OUTSIDE synctest bubble
-	f := newTestFilter(t, 5*time.Minute, 10*time.Second, 10*time.Minute)
-
 	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, 5*time.Minute, 10*time.Second, 10*time.Minute)
 		// 1. First request populates cache
 		rsp1 := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
 		rsp1.Header.Set("ETag", `"v1"`)
@@ -1732,10 +1735,8 @@ func TestCacheFilter_304Merge_HopByHop_NotMerged(t *testing.T) {
 }
 
 func TestCacheFilter_Revalidate200_HopByHop_NotStored(t *testing.T) {
-	// filter created OUTSIDE synctest bubble
-	f := newTestFilter(t, 5*time.Minute, 10*time.Second, 10*time.Minute)
-
 	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, 5*time.Minute, 10*time.Second, 10*time.Minute)
 		// 1. First request populates cache
 		rsp1 := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
 		rsp1.Header.Set("ETag", `"v1"`)
@@ -2078,8 +2079,8 @@ func TestCacheFilter_ConditionalRequest_INM_Precedence_Over_IMS(t *testing.T) {
 func TestCacheFilter_ConditionalRequest_Stale_IfNoneMatch_304_AndRevalidates(t *testing.T) {
 	// Stale entries must also honour client If-None-Match per RFC 9111 §4.3.2.
 	// Background revalidation must still fire even when a 304 is served to the client.
-	f := newTestFilter(t, 100*time.Millisecond, time.Second, 500*time.Millisecond)
 	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, 100*time.Millisecond, time.Second, 500*time.Millisecond)
 		var revalFired atomic.Bool
 
 		// Prime the cache via Request+Response so the entry is stored with ETag "v1".
@@ -2439,7 +2440,7 @@ func TestCacheFilter_SMaxAge_CapsRouteTTL(t *testing.T) {
 }
 
 func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
-	spec := NewCacheFilter(1<<20, ":9090")
+	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
 
 	cases := []struct {
 		name    string
@@ -2482,7 +2483,7 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 	// cache() with no args: pure RFC mode, upstream max-age is fully authoritative,
 	// no operator ceiling. TTL should equal upstream max-age exactly.
-	spec := NewCacheFilter(1<<20, ":9090")
+	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -2512,7 +2513,7 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testing.T) {
 	// cache() with no args: when upstream sends no Cache-Control, no Expires,
 	// and no Last-Modified, nothing should be cached (no heuristic without Last-Modified).
-	spec := NewCacheFilter(1<<20, ":9090")
+	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

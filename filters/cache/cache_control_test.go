@@ -27,14 +27,14 @@ func TestParseRequestCacheControl(t *testing.T) {
 				h.Set("Cache-Control", tc.header)
 			}
 			d := parseRequestCacheControl(h)
-			if d.NoStore != tc.noStore {
-				t.Errorf("NoStore: want %v got %v", tc.noStore, d.NoStore)
+			if d.noStore != tc.noStore {
+				t.Errorf("noStore: want %v got %v", tc.noStore, d.noStore)
 			}
-			if d.NoCache != tc.noCache {
-				t.Errorf("NoCache: want %v got %v", tc.noCache, d.NoCache)
+			if d.noCache != tc.noCache {
+				t.Errorf("noCache: want %v got %v", tc.noCache, d.noCache)
 			}
-			if d.OnlyIfCached != tc.onlyIfCached {
-				t.Errorf("OnlyIfCached: want %v got %v", tc.onlyIfCached, d.OnlyIfCached)
+			if d.onlyIfCached != tc.onlyIfCached {
+				t.Errorf("onlyIfCached: want %v got %v", tc.onlyIfCached, d.onlyIfCached)
 			}
 		})
 	}
@@ -46,17 +46,17 @@ func TestParseCacheControl(t *testing.T) {
 		header http.Header
 		want   cacheDirectives
 	}{
-		{"no-store", http.Header{"Cache-Control": {"no-store"}}, cacheDirectives{NoStore: true, MaxAge: -1, SMaxAge: -1}},
-		{"no-cache", http.Header{"Cache-Control": {"no-cache"}}, cacheDirectives{NoCache: true, MaxAge: -1, SMaxAge: -1}},
-		{"private", http.Header{"Cache-Control": {"private"}}, cacheDirectives{Private: true, MaxAge: -1, SMaxAge: -1}},
-		{"must-revalidate", http.Header{"Cache-Control": {"must-revalidate"}}, cacheDirectives{MustRevalidate: true, MaxAge: -1, SMaxAge: -1}},
-		{"comma-separated", http.Header{"Cache-Control": {"no-store, must-revalidate"}}, cacheDirectives{NoStore: true, MustRevalidate: true, MaxAge: -1, SMaxAge: -1}},
-		{"multiple lines", http.Header{"Cache-Control": {"no-cache", "must-revalidate"}}, cacheDirectives{NoCache: true, MustRevalidate: true, MaxAge: -1, SMaxAge: -1}},
-		{"case-insensitive", http.Header{"Cache-Control": {"NO-STORE"}}, cacheDirectives{NoStore: true, MaxAge: -1, SMaxAge: -1}},
-		{"value suffix stripped", http.Header{"Cache-Control": {`no-cache="x-private"`}}, cacheDirectives{NoCache: true, MaxAge: -1, SMaxAge: -1}},
-		{"empty", http.Header{}, cacheDirectives{MaxAge: -1, SMaxAge: -1}},
-		{"max-age=3600", http.Header{"Cache-Control": {"max-age=3600"}}, cacheDirectives{MaxAge: 3600, SMaxAge: -1}},
-		{"s-maxage=60", http.Header{"Cache-Control": {"s-maxage=60"}}, cacheDirectives{MaxAge: -1, SMaxAge: 60}},
+		{"no-store", http.Header{"Cache-Control": {"no-store"}}, cacheDirectives{noStore: true, maxAge: -1, sMaxAge: -1}},
+		{"no-cache", http.Header{"Cache-Control": {"no-cache"}}, cacheDirectives{noCache: true, maxAge: -1, sMaxAge: -1}},
+		{"private", http.Header{"Cache-Control": {"private"}}, cacheDirectives{private: true, maxAge: -1, sMaxAge: -1}},
+		{"must-revalidate", http.Header{"Cache-Control": {"must-revalidate"}}, cacheDirectives{mustRevalidate: true, maxAge: -1, sMaxAge: -1}},
+		{"comma-separated", http.Header{"Cache-Control": {"no-store, must-revalidate"}}, cacheDirectives{noStore: true, mustRevalidate: true, maxAge: -1, sMaxAge: -1}},
+		{"multiple lines", http.Header{"Cache-Control": {"no-cache", "must-revalidate"}}, cacheDirectives{noCache: true, mustRevalidate: true, maxAge: -1, sMaxAge: -1}},
+		{"case-insensitive", http.Header{"Cache-Control": {"NO-STORE"}}, cacheDirectives{noStore: true, maxAge: -1, sMaxAge: -1}},
+		{"value suffix stripped", http.Header{"Cache-Control": {`no-cache="x-private"`}}, cacheDirectives{noCache: true, maxAge: -1, sMaxAge: -1}},
+		{"empty", http.Header{}, cacheDirectives{maxAge: -1, sMaxAge: -1}},
+		{"max-age=3600", http.Header{"Cache-Control": {"max-age=3600"}}, cacheDirectives{maxAge: 3600, sMaxAge: -1}},
+		{"s-maxage=60", http.Header{"Cache-Control": {"s-maxage=60"}}, cacheDirectives{maxAge: -1, sMaxAge: 60}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
