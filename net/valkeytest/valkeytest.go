@@ -73,11 +73,15 @@ func newTestValkeyWithOptions(t testing.TB, opts options) (address string, done 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	ip, err := container.ContainerIP(ctx)
+	host, err := container.Host(ctx)
 	if err != nil {
-		t.Fatalf("Failed to get valkey container ip: %v", err)
+		t.Fatalf("Failed to get valkey container host: %v", err)
 	}
-	address = net.JoinHostPort(ip, "6379")
+	mappedPort, err := container.MappedPort(ctx, "6379/tcp")
+	if err != nil {
+		t.Fatalf("Failed to get valkey container port: %v", err)
+	}
+	address = net.JoinHostPort(host, mappedPort.Port())
 
 	t.Logf("Started valkey server at %s in %v", address, time.Since(start))
 
