@@ -61,7 +61,7 @@ func (s *jwtValidationSpec) CreateFilter(args []interface{}) (filters.Filter, er
 
 	issuerURL := sargs[0]
 
-	cfg, err := getOpenIDConfig(issuerURL)
+	cfg, err := getOpenIDConfig(issuerURL, s.options)
 	if err != nil {
 		return nil, err
 	}

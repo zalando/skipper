@@ -218,8 +218,8 @@ Example response from the openid-configuration endpoint:
 
 Additionally, you can also pass CLI argument
 -oauth2-tokenintrospect-timeout=<OAuthTokenintrospectTimeout> to control the
-default timeout duration for OAuth validation request. The default
-tokenintrospect timeout is 2s.
+default timeout duration for OAuth validation and OpenID provider
+configuration requests. The default tokenintrospect timeout is 2s.
 
 All oauthTokenintrospection* filters will work on the tokenintrospect response.
 
