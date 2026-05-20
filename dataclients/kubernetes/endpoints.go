@@ -87,6 +87,20 @@ func (ep *endpoint) addresses() []string {
 	return result
 }
 
+// addressesWithPorts returns all addresses with their associated ports.
+// Each address is combined with its port from the subset.
+func (ep *endpoint) addressesWithPorts() []string {
+	result := make([]string, 0)
+	for _, s := range ep.Subsets {
+		for _, a := range s.Addresses {
+			for _, p := range s.Ports {
+				result = append(result, net.JoinHostPort(a.IP, strconv.Itoa(p.Port)))
+			}
+		}
+	}
+	return result
+}
+
 type subset struct {
 	Addresses []*address `json:"addresses"`
 	Ports     []*port    `json:"ports"`

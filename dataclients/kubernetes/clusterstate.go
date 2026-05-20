@@ -138,6 +138,33 @@ func (state *clusterState) getEndpointAddresses(zone, namespace, name string) []
 	return addresses
 }
 
+// getEndpointAddressesWithPorts returns all addresses including their ports from endpoints/endpointslices.
+// Each address is formatted as "ip:port" using the port from the endpoint subset.
+func (state *clusterState) getEndpointAddressesWithPorts(zone, namespace, name string) []string {
+	rID := newResourceID(namespace, name)
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	var addresses []string
+	if state.enableEndpointSlices {
+		if eps, ok := state.endpointSlices[rID]; ok {
+			addresses = eps.addressesWithPorts()
+		} else {
+			return nil
+		}
+	} else {
+		if ep, ok := state.endpoints[rID]; ok {
+			addresses = ep.addressesWithPorts()
+		} else {
+			return nil
+		}
+	}
+	sort.Strings(addresses)
+
+	return addresses
+}
+
 // GetEndpointsByTarget returns the skipper endpoints for kubernetes endpoints.
 func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol, scheme string, target *definitions.BackendPort) []string {
 	epID := endpointID{

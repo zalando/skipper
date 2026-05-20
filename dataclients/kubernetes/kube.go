@@ -627,6 +627,23 @@ func (c *Client) LoadEndpointAddresses(zone, namespace, name string) ([]string, 
 	return c.ClusterClient.loadEndpointAddresses(zone, namespace, name)
 }
 
+// GetEndpointAddressesWithPorts returns the list of all addresses including ports for the given service.
+// Addresses are formatted as "ip:port".
+func (c *Client) GetEndpointAddressesWithPorts(zone, ns, name string) []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.state == nil {
+		return nil
+	}
+	return c.state.getEndpointAddressesWithPorts(zone, ns, name)
+}
+
+// LoadEndpointAddressesWithPorts returns the list of all addresses including ports for the given service.
+// Addresses are formatted as "ip:port".
+func (c *Client) LoadEndpointAddressesWithPorts(zone, namespace, name string) ([]string, error) {
+	return c.ClusterClient.loadEndpointAddressesWithPorts(zone, namespace, name)
+}
+
 func compareStringList(a, b []string) []string {
 	c := make([]string, 0)
 	for i := len(a) - 1; i >= 0; i-- {

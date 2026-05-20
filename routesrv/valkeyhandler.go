@@ -42,16 +42,25 @@ func (vh *ValkeyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func getValkeyAddresses(opts *skipper.Options, kdc *kubernetes.Client, m metrics.Metrics) func() ([]byte, error) {
 	return func() ([]byte, error) {
-		a := kdc.GetEndpointAddresses("", opts.KubernetesValkeyServiceNamespace, opts.KubernetesValkeyServiceName)
+		a := kdc.GetEndpointAddressesWithPorts("", opts.KubernetesValkeyServiceNamespace, opts.KubernetesValkeyServiceName)
 		log.Debugf("Valkey updater called and found %d valkey endpoints: %v", len(a), a)
 		m.UpdateGauge("valkey_endpoints", float64(len(a)))
 
 		result := ValkeyEndpoints{
 			Endpoints: make([]ValkeyEndpoint, len(a)),
 		}
-		port := strconv.Itoa(opts.KubernetesValkeyServicePort)
-		for i := range a {
-			result.Endpoints[i].Address = net.JoinHostPort(a[i], port)
+		// If no addresses with ports, fall back to old method
+		if len(a) == 0 {
+			a = kdc.GetEndpointAddresses("", opts.KubernetesValkeyServiceNamespace, opts.KubernetesValkeyServiceName)
+			log.Debugf("Falling back to GetEndpointAddresses, found %d endpoints", len(a))
+			port := strconv.Itoa(opts.KubernetesValkeyServicePort)
+			for i := range a {
+				result.Endpoints[i].Address = net.JoinHostPort(a[i], port)
+			}
+		} else {
+			for i := range a {
+				result.Endpoints[i].Address = a[i]
+			}
 		}
 
 		data, err := json.Marshal(result)

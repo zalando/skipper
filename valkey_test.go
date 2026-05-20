@@ -8,6 +8,7 @@ import (
 	"net/http"
 	stdlibhttptest "net/http/httptest"
 	"os"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
@@ -553,13 +554,21 @@ spec:
 
 func createValkeyEndpointsSpec(t *testing.T, addrs ...string) string {
 	t.Helper()
-	var addresses []map[string]any
+	var subsets []any
 	for _, addr := range addrs {
 		host, port, err := net.SplitHostPort(addr)
 		require.NoError(t, err)
-		require.Equal(t, "6379", port)
 
-		addresses = append(addresses, map[string]any{"ip": host})
+		portNumber, err := strconv.Atoi(port)
+		require.NoError(t, err)
+
+		subsets = append(subsets, map[string]any{
+			"addresses": []map[string]any{{"ip": host}},
+			"ports": []map[string]any{{
+				"port":     portNumber,
+				"protocol": "TCP",
+			}},
+		})
 	}
 
 	ep := map[string]any{
@@ -569,15 +578,7 @@ func createValkeyEndpointsSpec(t *testing.T, addrs ...string) string {
 			"name":      "valkey",
 			"namespace": "skipper",
 		},
-		"subsets": []any{
-			map[string]any{
-				"addresses": addresses,
-				"ports": []map[string]any{{
-					"port":     6379,
-					"protocol": "TCP",
-				}},
-			},
-		},
+		"subsets": subsets,
 	}
 
 	// JSON is a valid YAML

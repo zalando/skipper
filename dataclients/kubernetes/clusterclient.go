@@ -636,6 +636,48 @@ func (c *clusterClient) loadEndpointAddresses(zone, namespace, name string) ([]s
 	return result, nil
 }
 
+// loadEndpointAddressesWithPorts returns endpoint addresses including their ports.
+func (c *clusterClient) loadEndpointAddressesWithPorts(zone, namespace, name string) ([]string, error) {
+	var result, resultByZone []string
+	if c.enableEndpointSlices {
+		url := fmt.Sprintf(EndpointSlicesNamespaceFmt, namespace) +
+			toLabelSelectorQuery(map[string]string{endpointSliceServiceNameLabel: name})
+
+		var endpointSlices endpointSliceList
+		if err := c.getJSON(url, &endpointSlices); err != nil {
+			return nil, fmt.Errorf("requesting endpointslices for %s/%s failed: %w", namespace, name, err)
+		}
+
+		ready := collectReadyEndpoints(&endpointSlices)
+		if len(ready) != 1 {
+			return nil, fmt.Errorf("unexpected number of endpoint slices for %s/%s: %d", namespace, name, len(ready))
+		}
+
+		for _, eps := range ready {
+			if zone != "" {
+				resultByZone = eps.addressesByZone(zone)
+			}
+			result = eps.addressesWithPorts()
+
+			break
+		}
+	} else {
+		url := fmt.Sprintf(EndpointsNamespaceFmt, namespace) + "/" + name
+
+		var ep endpoint
+		if err := c.getJSON(url, &ep); err != nil {
+			return nil, fmt.Errorf("requesting endpoints for %s/%s failed: %w", namespace, name, err)
+		}
+		result = ep.addressesWithPorts()
+	}
+	if len(resultByZone) >= minEndpointsByZone {
+		result = resultByZone
+	}
+	sort.Strings(result)
+
+	return result, nil
+}
+
 func (c *clusterClient) logMissingRouteGroupsOnce() {
 	if c.loggedMissingRouteGroups {
 		return

@@ -96,6 +96,11 @@ func (eps *skipperEndpointSlice) addresses() []string {
 	return result
 }
 
+// addressesWithPorts returns all addresses as-is since endpointslices have addresses that already include ports.
+func (eps *skipperEndpointSlice) addressesWithPorts() []string {
+	return eps.addresses()
+}
+
 type endpointSliceList struct {
 	Meta  *definitions.Metadata
 	Items []*endpointSlice `json:"items"`

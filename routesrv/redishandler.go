@@ -42,16 +42,25 @@ func (rh *RedisHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func getRedisAddresses(opts *skipper.Options, kdc *kubernetes.Client, m metrics.Metrics) func() ([]byte, error) {
 	return func() ([]byte, error) {
-		a := kdc.GetEndpointAddresses("", opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
+		a := kdc.GetEndpointAddressesWithPorts("", opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
 		log.Debugf("Redis updater called and found %d redis endpoints: %v", len(a), a)
 		m.UpdateGauge("redis_endpoints", float64(len(a)))
 
 		result := RedisEndpoints{
 			Endpoints: make([]RedisEndpoint, len(a)),
 		}
-		port := strconv.Itoa(opts.KubernetesRedisServicePort)
-		for i := range a {
-			result.Endpoints[i].Address = net.JoinHostPort(a[i], port)
+		// If no addresses with ports, fall back to old method
+		if len(a) == 0 {
+			a = kdc.GetEndpointAddresses("", opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
+			log.Debugf("Falling back to GetEndpointAddresses, found %d endpoints", len(a))
+			port := strconv.Itoa(opts.KubernetesRedisServicePort)
+			for i := range a {
+				result.Endpoints[i].Address = net.JoinHostPort(a[i], port)
+			}
+		} else {
+			for i := range a {
+				result.Endpoints[i].Address = a[i]
+			}
 		}
 
 		data, err := json.Marshal(result)

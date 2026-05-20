@@ -1601,17 +1601,25 @@ func getKubernetesAddrUpdater(kdc *kubernetes.Client, loaded bool, ns, name stri
 		// has polled the data once or kdc.GetEndpointAddresses should be blocking
 		// call to kubernetes API
 		return func() ([]string, error) {
-			a := kdc.GetEndpointAddresses("", ns, name)
-			log.Debugf("GetEndpointAddresses found %d redis/valkey endpoints", len(a))
-
-			return joinPort(a, port), nil
+			a := kdc.GetEndpointAddressesWithPorts("", ns, name)
+			log.Debugf("GetEndpointAddressesWithPorts found %d redis/valkey endpoints", len(a))
+			// If no addresses with ports, fall back to old method
+			if len(a) == 0 {
+				a = kdc.GetEndpointAddresses("", ns, name)
+				a = joinPort(a, port)
+			}
+			return a, nil
 		}
 	} else {
 		return func() ([]string, error) {
-			a, err := kdc.LoadEndpointAddresses("", ns, name)
-			log.Debugf("LoadEndpointAddresses found %d redis/valkey endpoints, err: %v", len(a), err)
-
-			return joinPort(a, port), err
+			a, err := kdc.LoadEndpointAddressesWithPorts("", ns, name)
+			log.Debugf("LoadEndpointAddressesWithPorts found %d redis/valkey endpoints, err: %v", len(a), err)
+			if err != nil || len(a) == 0 {
+				// Fall back to old method
+				a, err = kdc.LoadEndpointAddresses("", ns, name)
+				a = joinPort(a, port)
+			}
+			return a, err
 		}
 	}
 }
