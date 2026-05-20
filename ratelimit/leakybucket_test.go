@@ -8,6 +8,7 @@ import (
 
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/net/redistest"
+	"github.com/zalando/skipper/net/valkeytest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,70 +64,104 @@ func TestLeakyBucketAddAtSlowRate(t *testing.T) {
 }
 
 func verifyAttempts(t *testing.T, capacity int, emission time.Duration, increment int, attempts []attempt) {
-	redisAddr, done := redistest.NewTestRedis(t)
-	defer done()
+	t.Helper()
 
-	ringClient := net.NewRedisRingClient(
-		&net.RedisOptions{
-			Addrs: []string{redisAddr},
+	type backend struct {
+		name      string
+		newBucket func(t *testing.T, now func() time.Time) LeakyBucketLimiter
+	}
+
+	backends := []backend{
+		{
+			name: "redis",
+			newBucket: func(t *testing.T, now func() time.Time) LeakyBucketLimiter {
+				t.Helper()
+				redisAddr, done := redistest.NewTestRedis(t)
+				t.Cleanup(done)
+				ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+				t.Cleanup(ringClient.Close)
+				return newClusterLeakyBucketRedis(ringClient, capacity, emission, now)
+			},
 		},
-	)
-	defer ringClient.Close()
+		{
+			name: "valkey",
+			newBucket: func(t *testing.T, now func() time.Time) LeakyBucketLimiter {
+				t.Helper()
+				valkeyAddr, done := valkeytest.NewTestValkey(t)
+				t.Cleanup(done)
+				ringClient, err := net.NewValkeyRingClient(&net.ValkeyOptions{Addrs: []string{valkeyAddr}})
+				require.NoError(t, err)
+				t.Cleanup(func() { ringClient.Close() })
+				return newClusterLeakyBucketValkey(ringClient, capacity, emission, now)
+			},
+		},
+	}
 
-	now := time.Now()
-	bucket := newClusterLeakyBucket(ringClient, capacity, emission, func() time.Time { return now })
-
-	t0 := now
-	for _, a := range attempts {
-		now = t0.Add(time.Duration(a.tplus) * time.Second)
-		added, retry, err := bucket.Add(context.Background(), "alabel", increment)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if a.added != added {
-			t.Errorf("error at %+d: added mismatch, expected %v, got %v", a.tplus, a.added, added)
-		}
-		expectedRetry := time.Duration(a.retry) * time.Second
-		if expectedRetry != retry {
-			t.Errorf("error at %+d: retry mismatch, expected %v, got %v", a.tplus, expectedRetry, retry)
-		}
+	for _, b := range backends {
+		b := b
+		t.Run(b.name, func(t *testing.T) {
+			now := time.Now()
+			bucket := b.newBucket(t, func() time.Time { return now })
+			t0 := now
+			for _, a := range attempts {
+				now = t0.Add(time.Duration(a.tplus) * time.Second)
+				added, retry, err := bucket.Add(context.Background(), "alabel", increment)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if a.added != added {
+					t.Errorf("error at %+d: added mismatch, expected %v, got %v", a.tplus, a.added, added)
+				}
+				expectedRetry := time.Duration(a.retry) * time.Second
+				if expectedRetry != retry {
+					t.Errorf("error at %+d: retry mismatch, expected %v, got %v", a.tplus, expectedRetry, retry)
+				}
+			}
+		})
 	}
 }
 
-func TestLeakyBucketRedisError(t *testing.T) {
-	ringClient := net.NewRedisRingClient(
-		&net.RedisOptions{
-			Addrs: []string{"no-such-host.test:123"},
-		},
-	)
-	defer ringClient.Close()
+func TestLeakyBucketError(t *testing.T) {
+	t.Run("redis", func(t *testing.T) {
+		ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{"no-such-host.test:123"}})
+		defer ringClient.Close()
 
-	bucket := newClusterLeakyBucket(ringClient, 1, time.Minute, time.Now)
-	_, _, err := bucket.Add(context.Background(), "alabel", 1)
+		bucket := newClusterLeakyBucketRedis(ringClient, 1, time.Minute, time.Now)
+		_, _, err := bucket.Add(context.Background(), "alabel", 1)
 
-	assert.Error(t, err)
+		assert.Error(t, err)
+	})
+	t.Run("valkey", func(t *testing.T) {
+		ringClient, err := net.NewValkeyRingClient(&net.ValkeyOptions{Addrs: []string{"no-such-host.test:123"}})
+		if err != nil {
+			// error at construction time is acceptable for Valkey with unreachable address
+			return
+		}
+		defer ringClient.Close()
+
+		bucket := newClusterLeakyBucketValkey(ringClient, 1, time.Minute, time.Now)
+		_, _, err = bucket.Add(context.Background(), "alabel", 1)
+
+		assert.Error(t, err)
+	})
 }
 
 func TestLeakyBucketId(t *testing.T) {
 	const label = "alabel"
 
-	b1 := newClusterLeakyBucket(nil, 1, time.Minute, time.Now)
-	b2 := newClusterLeakyBucket(nil, 2, time.Minute, time.Now)
-
-	assert.NotEqual(t, b1.getBucketId(label), b2.getBucketId(label))
+	t.Run("redis", func(t *testing.T) {
+		b1 := newClusterLeakyBucketRedis(nil, 1, time.Minute, time.Now)
+		b2 := newClusterLeakyBucketRedis(nil, 2, time.Minute, time.Now)
+		assert.NotEqual(t, b1.getBucketId(label), b2.getBucketId(label))
+	})
+	t.Run("valkey", func(t *testing.T) {
+		b1 := newClusterLeakyBucketValkey(nil, 1, time.Minute, time.Now)
+		b2 := newClusterLeakyBucketValkey(nil, 2, time.Minute, time.Now)
+		assert.NotEqual(t, b1.getBucketId(label), b2.getBucketId(label))
+	})
 }
 
-func TestLeakyBucketRedisStoredNumberPrecision(t *testing.T) {
-	redisAddr, done := redistest.NewTestRedis(t)
-	defer done()
-
-	ringClient := net.NewRedisRingClient(
-		&net.RedisOptions{
-			Addrs: []string{redisAddr},
-		},
-	)
-	defer ringClient.Close()
-
+func TestLeakyBucketStoredNumberPrecision(t *testing.T) {
 	const (
 		capacity  = 10
 		emission  = time.Second
@@ -134,16 +169,43 @@ func TestLeakyBucketRedisStoredNumberPrecision(t *testing.T) {
 		increment = 2
 	)
 
-	now := time.Now()
-	b := newClusterLeakyBucket(ringClient, capacity, emission, func() time.Time { return now })
+	t.Run("redis", func(t *testing.T) {
+		redisAddr, done := redistest.NewTestRedis(t)
+		defer done()
 
-	_, _, err := b.Add(context.Background(), label, increment)
-	require.NoError(t, err)
+		ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+		defer ringClient.Close()
 
-	v, err := ringClient.Get(context.Background(), b.getBucketId(label))
-	require.NoError(t, err)
+		now := time.Now()
+		b := newClusterLeakyBucketRedis(ringClient, capacity, emission, func() time.Time { return now })
 
-	expected := now.UnixMicro() + (increment * emission).Microseconds()
+		_, _, err := b.Add(context.Background(), label, increment)
+		require.NoError(t, err)
 
-	assert.Equal(t, fmt.Sprintf("%d", expected), v)
+		v, err := ringClient.Get(context.Background(), b.getBucketId(label))
+		require.NoError(t, err)
+
+		expected := now.UnixMicro() + (increment * emission).Microseconds()
+		assert.Equal(t, fmt.Sprintf("%d", expected), v)
+	})
+	t.Run("valkey", func(t *testing.T) {
+		valkeyAddr, done := valkeytest.NewTestValkey(t)
+		defer done()
+
+		ringClient, err := net.NewValkeyRingClient(&net.ValkeyOptions{Addrs: []string{valkeyAddr}})
+		require.NoError(t, err)
+		defer ringClient.Close()
+
+		now := time.Now()
+		b := newClusterLeakyBucketValkey(ringClient, capacity, emission, func() time.Time { return now })
+
+		_, _, err = b.Add(context.Background(), label, increment)
+		require.NoError(t, err)
+
+		v, err := ringClient.Get(context.Background(), b.getBucketId(label))
+		require.NoError(t, err)
+
+		expected := now.UnixMicro() + (increment * emission).Microseconds()
+		assert.Equal(t, fmt.Sprintf("%d", expected), v)
+	})
 }
