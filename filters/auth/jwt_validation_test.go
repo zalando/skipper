@@ -313,3 +313,27 @@ func TestJWTValidationJwksError(t *testing.T) {
 	}*/
 
 }
+
+func TestJWTValidationOpenIDConfigTimeout(t *testing.T) {
+	issuerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != TokenIntrospectionConfigPath {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		<-r.Context().Done()
+	}))
+	defer issuerServer.Close()
+
+	spec := NewJwtValidationWithOptions(TokenintrospectionOptions{
+		Timeout: 50 * time.Millisecond,
+	})
+
+	start := time.Now()
+	_, err := spec.CreateFilter([]interface{}{issuerServer.URL})
+	if err == nil {
+		t.Fatal("expected OpenID config lookup to time out")
+	}
+
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("OpenID config lookup took too long: %v", elapsed)
+	}
+}

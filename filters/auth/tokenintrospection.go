@@ -3,7 +3,6 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/net"
 )
 
 const (
@@ -33,6 +33,8 @@ const (
 
 	tokenintrospectionCacheKey   = "tokenintrospection"
 	TokenIntrospectionConfigPath = "/.well-known/openid-configuration"
+	openIDConfigSpanName         = "openid-config"
+	defaultOpenIDConfigTimeout   = 3 * time.Second
 )
 
 type TokenintrospectionOptions struct {
@@ -213,13 +215,23 @@ func newSecureOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Dura
 	}
 }
 
-func getOpenIDConfig(issuerURL string) (*openIDConfig, error) {
+func (o TokenintrospectionOptions) openIDConfigTimeout() time.Duration {
+	if o.Timeout > 0 {
+		return o.Timeout
+	}
+	return defaultOpenIDConfigTimeout
+}
+
+func getOpenIDConfig(issuerURL string, options TokenintrospectionOptions) (*openIDConfig, error) {
 	u, err := url.Parse(issuerURL + TokenIntrospectionConfigPath)
 	if err != nil {
 		return nil, err
 	}
 
-	rsp, err := http.Get(u.String())
+	cli := newOpenIDConfigClient(options)
+	defer cli.Close()
+
+	rsp, err := cli.Get(u.String())
 	if err != nil {
 		return nil, err
 	}
@@ -232,6 +244,27 @@ func getOpenIDConfig(issuerURL string) (*openIDConfig, error) {
 	var cfg openIDConfig
 	err = d.Decode(&cfg)
 	return &cfg, err
+}
+
+func newOpenIDConfigClient(o TokenintrospectionOptions) *net.Client {
+	if o.Tracer == nil {
+		o.Tracer = opentracing.NoopTracer{}
+	}
+	if o.MaxIdleConns <= 0 {
+		o.MaxIdleConns = defaultMaxIdleConns
+	}
+
+	timeout := o.openIDConfigTimeout()
+	return net.NewClient(net.Options{
+		Timeout:                 timeout,
+		ResponseHeaderTimeout:   timeout,
+		TLSHandshakeTimeout:     timeout,
+		MaxIdleConnsPerHost:     o.MaxIdleConns,
+		Tracer:                  o.Tracer,
+		OpentracingComponentTag: "skipper",
+		OpentracingSpanName:     openIDConfigSpanName,
+		OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
+	})
 }
 
 func (s *tokenIntrospectionSpec) Name() string {
@@ -284,7 +317,7 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 		sargs = sargs[1:]
 	}
 
-	cfg, err := getOpenIDConfig(issuerURL)
+	cfg, err := getOpenIDConfig(issuerURL, s.options)
 	if err != nil {
 		return nil, err
 	}
