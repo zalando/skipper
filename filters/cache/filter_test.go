@@ -20,7 +20,7 @@ import (
 
 func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) *cacheFilter {
 	t.Helper()
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{}, nil)
 	args := []interface{}{
 		ttl.String(),
 		errorTTL.String(),
@@ -51,7 +51,7 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 // but are ignored — pure RFC mode has no operator TTL.
 func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *cacheFilter {
 	t.Helper()
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{}, nil)
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +131,7 @@ func TestCacheFilter_MissAndHit(t *testing.T) {
 }
 
 func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{}, nil)
 	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m", "0s", "Authorization"})
 	if err != nil {
 		t.Fatal(err)
@@ -250,7 +250,7 @@ func TestCacheFilter_TTLExpiry(t *testing.T) {
 }
 
 func TestCreateFilter_InvalidArgs(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{}, nil)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
 	cases := []struct {
 		name string
@@ -1171,7 +1171,7 @@ func TestCacheFilter_SMaxAge_ImpliesProxyRevalidate(t *testing.T) {
 }
 
 func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{}, nil)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
 
 	makeFilter := func(t *testing.T) *cacheFilter {
@@ -2445,7 +2445,7 @@ func TestCacheFilter_SMaxAge_CapsRouteTTL(t *testing.T) {
 }
 
 func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
-	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
+	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{}, nil)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
 
 	cases := []struct {
@@ -2490,7 +2490,7 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 	// cache() with no args: pure RFC mode, upstream max-age is fully authoritative,
 	// no operator ceiling. TTL should equal upstream max-age exactly.
-	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
+	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{}, nil)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
@@ -2522,7 +2522,7 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testing.T) {
 	// cache() with no args: when upstream sends no Cache-Control, no Expires,
 	// and no Last-Modified, nothing should be cached (no heuristic without Last-Modified).
-	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
+	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{}, nil)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
