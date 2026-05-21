@@ -1906,23 +1906,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}),
 	)
 
-	// cache() filter registered here (not in filterRegistry) so the resolved tracer
-	// and connection options from skipper.Options can be wired through.
-	if !slices.Contains(o.DisabledFilters, cache.Name) {
-		o.CustomFilters = append(o.CustomFilters, cache.NewCacheFilter(
-			o.cacheBudget(),
-			o.Address,
-			skpnet.Options{
-				IdleConnTimeout:         o.CloseIdleConnsPeriod,
-				MaxIdleConnsPerHost:     o.IdleConnectionsPerHost,
-				Tracer:                  tracer,
-				OpentracingComponentTag: "skipper",
-				OpentracingSpanName:     "cache_revalidation",
-				OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
-			},
-		))
-	}
-
 	if o.OAuthTokeninfoURL != "" {
 		tio := auth.TokeninfoOptions{
 			URL:                         o.OAuthTokeninfoURL,
@@ -2187,6 +2170,32 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				return err
 			}
 		}
+	}
+
+	// cache() filter registered here (not in filterRegistry) so the resolved tracer,
+	// connection options, and valkeyOptions from skipper.Options can be wired through.
+	if !slices.Contains(o.DisabledFilters, cache.Name) {
+		var cacheValkeyRing *skpnet.ValkeyRingClient
+		if valkeyOptions != nil {
+			cacheValkeyRing, err = skpnet.NewValkeyRingClient(valkeyOptions)
+			if err != nil {
+				return fmt.Errorf("failed to create Valkey ring for cache filter: %w", err)
+			}
+			defer cacheValkeyRing.Close()
+		}
+		o.CustomFilters = append(o.CustomFilters, cache.NewCacheFilter(
+			o.cacheBudget(),
+			o.Address,
+			skpnet.Options{
+				IdleConnTimeout:         o.CloseIdleConnsPeriod,
+				MaxIdleConnsPerHost:     o.IdleConnectionsPerHost,
+				Tracer:                  tracer,
+				OpentracingComponentTag: "skipper",
+				OpentracingSpanName:     "cache_revalidation",
+				OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
+			},
+			cacheValkeyRing,
+		))
 	}
 
 	var ratelimitRegistry *ratelimit.Registry
