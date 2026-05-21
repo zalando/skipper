@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -1867,7 +1868,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	// cache() filter registered here (not in filterRegistry) so the resolved tracer
 	// and connection options from skipper.Options can be wired through.
-	if _, ok := disabledFilters[cache.Name]; !ok {
+	if !slices.Contains(o.DisabledFilters, cache.Name) {
 		o.CustomFilters = append(o.CustomFilters, cache.NewCacheFilter(
 			o.cacheBudget(),
 			o.Address,
