@@ -70,7 +70,7 @@ func TestParseCacheControl(t *testing.T) {
 		{"empty", http.Header{}, cacheDirectives{maxAge: -1, sMaxAge: -1}},
 		{"max-age=3600", http.Header{"Cache-Control": {"max-age=3600"}}, cacheDirectives{maxAge: 3600, sMaxAge: -1}},
 		{"s-maxage=60", http.Header{"Cache-Control": {"s-maxage=60"}}, cacheDirectives{maxAge: -1, sMaxAge: 60}},
-		{"max-age=3.4", http.Header{"Cache-Control": {"max-age=3.4"}}, cacheDirectives{maxAge: -1, sMaxAge: -1}}, // malformed: ParseInt fails, sentinel unchanged
+		{"max-age=3.4", http.Header{"Cache-Control": {"max-age=3.4"}}, cacheDirectives{maxAge: -1, sMaxAge: -1}},                 // malformed: ParseInt fails, sentinel unchanged
 		{"max-age=0,max-age=5", http.Header{"Cache-Control": {"max-age=0, max-age=5"}}, cacheDirectives{maxAge: 5, sMaxAge: -1}}, // last-write-wins; no duplicate guard
 	}
 	for _, tc := range cases {
