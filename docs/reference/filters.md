@@ -3694,6 +3694,13 @@ Freshness, `no-store`, `private`, `Vary`, `s-maxage`, heuristic TTL
 (RFC 9111 §4.2.2), and conditional revalidation (`ETag`/`Last-Modified`) are
 all honoured.
 
+Request `Cache-Control` directives partially honoured: `no-store`, `no-cache`
+(including `max-age=0`), `only-if-cached`, `max-stale`, and `min-fresh`.
+Client `max-age` with non-zero values is not enforced — use `no-cache` to force
+revalidation. Per RFC 9111 §5.2.1, request directives are advisory (`MAY`) for
+shared caches; ignoring client `max-age` prevents cache-bypass abuse on shared
+routes.
+
 **Force mode** (3–5 arguments): operator TTL is authoritative; upstream
 `Cache-Control` freshness directives are ignored. Semantic blockers (`no-store`,
 `private`) are respected in RFC mode but ignored in force mode.

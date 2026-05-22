@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"math"
 	"net/http"
 	"testing"
 )
@@ -11,14 +12,20 @@ func TestParseRequestCacheControl(t *testing.T) {
 		noStore      bool
 		noCache      bool
 		onlyIfCached bool
+		maxStale     int64
+		minFresh     int64
 	}{
-		{"no-store", true, false, false},
-		{"no-cache", false, true, false},
-		{"max-age=0", false, true, false},
-		{"only-if-cached", false, false, true},
-		{"no-cache, no-store", true, true, false},
-		{"max-stale=60", false, false, false},
-		{"", false, false, false},
+		{"no-store", true, false, false, -1, -1},
+		{"no-cache", false, true, false, -1, -1},
+		{"max-age=0", false, true, false, -1, -1},
+		{"only-if-cached", false, false, true, -1, -1},
+		{"no-cache, no-store", true, true, false, -1, -1},
+		{"max-stale=60", false, false, false, 60, -1},
+		{"max-stale", false, false, false, math.MaxInt32, -1},
+		{"max-stale=3.4", false, false, false, -1, -1},  // malformed: ParseInt fails, sentinel unchanged
+		{"min-fresh=30", false, false, false, -1, 30},
+		{"max-age=0,max-age=5", false, true, false, -1, -1}, // =0 sets noCache; =5 ignored (only =0 handled)
+		{"", false, false, false, -1, -1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.header, func(t *testing.T) {
@@ -35,6 +42,12 @@ func TestParseRequestCacheControl(t *testing.T) {
 			}
 			if d.onlyIfCached != tc.onlyIfCached {
 				t.Errorf("onlyIfCached: want %v got %v", tc.onlyIfCached, d.onlyIfCached)
+			}
+			if d.maxStale != tc.maxStale {
+				t.Errorf("maxStale: want %v got %v", tc.maxStale, d.maxStale)
+			}
+			if d.minFresh != tc.minFresh {
+				t.Errorf("minFresh: want %v got %v", tc.minFresh, d.minFresh)
 			}
 		})
 	}
@@ -57,6 +70,8 @@ func TestParseCacheControl(t *testing.T) {
 		{"empty", http.Header{}, cacheDirectives{maxAge: -1, sMaxAge: -1}},
 		{"max-age=3600", http.Header{"Cache-Control": {"max-age=3600"}}, cacheDirectives{maxAge: 3600, sMaxAge: -1}},
 		{"s-maxage=60", http.Header{"Cache-Control": {"s-maxage=60"}}, cacheDirectives{maxAge: -1, sMaxAge: 60}},
+		{"max-age=3.4", http.Header{"Cache-Control": {"max-age=3.4"}}, cacheDirectives{maxAge: -1, sMaxAge: -1}},           // malformed: ParseInt fails, sentinel unchanged
+		{"max-age=0,max-age=5", http.Header{"Cache-Control": {"max-age=0, max-age=5"}}, cacheDirectives{maxAge: 5, sMaxAge: -1}}, // last-write-wins; no duplicate guard
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
