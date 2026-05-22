@@ -239,6 +239,9 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 		}
 		return
 	} else {
+		if ctx.Request().Context().Err() != nil {
+			return
+		}
 		entry, err = f.storage.Get(ctx.Request().Context(), key)
 	}
 	if err != nil || entry == nil {
