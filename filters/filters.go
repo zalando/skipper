@@ -251,6 +251,7 @@ const (
 	StatusName                                 = "status"
 	CompressName                               = "compress"
 	DecompressName                             = "decompress"
+	DecompressRequestName                      = "decompressRequest"
 	SetQueryName                               = "setQuery"
 	DropQueryName                              = "dropQuery"
 	InlineContentName                          = "inlineContent"
