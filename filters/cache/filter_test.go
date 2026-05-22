@@ -138,6 +138,7 @@ func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
 	}
 	f := fi.(*cacheFilter)
 	t.Cleanup(f.Close)
+	t.Cleanup(spec.(*cacheSpec).client.Close)
 	f.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
 	}
@@ -250,6 +251,7 @@ func TestCacheFilter_TTLExpiry(t *testing.T) {
 
 func TestCreateFilter_InvalidArgs(t *testing.T) {
 	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	t.Cleanup(spec.(*cacheSpec).client.Close)
 	cases := []struct {
 		name string
 		args []interface{}
@@ -1170,6 +1172,7 @@ func TestCacheFilter_SMaxAge_ImpliesProxyRevalidate(t *testing.T) {
 
 func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
 	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	t.Cleanup(spec.(*cacheSpec).client.Close)
 
 	makeFilter := func(t *testing.T) *cacheFilter {
 		t.Helper()
@@ -2443,6 +2446,7 @@ func TestCacheFilter_SMaxAge_CapsRouteTTL(t *testing.T) {
 
 func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
+	t.Cleanup(spec.(*cacheSpec).client.Close)
 
 	cases := []struct {
 		name    string
@@ -2487,6 +2491,7 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 	// cache() with no args: pure RFC mode, upstream max-age is fully authoritative,
 	// no operator ceiling. TTL should equal upstream max-age exactly.
 	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
+	t.Cleanup(spec.(*cacheSpec).client.Close)
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -2518,6 +2523,7 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testi
 	// cache() with no args: when upstream sends no Cache-Control, no Expires,
 	// and no Last-Modified, nothing should be cached (no heuristic without Last-Modified).
 	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
+	t.Cleanup(spec.(*cacheSpec).client.Close)
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
