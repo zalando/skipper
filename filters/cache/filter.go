@@ -221,8 +221,10 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	}
 
 	reqDir := parseRequestCacheControl(ctx.Request().Header)
+	var entry *Entry
+	var err error
 	if reqDir.onlyIfCached {
-		entry, err := f.storage.Get(ctx.Request().Context(), key)
+		entry, err = f.storage.Get(ctx.Request().Context(), key)
 		if err != nil || entry == nil || entry.IsStale(time.Now()) {
 			ctx.Serve(&http.Response{
 				StatusCode: http.StatusGatewayTimeout,
@@ -236,9 +238,9 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 			ctx.StateBag()[stateBagNoStore] = true
 		}
 		return
+	} else {
+		entry, err = f.storage.Get(ctx.Request().Context(), key)
 	}
-
-	entry, err := f.storage.Get(ctx.Request().Context(), key)
 	if err != nil || entry == nil {
 		f.coalesce(ctx, key)
 		return
