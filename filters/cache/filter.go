@@ -128,7 +128,7 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		if !ok {
 			return nil, fmt.Errorf("cache: arg 4 (keyHeaders): expected string, got %T: %w", args[4], filters.ErrInvalidFilterParameters)
 		}
-		for _, h := range strings.Split(raw, ",") {
+		for h := range strings.SplitSeq(raw, ",") {
 			if name := strings.TrimSpace(h); name != "" {
 				keyHeaders = append(keyHeaders, http.CanonicalHeaderKey(name))
 			}
@@ -951,7 +951,7 @@ var hopByHopHeaders = map[string]bool{
 // Also removes any header named in the Connection value per RFC 9110 §7.6.1.
 func stripHopByHop(h http.Header) {
 	for _, name := range h.Values("Connection") {
-		for _, field := range strings.Split(name, ",") {
+		for field := range strings.SplitSeq(name, ",") {
 			h.Del(strings.TrimSpace(field))
 		}
 	}
