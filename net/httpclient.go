@@ -45,7 +45,7 @@ type clientTraceTimeT int
 
 const clientTraceTime clientTraceTimeT = 1
 
-type certReloader struct {
+type CertReloader struct {
 	cert        atomic.Pointer[tls.Certificate]
 	sp          *secrets.SecretPaths
 	certFile    string
@@ -57,7 +57,12 @@ type certReloader struct {
 	log         logging.Logger
 }
 
-func newCertReloader(certFile, keyFile string, interval time.Duration, log logging.Logger) (*certReloader, error) {
+// NewCertReloader reads cert and key from provided files and starts
+// an update loop that every interval reads the files. If cert or
+// key changed and are valid it will swap the data, such that
+// GetClientCertificate returns the new rotated *tls.Certificate.
+// You have to use Close() in order to not leak a goroutine.
+func NewCertReloader(certFile, keyFile string, interval time.Duration, log logging.Logger) (*CertReloader, error) {
 	sp := secrets.NewSecretPaths(interval)
 	if err := sp.Add(certFile); err != nil {
 		sp.Close()
@@ -82,7 +87,7 @@ func newCertReloader(certFile, keyFile string, interval time.Duration, log loggi
 		sp.Close()
 		return nil, fmt.Errorf("initial key pair: %w", err)
 	}
-	cr := &certReloader{
+	cr := &CertReloader{
 		sp:          sp,
 		certFile:    certFile,
 		keyFile:     keyFile,
@@ -96,7 +101,7 @@ func newCertReloader(certFile, keyFile string, interval time.Duration, log loggi
 	return cr, nil
 }
 
-func (cr *certReloader) refreshLoop(interval time.Duration) {
+func (cr *CertReloader) refreshLoop(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -109,7 +114,7 @@ func (cr *certReloader) refreshLoop(interval time.Duration) {
 	}
 }
 
-func (cr *certReloader) reload() {
+func (cr *CertReloader) reload() {
 	certPEM, certOK := cr.sp.GetSecret(cr.certFile)
 	keyPEM, keyOK := cr.sp.GetSecret(cr.keyFile)
 	if !certOK || !keyOK {
@@ -125,14 +130,18 @@ func (cr *certReloader) reload() {
 	}
 	cr.lastCertPEM = certPEM
 	cr.lastKeyPEM = keyPEM
+	cr.log.Info("certReloader: updated cert")
 	cr.cert.Store(&cert)
 }
 
-func (cr *certReloader) GetClientCertificate(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+// GetClientCertificate returns the tls.Certificate and can be used as
+// tls.Config.GetClientCertificate to get rotated client certs.
+func (cr *CertReloader) GetClientCertificate(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 	return cr.cert.Load(), nil
 }
 
-func (cr *certReloader) Close() {
+// Close stops all background goroutines.
+func (cr *CertReloader) Close() {
 	cr.once.Do(func() {
 		close(cr.quit)
 		cr.sp.Close()
@@ -147,7 +156,7 @@ type Client struct {
 	client http.Client
 	tr     *Transport
 	sr     secrets.SecretsReader
-	cr     *certReloader
+	cr     *CertReloader
 }
 
 // NewClient creates a wrapped http.Client and uses Transport to
@@ -177,7 +186,7 @@ func NewClient(o Options) *Client {
 		sr = secrets.NewStaticDelegateSecret(sp, o.BearerTokenFile)
 	}
 
-	var cr *certReloader
+	var cr *CertReloader
 	if o.CertFile != "" && o.KeyFile != "" && o.Transport == nil {
 		if o.CertRefreshInterval == 0 {
 			if o.BearerTokenRefreshInterval != 0 {
@@ -187,7 +196,7 @@ func NewClient(o Options) *Client {
 			}
 		}
 		var err error
-		cr, err = newCertReloader(o.CertFile, o.KeyFile, o.CertRefreshInterval, o.Log)
+		cr, err = NewCertReloader(o.CertFile, o.KeyFile, o.CertRefreshInterval, o.Log)
 		if err != nil {
 			o.Log.Errorf("Failed to initialize cert reloader: %v", err)
 		} else {

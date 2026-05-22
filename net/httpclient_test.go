@@ -515,59 +515,16 @@ func verifyTagHasNonZeroValue(t *testing.T, span *tracingtest.MockSpan, name str
 	}
 }
 
-func generateTestCert(t *testing.T, cn, dns, ip string) (certPEM, keyPEM []byte) {
-	t.Helper()
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatalf("failed to generate key: %v", err)
-	}
-	template := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: cn},
-		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().Add(time.Hour),
-
-		// SAN
-		IPAddresses: []net.IP{net.ParseIP(ip)},
-		DNSNames:    []string{dns},
-
-		// KeyUsage and ExtKeyUsage configurations
-		KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		// FIX: Include BOTH ServerAuth and ClientAuth roles
-		ExtKeyUsage: []x509.ExtKeyUsage{
-			x509.ExtKeyUsageServerAuth,
-			x509.ExtKeyUsageClientAuth,
-		},
-	}
-	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
-	if err != nil {
-		t.Fatalf("failed to create certificate: %v", err)
-	}
-	keyDER, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		t.Fatalf("failed to marshal key: %v", err)
-	}
-	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-	return
-}
-
-func writeTempCertFiles(t *testing.T, certPEM, keyPEM []byte) (certFile, keyFile string) {
-	t.Helper()
-	dir := t.TempDir()
-	certFile = filepath.Join(dir, "tls.crt")
-	keyFile = filepath.Join(dir, "tls.key")
-	if err := os.WriteFile(certFile, certPEM, 0600); err != nil {
-		t.Fatalf("failed to write cert file: %v", err)
-	}
-	if err := os.WriteFile(keyFile, keyPEM, 0600); err != nil {
-		t.Fatalf("failed to write key file: %v", err)
-	}
-	return
-}
-
+// 3. Dynamic Operational Security - cert loading
 func TestCertReloader(t *testing.T) {
-	certPEM, keyPEM := generateTestCert(t, "localhost", "localhost", "127.0.0.1")
+	now := time.Now()
+	certPEM, keyPEM, _, _ := generateCert(t, certOptions{
+		cn:        "localhost",
+		notBefore: now.Add(-1 * time.Hour),
+		notAfter:  now.Add(24 * time.Hour),
+		dns:       "localhost",
+		ip:        "127.0.0.1",
+	})
 	certFile, keyFile := writeTempCertFiles(t, certPEM, keyPEM)
 
 	for _, tt := range []struct {
@@ -595,7 +552,7 @@ func TestCertReloader(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			cr, err := newCertReloader(tt.certFile, tt.keyFile, 50*time.Millisecond, &logging.DefaultLog{})
+			cr, err := NewCertReloader(tt.certFile, tt.keyFile, 50*time.Millisecond, &logging.DefaultLog{})
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -613,12 +570,20 @@ func TestCertReloader(t *testing.T) {
 	}
 }
 
+// 3. Dynamic Operational Security - rotation
 func TestCertReloaderRotation(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		certPEM1, keyPEM1 := generateTestCert(t, "localhost", "localhost", "127.0.0.1")
+		now := time.Now()
+		certPEM1, keyPEM1, _, _ := generateCert(t, certOptions{
+			cn:        "localhost",
+			notBefore: now.Add(-1 * time.Hour),
+			notAfter:  now.Add(24 * time.Hour),
+			dns:       "localhost",
+			ip:        "127.0.0.1",
+		})
 		certFile, keyFile := writeTempCertFiles(t, certPEM1, keyPEM1)
 
-		cr, err := newCertReloader(certFile, keyFile, 20*time.Millisecond, &logging.DefaultLog{})
+		cr, err := NewCertReloader(certFile, keyFile, 20*time.Millisecond, &logging.DefaultLog{})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -626,7 +591,13 @@ func TestCertReloaderRotation(t *testing.T) {
 
 		initial := cr.cert.Load()
 
-		certPEM2, keyPEM2 := generateTestCert(t, "localhost", "localhost", "127.0.0.1")
+		certPEM2, keyPEM2, _, _ := generateCert(t, certOptions{
+			cn:        "localhost",
+			notBefore: now.Add(-1 * time.Hour),
+			notAfter:  now.Add(24 * time.Hour),
+			dns:       "localhost",
+			ip:        "127.0.0.1",
+		})
 		if err := os.WriteFile(certFile, certPEM2, 0600); err != nil {
 			t.Fatalf("failed to update cert file: %v", err)
 		}
@@ -645,8 +616,14 @@ func TestCertReloaderRotation(t *testing.T) {
 
 func TestClientMTLSNoLeak(t *testing.T) {
 	noleak.Check(t)
-
-	certPEM, keyPEM := generateTestCert(t, "localhost", "localhost", "127.0.0.1")
+	now := time.Now()
+	certPEM, keyPEM, _, _ := generateCert(t, certOptions{
+		cn:        "localhost",
+		notBefore: now.Add(-1 * time.Hour),
+		notAfter:  now.Add(24 * time.Hour),
+		dns:       "localhost",
+		ip:        "127.0.0.1",
+	})
 	certFile, keyFile := writeTempCertFiles(t, certPEM, keyPEM)
 
 	cli := NewClient(Options{
@@ -682,7 +659,14 @@ func TestClientMTLS(t *testing.T) {
 	} {
 
 		t.Run(tt.name, func(t *testing.T) {
-			certPEM, keyPEM := generateTestCert(t, tt.cn, tt.dns, tt.ip)
+			now := time.Now()
+			certPEM, keyPEM, _, _ := generateCert(t, certOptions{
+				cn:        tt.cn,
+				notBefore: now.Add(-1 * time.Hour),
+				notAfter:  now.Add(24 * time.Hour),
+				dns:       tt.dns,
+				ip:        tt.ip,
+			})
 			clientCert, err := tls.X509KeyPair(certPEM, keyPEM)
 			if err != nil {
 				t.Fatalf("failed to parse client cert: %v", err)
@@ -728,4 +712,360 @@ func TestClientMTLS(t *testing.T) {
 			}
 		})
 	}
+}
+
+type certOptions struct {
+	cn           string
+	dns          string
+	ip           string
+	notBefore    time.Time
+	notAfter     time.Time
+	extKeyUsages []x509.ExtKeyUsage
+	signerCert   *x509.Certificate // If nil, certificate will be self-signed
+	signerKey    *ecdsa.PrivateKey
+}
+
+// generateCert handles creating customized test certificates based on options
+func generateCert(t *testing.T, opts certOptions) (certPEM, keyPEM []byte, parsedCert *x509.Certificate, privateKey *ecdsa.PrivateKey) {
+	t.Helper()
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("failed to generate key: %v", err)
+	}
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject:      pkix.Name{CommonName: opts.cn},
+		NotBefore:    opts.notBefore,
+		NotAfter:     opts.notAfter,
+
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           opts.extKeyUsages,
+		BasicConstraintsValid: true,
+	}
+
+	// SAN DNS
+	if opts.dns != "" {
+		template.DNSNames = []string{opts.dns}
+	}
+	// SAN IP
+	if opts.ip != "" {
+		if ip := net.ParseIP(opts.ip); ip != nil {
+			template.IPAddresses = []net.IP{ip}
+		}
+	}
+
+	signingTemplate := template
+	signingKey := privateKey
+
+	// If a separate signer CA is provided, use it instead of self-signing
+	if opts.signerCert != nil && opts.signerKey != nil {
+		signingTemplate = opts.signerCert
+		signingKey = opts.signerKey
+	} else {
+		// If self-signed, act as a CA so it can be added to RootCAs pools
+		template.IsCA = true
+		template.KeyUsage |= x509.KeyUsageCertSign
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, signingTemplate, &privateKey.PublicKey, signingKey)
+	if err != nil {
+		t.Fatalf("failed to create certificate: %v", err)
+	}
+
+	parsedCert, err = x509.ParseCertificate(certDER)
+	if err != nil {
+		t.Fatalf("failed to parse generated certificate: %v", err)
+	}
+
+	keyDER, err := x509.MarshalECPrivateKey(privateKey)
+	if err != nil {
+		t.Fatalf("failed to marshal key: %v", err)
+	}
+
+	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	return
+}
+
+// 1. Trust & Authority Boundaries (Adversarial Tests)
+// 2. Certificate Lifecycle & Cryptographic Constraints
+// 4. Protocol Hardening
+func TestClientMTLS_SecurityAndHardening(t *testing.T) {
+	now := time.Now()
+	caPEM, caKeyPEM, caCert, caKey := generateCert(t, certOptions{
+		cn:        "Test Master Root CA",
+		notBefore: now.Add(-1 * time.Hour),
+		notAfter:  now.Add(24 * time.Hour),
+		dns:       "localhost",
+		ip:        "127.0.0.1",
+	})
+
+	for _, tt := range []struct {
+		name              string
+		modifyOptions     func(opts *certOptions)
+		serverMinTLS      uint16
+		bypassClientCerts bool
+		wantErr           bool
+	}{
+		{
+			name: "Untrusted Rogue Client CA must be denied",
+			modifyOptions: func(opts *certOptions) {
+				// Break relationship to Master CA: make it self-signed by a random rogue CA
+				opts.signerCert = nil
+				opts.signerKey = nil
+			},
+			wantErr: true,
+		},
+		{
+			name:              "Anonymous Client (Missing Cert) must be denied",
+			bypassClientCerts: true,
+			wantErr:           true,
+		},
+		{
+			name: "Expired Client Certificate must be denied",
+			modifyOptions: func(opts *certOptions) {
+				opts.notBefore = now.Add(-5 * time.Hour)
+				opts.notAfter = now.Add(-1 * time.Hour) // expired
+			},
+			wantErr: true,
+		},
+		{
+			name: "Future Client Certificate must be denied",
+			modifyOptions: func(opts *certOptions) {
+				opts.notBefore = now.Add(1 * time.Hour) // valid in the future
+				opts.notAfter = now.Add(5 * time.Hour)
+			},
+			wantErr: true,
+		},
+		{
+			name: "Incompatible Key Usage (Missing ClientAuth) must be denied",
+			modifyOptions: func(opts *certOptions) {
+				// ServerAuth only, missing ClientAuth role
+				opts.extKeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing SAN (DNS/IP)",
+			modifyOptions: func(opts *certOptions) {
+				opts.ip = ""
+				opts.dns = ""
+			},
+			serverMinTLS: tls.VersionTLS13, // Force server to demand modern TLS 1.3
+			wantErr:      true,
+		},
+		{
+			name:         "Protocol Hardening - Secure negotiation on TLS 1.3 works",
+			serverMinTLS: tls.VersionTLS13, // Force server to demand modern TLS 1.3
+			wantErr:      false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			// Default valid options signed by our trusted Master CA
+			opts := certOptions{
+				cn:        "localhost",
+				dns:       "localhost",
+				ip:        "127.0.0.1",
+				notBefore: now.Add(-1 * time.Hour),
+				notAfter:  now.Add(1 * time.Hour),
+				extKeyUsages: []x509.ExtKeyUsage{
+					x509.ExtKeyUsageServerAuth,
+					x509.ExtKeyUsageClientAuth,
+				},
+				signerCert: caCert,
+				signerKey:  caKey,
+			}
+
+			if tt.modifyOptions != nil {
+				tt.modifyOptions(&opts)
+			}
+
+			clientCertPEM, clientKeyPEM, _, _ := generateCert(t, opts)
+
+			// Setup trust pools
+			serverClientCAs := x509.NewCertPool()
+			serverClientCAs.AppendCertsFromPEM(caPEM) // Server only trusts master CA
+
+			clientRootCAs := x509.NewCertPool()
+			clientRootCAs.AppendCertsFromPEM(caPEM)
+
+			// Setup Test Server
+			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			serverCert, err := tls.X509KeyPair(caPEM, caKeyPEM)
+			if err != nil {
+				t.Fatalf("failed to prepare server cert: %v", err)
+			}
+
+			srv.TLS = &tls.Config{
+				MinVersion:   tt.serverMinTLS,
+				ClientAuth:   tls.RequireAndVerifyClientCert,
+				ClientCAs:    serverClientCAs,
+				Certificates: []tls.Certificate{serverCert},
+
+				// Explicitly enforce client SAN validation at the TLS layer
+				VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+					if len(verifiedChains) > 0 && len(verifiedChains[0]) > 0 {
+						clientCert := verifiedChains[0][0]
+						// Reject the client if it has neither an IP SAN nor a DNS SAN
+						if len(clientCert.IPAddresses) == 0 && len(clientCert.DNSNames) == 0 {
+							return fmt.Errorf("mTLS authentication failed: client certificate missing SAN extensions")
+						}
+					}
+					return nil
+				},
+			}
+			srv.StartTLS()
+			defer srv.Close()
+
+			var certFile, keyFile string
+			if !tt.bypassClientCerts {
+				certFile, keyFile = writeTempCertFiles(t, clientCertPEM, clientKeyPEM)
+			} else {
+				certFile, keyFile = "missing_cert.crt", "missing_key.key"
+			}
+
+			cli := NewClient(Options{
+				CertFile:            certFile,
+				KeyFile:             keyFile,
+				CertRefreshInterval: 10 * time.Millisecond,
+				RootCAs:             clientRootCAs,
+			})
+			defer cli.Close()
+
+			rsp, err := cli.Get(srv.URL)
+			if err != nil {
+				if tt.wantErr {
+					t.Logf("Handshake rejected successfully as expected: %v", err)
+					return
+				}
+				t.Fatalf("mTLS request failed unexpectedly: %v", err)
+			}
+			defer rsp.Body.Close()
+
+			if tt.wantErr {
+				t.Errorf("Expected failure, but request connected successfully with status %d", rsp.StatusCode)
+			}
+		})
+	}
+}
+
+// 3. Case 3: Live Rotation Fallback Test
+//
+// This dynamic test creates a valid client connection, breaks the
+// underlying certificate file on disk, allows the background polling
+// engine to execute, and validates that your client does not crash or
+// lose its current in-memory certificates.
+func TestClientMTLS_RotationFallback(t *testing.T) {
+	now := time.Now()
+	caPEM, _, caCert, caKey := generateCert(t, certOptions{
+		cn:        "Master Root CA",
+		notBefore: now.Add(-1 * time.Hour),
+		notAfter:  now.Add(24 * time.Hour),
+		dns:       "localhost",
+		ip:        "127.0.0.1",
+	})
+
+	opts := certOptions{
+		cn:        "localhost",
+		dns:       "localhost",
+		ip:        "127.0.0.1",
+		notBefore: now.Add(-1 * time.Hour),
+		notAfter:  now.Add(1 * time.Hour),
+		extKeyUsages: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageServerAuth,
+			x509.ExtKeyUsageClientAuth,
+		},
+		signerCert: caCert,
+		signerKey:  caKey,
+	}
+	certPEM, keyPEM, _, _ := generateCert(t, opts)
+
+	serverClientCAs := x509.NewCertPool()
+	serverClientCAs.AppendCertsFromPEM(caPEM)
+	clientRootCAs := x509.NewCertPool()
+	clientRootCAs.AppendCertsFromPEM(caPEM)
+
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	bytesCaKey, err := x509.MarshalECPrivateKey(caKey)
+	if err != nil {
+		t.Fatalf("Failed to marshal private CA key: %v", err)
+	}
+
+	serverCert, _ := tls.X509KeyPair(caPEM, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: bytesCaKey}))
+	srv.TLS = &tls.Config{
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    serverClientCAs,
+		Certificates: []tls.Certificate{serverCert},
+	}
+	srv.StartTLS()
+	defer srv.Close()
+
+	certFile, keyFile := writeTempCertFiles(t, certPEM, keyPEM)
+
+	cli := NewClient(Options{
+		CertFile:            certFile,
+		KeyFile:             keyFile,
+		CertRefreshInterval: 20 * time.Millisecond,
+		RootCAs:             clientRootCAs,
+	})
+	defer cli.Close()
+
+	// Assert baseline connection works perfectly
+	rsp, err := cli.Get(srv.URL)
+	if err != nil {
+		t.Fatalf("Initial baseline request failed: %v", err)
+	}
+	rsp.Body.Close()
+
+	// Corrupt the file system: overwrite key file with garbage data
+	err = os.WriteFile(keyFile, []byte("NOT A VALID PEM BLOCK --- CORRUPTED"), 0600)
+	if err != nil {
+		t.Fatalf("failed to corrupt key file: %v", err)
+	}
+
+	// Wait out the refresher interval (allow background ticker to execute 2.5 cycles)
+	time.Sleep(50 * time.Millisecond)
+
+	// Fire a follow-up request. It must still succeed via the working in-memory fallback cache!
+	rspFallback, err := cli.Get(srv.URL)
+	if err != nil {
+		t.Fatalf("Resilience failure! Client dropped its working certificate when disk write failed: %v", err)
+	}
+	defer rspFallback.Body.Close()
+
+	if rspFallback.StatusCode != http.StatusOK {
+		t.Errorf("Unexpected fallback status code: %d", rspFallback.StatusCode)
+	}
+}
+
+func writeTempCertFiles(t *testing.T, cert, key []byte) (string, string) {
+	t.Helper()
+	cFile, err := os.CreateTemp("", "client-cert-*.crt")
+	if err != nil {
+		t.Fatalf("failed to create temp cert file: %v", err)
+	}
+	kFile, err := os.CreateTemp("", "client-key-*.key")
+	if err != nil {
+		t.Fatalf("failed to create temp key file: %v", err)
+	}
+
+	if err := os.WriteFile(cFile.Name(), cert, 0644); err != nil {
+		t.Fatalf("failed to write temp cert: %v", err)
+	}
+	if err := os.WriteFile(kFile.Name(), key, 0600); err != nil {
+		t.Fatalf("failed to write temp key: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = os.Remove(cFile.Name())
+		_ = os.Remove(kFile.Name())
+	})
+	return cFile.Name(), kFile.Name()
 }
