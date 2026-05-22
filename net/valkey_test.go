@@ -19,6 +19,19 @@ import (
 	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
+func (vr *valkeyRing) hasAddr(addr string) bool {
+	vr.mu.Lock()
+	defer vr.mu.Unlock()
+	_, ok := vr.clientMap[addr]
+	return ok
+}
+
+func (vr *valkeyRing) safeLen() int {
+	vr.mu.Lock()
+	defer vr.mu.Unlock()
+	return vr.Len()
+}
+
 func TestValkeyDifference(t *testing.T) {
 	for _, tt := range []struct {
 		name string
@@ -1636,18 +1649,18 @@ func TestValkeyUpdaterRetriesAfterSetAddrsFailure(t *testing.T) {
 	defer cli.Close()
 
 	time.Sleep(cli.options.UpdateInterval + 10*time.Millisecond)
-	if n := cli.ring.Len(); n != 1 {
+	if n := cli.ring.safeLen(); n != 1 {
 		t.Fatalf("expected original shard to remain after failed update, got %d shards", n)
 	}
-	if _, ok := cli.ring.clientMap[valkeyAddr]; !ok {
+	if !cli.ring.hasAddr(valkeyAddr) {
 		t.Fatal("expected original shard address to still be in clientMap")
 	}
 
 	time.Sleep(cli.options.UpdateInterval + 10*time.Millisecond)
-	if n := cli.ring.Len(); n != 1 {
+	if n := cli.ring.safeLen(); n != 1 {
 		t.Fatalf("expected 1 shard after successful retry, got %d", n)
 	}
-	if _, ok := cli.ring.clientMap[newValkeyAddr]; !ok {
+	if !cli.ring.hasAddr(newValkeyAddr) {
 		t.Fatal("expected new shard address to be in clientMap")
 	}
 }
