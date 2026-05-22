@@ -3691,13 +3691,13 @@ selected by the number of arguments.
 
 **RFC mode** (zero arguments): upstream `Cache-Control` is fully authoritative.
 Freshness, `no-store`, `private`, `Vary`, `s-maxage`, heuristic TTL
-(RFC 9111 §4.2.2), and conditional revalidation (`ETag`/`Last-Modified`) are
+([RFC 9111 §4.2.2](https://www.rfc-editor.org/rfc/rfc9111#section-4.2.2)), and conditional revalidation (`ETag`/`Last-Modified`) are
 all honoured.
 
 Request `Cache-Control` directives partially honoured: `no-store`, `no-cache`
 (including `max-age=0`), `only-if-cached`, `max-stale`, and `min-fresh`.
 Client `max-age` with non-zero values is not enforced — use `no-cache` to force
-revalidation. Per RFC 9111 §5.2.1, request directives are advisory (`MAY`) for
+revalidation. Per [RFC 9111 §5.2.1](https://www.rfc-editor.org/rfc/rfc9111#section-5.2.1), request directives are advisory (`MAY`) for
 shared caches; ignoring client `max-age` prevents cache-bypass abuse on shared
 routes.
 
@@ -3718,7 +3718,7 @@ Parameters (force mode):
 * `errorTTL` – freshness duration for 404/5xx responses (string)
 * `swrWindow` – stale-while-revalidate window after TTL expires (string)
 * `staleIfError` – optional; how long a stale entry may be served on upstream
-  5xx (string, RFC 5861)
+  5xx (string, [RFC 5861](https://www.rfc-editor.org/rfc/rfc5861))
 * `keyHeaders` – optional; comma-separated request header names folded into the
   cache key for per-header isolation (string, e.g. `"Authorization,X-Tenant-ID"`)
 
@@ -3786,6 +3786,6 @@ matching the same key. It has no awareness of other filters in the chain.
     any shard and is silently dropped).
 
 !!! note
-    `s-maxage` implies `proxy-revalidate` per RFC 9111 §5.2.2.10: stale entries
+    `s-maxage` implies `proxy-revalidate` per [RFC 9111 §5.2.2.10](https://www.rfc-editor.org/rfc/rfc9111#section-5.2.2.10): stale entries
     stored under `s-maxage` are never served without revalidation, regardless of
     the SWR window.
