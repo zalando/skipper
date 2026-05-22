@@ -3,7 +3,9 @@ package net
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -16,6 +18,19 @@ import (
 	"github.com/zalando/skipper/tracing/tracers/basic"
 	"github.com/zalando/skipper/tracing/tracingtest"
 )
+
+func (vr *valkeyRing) hasAddr(addr string) bool {
+	vr.mu.Lock()
+	defer vr.mu.Unlock()
+	_, ok := vr.clientMap[addr]
+	return ok
+}
+
+func (vr *valkeyRing) safeLen() int {
+	vr.mu.Lock()
+	defer vr.mu.Unlock()
+	return vr.Len()
+}
 
 func TestValkeyDifference(t *testing.T) {
 	for _, tt := range []struct {
@@ -1591,5 +1606,61 @@ func TestValkeyRingUpdateShardsDeterministic(t *testing.T) {
 	for _, key := range testKeys {
 		slot := xxhash.Sum64String(key) % ringSize
 		require.Equal(t, snapABC[slot], snapCBA[slot], "shard assignment should be the same")
+	}
+}
+
+func TestValkeyUpdaterRetriesAfterSetAddrsFailure(t *testing.T) {
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
+	defer done()
+
+	newValkeyAddr, done := valkeytest.NewTestValkey(t)
+	defer done()
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to listen: %v", err)
+	}
+	deadAddr := l.Addr().String()
+	l.Close()
+
+	var mu sync.Mutex
+	callCount := 0
+
+	cli, err := NewValkeyRingClient(&ValkeyOptions{
+		Addrs: []string{},
+		AddrUpdater: func() ([]string, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			callCount++
+			if callCount == 1 {
+				return []string{valkeyAddr}, nil
+			}
+			if callCount == 2 {
+				// new address, but unreachable
+				return []string{deadAddr}, nil
+			}
+			return []string{newValkeyAddr}, nil
+		},
+		UpdateInterval: 50 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create valkey ring client: %v", err)
+	}
+	defer cli.Close()
+
+	time.Sleep(cli.options.UpdateInterval + 10*time.Millisecond)
+	if n := cli.ring.safeLen(); n != 1 {
+		t.Fatalf("expected original shard to remain after failed update, got %d shards", n)
+	}
+	if !cli.ring.hasAddr(valkeyAddr) {
+		t.Fatal("expected original shard address to still be in clientMap")
+	}
+
+	time.Sleep(cli.options.UpdateInterval + 10*time.Millisecond)
+	if n := cli.ring.safeLen(); n != 1 {
+		t.Fatalf("expected 1 shard after successful retry, got %d", n)
+	}
+	if !cli.ring.hasAddr(newValkeyAddr) {
+		t.Fatal("expected new shard address to be in clientMap")
 	}
 }
