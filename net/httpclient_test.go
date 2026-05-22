@@ -2,8 +2,17 @@ package net
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
@@ -11,12 +20,14 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/AlexanderYastrebov/noleak"
 	"github.com/google/go-cmp/cmp"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
+	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/tracing/tracers/basic"
 	"github.com/zalando/skipper/tracing/tracingtest"
@@ -501,5 +512,220 @@ func verifyTagHasNonZeroValue(t *testing.T, span *tracingtest.MockSpan, name str
 	t.Helper()
 	if got := span.Tag(name); got != nil && got != "" {
 		t.Errorf("unexpected %q tag value: %q", name, got)
+	}
+}
+
+func generateTestCert(t *testing.T, cn, dns, ip string) (certPEM, keyPEM []byte) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("failed to generate key: %v", err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: cn},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+
+		// SAN
+		IPAddresses: []net.IP{net.ParseIP(ip)},
+		DNSNames:    []string{dns},
+
+		// KeyUsage and ExtKeyUsage configurations
+		KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		// FIX: Include BOTH ServerAuth and ClientAuth roles
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageServerAuth,
+			x509.ExtKeyUsageClientAuth,
+		},
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("failed to create certificate: %v", err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatalf("failed to marshal key: %v", err)
+	}
+	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	return
+}
+
+func writeTempCertFiles(t *testing.T, certPEM, keyPEM []byte) (certFile, keyFile string) {
+	t.Helper()
+	dir := t.TempDir()
+	certFile = filepath.Join(dir, "tls.crt")
+	keyFile = filepath.Join(dir, "tls.key")
+	if err := os.WriteFile(certFile, certPEM, 0600); err != nil {
+		t.Fatalf("failed to write cert file: %v", err)
+	}
+	if err := os.WriteFile(keyFile, keyPEM, 0600); err != nil {
+		t.Fatalf("failed to write key file: %v", err)
+	}
+	return
+}
+
+func TestCertReloader(t *testing.T) {
+	certPEM, keyPEM := generateTestCert(t, "localhost", "localhost", "127.0.0.1")
+	certFile, keyFile := writeTempCertFiles(t, certPEM, keyPEM)
+
+	for _, tt := range []struct {
+		name     string
+		certFile string
+		keyFile  string
+		wantErr  bool
+	}{
+		{
+			name:     "valid cert and key loads successfully",
+			certFile: certFile,
+			keyFile:  keyFile,
+		},
+		{
+			name:     "missing cert file returns error",
+			certFile: "/nonexistent/cert.pem",
+			keyFile:  keyFile,
+			wantErr:  true,
+		},
+		{
+			name:     "missing key file returns error",
+			certFile: certFile,
+			keyFile:  "/nonexistent/key.pem",
+			wantErr:  true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cr, err := newCertReloader(tt.certFile, tt.keyFile, 50*time.Millisecond, &logging.DefaultLog{})
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			defer cr.Close()
+			if cr.cert.Load() == nil {
+				t.Fatal("cert not loaded after construction")
+			}
+		})
+	}
+}
+
+func TestCertReloaderRotation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		certPEM1, keyPEM1 := generateTestCert(t, "localhost", "localhost", "127.0.0.1")
+		certFile, keyFile := writeTempCertFiles(t, certPEM1, keyPEM1)
+
+		cr, err := newCertReloader(certFile, keyFile, 20*time.Millisecond, &logging.DefaultLog{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		defer cr.Close()
+
+		initial := cr.cert.Load()
+
+		certPEM2, keyPEM2 := generateTestCert(t, "localhost", "localhost", "127.0.0.1")
+		if err := os.WriteFile(certFile, certPEM2, 0600); err != nil {
+			t.Fatalf("failed to update cert file: %v", err)
+		}
+		if err := os.WriteFile(keyFile, keyPEM2, 0600); err != nil {
+			t.Fatalf("failed to update key file: %v", err)
+		}
+
+		time.Sleep(200 * time.Millisecond)
+
+		updated := cr.cert.Load()
+		if initial == updated {
+			t.Fatal("cert pointer did not change after file rotation")
+		}
+	})
+}
+
+func TestClientMTLSNoLeak(t *testing.T) {
+	noleak.Check(t)
+
+	certPEM, keyPEM := generateTestCert(t, "localhost", "localhost", "127.0.0.1")
+	certFile, keyFile := writeTempCertFiles(t, certPEM, keyPEM)
+
+	cli := NewClient(Options{
+		CertFile:            certFile,
+		KeyFile:             keyFile,
+		CertRefreshInterval: 50 * time.Millisecond,
+	})
+	cli.Close()
+}
+
+func TestClientMTLS(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		cn      string
+		dns     string
+		ip      string
+		wantErr bool
+	}{
+		{
+			name:    "SAN ok success",
+			cn:      "localhost",
+			dns:     "localhost",
+			ip:      "127.0.0.1",
+			wantErr: false,
+		},
+		{
+			name:    "SAN ok no success",
+			cn:      "localhost2",
+			dns:     "localhost2",
+			ip:      "127.0.0.2",
+			wantErr: true,
+		},
+	} {
+
+		t.Run(tt.name, func(t *testing.T) {
+			certPEM, keyPEM := generateTestCert(t, tt.cn, tt.dns, tt.ip)
+			clientCert, err := tls.X509KeyPair(certPEM, keyPEM)
+			if err != nil {
+				t.Fatalf("failed to parse client cert: %v", err)
+			}
+			certFile, keyFile := writeTempCertFiles(t, certPEM, keyPEM)
+
+			rootCAs, err := x509.SystemCertPool()
+			if err != nil {
+				t.Fatalf("Failed to get system cert pool: %v", err)
+			}
+			rootCAs.AppendCertsFromPEM(certPEM)
+
+			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+			srv.TLS = &tls.Config{
+				ClientAuth:   tls.RequireAndVerifyClientCert, // RequireAnyClientCert
+				ClientCAs:    rootCAs,
+				Certificates: []tls.Certificate{clientCert},
+			}
+			srv.StartTLS()
+			defer srv.Close()
+
+			cli := NewClient(Options{
+				CertFile:            certFile,
+				KeyFile:             keyFile,
+				CertRefreshInterval: 50 * time.Millisecond,
+				RootCAs:             rootCAs,
+			})
+			defer cli.Close()
+
+			rsp, err := cli.Get(srv.URL)
+			if err != nil {
+				if tt.wantErr {
+					t.Logf("mTLS successful denied: %v", err)
+					return
+				}
+				t.Fatalf("mTLS request failed: %v", err)
+			}
+			rsp.Body.Close()
+			if rsp.StatusCode != http.StatusOK {
+				t.Errorf("unexpected status: %d", rsp.StatusCode)
+			}
+		})
 	}
 }
