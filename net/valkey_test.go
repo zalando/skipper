@@ -446,8 +446,6 @@ func TestValkeyClient(t *testing.T) {
 					t.Fatalf("Failed to create ring client: %v", err)
 				}
 			}
-			startedUpdater := time.Now()
-
 			defer func() {
 				if !cli.closed {
 					t.Error("Failed to close valkey ring client")
@@ -474,47 +472,6 @@ func TestValkeyClient(t *testing.T) {
 			if tt.options.Tracer != nil {
 				span := cli.StartSpan("test")
 				span.Finish()
-			}
-
-			if tt.options.Metrics != nil {
-				updater.update()
-				updater.update()
-				time.Sleep(2*cli.options.UpdateInterval - time.Since(startedUpdater))
-
-				if mock, ok := cli.metrics.(*metricstest.MockMetrics); ok {
-					mock.WithGauges(func(m map[string]float64) {
-						key := tt.options.MetricsPrefix + "shards"
-						if v, ok := m[key]; !ok {
-							t.Fatalf("Failed to get metric %q", key)
-						} else {
-							for k, v := range m {
-								t.Logf("metric %s: %v", k, v)
-							}
-							i := int(v)
-							if i != 2 {
-								t.Fatalf("Failed to get 2 shards, got: %d", i)
-							}
-						}
-					})
-
-					for range 15 {
-						a, err := updater.update()
-						if err != nil {
-							t.Fatalf("Failed to update list: %v", err)
-						}
-						t.Logf("updated: %v", a)
-						time.Sleep(cli.options.UpdateInterval)
-
-						mock.WithGauges(func(m map[string]float64) {
-							key := tt.options.MetricsPrefix + "shards"
-							if _, ok := m[key]; ok {
-								for k, v := range m {
-									t.Logf("metric %s: %v", k, v)
-								}
-							}
-						})
-					}
-				}
 			}
 
 			if tt.options.AddrUpdater != nil {
@@ -546,6 +503,50 @@ func TestValkeyClient(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestValkeyClientMetricsUpdater(t *testing.T) {
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
+	defer done()
+	valkeyAddr2, done2 := valkeytest.NewTestValkey(t)
+	defer done2()
+
+	updater := &addressUpdater{addrs: []string{valkeyAddr, valkeyAddr2}}
+	cli, err := NewValkeyRingClient(&ValkeyOptions{
+		Addrs:          []string{valkeyAddr},
+		AddrUpdater:    updater.update,
+		UpdateInterval: 100 * time.Millisecond,
+		Metrics:        &metricstest.MockMetrics{},
+		MetricsPrefix:  "skipper.valkey.",
+	})
+	if err != nil {
+		t.Fatalf("Failed to create valkey ring client: %v", err)
+	}
+	defer cli.Close()
+
+	// Shift n so the goroutine's next tick returns 2 shards.
+	updater.update()
+	updater.update()
+
+	mock := cli.metrics.(*metricstest.MockMetrics)
+	key := "skipper.valkey.shards"
+
+	deadline := time.Now().Add(10 * cli.options.UpdateInterval)
+	var gotShards int
+	for time.Now().Before(deadline) {
+		mock.WithGauges(func(m map[string]float64) {
+			if v, ok := m[key]; ok {
+				gotShards = int(v)
+			}
+		})
+		if gotShards == 2 {
+			break
+		}
+		time.Sleep(cli.options.UpdateInterval / 2)
+	}
+	if gotShards != 2 {
+		t.Fatalf("Failed to observe 2 shards within deadline, got: %d", gotShards)
 	}
 }
 
