@@ -88,7 +88,7 @@ func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
 
 	N := 500 //500000
 	resCH := make(chan int, N)
-	client, closeClient := createClient(p, 80*time.Millisecond, 120*time.Millisecond)
+	client, closeClient := createClient(p, 500*time.Millisecond, 120*time.Millisecond)
 	defer closeClient()
 	sendRequests(t, N, p, client, resCH)
 	logFifoMetrics(t, mockMetrics)

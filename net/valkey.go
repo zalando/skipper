@@ -434,9 +434,13 @@ func (vrc *ValkeyRingClient) startUpdater(ctx context.Context) {
 
 	init := true
 	if len(old) != 0 {
-		vrc.SetAddrs(ctx, old)
-		vrc.log.Infof("Valkey updater initial set to %d shards", len(old))
-		init = false
+		err := vrc.SetAddrs(ctx, old)
+		if err != nil {
+			vrc.log.Errorf("Failed to init valkey ring: %v", err)
+		} else {
+			vrc.log.Infof("Valkey updater initial set to %d shards", len(old))
+			init = false
+		}
 	}
 
 	for {
@@ -456,8 +460,13 @@ func (vrc *ValkeyRingClient) startUpdater(ctx context.Context) {
 
 		if init {
 			if len(addrs) != 0 {
+				err := vrc.SetAddrs(ctx, addrs)
+				if err != nil {
+					vrc.log.Errorf("Failed to init valkey ring: %v", err)
+					continue
+				}
+
 				init = false
-				vrc.SetAddrs(ctx, addrs)
 				vrc.log.Infof("Valkey updater initial set to %d shards", len(addrs))
 				old = addrs
 			}
@@ -465,9 +474,12 @@ func (vrc *ValkeyRingClient) startUpdater(ctx context.Context) {
 		}
 
 		if !slices.Equal(old, addrs) {
-			vrc.SetAddrs(ctx, addrs)
+			err := vrc.SetAddrs(ctx, addrs)
+			if err != nil {
+				vrc.log.Errorf("Failed to update valkey ring: %v", err)
+				continue
+			}
 			vrc.log.Infof("Valkey updater updated old(%d) -> new(%d)", len(old), len(addrs))
-
 			old = addrs
 		}
 	}
@@ -477,9 +489,12 @@ func (vrc *ValkeyRingClient) StartSpan(operationName string, opts ...opentracing
 	return vrc.tracer.StartSpan(operationName, opts...)
 }
 
-func (vrc *ValkeyRingClient) SetAddrs(ctx context.Context, addrs []string) {
-	vrc.ring.SetAddr(addrs)
+func (vrc *ValkeyRingClient) SetAddrs(ctx context.Context, addrs []string) error {
+	if err := vrc.ring.SetAddr(addrs); err != nil {
+		return err
+	}
 	vrc.metrics.UpdateGauge(vrc.metricsPrefix+"shards", float64(vrc.ring.Len()))
+	return nil
 }
 
 func (vrc *ValkeyRingClient) RingAvailable(ctx context.Context) bool {
