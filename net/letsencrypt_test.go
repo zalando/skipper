@@ -5,27 +5,32 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/zalando/skipper/net/redistest"
+	"github.com/zalando/skipper/net/valkeytest"
 )
 
 func TestRemoteCache(t *testing.T) {
-	t.Logf("create redis..")
-	redisAddr, done := redistest.NewTestRedis(t)
+	t.Logf("create valkey..")
+	valkeyAddr, done := valkeytest.NewTestValkey(t)
 	defer done()
-	if redisAddr == "" {
-		t.Fatal("Failed to create redis 1")
+	if valkeyAddr == "" {
+		t.Fatal("Failed to create valkey 1")
 	}
 
-	redisAddr2, done2 := redistest.NewTestRedis(t)
+	valkeyAddr2, done2 := valkeytest.NewTestValkey(t)
 	defer done2()
-	if redisAddr2 == "" {
-		t.Fatal("Failed to create redis 2")
+	if valkeyAddr2 == "" {
+		t.Fatal("Failed to create valkey 2")
+	}
+
+	client, err := NewValkeyRingClient(&ValkeyOptions{
+		Addrs: []string{valkeyAddr, valkeyAddr2},
+	})
+	if err != nil {
+		t.Fatalf("Failed to create remote cahce client: %v", err)
 	}
 
 	rc := RemoteCache{
-		Client: NewRedisRingClient(&RedisOptions{
-			Addrs: []string{redisAddr, redisAddr2},
-		}),
+		Client: client,
 	}
 	defer rc.Close()
 
