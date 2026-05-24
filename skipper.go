@@ -776,13 +776,10 @@ type Options struct {
 	// BreakerSettings contain global and host specific settings for the circuit breakers.
 	BreakerSettings []circuit.BreakerSettings
 
-	// EnableLetsencrypt
-	EnableLetsencrypt bool
-
-	LetsencryptEmail        string
-	LetsencryptDirectoryURL string
-	LetsencryptUserAgent    string
-	LetsencryptDomains      []string
+	// Letsencrypt if not nil you can use a remote cache config.
+	Letsencrypt *skpnet.Letsencrypt
+	// LetsencryptCache
+	LetsencryptCache string
 
 	// EnableRatelimiters enables the usage of the ratelimiter in the route definitions without initializing any
 	// by default. It is a shortcut for setting the RatelimitSettings to:
@@ -2034,7 +2031,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	var (
 		swarmer       ratelimit.Swarmer
 		redisOptions  *skpnet.RedisOptions
-		redisClient   *skpnet.RedisRingClient
 		valkeyOptions *skpnet.ValkeyOptions
 		valkeyClient  *skpnet.ValkeyRingClient
 	)
@@ -2192,9 +2188,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 	}
 
-	if redisOptions != nil {
-		redisClient = skpnet.NewRedisRingClient(redisOptions)
-	}
 	if valkeyOptions != nil {
 		valkeyClient, err = skpnet.NewValkeyRingClient(valkeyOptions)
 		if err != nil {
@@ -2202,32 +2195,22 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 	}
 
-	if o.EnableLetsencrypt {
-		var cache autocert.Cache
+	if o.Letsencrypt != nil {
 		switch o.LetsencryptCache {
-		case "directory":
-			cache = autocert.DirCache(os.TempDir())
 		case "remote":
-			cache = &net.RemoteCache{
-				Client: redisClient,
+			var cache autocert.Cache
+			switch {
+			case valkeyClient != nil:
+				cache = &skpnet.RemoteCache{
+					Client: valkeyClient,
+				}
 			}
-
-		case "inmemory":
-			cache = &skpnet.InmemoryCache{}
+			if cache != nil {
+				o.Letsencrypt.SetCache(cache)
+			}
 		default:
-
+			// nothing to do, see config/config.go
 		}
-
-		le := skpnet.NewLetsencrypt(
-			cache,
-			o.LetsencryptEmail,
-			o.LetsencryptDirectoryURL,
-			o.LetsencryptUserAgent,
-			o.LetsencryptDomains,
-		)
-		_ = le
-		// le.Handler(o.CustomHttpHandlerWrap)
-		// o.CustomHttpHandlerWrap = leHandler()
 	}
 
 	var ratelimitRegistry *ratelimit.Registry
