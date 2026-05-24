@@ -277,6 +277,11 @@ func (vr *valkeyRing) Expire(ctx context.Context, key string, expire time.Durati
 	return shard.Do(ctx, shard.B().Expire().Key(key).Seconds(int64(expire.Seconds())).Build())
 }
 
+func (vr *valkeyRing) Del(ctx context.Context, key string) valkey.ValkeyResult {
+	shard := vr.shardForKey(key)
+	return shard.Do(ctx, shard.B().Del().Key(key).Build())
+}
+
 func (vr *valkeyRing) Get(ctx context.Context, key string) valkey.ValkeyResult {
 	shard := vr.shardForKey(key)
 	return shard.Do(ctx, shard.B().Get().Key(key).Build())
@@ -518,6 +523,10 @@ func (vrc *ValkeyRingClient) Ping(ctx context.Context, shard string) error {
 func (vrc *ValkeyRingClient) Expire(ctx context.Context, key string, d time.Duration) (int64, error) {
 	res := vrc.ring.Expire(ctx, key, d)
 	return res.ToInt64()
+}
+
+func (vrc *ValkeyRingClient) Del(ctx context.Context, key string) error {
+	return vrc.ring.Del(ctx, key).Error()
 }
 
 func (vrc *ValkeyRingClient) Get(ctx context.Context, key string) (string, error) {

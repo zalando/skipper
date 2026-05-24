@@ -40,8 +40,15 @@ func (ic *InmemoryCache) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
+type RemoteCacheClient interface {
+	Get(ctx context.Context, key string) (string, error)
+	Del(ctx context.Context, key string) error
+	Set(ctx context.Context, key string, val string) (string, error)
+	Close() error
+}
+
 type RemoteCache struct {
-	Client *RedisRingClient
+	Client RemoteCacheClient
 }
 
 func (rc *RemoteCache) Get(ctx context.Context, key string) ([]byte, error) {
@@ -57,12 +64,12 @@ func (rc *RemoteCache) Delete(ctx context.Context, key string) error {
 }
 
 func (rc *RemoteCache) Put(ctx context.Context, key string, val []byte) error {
-	_, err := rc.Client.Set(ctx, key, val, 0)
+	_, err := rc.Client.Set(ctx, key, string(val))
 	return err
 }
 
-func (rc *RemoteCache) Close() {
-	rc.Client.Close()
+func (rc *RemoteCache) Close() error {
+	return rc.Client.Close()
 }
 
 type Letsencrypt struct {
@@ -103,6 +110,10 @@ func NewLetsencrypt(cache autocert.Cache, email, directoryURL, userAgent string,
 	return &Letsencrypt{
 		manager: manager,
 	}
+}
+
+func (le *Letsencrypt) SetCache(cache autocert.Cache) {
+	le.manager.Cache = cache
 }
 
 func (le *Letsencrypt) Handler(fallback http.Handler) http.Handler {

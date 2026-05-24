@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/acme/autocert"
 	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -921,11 +922,7 @@ func (c *Config) ToOptions() skipper.Options {
 		MaxMatcherBufferSize:             c.MaxMatcherBufferSize,
 		EnableBreakers:                   c.EnableBreakers,
 		BreakerSettings:                  c.Breakers,
-		EnableLetsencrypt:                c.EnableLetsencrypt,
-		LetsencryptEmail:                 c.LetsencryptEmail,
-		LetsencryptDirectoryURL:          c.LetsencryptDirectoryURL,
-		LetsencryptUserAgent:             c.LetsencryptUserAgent,
-		LetsencryptDomains:               c.LetsencryptDomains.values,
+		LetsencryptCache:                 c.LetsencryptCache,
 		EnableRatelimiters:               c.EnableRatelimiters,
 		RatelimitSettings:                c.Ratelimits,
 		EnableRouteFIFOMetrics:           c.EnableRouteFIFOMetrics,
@@ -1280,19 +1277,33 @@ func (c *Config) ToOptions() skipper.Options {
 		})
 	}
 
-	// if c.EnableLetsencrypt {
-	// 	wrappers = append(wrappers, func(handler http.Handler) http.Handler {
-	// 		return net.NewLetsencrypt(
-	// 			c.getLetsencryptCache(),
-	// 			c.LetsencryptEmail,
-	// 			c.LetsencryptDirectoryURL,
-	// 			c.LetsencryptUserAgent,
-	// 			c.LetsencryptDomains.values,
-	// 		).Handler(handler)
-	// 	})
-	// }
+	if c.EnableLetsencrypt {
+		options.Letsencrypt = net.NewLetsencrypt(
+			c.getLetsencryptCache(),
+			c.LetsencryptEmail,
+			c.LetsencryptDirectoryURL,
+			c.LetsencryptUserAgent,
+			c.LetsencryptDomains.values,
+		)
+
+		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
+			return options.Letsencrypt.Handler(handler)
+		})
+	}
 
 	return options
+}
+
+func (c *Config) getLetsencryptCache() autocert.Cache {
+	switch c.LetsencryptCache {
+	case "directory":
+		return autocert.DirCache(os.TempDir())
+	case "remote":
+		// postpone to skipper.go and use net.(*Letsencrypt).SetCache()
+		return nil
+	default:
+		return &net.InmemoryCache{}
+	}
 }
 
 func (c *Config) getMinTLSVersion() uint16 {
