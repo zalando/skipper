@@ -68,9 +68,9 @@ const (
 	// doLogDecision call. Without a deadline, a Benthos stream.Consume() call on a
 	// stream that was stopped during eopa_dl.Reconfigure() blocks forever because
 	// the inproc reader is gone and context.Background() provides no escape hatch.
-	// 30 s is long enough for healthy Benthos stream delivery while ensuring recovery
-	// after a bundle reload within the OPA startup timeout window.
-	decisionLogTaskTimeout = 30 * time.Second
+	// 5 s is long enough for a healthy stream under normal backpressure and short
+	// enough to recover within the NOT_READY window observed during a bundle reload.
+	decisionLogTaskTimeout = 5 * time.Second
 
 	DefaultMaxRequestBodySize    = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing  = 100 * DefaultMaxRequestBodySize
