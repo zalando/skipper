@@ -440,7 +440,9 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			ResponseTime:         responseTime,
 		}
 		if shouldStore {
-			_ = f.storage.Set(context.Background(), key, entry)
+			if err := f.storage.Set(context.Background(), key, entry); err != nil {
+				log.WithError(err).Debug("cache: Set failed (cold-miss store)")
+			}
 		}
 		return &coalesceResult{entry: entry, stored: sieStored}, nil
 	})
@@ -508,7 +510,9 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 			if lm := rsp.Header.Get("Last-Modified"); lm != "" {
 				stored.LastModified = lm
 			}
-			_ = f.storage.Set(ctx.Request().Context(), key, stored)
+			if err := f.storage.Set(ctx.Request().Context(), key, stored); err != nil {
+				log.WithError(err).Debug("cache: Set failed (HEAD freshen)")
+			}
 		}
 		return
 	}
@@ -521,12 +525,18 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	// RFC 9111 §4.4: invalidate cached entry on successful unsafe method.
 	// Also invalidate same-origin Location/Content-Location URIs.
 	if isUnsafeMethod(ctx.Request().Method) && rsp.StatusCode < 400 {
-		_ = f.storage.Delete(ctx.Request().Context(), key)
+		if err := f.storage.Delete(ctx.Request().Context(), key); err != nil {
+			log.WithError(err).Warn("cache: Delete failed (unsafe method invalidation)")
+		}
 		for _, hdrName := range []string{"Location", "Content-Location"} {
 			if loc := rsp.Header.Get(hdrName); loc != "" && sameOrigin(ctx.Request(), loc) {
 				if locKey := cacheKeyForURL(ctx.RouteId(), ctx.Request(), loc, f.keyHeaders); locKey != "" {
-					_ = f.storage.Delete(ctx.Request().Context(), locKey)
-					_ = f.storage.Delete(ctx.Request().Context(), "vary:"+locKey)
+					if err := f.storage.Delete(ctx.Request().Context(), locKey); err != nil {
+						log.WithError(err).Debug("cache: Delete failed (Location invalidation)")
+					}
+					if err := f.storage.Delete(ctx.Request().Context(), "vary:"+locKey); err != nil {
+						log.WithError(err).Debug("cache: Delete failed (vary sentinel for Location)")
+					}
 				}
 			}
 		}
@@ -588,7 +598,9 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 			StaleWhileRevalidate: f.swrWindow,
 			VaryHeaders:          varyNames,
 		}
-		_ = f.storage.Set(ctx.Request().Context(), "vary:"+baseKey, sentinel)
+		if err := f.storage.Set(ctx.Request().Context(), "vary:"+baseKey, sentinel); err != nil {
+			log.WithError(err).Debug("cache: Set failed (vary sentinel)")
+		}
 	}
 
 	swr := f.swrWindow
@@ -619,7 +631,9 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 		CorrectedInitialAge:  cia,
 		ResponseTime:         responseTime,
 	}
-	_ = f.storage.Set(ctx.Request().Context(), storeKey, entry)
+	if err := f.storage.Set(ctx.Request().Context(), storeKey, entry); err != nil {
+		log.WithError(err).Debug("cache: Set failed (response store)")
+	}
 }
 
 // enqueueRevalidation clones the request before sending a job to the background
@@ -723,7 +737,9 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request) {
 			CorrectedInitialAge:  cia,
 			ResponseTime:         responseTime,
 		}
-		_ = f.storage.Set(context.Background(), key, entry)
+		if err := f.storage.Set(context.Background(), key, entry); err != nil {
+			log.WithError(err).Debug("cache: Set failed (background revalidation)")
+		}
 		return nil, nil
 	})
 }
