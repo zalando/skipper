@@ -212,6 +212,16 @@ func TestValkeyStorage_FallsBackToL1OnValkeyUnavailable(t *testing.T) {
 	if m.counter("valkey_get_fallback") == 0 {
 		t.Error("expected valkey_get_fallback to be incremented on Get fallback path")
 	}
+
+	// Confirm the entry was physically written to L1 — not just returned via some
+	// other path. A direct read from LRUStorage proves the write actually happened.
+	l1Entry, err := lru.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("L1 direct Get: %v", err)
+	}
+	if l1Entry == nil {
+		t.Error("expected entry to be written to L1 on Valkey fallback, but L1 Get returned nil")
+	}
 }
 
 func TestValkeyStorage_RecordsValkeyMiss(t *testing.T) {

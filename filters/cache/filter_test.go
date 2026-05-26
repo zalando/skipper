@@ -2755,3 +2755,92 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testi
 		t.Fatal("pure RFC mode: response with no freshness directives must not be cached")
 	}
 }
+
+func TestCacheFilter_RevalDropped_WhenQueueFull(t *testing.T) {
+	// Verify that reval_dropped is incremented when the revalJobs channel is at
+	// capacity and a stale-while-revalidate request tries to enqueue a job.
+	//
+	// Strategy:
+	//  1. Wire f.fetch to block until we release it, so the worker goroutine is
+	//     stuck inside doRevalidate as soon as it picks up its first job.
+	//  2. Pre-send one dummy job to wake the worker and block it on fetch.
+	//  3. Fill the remaining revalQueueSize-1 slots with dummy jobs, saturating
+	//     the channel (worker is blocked and cannot drain).
+	//  4. Seed the cache directly with a backdated stale entry (past TTL, inside
+	//     SWR window) so no real upstream call is needed to populate the cache.
+	//  5. Make a GET — the stale path serves the entry and calls enqueueRevalidation;
+	//     the channel is full, so the default branch fires and increments reval_dropped.
+	//  6. Assert reval_dropped == 1.
+
+	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+
+	// Wire up a dedicated MockMetrics so we can inspect counters in isolation.
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+
+	// fetchBlocked gates the worker: it blocks until the test releases it.
+	// workerIn is signalled once the worker is confirmed to be inside fetch.
+	fetchBlocked := make(chan struct{})
+	workerIn := make(chan struct{}, 1)
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		select {
+		case workerIn <- struct{}{}: // signal first entry only (buffered size 1)
+		default:
+		}
+		<-fetchBlocked // block until test closes this channel
+		return nil, errors.New("blocked fetch")
+	}
+
+	// Send one dummy job so the worker goroutine wakes and blocks inside fetch.
+	dummyReq, _ := http.NewRequest(http.MethodGet, "http://example.com/dummy", nil)
+	f.revalJobs <- revalJob{key: "dummy-wake", req: dummyReq}
+
+	// Wait for the worker to confirm it is inside fetch — no timing guesswork.
+	<-workerIn
+
+	// Worker has consumed the dummy job from the channel (0/256 slots occupied)
+	// and is now blocked in fetch. Fill all revalQueueSize slots so the channel
+	// is at capacity; the worker cannot drain while it is stuck in fetch.
+	for i := range revalQueueSize {
+		r, _ := http.NewRequest(http.MethodGet, "http://example.com/fill", nil)
+		f.revalJobs <- revalJob{key: "fill-" + strconv.Itoa(i), req: r}
+	}
+
+	// Inject a stale entry directly into storage. CreatedAt is backdated so
+	// IsStale(now) returns true (past TTL) and IsUsable(now) returns true (within SWR).
+	url := "https://cdn.contentful.com/spaces/abc/entries/reval-dropped"
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	key := cacheKey("" /* routeID */, req, nil)
+	staleEntry := &Entry{
+		StatusCode:           http.StatusOK,
+		Header:               http.Header{"Content-Type": {"application/json"}},
+		Payload:              []byte(`{"data":"stale"}`),
+		CreatedAt:            time.Now().Add(-10 * time.Millisecond), // well past 1ms TTL
+		TTL:                  time.Millisecond,
+		StaleWhileRevalidate: time.Hour, // still inside SWR window
+	}
+	if err := f.storage.Set(context.Background(), key, staleEntry); err != nil {
+		t.Fatalf("failed to seed stale entry: %v", err)
+	}
+
+	// Make the GET request. The filter finds the stale entry, serves it, and
+	// calls enqueueRevalidation. The channel is full — reval_dropped fires.
+	ctx := newCtx(http.MethodGet, url, "")
+	ctx.FMetrics = mockMetrics
+	f.Request(ctx)
+
+	if !ctx.FServed {
+		t.Fatal("expected stale entry to be served when revalJobs queue is full")
+	}
+	if ctx.FResponse.Header.Get("X-Cache-Status") != "STALE" {
+		t.Fatalf("expected X-Cache-Status: STALE, got %q", ctx.FResponse.Header.Get("X-Cache-Status"))
+	}
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		if counters["reval_dropped"] != 1 {
+			t.Errorf("expected reval_dropped==1, got %d", counters["reval_dropped"])
+		}
+	})
+
+	// Release the blocked worker so the test can clean up without leaking goroutines.
+	close(fetchBlocked)
+}
