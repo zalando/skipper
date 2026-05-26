@@ -64,6 +64,13 @@ const (
 	defaultShutdownGracePeriod      = 30 * time.Second
 	DefaultOpaStartupTimeout        = 30 * time.Second
 	DefaultBackgroundTaskBufferSize = 100
+	// decisionLogTaskTimeout bounds the time runDecisionLogger spends on a single
+	// doLogDecision call. Without a deadline, a Benthos stream.Consume() call on a
+	// stream that was stopped during eopa_dl.Reconfigure() blocks forever because
+	// the inproc reader is gone and context.Background() provides no escape hatch.
+	// 30 s is long enough for healthy Benthos stream delivery while ensuring recovery
+	// after a bundle reload within the OPA startup timeout window.
+	decisionLogTaskTimeout = 30 * time.Second
 
 	DefaultMaxRequestBodySize    = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing  = 100 * DefaultMaxRequestBodySize
@@ -1039,7 +1046,10 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 func (opa *OpenPolicyAgentInstance) runDecisionLogger() {
 	defer close(opa.decisionsProcessed)
 	for task := range opa.decisionLogChan {
-		if err := opa.doLogDecision(context.Background(), task.input, task.result, task.err); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), decisionLogTaskTimeout)
+		err := opa.doLogDecision(ctx, task.input, task.result, task.err)
+		cancel()
+		if err != nil {
 			opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
 		}
 	}

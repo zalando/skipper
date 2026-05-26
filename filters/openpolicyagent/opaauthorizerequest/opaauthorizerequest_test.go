@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
@@ -1245,6 +1247,246 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
 		})
 	}
+}
+
+// TestDecisionLogDroppedOnBundleReload reproduces the bug where a bundle reload causes
+// sustained "Decision log dropped: async buffer full" with no recovery.
+//
+// Root cause: when eopa_dl.Reconfigure() tears down the Benthos stream during a bundle
+// reload, runDecisionLogger may be blocked inside stream.Consume() on the stopped stream.
+// Because context.Background() has no deadline, the blocked tChan send never returns —
+// runDecisionLogger is permanently stuck and decisionLogChan fills up, causing every
+// subsequent logDecision to hit the non-blocking default branch and drop the event.
+// A pod restart is the only recovery path until the context is given a deadline.
+//
+// The test structure:
+//  1. Start OPA with async decision logging and a tiny eopa_dl HTTP buffer (max_bytes=1200).
+//     The slow log sink introduces backpressure so the Benthos buffer fills after the first event.
+//  2. Send a handful of requests and wait until the log sink is reached, confirming the
+//     Benthos stream is live and consuming decisions.
+//  3. Push a new discovery bundle revision, which triggers eopa_dl.Reconfigure() and
+//     tears down the running Benthos stream while runDecisionLogger may be inside Consume().
+//  4. Unblock the sink so the in-flight batch can complete. On a buggy build, the next
+//     Consume() call on the stopped stream blocks forever on context.Background().
+//  5. Flood with requests. If the drainer is stuck the channel fills and drops begin.
+//  6. Poll until a request produces no new drop — the channel has drained.
+//     On a buggy build this never happens; on a fixed build recovery occurs once the
+//     context deadline fires and runDecisionLogger can loop to the next task.
+func TestDecisionLogDroppedOnBundleReload(t *testing.T) {
+	if testing.Short() {
+		t.Skip("timing-sensitive test, skipped in short mode")
+	}
+
+	hook := &dropCaptureHook{}
+	logrus.AddHook(hook)
+	t.Cleanup(func() {
+		logrus.StandardLogger().Hooks = make(logrus.LevelHooks)
+	})
+
+	// sinkReached is written once when the log sink receives its first batch,
+	// confirming the Benthos stream has flushed at least one event.
+	// sinkRelease is closed to let the in-flight request complete so the old stream
+	// can finish, giving the new stream a chance to replace it.
+	sinkReached := make(chan struct{}, 1)
+	sinkRelease := make(chan struct{})
+
+	// slowSink holds the first request until sinkRelease, keeping the eopa_dl
+	// memory buffer occupied so backpressure is applied to subsequent Consume calls.
+	const sinkDelay = 200 * time.Millisecond
+	logSink := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case sinkReached <- struct{}{}:
+		default:
+		}
+		select {
+		case <-sinkRelease:
+		case <-r.Context().Done():
+			return
+		}
+		time.Sleep(sinkDelay)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer logSink.Close()
+
+	clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ok"))
+	}))
+	defer clientServer.Close()
+
+	// eopa_dl config: max_bytes=1200 fits exactly one event (~874 bytes).
+	// Once event 1 is in the buffer and the sink stalls, a second Consume call blocks.
+	eopaDLConfig := fmt.Sprintf(`{
+		"buffer": { "type": "memory", "max_bytes": 1200 },
+		"output": {
+			"type": "http",
+			"url": %q,
+			"timeout": "60s",
+			"batching": { "at_period": "1ms", "at_bytes": 1 }
+		}
+	}`, logSink.URL+"/logs")
+
+	// discoveryData builds a discovery bundle payload. Bumping the revision causes the
+	// discovery plugin to re-evaluate and push a fresh eopa_dl config, triggering
+	// eopa_dl.Reconfigure() → Stop() + Start() on the Benthos stream.
+	discoveryData := func(version int) string {
+		return fmt.Sprintf(`{
+		  "discovery": {
+			"revision": "v%d",
+			"bundles": {
+			  "bundles/test": {
+				"persist": false,
+				"resource": "bundles/test",
+				"service": "test",
+				"polling": { "min_delay_seconds": 1, "max_delay_seconds": 1 }
+			  }
+			},
+			"plugins": { "eopa_dl": %s }
+		  }
+		}`, version, eopaDLConfig)
+	}
+
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/test", map[string]string{
+			"main.rego": `
+				package envoy.authz
+				default allow = true
+			`,
+		}),
+		opasdktest.MockBundle("/bundles/discovery", map[string]string{
+			"data.json": discoveryData(1),
+		}),
+	)
+	defer opaControlPlane.Stop()
+
+	// buffer_size_limit_events=5: the async channel holds at most 5 pending tasks.
+	// At ~50 rps the channel fills within ~100 ms once the drainer is stuck.
+	config := []byte(fmt.Sprintf(`{
+		"services": { "test": { "url": %q } },
+		"discovery": {
+			"name": "discovery",
+			"resource": "/bundles/discovery",
+			"service": "test"
+		},
+		"labels": { "environment": "test" },
+		"decision_logs": {
+			"plugin": "eopa_dl",
+			"reporting": {
+				"buffer_type": "event",
+				"buffer_size_limit_events": 5
+			}
+		},
+		"plugins": {
+			"envoy_ext_authz_grpc": { "path": "envoy/authz/allow", "dry-run": false },
+			"eopa_dl": %s
+		}
+	}`, opaControlPlane.URL(), eopaDLConfig))
+
+	fr := make(filters.Registry)
+	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(
+		openpolicyagent.WithTracer(tracingtest.NewTracer()),
+		openpolicyagent.WithAsyncDecisionLogging(true),
+		openpolicyagent.WithOpenPolicyAgentInstanceConfig(
+			openpolicyagent.WithConfigTemplate(config),
+		),
+	)
+	require.NoError(t, err)
+
+	ftSpec := NewOpaAuthorizeRequestSpec(opaFactory)
+	fr.Register(ftSpec)
+
+	r := eskip.MustParse(fmt.Sprintf(`* -> opaAuthorizeRequest("test") -> %q`, clientServer.URL))
+	proxy := proxytest.New(fr, r...)
+	defer proxy.Close()
+
+	req, err := http.NewRequest(http.MethodGet, proxy.URL+"/", nil)
+	require.NoError(t, err)
+
+	// Warm up: send a handful of requests to get decisions into the Benthos stream.
+	for i := 0; i < 5; i++ {
+		rsp, doErr := proxy.Client().Do(req)
+		require.NoError(t, doErr)
+		rsp.Body.Close()
+	}
+
+	// Wait until the log sink has received at least one batch — the stream is live.
+	select {
+	case <-sinkReached:
+	case <-time.After(10 * time.Second):
+		t.Fatal("log sink never received a request — decisions are not reaching eopa_dl")
+	}
+
+	// Push a new discovery revision. The discovery plugin detects the change,
+	// re-pushes the eopa_dl config, and calls eopa_dl.Reconfigure() → Stop() + Start().
+	// During Stop(), the inproc input is torn down. runDecisionLogger, which is in (or
+	// about to call) stream.Consume on the old stream, will block forever if the context
+	// has no deadline.
+	opaControlPlane.WithTestBundle("/bundles/discovery", map[string]string{
+		"data.json": discoveryData(2),
+	})
+
+	// Unblock the sink so the in-flight batch can finish.
+	// On a buggy build, the next Consume() call on the now-stopped stream deadlocks.
+	close(sinkRelease)
+
+	// Give the discovery poller time to pick up v2 and call Reconfigure.
+	time.Sleep(2500 * time.Millisecond)
+
+	// Flood with requests. If the drainer is stuck, the channel fills and all are dropped.
+	for i := 0; i < 20; i++ {
+		rsp, doErr := proxy.Client().Do(req)
+		require.NoError(t, doErr)
+		rsp.Body.Close()
+	}
+
+	dropsWhileStalled := hook.countContaining("Decision log dropped: async buffer full")
+	assert.Greater(t, dropsWhileStalled, 0,
+		"expected at least some decision log drops immediately after bundle reload "+
+			"(channel full while drainer is blocked) — check async logging is enabled and Reconfigure was triggered")
+
+	// Wait for self-recovery: once runDecisionLogger unblocks (via context timeout),
+	// the channel drains and subsequent requests are no longer dropped.
+	// On a buggy build this never becomes true; on a fixed build it settles quickly.
+	require.Eventually(t, func() bool {
+		before := hook.countContaining("Decision log dropped: async buffer full")
+		rsp, doErr := proxy.Client().Do(req)
+		if doErr != nil {
+			return false
+		}
+		rsp.Body.Close()
+		time.Sleep(200 * time.Millisecond)
+		after := hook.countContaining("Decision log dropped: async buffer full")
+		return after == before
+	}, 60*time.Second, 500*time.Millisecond,
+		"decision log drops did not stop after Reconfigure completed — runDecisionLogger did not recover; "+
+			"fix: pass a context with a deadline into doLogDecision instead of context.Background()")
+}
+
+// dropCaptureHook captures all logrus entries so tests can count specific log lines.
+type dropCaptureHook struct {
+	mu      sync.Mutex
+	entries []string
+}
+
+func (h *dropCaptureHook) countContaining(sub string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	n := 0
+	for _, e := range h.entries {
+		if strings.Contains(e, sub) {
+			n++
+		}
+	}
+	return n
+}
+
+func (h *dropCaptureHook) Levels() []logrus.Level { return logrus.AllLevels }
+
+func (h *dropCaptureHook) Fire(entry *logrus.Entry) error {
+	line, _ := entry.String()
+	h.mu.Lock()
+	h.entries = append(h.entries, line)
+	h.mu.Unlock()
+	return nil
 }
 
 func isHeadersPresent(t *testing.T, expectedHeaders http.Header, headers http.Header) bool {
