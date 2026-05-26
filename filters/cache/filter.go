@@ -67,7 +67,6 @@ func NewCacheFilter(maxBytes int64, listenAddr string, netOpts skpnet.Options, v
 	var lru *LRUStorage
 	lru = NewLRUStorage(maxBytes, func() {
 		metrics.Default.IncCounter("lru_eviction")
-		metrics.Default.UpdateGauge("lru_bytes", float64(lru.lru.Bytes()))
 	})
 
 	var stor Storage = lru
@@ -80,6 +79,7 @@ func NewCacheFilter(maxBytes int64, listenAddr string, netOpts skpnet.Options, v
 		listenAddr: listenAddr,
 		client:     skpnet.NewClient(netOpts),
 		storage:    stor,
+		lruStorage: lru,
 	}
 }
 
@@ -87,7 +87,8 @@ type cacheSpec struct {
 	maxBytes   int64
 	listenAddr string
 	client     *skpnet.Client
-	storage    Storage // shared across all filter instances
+	storage    Storage     // shared across all filter instances
+	lruStorage *LRUStorage // the L1 LRU backing storage; nil only if storage is not LRU-backed
 }
 
 func (s *cacheSpec) Name() string { return filterName }
@@ -143,6 +144,7 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	cf := &cacheFilter{
 		storage:      s.storage,
+		lruStorage:   s.lruStorage,
 		listenAddr:   s.listenAddr,
 		ttl:          ttl,
 		errorTTL:     errorTTL,
@@ -152,17 +154,20 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		metrics:      metrics.Default,
 		keyHeaders:   keyHeaders,
 		revalJobs:    make(chan revalJob, revalQueueSize),
+		lruBytesDone: make(chan struct{}),
 	}
 
 	cf.fetch = s.client.Do
 	go cf.revalidationWorker()
+	go cf.lruBytesScraper()
 	return cf, nil
 }
 
-// Close shuts down the background revalidation worker. Must be called when the
-// filter is no longer in use (e.g. in tests via t.Cleanup).
+// Close shuts down the background revalidation worker and the lru_bytes scraper.
+// Must be called when the filter is no longer in use (e.g. in tests via t.Cleanup).
 func (f *cacheFilter) Close() {
 	close(f.revalJobs)
+	close(f.lruBytesDone)
 }
 
 // revalidationWorker is the single background goroutine per filter that
@@ -174,6 +179,27 @@ func (f *cacheFilter) revalidationWorker() {
 	log.Debug("cache: revalidation worker stopped")
 }
 
+const lruBytesScrapeInterval = 10 * time.Second
+
+// lruBytesScraper periodically updates the lru_bytes gauge so it stays current
+// even when no evictions occur (large Sets without exceeding capacity never
+// trigger the onEvict callback). It exits when lruBytesDone is closed.
+func (f *cacheFilter) lruBytesScraper() {
+	if f.lruStorage == nil {
+		return
+	}
+	ticker := time.NewTicker(lruBytesScrapeInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			f.metrics.UpdateGauge("lru_bytes", float64(f.lruStorage.lru.Bytes()))
+		case <-f.lruBytesDone:
+			return
+		}
+	}
+}
+
 type revalJob struct {
 	key string
 	req *http.Request // pre-cloned, safe to use after the originating request ends
@@ -181,6 +207,7 @@ type revalJob struct {
 
 type cacheFilter struct {
 	storage      Storage
+	lruStorage   *LRUStorage // non-nil when backed by LRU (always in L1-only; L1 within Valkey path)
 	listenAddr   string
 	ttl          time.Duration
 	errorTTL     time.Duration
@@ -190,12 +217,13 @@ type cacheFilter struct {
 
 	// rfcMode true: upstream Cache-Control is authoritative (cache()).
 	// false: operator ttl/errorTTL/swrWindow are authoritative (force mode).
-	rfcMode   bool
-	coldSF    singleflight.Group // cold-miss coalescing
-	revalSF   singleflight.Group // coalesces concurrent background revalidations per key
-	revalJobs chan revalJob      // background revalidation queue; worker drains this
-	fetch     func(*http.Request) (*http.Response, error)
-	metrics   metrics.Metrics
+	rfcMode      bool
+	coldSF       singleflight.Group // cold-miss coalescing
+	revalSF      singleflight.Group // coalesces concurrent background revalidations per key
+	revalJobs    chan revalJob       // background revalidation queue; worker drains this
+	lruBytesDone chan struct{}       // closed by Close() to stop the lruBytesScraper goroutine
+	fetch        func(*http.Request) (*http.Response, error)
+	metrics      metrics.Metrics
 }
 
 // Request checks the cache. On a hit it calls ctx.Serve() to short-circuit the
