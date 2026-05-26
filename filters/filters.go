@@ -379,6 +379,7 @@ const (
 	TLSName                                    = "tlsPassClientCertificates"
 	AWSSigV4Name                               = "awsSigv4"
 	LoopbackIfStatus                           = "loopbackIfStatus"
+	CacheName                                  = "cache"
 
 	// Undocumented filters
 	HealthCheckName        = "healthcheck"
