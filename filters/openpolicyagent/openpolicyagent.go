@@ -64,13 +64,7 @@ const (
 	defaultShutdownGracePeriod      = 30 * time.Second
 	DefaultOpaStartupTimeout        = 30 * time.Second
 	DefaultBackgroundTaskBufferSize = 100
-	// decisionLogTaskTimeout bounds the time runDecisionLogger spends on a single
-	// doLogDecision call. Without a deadline, a Benthos stream.Consume() call on a
-	// stream that was stopped during eopa_dl.Reconfigure() blocks forever because
-	// the inproc reader is gone and context.Background() provides no escape hatch.
-	// 5 s is long enough for a healthy stream under normal backpressure and short
-	// enough to recover within the NOT_READY window observed during a bundle reload.
-	decisionLogTaskTimeout = 5 * time.Second
+	decisionLogTaskTimeoutMin       = 5 * time.Second
 
 	DefaultMaxRequestBodySize    = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing  = 100 * DefaultMaxRequestBodySize
@@ -799,7 +793,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		bufSize := decisionLogBufferSize(opaConfig.DecisionLogs)
 		opa.decisionLogChan = make(chan decisionLogTask, bufSize)
 		opa.decisionsProcessed = make(chan struct{})
-		go opa.runDecisionLogger()
+		go opa.runDecisionLogger(decisionLogTaskTimeout(bufSize, registry.instanceStartupTimeout))
 	}
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
@@ -1040,13 +1034,31 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 	})
 }
 
+// decisionLogTaskTimeout returns the per-task timeout for runDecisionLogger.
+// It is bufSize/200 seconds (time to fill the buffer with 200rps),
+// clamped to [decisionLogTaskTimeoutMin, instanceStartupTimeout].
+func decisionLogTaskTimeout(bufSize int, instanceStartupTimeout time.Duration) time.Duration {
+	t := time.Duration(bufSize/200) * time.Second
+	if t < decisionLogTaskTimeoutMin {
+		t = decisionLogTaskTimeoutMin
+	}
+	if t > instanceStartupTimeout {
+		t = instanceStartupTimeout
+	}
+	return t
+}
+
 // runDecisionLogger drains decisionLogChan in the background so that logDecision
 // is never called on the request goroutine. The goroutine exits when the channel
 // is closed (during Close) and signals completion via decisionsProcessed.
-func (opa *OpenPolicyAgentInstance) runDecisionLogger() {
+func (opa *OpenPolicyAgentInstance) runDecisionLogger(timeout time.Duration) {
 	defer close(opa.decisionsProcessed)
 	for task := range opa.decisionLogChan {
-		ctx, cancel := context.WithTimeout(context.Background(), decisionLogTaskTimeout)
+		// A context with timeout bounds the time runDecisionLogger spends on a single
+		// doLogDecision call. Without this, a Benthos stream.Consume() call on a
+		// stream that was stopped during eopa_dl.Reconfigure() blocks forever because
+		// the inproc reader is gone and context.Background() provides no escape hatch.
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		err := opa.doLogDecision(ctx, task.input, task.result, task.err)
 		cancel()
 		if err != nil {

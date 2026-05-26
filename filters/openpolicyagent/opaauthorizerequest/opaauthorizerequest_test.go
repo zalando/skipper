@@ -1243,29 +1243,11 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 	}
 }
 
-// TestDecisionLogDroppedOnBundleReload reproduces the bug where a bundle reload causes
-// sustained "Decision log dropped: async buffer full" with no recovery.
-//
-// Root cause: when eopa_dl.Reconfigure() tears down the Benthos stream during a bundle
-// reload, runDecisionLogger may be blocked inside stream.Consume() on the stopped stream.
-// Because context.Background() has no deadline, the blocked tChan send never returns —
-// runDecisionLogger is permanently stuck and decisionLogChan fills up, causing every
-// subsequent logDecision to hit the non-blocking default branch and drop the event.
-// A pod restart is the only recovery path until the context is given a deadline.
-//
-// The test structure:
-//  1. Start OPA with async decision logging and a tiny eopa_dl HTTP buffer (max_bytes=1200).
-//     The slow log sink introduces backpressure so the Benthos buffer fills after the first event.
-//  2. Send a handful of requests and wait until the log sink is reached, confirming the
-//     Benthos stream is live and consuming decisions.
-//  3. Push a new discovery bundle revision, which triggers eopa_dl.Reconfigure() and
-//     tears down the running Benthos stream while runDecisionLogger may be inside Consume().
-//  4. Unblock the sink so the in-flight batch can complete. On a buggy build, the next
-//     Consume() call on the stopped stream blocks forever on context.Background().
-//  5. Flood with requests. If the drainer is stuck the channel fills and drops begin.
-//  6. Poll until a request produces no new drop — the channel has drained.
-//     On a buggy build this never happens; on a fixed build recovery occurs once the
-//     context deadline fires and runDecisionLogger can loop to the next task.
+// TestDecisionLogDroppedOnBundleReload verifies that runDecisionLogger recovers after a
+// bundle reload. During eopa_dl.Reconfigure(), Stop() tears down the Benthos stream while
+// runDecisionLogger may be inside stream.Consume(). Without a context deadline the blocked
+// send never returns, decisionLogChan fills up, and all decisions are dropped permanently.
+// The fix passes a timeout context so the goroutine can unblock and resume draining.
 func TestDecisionLogDroppedOnBundleReload(t *testing.T) {
 	if testing.Short() {
 		t.Skip("timing-sensitive test, skipped in short mode")
@@ -1277,15 +1259,12 @@ func TestDecisionLogDroppedOnBundleReload(t *testing.T) {
 		logrus.StandardLogger().Hooks = make(logrus.LevelHooks)
 	})
 
-	// sinkReached is written once when the log sink receives its first batch,
-	// confirming the Benthos stream has flushed at least one event.
-	// sinkRelease is closed to let the in-flight request complete so the old stream
-	// can finish, giving the new stream a chance to replace it.
+	// sinkReached signals once the stream has delivered its first batch.
+	// sinkRelease unblocks the sink so the in-flight batch can complete.
 	sinkReached := make(chan struct{}, 1)
 	sinkRelease := make(chan struct{})
 
-	// slowSink holds the first request until sinkRelease, keeping the eopa_dl
-	// memory buffer occupied so backpressure is applied to subsequent Consume calls.
+	// Slow sink keeps the eopa_dl buffer full, applying backpressure to Consume.
 	const sinkDelay = 200 * time.Millisecond
 	logSink := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
@@ -1307,8 +1286,7 @@ func TestDecisionLogDroppedOnBundleReload(t *testing.T) {
 	}))
 	defer clientServer.Close()
 
-	// eopa_dl config: max_bytes=1200 fits exactly one event (~874 bytes).
-	// Once event 1 is in the buffer and the sink stalls, a second Consume call blocks.
+	// max_bytes=1200 fits one event; a second event triggers backpressure and blocks Consume.
 	eopaDLConfig := fmt.Sprintf(`{
 		"buffer": { "type": "memory", "max_bytes": 1200 },
 		"output": {
@@ -1319,9 +1297,7 @@ func TestDecisionLogDroppedOnBundleReload(t *testing.T) {
 		}
 	}`, logSink.URL+"/logs")
 
-	// discoveryData builds a discovery bundle payload. Bumping the revision causes the
-	// discovery plugin to re-evaluate and push a fresh eopa_dl config, triggering
-	// eopa_dl.Reconfigure() → Stop() + Start() on the Benthos stream.
+	// Bumping the revision triggers eopa_dl.Reconfigure() → Stop() + Start().
 	discoveryData := func(version int) string {
 		return fmt.Sprintf(`{
 		  "discovery": {
@@ -1352,8 +1328,7 @@ func TestDecisionLogDroppedOnBundleReload(t *testing.T) {
 	)
 	defer opaControlPlane.Stop()
 
-	// buffer_size_limit_events=5: the async channel holds at most 5 pending tasks.
-	// At ~50 rps the channel fills within ~100 ms once the drainer is stuck.
+	// buffer_size_limit_events=5 so the channel fills quickly once the drainer is stuck.
 	config := []byte(fmt.Sprintf(`{
 		"services": { "test": { "url": %q } },
 		"discovery": {
@@ -1395,37 +1370,32 @@ func TestDecisionLogDroppedOnBundleReload(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, proxy.URL+"/", nil)
 	require.NoError(t, err)
 
-	// Warm up: send a handful of requests to get decisions into the Benthos stream.
+	// Warm up the pipeline.
 	for i := 0; i < 5; i++ {
 		rsp, doErr := proxy.Client().Do(req)
 		require.NoError(t, doErr)
 		rsp.Body.Close()
 	}
 
-	// Wait until the log sink has received at least one batch — the stream is live.
+	// Confirm the stream is live before triggering the reload.
 	select {
 	case <-sinkReached:
 	case <-time.After(10 * time.Second):
 		t.Fatal("log sink never received a request — decisions are not reaching eopa_dl")
 	}
 
-	// Push a new discovery revision. The discovery plugin detects the change,
-	// re-pushes the eopa_dl config, and calls eopa_dl.Reconfigure() → Stop() + Start().
-	// During Stop(), the inproc input is torn down. runDecisionLogger, which is in (or
-	// about to call) stream.Consume on the old stream, will block forever if the context
-	// has no deadline.
+	// Push revision v2 to trigger eopa_dl.Reconfigure() → Stop() + Start().
 	opaControlPlane.WithTestBundle("/bundles/discovery", map[string]string{
 		"data.json": discoveryData(2),
 	})
 
-	// Unblock the sink so the in-flight batch can finish.
-	// On a buggy build, the next Consume() call on the now-stopped stream deadlocks.
+	// Unblock the sink; on a buggy build the next Consume() on the stopped stream deadlocks.
 	close(sinkRelease)
 
-	// Give the discovery poller time to pick up v2 and call Reconfigure.
+	// Wait for the discovery poller to pick up v2 and call Reconfigure.
 	time.Sleep(2500 * time.Millisecond)
 
-	// Flood with requests. If the drainer is stuck, the channel fills and all are dropped.
+	// Fill the channel; if the drainer is stuck all events are dropped.
 	for i := 0; i < 20; i++ {
 		rsp, doErr := proxy.Client().Do(req)
 		require.NoError(t, doErr)
@@ -1437,9 +1407,7 @@ func TestDecisionLogDroppedOnBundleReload(t *testing.T) {
 		"expected at least some decision log drops immediately after bundle reload "+
 			"(channel full while drainer is blocked) — check async logging is enabled and Reconfigure was triggered")
 
-	// Wait for self-recovery: once runDecisionLogger unblocks (via context timeout),
-	// the channel drains and subsequent requests are no longer dropped.
-	// On a buggy build this never becomes true; on a fixed build it settles quickly.
+	// Once the context timeout fires, runDecisionLogger unblocks and the channel drains.
 	require.Eventually(t, func() bool {
 		before := hook.countContaining("Decision log dropped: async buffer full")
 		rsp, doErr := proxy.Client().Do(req)
@@ -1455,7 +1423,7 @@ func TestDecisionLogDroppedOnBundleReload(t *testing.T) {
 			"fix: pass a context with a deadline into doLogDecision instead of context.Background()")
 }
 
-// dropCaptureHook captures all logrus entries so tests can count specific log lines.
+// dropCaptureHook counts logrus entries containing a given substring.
 type dropCaptureHook struct {
 	mu      sync.Mutex
 	entries []string
