@@ -2137,7 +2137,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	if !slices.Contains(o.DisabledFilters, cache.Name) {
 		var cacheValkeyRing *skpnet.ValkeyRingClient
 		if valkeyOptions != nil {
-			cacheValkeyRing, err = skpnet.NewValkeyRingClient(valkeyOptions)
+			// Shallow copy so NewValkeyRingClient can mutate opt.Addrs without
+			// racing against the ratelimit registry's copy of the same pointer.
+			cacheValkeyOpts := *valkeyOptions
+			cacheValkeyRing, err = skpnet.NewValkeyRingClient(&cacheValkeyOpts)
 			if err != nil {
 				return fmt.Errorf("failed to create Valkey ring for cache filter: %w", err)
 			}
