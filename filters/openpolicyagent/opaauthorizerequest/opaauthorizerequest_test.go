@@ -18,6 +18,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
+	nethttptest "github.com/zalando/skipper/net/httptest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/tracing/tracingtest"
 
@@ -923,20 +924,13 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin_SlowS3BlocksClientRespons
 	proxy := proxytest.New(fr, r...)
 	defer proxy.Close()
 
-	req, err := http.NewRequest(http.MethodGet, proxy.URL+"/allow", nil)
-	require.NoError(t, err)
+	va := nethttptest.NewVegetaAttacker(proxy.URL+"/allow", 10, time.Second, 2*s3Delay)
+	va.Attack(io.Discard, 3*time.Second, t.Name())
 
-	start := time.Now()
-	rsp, err := proxy.Client().Do(req)
-	elapsed := time.Since(start)
-
-	require.NoError(t, err)
-	defer rsp.Body.Close()
-	assert.Equal(t, http.StatusOK, rsp.StatusCode)
-
-	assert.Less(t, elapsed, s3Delay,
-		"client round-trip (%v) should not be delayed by the S3 upload (%v); "+
-			"logDecision must not run on the request goroutine", elapsed, s3Delay)
+	assert.Equal(t, 1.0, va.Success(), "all requests should succeed")
+	assert.Less(t, va.Metrics().Latencies.Mean, s3Delay,
+		"mean client latency (%v) should not be delayed by the S3 upload (%v); "+
+			"logDecision must not run on the request goroutine", va.Metrics().Latencies.Mean, s3Delay)
 }
 
 // TestFullDecisionLogBufferBlocksClientResponse is the regression test for the buffer full scenario when
