@@ -1229,6 +1229,48 @@ func TestCacheFilter_SMaxAge_ImpliesProxyRevalidate(t *testing.T) {
 	})
 }
 
+func TestCacheFilter_MustRevalidate_ForcesCoalesceWhenStale(t *testing.T) {
+	// RFC 9111 §5.2.2.2: must-revalidate forbids serving a stale response.
+	// Once the entry is past TTL, coalesce() must contact the origin even if the
+	// entry is inside a stale-while-revalidate window.
+	f := newTestFilter(t, 100*time.Millisecond, 15*time.Second, time.Hour)
+	url := "https://cdn.contentful.com/spaces/abc/entries/must-reval"
+
+	var fetchCount int64
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		atomic.AddInt64(&fetchCount, 1)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": {"must-revalidate"}, "Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"v":1}`)),
+		}, nil
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		// First request: cold miss → fetch → store.
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		if ctx1.FResponse.Header.Get("X-Cache-Status") != "MISS" {
+			t.Fatalf("expected MISS, got %q", ctx1.FResponse.Header.Get("X-Cache-Status"))
+		}
+
+		// Advance into stale window (past TTL=100ms, within SWR=1h).
+		time.Sleep(200 * time.Millisecond)
+
+		// Second request: entry is stale + must-revalidate → must NOT serve stale.
+		// coalesce() must call fetch again (origin contacted).
+		ctx2 := newCtx("GET", url, "")
+		f.Request(ctx2)
+		synctest.Wait()
+		if atomic.LoadInt64(&fetchCount) < 2 {
+			t.Fatalf("must-revalidate must block stale serve and trigger upstream fetch; fetchCount=%d", atomic.LoadInt64(&fetchCount))
+		}
+		if status := ctx2.FResponse.Header.Get("X-Cache-Status"); status == "HIT" || status == "STALE" {
+			t.Errorf("expected origin fetch, but got X-Cache-Status: %s", status)
+		}
+	})
+}
+
 func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
 	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{}, nil)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
