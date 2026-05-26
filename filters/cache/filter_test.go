@@ -1014,6 +1014,50 @@ func TestCacheFilter_UnsafeMethod_InvalidatesCache(t *testing.T) {
 	}
 }
 
+func TestCacheFilter_UnsafeMethod_4xx_DoesNotInvalidate(t *testing.T) {
+	// RFC 9111 §4.4: a cache MUST NOT invalidate a stored response when an
+	// unsafe method returns a 4xx status. Only 2xx responses must trigger
+	// invalidation.
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+	url := "https://cdn.contentful.com/spaces/abc/entries/item-4xx"
+
+	// Step 1: warm the cache with a GET that returns 200 + max-age=300.
+	ctx1 := newCtx("GET", url, "")
+	f.Request(ctx1)
+	ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"cached"}`, "public, max-age=300")
+	f.Response(ctx1)
+
+	// Verify the entry is cached (second GET must be a HIT).
+	ctxHit := newCtx("GET", url, "")
+	f.Request(ctxHit)
+	if !ctxHit.FServed {
+		t.Fatal("expected HIT after warming the cache")
+	}
+	if ctxHit.FResponse.Header.Get("X-Cache-Status") != "HIT" {
+		t.Fatalf("expected HIT status, got %q", ctxHit.FResponse.Header.Get("X-Cache-Status"))
+	}
+
+	// Step 2: DELETE request that returns 403 — must NOT invalidate the cache.
+	deleteCtx := newCtx("DELETE", url, "")
+	f.Request(deleteCtx)
+	deleteCtx.FResponse = &http.Response{
+		StatusCode: http.StatusForbidden,
+		Header:     http.Header{},
+		Body:       http.NoBody,
+	}
+	f.Response(deleteCtx)
+
+	// Step 3: another GET must still return the cached entry (HIT).
+	ctxAfter := newCtx("GET", url, "")
+	f.Request(ctxAfter)
+	if !ctxAfter.FServed {
+		t.Fatal("cache must NOT be invalidated when unsafe method returns 4xx (RFC 9111 §4.4)")
+	}
+	if ctxAfter.FResponse.Header.Get("X-Cache-Status") != "HIT" {
+		t.Fatalf("expected HIT after 4xx unsafe method, got %q", ctxAfter.FResponse.Header.Get("X-Cache-Status"))
+	}
+}
+
 func TestCacheFilter_SafeMethod_DoesNotInvalidate(t *testing.T) {
 	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
 	url := "https://cdn.contentful.com/spaces/abc/entries/safe"
