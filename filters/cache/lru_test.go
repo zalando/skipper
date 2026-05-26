@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/metrics"
 )
 
 func makeEntry(payload string, ttl time.Duration) *Entry {
@@ -170,6 +172,42 @@ func TestLRUStorage_EvictionCallbackDoesNotDeadlock(t *testing.T) {
 		// passed
 	case <-time.After(5 * time.Second):
 		t.Fatal("deadlock: Set() did not return within 5 seconds")
+	}
+}
+
+func TestLRUStorage_OversizedEntry(t *testing.T) {
+	// With 256 shards and 1 KB total capacity, each shard holds 4 bytes.
+	// A payload larger than 4 bytes exceeds every shard's maxBytes.
+	const totalBytes = 1024 // 1 KB → 4 bytes per shard
+	s := NewLRUStorage(totalBytes, nil)
+
+	// Inject a testMetrics so we can observe lru_oversized counter increments.
+	// metrics.Default is restored automatically when the test ends.
+	m := &testMetrics{}
+	orig := metrics.Default
+	metrics.Default = m
+	t.Cleanup(func() { metrics.Default = orig })
+
+	ctx := context.Background()
+	entry := makeEntry(string(make([]byte, 1000)), time.Minute) // 1000-byte payload ≫ 4-byte shard
+
+	// Set must succeed (nil error) even though the entry is too large to store.
+	if err := s.Set(ctx, "oversized", entry); err != nil {
+		t.Fatalf("Set returned unexpected error: %v", err)
+	}
+
+	// The lru_oversized counter must have been incremented exactly once.
+	if got := m.counter("lru_oversized"); got != 1 {
+		t.Errorf("lru_oversized counter: got %d, want 1", got)
+	}
+
+	// The entry must not have been stored — Get must return nil.
+	got, err := s.Get(ctx, "oversized")
+	if err != nil {
+		t.Fatalf("Get returned unexpected error: %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected Get to return nil for oversized entry, got %+v", got)
 	}
 }
 
