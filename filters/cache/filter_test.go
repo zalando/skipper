@@ -249,6 +249,17 @@ func TestCacheFilter_TTLExpiry(t *testing.T) {
 	})
 }
 
+func TestCacheFilter_Response_NoopIfStateBagKeyMissing(t *testing.T) {
+	// Regression: Response() used a bare type assertion on stateBagKey which
+	// panicked if Request() had not run (e.g. route misconfiguration).
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+	ctx := newCtx("GET", "https://example.com/api", "")
+	// Deliberately do NOT call f.Request(ctx) — state bag has no cache key.
+	ctx.FResponse = upstreamResponse(http.StatusOK, `{}`)
+	// Must not panic.
+	f.Response(ctx)
+}
+
 func TestCreateFilter_InvalidArgs(t *testing.T) {
 	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{}, nil)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
@@ -576,6 +587,39 @@ func TestCacheFilter_RequestOnlyIfCached_Hit_ServesFromCache(t *testing.T) {
 	if ctx2.FResponse.Header.Get("X-Cache-Status") != "HIT" {
 		t.Fatalf("expected HIT, got %q", ctx2.FResponse.Header.Get("X-Cache-Status"))
 	}
+}
+
+func TestCacheFilter_RequestOnlyIfCached_StaleWhileRevalidate_ServesStale(t *testing.T) {
+	// RFC 9111 §5.2.1.7: only-if-cached should return a stored response if it is
+	// "usable" — entries in the SWR window are still being served as stale to
+	// other clients, so they are usable and must not return 504.
+	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Minute)
+	url := "https://cdn.contentful.com/spaces/abc/entries/oic-swr"
+
+	synctest.Test(t, func(t *testing.T) {
+		// Populate cache.
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"cached"}`, "max-age=0")
+		f.Response(ctx1)
+
+		// Advance past TTL (1ms) but stay within SWR window (1 minute).
+		time.Sleep(50 * time.Millisecond)
+
+		ctx2 := newCtx("GET", url, "")
+		ctx2.FRequest.Header.Set("Cache-Control", "only-if-cached")
+		f.Request(ctx2)
+
+		if !ctx2.FServed {
+			t.Fatal("only-if-cached must serve during SWR window")
+		}
+		if ctx2.FResponse.StatusCode == http.StatusGatewayTimeout {
+			t.Fatal("only-if-cached must not return 504 for SWR-window entry")
+		}
+		if ctx2.FResponse.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", ctx2.FResponse.StatusCode)
+		}
+	})
 }
 
 func TestCacheFilter_AgeHeader_HIT(t *testing.T) {
@@ -2240,7 +2284,12 @@ func TestCacheFilter_MinFresh_InsufficientFreshness_Bypasses(t *testing.T) {
 func TestCacheFilter_StaleIfError_Serves_On_5xx(t *testing.T) {
 	// ttl=1ms, errorTTL=10s, swrWindow=1ms, staleIfError=60s
 	// Entry expires after 1ms; staleIfError=60s keeps it in storage.
-	// A 503 upstream should cause the stale entry to be served.
+	// A 503 upstream via coalesce should cause the stale entry to be served.
+	//
+	// Regression: the SIE block in Response() was dead code — coalesce() always calls
+	// ctx.Serve() (even on 5xx), so Response() returned early before reaching it.
+	// SIE logic must live inside coalesce() with the pre-fetch snapshot captured
+	// before f.fetch runs, preventing the 5xx from overwriting the stored entry.
 	f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond, 60*time.Second)
 	url := "http://example.com/sie-5xx"
 
@@ -2250,15 +2299,23 @@ func TestCacheFilter_StaleIfError_Serves_On_5xx(t *testing.T) {
 		ctx.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"cached"}`, "max-age=0")
 		f.Response(ctx)
 
-		// Advance past TTL+SWR (SWR=0) so the entry is stale, but within staleIfError window.
+		// Advance past TTL+SWR so the next Request() calls coalesce().
 		time.Sleep(50 * time.Millisecond)
 
+		// Coalesce fetches from upstream and receives 503.
+		f.fetch = func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Header:     http.Header{},
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil
+		}
 		ctx2 := newCtx(http.MethodGet, url, "")
 		f.Request(ctx2)
-		// ctx2 is a MISS (past TTL+SWR); upstream returns 503.
-		ctx2.FResponse = upstreamResponse(http.StatusServiceUnavailable, "")
-		f.Response(ctx2)
 
+		if ctx2.FResponse == nil {
+			t.Fatal("expected a response, got nil")
+		}
 		if ctx2.FResponse.StatusCode != http.StatusOK {
 			t.Fatalf("want 200 from stale-if-error, got %d", ctx2.FResponse.StatusCode)
 		}
@@ -2271,6 +2328,8 @@ func TestCacheFilter_StaleIfError_Serves_On_5xx(t *testing.T) {
 func TestCacheFilter_StaleIfError_Expired_NotServed(t *testing.T) {
 	// ttl=1ms, errorTTL=10s, swrWindow=1ms, staleIfError=100ms
 	// Sleep 200ms — past TTL + staleIfError window. Entry too old for stale-if-error.
+	// Uses f.fetch returning 503 via coalesce (the same path as the positive SIE case)
+	// to confirm the 503 is passed through when the SIE window has already elapsed.
 	f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond, 100*time.Millisecond)
 	url := "http://example.com/sie-expired"
 
@@ -2283,11 +2342,19 @@ func TestCacheFilter_StaleIfError_Expired_NotServed(t *testing.T) {
 		// Advance past TTL (1ms) + staleIfError (100ms) = well beyond 200ms.
 		time.Sleep(200 * time.Millisecond)
 
+		f.fetch = func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Header:     http.Header{},
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil
+		}
 		ctx2 := newCtx(http.MethodGet, url, "")
 		f.Request(ctx2)
-		ctx2.FResponse = upstreamResponse(http.StatusServiceUnavailable, "")
-		f.Response(ctx2)
 
+		if ctx2.FResponse == nil {
+			t.Fatal("expected a response, got nil")
+		}
 		if ctx2.FResponse.StatusCode != http.StatusServiceUnavailable {
 			t.Fatalf("want 503 (SIE window expired), got %d", ctx2.FResponse.StatusCode)
 		}
@@ -2532,6 +2599,45 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 	if entry.TTL != 120*time.Second {
 		t.Errorf("pure RFC mode: expected TTL=120s (from upstream max-age), got %v", entry.TTL)
 	}
+}
+
+func TestCacheFilter_LRUBytesGaugeUpdatesWithoutEviction(t *testing.T) {
+	// The filter and its goroutines must be created inside the synctest bubble
+	// so the ticker in lruBytesScraper is subject to synthetic time control.
+	// f.fetch is replaced before any network I/O so the transport goroutine
+	// being inside the bubble is safe (it never actually dials out).
+	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, 5*time.Minute, 15*time.Second, 5*time.Minute)
+		mockMetrics := &metricstest.MockMetrics{}
+		// synctest.Wait drains goroutine scheduling so the scraper is parked at the
+		// select before we swap f.metrics. No tick has fired yet (synthetic time is frozen).
+		synctest.Wait()
+		f.metrics = mockMetrics
+
+		f.fetch = func(_ *http.Request) (*http.Response, error) {
+			return upstreamResponseCC(http.StatusOK, `{"data":"hello"}`, "max-age=300"), nil
+		}
+
+		var initialBytes float64
+		mockMetrics.WithGauges(func(g map[string]float64) {
+			initialBytes = g["lru_bytes"]
+		})
+
+		// Store an entry large enough to be visible but not enough to evict.
+		ctx := newCtx("GET", "https://example.com/lru-bytes-scrape", "")
+		f.Request(ctx)
+
+		// Advance time past one scrape interval (10 s).
+		time.Sleep(11 * time.Second)
+
+		var afterBytes float64
+		mockMetrics.WithGauges(func(g map[string]float64) {
+			afterBytes = g["lru_bytes"]
+		})
+		if afterBytes <= initialBytes {
+			t.Errorf("expected lru_bytes to increase after Set without eviction; before=%v after=%v", initialBytes, afterBytes)
+		}
+	})
 }
 
 func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testing.T) {
