@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
@@ -226,6 +227,21 @@ type cacheFilter struct {
 	metrics      metrics.Metrics
 }
 
+// tagSpan tags the cache decision onto the active OpenTracing span, if one exists.
+// key is the cache lookup key; ttlRemainingMs is milliseconds of TTL left (-1 = not applicable).
+// Filters do not own their span — they tag onto the proxy-managed request_filters span.
+func tagSpan(ctx filters.FilterContext, status, key string, ttlRemainingMs int64) {
+	span := opentracing.SpanFromContext(ctx.Request().Context())
+	if span == nil {
+		return
+	}
+	span.SetTag("cache_status", status)
+	span.SetTag("cache_key", key)
+	if ttlRemainingMs >= 0 {
+		span.SetTag("cache_ttl_remaining_ms", ttlRemainingMs)
+	}
+}
+
 // Request checks the cache. On a hit it calls ctx.Serve() to short-circuit the
 // backend roundtrip. On a stale hit it serves stale and fires a background
 // revalidation. On a miss it stores the computed key in the state bag so
@@ -306,6 +322,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 			}
 		}
 		rsp.Header.Set(cacheStatusHeader, cacheStatusStale)
+		tagSpan(ctx, cacheStatusStale, key, -1)
 		setAgeHeader(rsp, entry, now)
 		ctx.Metrics().IncCounter("stale")
 		method := ctx.Request().Method
@@ -343,6 +360,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	}
 
 	rsp.Header.Set(cacheStatusHeader, cacheStatusHit)
+	tagSpan(ctx, cacheStatusHit, key, max(0, entry.TTL-time.Since(entry.CreatedAt)).Milliseconds())
 	setAgeHeader(rsp, entry, time.Now())
 	ctx.Metrics().IncCounter("hit")
 	method := ctx.Request().Method
@@ -466,6 +484,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 				Body:       io.NopCloser(bytes.NewReader(cr.stored.Payload)),
 			}
 			staleRsp.Header.Set(cacheStatusHeader, cacheStatusStale)
+			tagSpan(ctx, cacheStatusStale, key, -1)
 			setAgeHeader(staleRsp, cr.stored, time.Now())
 			ctx.Serve(headBodyOmitted(ctx.Request().Method, staleRsp))
 			return
@@ -477,6 +496,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			Body:       io.NopCloser(bytes.NewReader(entry.Payload)),
 		}
 		rsp.Header.Set(cacheStatusHeader, cacheStatusMiss)
+		tagSpan(ctx, cacheStatusMiss, key, -1)
 		ctx.Metrics().IncCounter("miss")
 		ctx.Serve(headBodyOmitted(ctx.Request().Method, rsp))
 	case <-ctx.Request().Context().Done():
@@ -545,11 +565,13 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 
 	if ctx.StateBag()[stateBagNoStore] == true {
 		rsp.Header.Set(cacheStatusHeader, cacheStatusMiss)
+		tagSpan(ctx, cacheStatusMiss, key, -1)
 		ctx.Metrics().IncCounter("miss")
 		return
 	}
 
 	rsp.Header.Set(cacheStatusHeader, cacheStatusMiss)
+	tagSpan(ctx, cacheStatusMiss, key, -1)
 	ctx.Metrics().IncCounter("miss")
 
 	// Vary: * means every response is unique — never cache.
