@@ -12,26 +12,43 @@ import (
 	skpnet "github.com/zalando/skipper/net"
 )
 
-// ValkeyStorage implements Storage using a ValkeyRingClient (L2) with
-// automatic fallback to LRUStorage (L1) on any Valkey error.
-// This handles brief unavailability during rolling Valkey node updates
-// without dropping requests or hitting the origin.
-type ValkeyStorage struct {
-	ring *skpnet.ValkeyRingClient
-	l1   *LRUStorage
+// valkeyClient is the subset of skpnet.ValkeyRingClient methods used by ValkeyStorage.
+type valkeyClient interface {
+	Get(ctx context.Context, key string) (string, error)
+	SetWithExpire(ctx context.Context, key string, value string, expire time.Duration) error
+	Expire(ctx context.Context, key string, d time.Duration) (int64, error)
 }
 
-func NewValkeyStorage(ring *skpnet.ValkeyRingClient, l1 *LRUStorage) *ValkeyStorage {
-	return &ValkeyStorage{ring: ring, l1: l1}
+var _ valkeyClient = (*skpnet.ValkeyRingClient)(nil)
+
+// ValkeyStorage implements Storage using a ValkeyRingClient (L2) with
+// automatic fallback to LRUStorage (L1) on any Valkey error.
+type ValkeyStorage struct {
+	ring    valkeyClient
+	l1      *LRUStorage
+	metrics metrics.Metrics
+}
+
+// NewValkeyStorage creates a ValkeyStorage backed by ring (L2) with l1 as the
+// fallback in-memory cache. m is used to record per-operation counters:
+//
+//   - valkey_miss          — clean cache miss (key not found in Valkey)
+//   - valkey_get_fallback  — Valkey error on Get; L1 was consulted instead
+//   - valkey_set_fallback  — Valkey error on Set; L1 was written instead
+//
+// Pass metrics.Default when no test-scoped metrics collector is needed.
+func NewValkeyStorage(ring *skpnet.ValkeyRingClient, l1 *LRUStorage, m metrics.Metrics) *ValkeyStorage {
+	return &ValkeyStorage{ring: ring, l1: l1, metrics: m}
 }
 
 func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
 	data, err := s.ring.Get(ctx, key)
 	if err != nil {
 		if valkey.IsValkeyNil(err) {
+			s.metrics.IncCounter("valkey_miss")
 			return nil, nil
 		}
-		metrics.Default.IncCounter("valkey_fallback")
+		s.metrics.IncCounter("valkey_get_fallback")
 		log.WithError(err).Debug("cache: valkey Get failed, falling back to L1")
 		return s.l1.Get(ctx, key)
 	}
@@ -54,17 +71,20 @@ func (s *ValkeyStorage) Set(ctx context.Context, key string, entry *Entry) error
 	}
 
 	if err := s.ring.SetWithExpire(ctx, key, string(data), ttl); err != nil {
-		metrics.Default.IncCounter("valkey_fallback")
+		s.metrics.IncCounter("valkey_set_fallback")
 		log.WithError(err).Debug("cache: valkey Set failed, falling back to L1")
 		return s.l1.Set(ctx, key, entry)
 	}
+	// Write-around: L1 is not warmed on a successful Valkey Set. Subsequent
+	// Valkey hits skip L1 entirely; L1 is only populated on Valkey failures.
 	return nil
 }
 
 func (s *ValkeyStorage) Delete(ctx context.Context, key string) error {
-	// ValkeyRingClient exposes no DEL; a negative TTL triggers immediate expiry.
-	// Valkey errors here are best-effort — the L1 delete below always runs.
-	if _, err := s.ring.Expire(ctx, key, -1); err != nil {
+	// ValkeyRingClient exposes no DEL; use EXPIRE key -1 (immediate deletion per Valkey docs).
+	// -1*time.Second is required: time.Duration(-1) is -1ns, which truncates to EXPIRE key 0.
+	// Valkey errors are best-effort — L1 delete always runs.
+	if _, err := s.ring.Expire(ctx, key, -1*time.Second); err != nil {
 		log.WithError(err).Debug("cache: valkey Delete failed")
 	}
 	return s.l1.Delete(ctx, key)

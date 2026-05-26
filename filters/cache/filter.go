@@ -72,7 +72,7 @@ func NewCacheFilter(maxBytes int64, listenAddr string, netOpts skpnet.Options, v
 
 	var stor Storage = lru
 	if valkeyRing != nil {
-		stor = NewValkeyStorage(valkeyRing, lru)
+		stor = NewValkeyStorage(valkeyRing, lru, metrics.Default)
 	}
 
 	return &cacheSpec{
@@ -231,7 +231,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	var err error
 	if reqDir.onlyIfCached {
 		entry, err = f.storage.Get(ctx.Request().Context(), key)
-		if err != nil || entry == nil || entry.IsStale(time.Now()) {
+		if err != nil || entry == nil || !entry.IsUsable(time.Now()) {
 			ctx.Serve(&http.Response{
 				StatusCode: http.StatusGatewayTimeout,
 				Header:     http.Header{cacheStatusHeader: {cacheStatusMiss}},
@@ -335,10 +335,30 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 // upstream fetch. All waiters block until the leader's fetch completes, then
 // all are served the same response. This prevents the thundering herd on a
 // cache miss.
+// coalesceResult carries both the fetched entry and any pre-existing stored entry
+// that was present before the fetch. The stored entry is used for stale-if-error:
+// it must be captured before the 5xx result can overwrite it in storage.
+type coalesceResult struct {
+	entry  *Entry
+	stored *Entry // snapshot before fetch; nil if no eligible SIE entry existed
+}
+
 func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 	req := ctx.Request().Clone(context.Background())
 
 	ch := f.coldSF.DoChan(key, func() (interface{}, error) {
+		// Capture any existing SIE-eligible entry before fetching, so that a
+		// subsequent 5xx response cannot overwrite it in storage before we read it.
+		var sieStored *Entry
+		if f.staleIfError > 0 {
+			if s, err := f.storage.Get(context.Background(), key); err == nil && s != nil {
+				staleAge := time.Since(s.CreatedAt) - s.TTL
+				if staleAge <= f.staleIfError {
+					sieStored = s
+				}
+			}
+		}
+
 		requestTime := time.Now()
 		resp, err := f.fetch(req)
 		if err != nil {
@@ -357,14 +377,17 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			cia := correctedInitialAge(requestTime, responseTime, resp.Header)
 			coalescedHeader := resp.Header.Clone()
 			stripHopByHop(coalescedHeader)
-			return &Entry{
-				StatusCode:          resp.StatusCode,
-				Header:              coalescedHeader,
-				Payload:             body,
-				CreatedAt:           responseTime,
-				TTL:                 0,
-				CorrectedInitialAge: cia,
-				ResponseTime:        responseTime,
+			return &coalesceResult{
+				entry: &Entry{
+					StatusCode:          resp.StatusCode,
+					Header:              coalescedHeader,
+					Payload:             body,
+					CreatedAt:           responseTime,
+					TTL:                 0,
+					CorrectedInitialAge: cia,
+					ResponseTime:        responseTime,
+				},
+				stored: sieStored,
 			}, nil
 		}
 		ttl, shouldStore := f.resolveTTL(resp.StatusCode, resp.Header, directives)
@@ -391,7 +414,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		if shouldStore {
 			_ = f.storage.Set(context.Background(), key, entry)
 		}
-		return entry, nil
+		return &coalesceResult{entry: entry, stored: sieStored}, nil
 	})
 
 	select {
@@ -400,7 +423,24 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			ctx.Metrics().IncCounter("coalesce_error")
 			return
 		}
-		entry := res.Val.(*Entry)
+		cr := res.Val.(*coalesceResult)
+		entry := cr.entry
+
+		// RFC 5861 §4: on 5xx, serve a stale entry if within the stale-if-error window.
+		// This check lives here (not in Response()) because coalesce always calls
+		// ctx.Serve(), which sets ctx.Served()=true and causes Response() to return early.
+		if cr.stored != nil && entry.StatusCode >= 500 {
+			staleRsp := &http.Response{
+				StatusCode: cr.stored.StatusCode,
+				Header:     cr.stored.Header.Clone(),
+				Body:       io.NopCloser(bytes.NewReader(cr.stored.Payload)),
+			}
+			staleRsp.Header.Set(cacheStatusHeader, cacheStatusStale)
+			setAgeHeader(staleRsp, cr.stored, time.Now())
+			ctx.Serve(headBodyOmitted(ctx.Request().Method, staleRsp))
+			return
+		}
+
 		rsp := &http.Response{
 			StatusCode: entry.StatusCode,
 			Header:     entry.Header.Clone(),
@@ -418,7 +458,10 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 // invalidates on unsafe methods, and applies stale-if-error on 5xx.
 func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	rsp := ctx.Response()
-	key := ctx.StateBag()[stateBagKey].(string)
+	key, _ := ctx.StateBag()[stateBagKey].(string)
+	if key == "" {
+		return
+	}
 
 	// RFC 9111 §4.3.5: HEAD 200 freshens the stored GET entry's headers.
 	// This block runs before ctx.Served() so freshening happens even when
@@ -460,24 +503,6 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 			}
 		}
 		return
-	}
-
-	// RFC 5861 §4.
-	if f.staleIfError > 0 && rsp.StatusCode >= 500 {
-		if stored, err := f.storage.Get(ctx.Request().Context(), key); err == nil && stored != nil {
-			staleAge := time.Since(stored.CreatedAt) - stored.TTL
-			if staleAge <= f.staleIfError {
-				staleRsp := &http.Response{
-					StatusCode: stored.StatusCode,
-					Header:     stored.Header.Clone(),
-					Body:       io.NopCloser(bytes.NewReader(stored.Payload)),
-				}
-				staleRsp.Header.Set(cacheStatusHeader, cacheStatusStale)
-				setAgeHeader(staleRsp, stored, time.Now())
-				ctx.Serve(headBodyOmitted(ctx.Request().Method, staleRsp))
-				return
-			}
-		}
 	}
 
 	if ctx.StateBag()[stateBagNoStore] == true {
