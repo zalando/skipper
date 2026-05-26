@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -132,6 +133,43 @@ func TestLRUStorage_ImmutabilityAfterSet(t *testing.T) {
 	}
 	if string(got.Payload) != "original" {
 		t.Fatalf("cache was mutated: got %q", got.Payload)
+	}
+}
+
+func TestLRUStorage_EvictionCallbackDoesNotDeadlock(t *testing.T) {
+	// Regression: onEvict called Bytes() which re-acquired the shard mutex
+	// already held by set(), deadlocking the goroutine.
+	var lru *LRUStorage
+	lru = NewLRUStorage(1<<20, func() {
+		// This mirrors the onEvict in NewCacheFilter.
+		_ = lru.lru.Bytes()
+	})
+	ctx := context.Background()
+
+	// Fill one shard past capacity to force eviction. Each entry is ~100 bytes;
+	// writing shardCount+1 unique keys guarantees at least one shard overflows.
+	sample, _ := json.Marshal(makeEntry("x", time.Minute))
+	entrySize := int64(len(sample)) + 20
+	// Use a tiny budget so the first two writes to the same shard evict.
+	lru = NewLRUStorage(entrySize*int64(shardCount), func() {
+		_ = lru.lru.Bytes()
+	})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		// Write shardCount+1 distinct keys — guarantees eviction on at least one shard.
+		for i := range shardCount + 1 {
+			key := fmt.Sprintf("key-%d", i)
+			_ = lru.Set(ctx, key, makeEntry("payload", time.Minute))
+		}
+	}()
+
+	select {
+	case <-done:
+		// passed
+	case <-time.After(5 * time.Second):
+		t.Fatal("deadlock: Set() did not return within 5 seconds")
 	}
 }
 
