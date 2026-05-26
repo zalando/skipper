@@ -365,8 +365,11 @@ func (mc *missCounting) Get(ctx context.Context, key string) (*Entry, error) {
 func TestCacheFilter_ColdMissCoalescing(t *testing.T) {
 	// Hold the upstream fetch until all N goroutines have performed their
 	// storage.Get and received a miss. At that point every goroutine is either
-	// already inside DoChan's wait list or in the tiny, scheduler-opaque gap
-	// between the nil check and the DoChan call — guaranteeing exactly 1 fetch.
+	// already inside DoChan's wait list or in the scheduler-opaque gap between
+	// the nil check and the DoChan call. Any goroutine that resumes after the
+	// singleflight completes will hit the double-check inside fetchFn (line 382
+	// of filter.go) and return without a second upstream call, keeping fetchCount
+	// at 1.
 	const N = 50
 	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
 
