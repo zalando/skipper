@@ -49,8 +49,8 @@ func (e *Entry) IsStale(now time.Time) bool {
 	return now.After(e.CreatedAt.Add(e.TTL)) && now.Before(e.CreatedAt.Add(e.TTL+e.StaleWhileRevalidate))
 }
 
-// Storage is the backing store abstraction for cached entries. Implementations
-// must be safe for concurrent use.
+// Storage is the backing store abstraction for cached entries.
+// Implementations must be safe for concurrent use.
 type Storage interface {
 	// Get returns the entry for key, or (nil, nil) if the key is not found.
 	Get(ctx context.Context, key string) (*Entry, error)
