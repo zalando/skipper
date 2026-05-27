@@ -118,7 +118,7 @@ func FormOpenPolicyAgentMetaDataObject(decisionId string) (*pbstruct.Struct, err
 
 func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input interface{}, result *envoyauth.EvalResult, err error) error {
 	if opa.decisionLogChan != nil {
-		task := decisionLogTask{input: input, result: result, err: err}
+		task := decisionLogTask{input: input, result: result, err: err, ctx: ctx}
 		select {
 		case opa.decisionLogChan <- task:
 		default:

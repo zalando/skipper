@@ -64,11 +64,10 @@ const (
 	defaultShutdownGracePeriod      = 30 * time.Second
 	DefaultOpaStartupTimeout        = 30 * time.Second
 	DefaultBackgroundTaskBufferSize = 100
-	decisionLogTaskTimeoutMin       = 5 * time.Second
-
-	DefaultMaxRequestBodySize    = 1 << 20 // 1 MB
-	DefaultMaxMemoryBodyParsing  = 100 * DefaultMaxRequestBodySize
-	DefaultRequestBodyBufferSize = 8 * 1024 // 8 KB
+	defaultDecisionLogTaskTimeout   = 60 * time.Second
+	DefaultMaxRequestBodySize       = 1 << 20 // 1 MB
+	DefaultMaxMemoryBodyParsing     = 100 * DefaultMaxRequestBodySize
+	DefaultRequestBodyBufferSize    = 8 * 1024 // 8 KB
 
 	spanNameEval = "open-policy-agent"
 )
@@ -624,6 +623,7 @@ type decisionLogTask struct {
 	input  interface{}
 	result *envoyauth.EvalResult
 	err    error
+	ctx    context.Context
 }
 
 type OpenPolicyAgentInstance struct {
@@ -651,8 +651,9 @@ type OpenPolicyAgentInstance struct {
 
 	idGenerator flowid.Generator
 
-	decisionLogChan    chan decisionLogTask
-	decisionsProcessed chan struct{}
+	decisionLogChan          chan decisionLogTask
+	decisionsProcessed       chan struct{}
+	decisionLogCancelOnClose context.CancelFunc
 }
 
 func envVariablesMap() map[string]string {
@@ -793,7 +794,9 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		bufSize := decisionLogBufferSize(opaConfig.DecisionLogs)
 		opa.decisionLogChan = make(chan decisionLogTask, bufSize)
 		opa.decisionsProcessed = make(chan struct{})
-		go opa.runDecisionLogger(decisionLogTaskTimeout(bufSize, registry.instanceStartupTimeout))
+		closingCtx, cancel := context.WithCancel(context.Background())
+		opa.decisionLogCancelOnClose = cancel
+		go opa.runDecisionLogger(closingCtx)
 	}
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
@@ -1024,6 +1027,7 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 		opa.Logger().Info("Closing OPA instance...")
 		opa.closing = true
 		if opa.decisionLogChan != nil {
+			opa.decisionLogCancelOnClose()
 			close(opa.decisionLogChan)
 			select {
 			case <-opa.decisionsProcessed:
@@ -1034,36 +1038,23 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 	})
 }
 
-// decisionLogTaskTimeout returns the per-task timeout for runDecisionLogger.
-// It is bufSize/200 seconds (time to fill the buffer with 200rps),
-// clamped to [decisionLogTaskTimeoutMin, instanceStartupTimeout].
-func decisionLogTaskTimeout(bufSize int, instanceStartupTimeout time.Duration) time.Duration {
-	t := time.Duration(bufSize/200) * time.Second
-	if t < decisionLogTaskTimeoutMin {
-		t = decisionLogTaskTimeoutMin
-	}
-	if t > instanceStartupTimeout {
-		t = instanceStartupTimeout
-	}
-	return t
-}
-
 // runDecisionLogger drains decisionLogChan in the background so that logDecision
 // is never called on the request goroutine. The goroutine exits when the channel
 // is closed (during Close) and signals completion via decisionsProcessed.
-func (opa *OpenPolicyAgentInstance) runDecisionLogger(timeout time.Duration) {
+// closingCtx is cancelled by Close() to unblock any doLogDecision call that is stuck
+// (e.g. a Benthos stream.Consume() call on a stream stopped during eopa_dl.Reconfigure()).
+// A per-task timeout additionally bounds stuck calls during normal operation.
+func (opa *OpenPolicyAgentInstance) runDecisionLogger(closingCtx context.Context) {
 	defer close(opa.decisionsProcessed)
 	for task := range opa.decisionLogChan {
-		// A context with timeout bounds the time runDecisionLogger spends on a single
-		// doLogDecision call. Without this, a Benthos stream.Consume() call on a
-		// stream that was stopped during eopa_dl.Reconfigure() blocks forever because
-		// the inproc reader is gone and context.Background() provides no escape hatch.
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		err := opa.doLogDecision(ctx, task.input, task.result, task.err)
-		cancel()
-		if err != nil {
+		ctx, cancel := context.WithTimeout(closingCtx, defaultDecisionLogTaskTimeout)
+		if span := opentracing.SpanFromContext(task.ctx); span != nil {
+			ctx = opentracing.ContextWithSpan(ctx, span)
+		}
+		if err := opa.doLogDecision(ctx, task.input, task.result, task.err); err != nil {
 			opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
 		}
+		cancel()
 	}
 }
 
