@@ -1,11 +1,20 @@
 package net_test
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"log"
+	"math/big"
 	stdlibnet "net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"time"
 
 	"github.com/lightstep/lightstep-tracer-go"
@@ -398,4 +407,288 @@ func ExampleClient_withAfterResponseHook() {
 	// Output:
 	// response code: 255
 	// span status.code: 200
+}
+
+func ExampleClient_withMtlsCertRotation() {
+	now := time.Now()
+	caPEM, caKeyPEM, caCert, caKey := generateCert(certOptions{
+		cn:        "Test Master Root CA and server cert",
+		notBefore: now.Add(-1 * time.Hour),
+		notAfter:  now.Add(24 * time.Hour),
+		dns:       "localhost",
+		ip:        "127.0.0.1",
+	})
+
+	opts := certOptions{
+		cn:        "localhost",
+		dns:       "localhost",
+		ip:        "127.0.0.1",
+		notBefore: now.Add(-2 * time.Hour),
+		notAfter:  now.Add(1 * time.Hour),
+		extKeyUsages: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageServerAuth,
+			x509.ExtKeyUsageClientAuth,
+		},
+		signerCert: caCert,
+		signerKey:  caKey,
+	}
+	clientCertPEM, clientKeyPEM, _, _ := generateCert(opts)
+
+	// Setup trust pools
+	serverClientCAs := x509.NewCertPool()
+	serverClientCAs.AppendCertsFromPEM(caPEM) // Server only trusts master CA
+
+	clientRootCAs := x509.NewCertPool()
+	clientRootCAs.AppendCertsFromPEM(caPEM)
+
+	// Setup Test Server
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	serverCert, err := tls.X509KeyPair(caPEM, caKeyPEM)
+	if err != nil {
+		log.Fatalf("failed to prepare server cert: %v", err)
+	}
+
+	srv.TLS = &tls.Config{
+		MinVersion:   tls.VersionTLS13,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    serverClientCAs,
+		Certificates: []tls.Certificate{serverCert},
+
+		// Explicitly enforce client SAN validation at the TLS layer
+		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+			if len(verifiedChains) > 0 && len(verifiedChains[0]) > 0 {
+				clientCert := verifiedChains[0][0]
+				// Reject the client if it has not the expected IP SAN
+				allowedIP := stdlibnet.ParseIP("127.0.0.1")
+				fail := true
+				for _, ipadrr := range clientCert.IPAddresses {
+					if ipadrr.Equal(allowedIP) {
+						fail = false
+						break
+					}
+				}
+				if fail {
+					return fmt.Errorf("mTLS authentication failed: client certificate SAN extension should contain expected IP 127.0.0.1")
+				}
+			}
+			return nil
+		},
+	}
+	srv.StartTLS()
+	defer srv.Close()
+
+	certFile, keyFile, cleanUp := writeTempCertFiles(clientCertPEM, clientKeyPEM)
+	defer cleanUp()
+
+	//
+	// the Client will create a CertReloader and TLSClientConfig
+	//
+	cli := net.NewClient(net.Options{
+		CertFile:            certFile,
+		KeyFile:             keyFile,
+		CertRefreshInterval: 10 * time.Millisecond,
+		RootCAs:             clientRootCAs,
+	})
+	defer cli.Close() // do not leak goroutines
+
+	rsp, err := cli.Get(srv.URL)
+	if err != nil {
+		log.Fatalf("mTLS request failed unexpectedly: %v", err)
+	}
+	rsp.Body.Close()
+
+	fmt.Printf("response code: %d\n", rsp.StatusCode)
+
+	// renew expired cert
+	certPEM1, keyPEM1, _, _ := generateCert(certOptions{
+		cn:        "localhost",
+		notBefore: now.Add(-2 * time.Hour),
+		notAfter:  now.Add(-1 * time.Hour), // expired
+		dns:       "localhost",
+		ip:        "127.0.0.1",
+		extKeyUsages: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageServerAuth,
+			x509.ExtKeyUsageClientAuth,
+		},
+		signerCert: caCert,
+		signerKey:  caKey,
+	})
+	certFile1, keyFile1, cleanUp1 := writeTempCertFiles(certPEM1, keyPEM1)
+	defer cleanUp1()
+	os.Rename(certFile1, certFile)
+	os.Rename(keyFile1, keyFile)
+	cli.CloseIdleConnections()
+
+	time.Sleep(50 * time.Millisecond)
+
+	rsp, err = cli.Get(srv.URL)
+	if err == nil {
+		log.Fatal("mTLS request should be rejected")
+	} else {
+		fmt.Printf("Failed as expected\n")
+	}
+
+	// renew cert not matching SAN IP
+	certPEM2, keyPEM2, _, _ := generateCert(certOptions{
+		cn:        "localhost",
+		notBefore: now.Add(-1 * time.Hour),
+		notAfter:  now.Add(1 * time.Hour),
+		dns:       "localhost",
+		ip:        "10.0.0.1", // unknown IP
+		extKeyUsages: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageServerAuth,
+			x509.ExtKeyUsageClientAuth,
+		},
+		signerCert: caCert,
+		signerKey:  caKey,
+	})
+	certFile2, keyFile2, cleanUp2 := writeTempCertFiles(certPEM2, keyPEM2)
+	defer cleanUp2()
+	os.Rename(certFile2, certFile)
+	os.Rename(keyFile2, keyFile)
+	cli.CloseIdleConnections()
+
+	time.Sleep(50 * time.Millisecond)
+
+	rsp, err = cli.Get(srv.URL)
+	if err == nil {
+		log.Fatal("mTLS request should be rejected")
+	} else {
+		fmt.Printf("Failed as expected\n")
+	}
+
+	// renew cert good cert
+	certPEM3, keyPEM3, _, _ := generateCert(certOptions{
+		cn:        "localhost",
+		notBefore: now.Add(-1 * time.Hour),
+		notAfter:  now.Add(1 * time.Hour),
+		dns:       "localhost",
+		ip:        "127.0.0.1",
+		extKeyUsages: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageServerAuth,
+			x509.ExtKeyUsageClientAuth,
+		},
+		signerCert: caCert,
+		signerKey:  caKey,
+	})
+	certFile3, keyFile3, cleanUp3 := writeTempCertFiles(certPEM3, keyPEM3)
+	defer cleanUp3()
+	os.Rename(certFile3, certFile)
+	os.Rename(keyFile3, keyFile)
+	cli.CloseIdleConnections()
+
+	time.Sleep(50 * time.Millisecond)
+
+	rsp, err = cli.Get(srv.URL)
+	if err != nil {
+		log.Fatalf("mTLS request failed unexpectedly: %v", err)
+	}
+	rsp.Body.Close()
+
+	fmt.Printf("response code: %d\n", rsp.StatusCode)
+
+	// Output:
+	// response code: 200
+	// Failed as expected
+	// Failed as expected
+	// response code: 200
+
+}
+
+type certOptions struct {
+	cn           string
+	dns          string
+	ip           string
+	notBefore    time.Time
+	notAfter     time.Time
+	extKeyUsages []x509.ExtKeyUsage
+	signerCert   *x509.Certificate // If nil, certificate will be self-signed
+	signerKey    *ecdsa.PrivateKey
+}
+
+func generateCert(opts certOptions) (certPEM, keyPEM []byte, parsedCert *x509.Certificate, privateKey *ecdsa.PrivateKey) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		log.Fatalf("failed to generate key: %v", err)
+	}
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject:      pkix.Name{CommonName: opts.cn},
+		NotBefore:    opts.notBefore,
+		NotAfter:     opts.notAfter,
+
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           opts.extKeyUsages,
+		BasicConstraintsValid: true,
+	}
+
+	// SAN DNS
+	if opts.dns != "" {
+		template.DNSNames = []string{opts.dns}
+	}
+	// SAN IP
+	if opts.ip != "" {
+		if ip := stdlibnet.ParseIP(opts.ip); ip != nil {
+			template.IPAddresses = []stdlibnet.IP{ip}
+		}
+	}
+
+	signingTemplate := template
+	signingKey := privateKey
+
+	// If a separate signer CA is provided, use it instead of self-signing
+	if opts.signerCert != nil && opts.signerKey != nil {
+		signingTemplate = opts.signerCert
+		signingKey = opts.signerKey
+	} else {
+		// If self-signed, act as a CA so it can be added to RootCAs pools
+		template.IsCA = true
+		template.KeyUsage |= x509.KeyUsageCertSign
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, signingTemplate, &privateKey.PublicKey, signingKey)
+	if err != nil {
+		log.Fatalf("failed to create certificate: %v", err)
+	}
+
+	parsedCert, err = x509.ParseCertificate(certDER)
+	if err != nil {
+		log.Fatalf("failed to parse generated certificate: %v", err)
+	}
+
+	keyDER, err := x509.MarshalECPrivateKey(privateKey)
+	if err != nil {
+		log.Fatalf("failed to marshal key: %v", err)
+	}
+
+	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	return
+}
+
+func writeTempCertFiles(cert, key []byte) (string, string, func()) {
+	cFile, err := os.CreateTemp("", "client-cert-*.crt")
+	if err != nil {
+		log.Fatalf("failed to create temp cert file: %v", err)
+	}
+	kFile, err := os.CreateTemp("", "client-key-*.key")
+	if err != nil {
+		log.Fatalf("failed to create temp key file: %v", err)
+	}
+
+	if err := os.WriteFile(cFile.Name(), cert, 0644); err != nil {
+		log.Fatalf("failed to write temp cert: %v", err)
+	}
+	if err := os.WriteFile(kFile.Name(), key, 0600); err != nil {
+		log.Fatalf("failed to write temp key: %v", err)
+	}
+
+	return cFile.Name(), kFile.Name(), func() {
+		_ = os.Remove(cFile.Name())
+		_ = os.Remove(kFile.Name())
+	}
 }
