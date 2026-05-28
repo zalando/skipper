@@ -17,9 +17,9 @@ import (
 // stubValkeyClient is an in-memory valkeyClient stub for unit tests that
 // should not depend on a running Valkey instance or Docker.
 type stubValkeyClient struct {
-	mu      sync.Mutex
-	data    map[string]string
-	broken  bool // if true, all operations return an error
+	mu     sync.Mutex
+	data   map[string]string
+	broken bool // if true, all operations return an error
 }
 
 func newStubValkeyClient() *stubValkeyClient {
@@ -92,31 +92,31 @@ func (m *testMetrics) counter(key string) int {
 }
 
 // metrics.Metrics no-op implementations
-func (m *testMetrics) MeasureSince(key string, start time.Time)                             {}
-func (m *testMetrics) IncCounterBy(key string, value int64)                                  {}
-func (m *testMetrics) IncFloatCounterBy(key string, value float64)                           {}
-func (m *testMetrics) MeasureRouteLookup(start time.Time)                                    {}
-func (m *testMetrics) MeasureFilterCreate(filterName string, start time.Time)                {}
-func (m *testMetrics) MeasureFilterRequest(filterName string, start time.Time)               {}
-func (m *testMetrics) MeasureAllFiltersRequest(routeId string, start time.Time)              {}
-func (m *testMetrics) MeasureBackendRequestHeader(host string, size int)                     {}
-func (m *testMetrics) MeasureBackend(routeId string, start time.Time)                        {}
-func (m *testMetrics) MeasureBackendHost(routeBackendHost string, start time.Time)           {}
-func (m *testMetrics) MeasureFilterResponse(filterName string, start time.Time)              {}
-func (m *testMetrics) MeasureAllFiltersResponse(routeId string, start time.Time)             {}
+func (m *testMetrics) MeasureSince(key string, start time.Time)                                 {}
+func (m *testMetrics) IncCounterBy(key string, value int64)                                     {}
+func (m *testMetrics) IncFloatCounterBy(key string, value float64)                              {}
+func (m *testMetrics) MeasureRouteLookup(start time.Time)                                       {}
+func (m *testMetrics) MeasureFilterCreate(filterName string, start time.Time)                   {}
+func (m *testMetrics) MeasureFilterRequest(filterName string, start time.Time)                  {}
+func (m *testMetrics) MeasureAllFiltersRequest(routeId string, start time.Time)                 {}
+func (m *testMetrics) MeasureBackendRequestHeader(host string, size int)                        {}
+func (m *testMetrics) MeasureBackend(routeId string, start time.Time)                           {}
+func (m *testMetrics) MeasureBackendHost(routeBackendHost string, start time.Time)              {}
+func (m *testMetrics) MeasureFilterResponse(filterName string, start time.Time)                 {}
+func (m *testMetrics) MeasureAllFiltersResponse(routeId string, start time.Time)                {}
 func (m *testMetrics) MeasureResponse(code int, method string, routeId string, start time.Time) {}
-func (m *testMetrics) MeasureResponseSize(host string, size int64)                           {}
-func (m *testMetrics) MeasureProxy(requestDuration, responseDuration time.Duration)          {}
-func (m *testMetrics) MeasureServe(routeId, host, method string, code int, start time.Time)  {}
-func (m *testMetrics) IncRoutingFailures()                                                   {}
-func (m *testMetrics) IncErrorsBackend(routeId string)                                       {}
-func (m *testMetrics) MeasureBackend5xx(t time.Time)                                         {}
-func (m *testMetrics) IncErrorsStreaming(routeId string)                                     {}
-func (m *testMetrics) RegisterHandler(path string, handler *http.ServeMux)                   {}
-func (m *testMetrics) UpdateGauge(key string, value float64)                                 {}
-func (m *testMetrics) SetInvalidRoute(routeId, reason string)                                {}
-func (m *testMetrics) Close()                                                                {}
-func (m *testMetrics) String() string                                                        { return "testMetrics" }
+func (m *testMetrics) MeasureResponseSize(host string, size int64)                              {}
+func (m *testMetrics) MeasureProxy(requestDuration, responseDuration time.Duration)             {}
+func (m *testMetrics) MeasureServe(routeId, host, method string, code int, start time.Time)     {}
+func (m *testMetrics) IncRoutingFailures()                                                      {}
+func (m *testMetrics) IncErrorsBackend(routeId string)                                          {}
+func (m *testMetrics) MeasureBackend5xx(t time.Time)                                            {}
+func (m *testMetrics) IncErrorsStreaming(routeId string)                                        {}
+func (m *testMetrics) RegisterHandler(path string, handler *http.ServeMux)                      {}
+func (m *testMetrics) UpdateGauge(key string, value float64)                                    {}
+func (m *testMetrics) SetInvalidRoute(routeId, reason string)                                   {}
+func (m *testMetrics) Close()                                                                   {}
+func (m *testMetrics) String() string                                                           { return "testMetrics" }
 
 func TestValkeyStorage_GetSetDelete(t *testing.T) {
 	addr, done := valkeytest.NewTestValkey(t)
@@ -130,7 +130,7 @@ func TestValkeyStorage_GetSetDelete(t *testing.T) {
 	}
 	defer ring.Close()
 
-	lru := NewLRUStorage(64<<20, nil)
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
 	s := NewValkeyStorage(ring, lru, &testMetrics{})
 
 	ctx := context.Background()
@@ -182,7 +182,7 @@ func TestValkeyStorage_FallsBackToL1OnValkeyUnavailable(t *testing.T) {
 	}
 	defer ring.Close()
 
-	lru := NewLRUStorage(64<<20, nil)
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
 	m := &testMetrics{}
 	s := NewValkeyStorage(ring, lru, m)
 
@@ -228,7 +228,7 @@ func TestValkeyStorage_RecordsValkeyMiss(t *testing.T) {
 	// Uses a stub client — no Docker or live Valkey needed.
 	stub := newStubValkeyClient()
 	m := &testMetrics{}
-	lru := NewLRUStorage(64<<20, nil)
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
 	s := &ValkeyStorage{ring: stub, l1: lru, metrics: m}
 
 	got, err := s.Get(context.Background(), "nonexistent-key")
@@ -251,7 +251,7 @@ func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	// Set triggers valkey_set_fallback; Get triggers valkey_get_fallback.
 	stub := newBrokenStubValkeyClient()
 	m := &testMetrics{}
-	lru := NewLRUStorage(64<<20, nil)
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
 	s := &ValkeyStorage{ring: stub, l1: lru, metrics: m}
 
 	ctx := context.Background()
