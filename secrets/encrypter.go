@@ -157,16 +157,14 @@ func (e *Encrypter) runCipherRefresher(refreshInterval time.Duration) error {
 	if err != nil {
 		return fmt.Errorf("failed to refresh ciphers: %w", err)
 	}
+	e.closedHook = make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(refreshInterval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-e.closer:
-				if e.closedHook != nil {
-					close(e.closedHook)
-				}
-
+				close(e.closedHook)
 				return
 			case <-ticker.C:
 				log.Debug("started refresh of ciphers")

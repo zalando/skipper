@@ -57,5 +57,8 @@ func (r *Registry) GetEncrypter(refreshInterval time.Duration, file string) (Enc
 func (r *Registry) Close() {
 	for _, v := range r.encrypterMap {
 		v.Close()
+		if v.closedHook != nil {
+			<-v.closedHook
+		}
 	}
 }
