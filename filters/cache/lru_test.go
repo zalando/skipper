@@ -22,7 +22,7 @@ func makeEntry(payload string, ttl time.Duration) *Entry {
 }
 
 func TestLRUStorage_HitAndMiss(t *testing.T) {
-	s := NewLRUStorage(1<<20, nil) // 1 MB
+	s := NewLRUStorage(1<<20, nil, metrics.Default)
 	ctx := context.Background()
 
 	got, err := s.Get(ctx, "missing")
@@ -51,7 +51,7 @@ func TestLRUStorage_HitAndMiss(t *testing.T) {
 }
 
 func TestLRUStorage_HardExpiry(t *testing.T) {
-	s := NewLRUStorage(1<<20, nil)
+	s := NewLRUStorage(1<<20, nil, metrics.Default)
 	ctx := context.Background()
 
 	entry := makeEntry("stale", time.Millisecond)
@@ -78,7 +78,7 @@ func TestLRUStorage_HardExpiry(t *testing.T) {
 }
 
 func TestLRUStorage_Delete(t *testing.T) {
-	s := NewLRUStorage(1<<20, nil)
+	s := NewLRUStorage(1<<20, nil, metrics.Default)
 	ctx := context.Background()
 
 	if err := s.Set(ctx, "del", makeEntry("x", time.Minute)); err != nil {
@@ -97,7 +97,7 @@ func TestLRUStorage_Delete(t *testing.T) {
 func TestLRUStorage_InPlaceUpdate(t *testing.T) {
 	sample, _ := json.Marshal(makeEntry("v1", time.Minute))
 	entrySize := int64(len(sample)) + 20
-	s := NewLRUStorage(entrySize*shardCount, nil)
+	s := NewLRUStorage(entrySize*shardCount, nil, metrics.Default)
 	ctx := context.Background()
 
 	// Overwrite an existing key — Get must return the new payload.
@@ -118,7 +118,7 @@ func TestLRUStorage_InPlaceUpdate(t *testing.T) {
 }
 
 func TestLRUStorage_ImmutabilityAfterSet(t *testing.T) {
-	s := NewLRUStorage(1<<20, nil)
+	s := NewLRUStorage(1<<20, nil, metrics.Default)
 	ctx := context.Background()
 
 	entry := makeEntry("original", time.Minute)
@@ -145,7 +145,7 @@ func TestLRUStorage_EvictionCallbackDoesNotDeadlock(t *testing.T) {
 	lru = NewLRUStorage(1<<20, func() {
 		// This mirrors the onEvict in NewCacheFilter.
 		_ = lru.lru.Bytes()
-	})
+	}, metrics.Default)
 	ctx := context.Background()
 
 	// Fill one shard past capacity to force eviction. Each entry is ~100 bytes;
@@ -155,7 +155,7 @@ func TestLRUStorage_EvictionCallbackDoesNotDeadlock(t *testing.T) {
 	// Use a tiny budget so the first two writes to the same shard evict.
 	lru = NewLRUStorage(entrySize*int64(shardCount), func() {
 		_ = lru.lru.Bytes()
-	})
+	}, metrics.Default)
 
 	done := make(chan struct{})
 	go func() {
@@ -179,14 +179,8 @@ func TestLRUStorage_OversizedEntry(t *testing.T) {
 	// With 256 shards and 1 KB total capacity, each shard holds 4 bytes.
 	// A payload larger than 4 bytes exceeds every shard's maxBytes.
 	const totalBytes = 1024 // 1 KB → 4 bytes per shard
-	s := NewLRUStorage(totalBytes, nil)
-
-	// Inject a testMetrics so we can observe lru_oversized counter increments.
-	// metrics.Default is restored automatically when the test ends.
 	m := &testMetrics{}
-	orig := metrics.Default
-	metrics.Default = m
-	t.Cleanup(func() { metrics.Default = orig })
+	s := NewLRUStorage(totalBytes, nil, m)
 
 	ctx := context.Background()
 	entry := makeEntry(string(make([]byte, 1000)), time.Minute) // 1000-byte payload ≫ 4-byte shard

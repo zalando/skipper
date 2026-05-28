@@ -14,13 +14,17 @@ import (
 // It owns all cache semantics (serialisation, TTL expiry); ShardedByteLRU
 // remains a pure byte store.
 type LRUStorage struct {
-	lru *ShardedByteLRU
+	lru     *ShardedByteLRU
+	metrics metrics.Metrics
 }
 
 // NewLRUStorage returns an LRUStorage backed by a ShardedByteLRU sized to totalMaxBytes.
-func NewLRUStorage(totalMaxBytes int64, onEvict func()) *LRUStorage {
+// m records the lru_oversized counter on oversized Set calls; pass metrics.Default when no
+// test-scoped collector is needed.
+func NewLRUStorage(totalMaxBytes int64, onEvict func(), m metrics.Metrics) *LRUStorage {
 	return &LRUStorage{
-		lru: NewShardedByteLRU(totalMaxBytes, onEvict),
+		lru:     NewShardedByteLRU(totalMaxBytes, onEvict),
+		metrics: m,
 	}
 }
 
@@ -59,7 +63,7 @@ func (s *LRUStorage) Set(_ context.Context, key string, entry *Entry) error {
 			"size_bytes": len(data),
 			"shard_max":  s.lru.shards[0].maxBytes,
 		}).Warn("cache: entry exceeds shard capacity and will not be stored")
-		metrics.Default.IncCounter("lru_oversized")
+		s.metrics.IncCounter("lru_oversized")
 		return nil
 	}
 	s.lru.Set(key, data)
