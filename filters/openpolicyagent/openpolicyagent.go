@@ -794,8 +794,8 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		bufSize := decisionLogBufferSize(opaConfig.DecisionLogs)
 		opa.decisionLogChan = make(chan decisionLogTask, bufSize)
 		opa.decisionsProcessed = make(chan struct{})
-		closingCtx, cancel := context.WithCancel(context.Background())
-		opa.decisionLogCancelOnClose = cancel
+		var closingCtx context.Context
+		closingCtx, opa.decisionLogCancelOnClose = context.WithCancel(context.Background())
 		go opa.runDecisionLogger(closingCtx)
 	}
 
@@ -1047,14 +1047,18 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 func (opa *OpenPolicyAgentInstance) runDecisionLogger(closingCtx context.Context) {
 	defer close(opa.decisionsProcessed)
 	for task := range opa.decisionLogChan {
-		ctx, cancel := context.WithTimeout(closingCtx, defaultDecisionLogTaskTimeout)
-		if span := opentracing.SpanFromContext(task.ctx); span != nil {
-			ctx = opentracing.ContextWithSpan(ctx, span)
-		}
-		if err := opa.doLogDecision(ctx, task.input, task.result, task.err); err != nil {
-			opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
-		}
-		cancel()
+		opa.processDecisionLogTask(closingCtx, task)
+	}
+}
+
+func (opa *OpenPolicyAgentInstance) processDecisionLogTask(closingCtx context.Context, task decisionLogTask) {
+	ctx, cancel := context.WithTimeout(closingCtx, defaultDecisionLogTaskTimeout)
+	defer cancel()
+	if span := opentracing.SpanFromContext(task.ctx); span != nil {
+		ctx = opentracing.ContextWithSpan(ctx, span)
+	}
+	if err := opa.doLogDecision(ctx, task.input, task.result, task.err); err != nil {
+		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
 	}
 }
 
