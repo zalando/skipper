@@ -131,8 +131,8 @@ type OpenPolicyAgentRegistry struct {
 	// New fields for pre-loading support
 	preloadingEnabled bool
 
-	asyncDecisionLogging        bool
-	decisionLogTaskTimeout      time.Duration
+	asyncDecisionLogging   bool
+	decisionLogTaskTimeout time.Duration
 
 	// Background task system
 	backgroundTaskChan       chan *BackgroundTask
@@ -660,9 +660,9 @@ type OpenPolicyAgentInstance struct {
 
 	idGenerator flowid.Generator
 
-	decisionLogChan          chan decisionLogTask
-	decisionsProcessed       chan struct{}
-	decisionLogTaskTimeout   time.Duration
+	decisionLogChan        chan decisionLogTask
+	decisionsProcessed     chan struct{}
+	decisionLogTaskTimeout time.Duration
 }
 
 func envVariablesMap() map[string]string {
