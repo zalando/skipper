@@ -64,7 +64,7 @@ const (
 	defaultShutdownGracePeriod      = 30 * time.Second
 	DefaultOpaStartupTimeout        = 30 * time.Second
 	DefaultBackgroundTaskBufferSize = 100
-	defaultDecisionLogTaskTimeout   = 60 * time.Second
+	DefaultDecisionLogTaskTimeout   = 5 * time.Second
 	DefaultMaxRequestBodySize       = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing     = 100 * DefaultMaxRequestBodySize
 	DefaultRequestBodyBufferSize    = 8 * 1024 // 8 KB
@@ -131,7 +131,8 @@ type OpenPolicyAgentRegistry struct {
 	// New fields for pre-loading support
 	preloadingEnabled bool
 
-	asyncDecisionLogging bool
+	asyncDecisionLogging        bool
+	decisionLogTaskTimeout      time.Duration
 
 	// Background task system
 	backgroundTaskChan       chan *BackgroundTask
@@ -239,6 +240,13 @@ func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegi
 	}
 }
 
+func WithDecisionLogTaskTimeout(timeout time.Duration) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.decisionLogTaskTimeout = timeout
+		return nil
+	}
+}
+
 func WithPrometheusRegisterer(registerer prometheus.Registerer) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.prometheusRegisterer = registerer
@@ -302,6 +310,7 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*
 		bodyReadBufferSize:       DefaultRequestBodyBufferSize,
 		controlLoopInterval:      DefaultControlLoopInterval,
 		controlLoopMaxJitter:     DefaultControlLoopMaxJitter,
+		decisionLogTaskTimeout:   DefaultDecisionLogTaskTimeout,
 		backgroundTaskBufferSize: DefaultBackgroundTaskBufferSize,
 	}
 
@@ -653,7 +662,7 @@ type OpenPolicyAgentInstance struct {
 
 	decisionLogChan          chan decisionLogTask
 	decisionsProcessed       chan struct{}
-	decisionLogCancelOnClose context.CancelFunc
+	decisionLogTaskTimeout   time.Duration
 }
 
 func envVariablesMap() map[string]string {
@@ -794,9 +803,12 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		bufSize := decisionLogBufferSize(opaConfig.DecisionLogs)
 		opa.decisionLogChan = make(chan decisionLogTask, bufSize)
 		opa.decisionsProcessed = make(chan struct{})
-		var closingCtx context.Context
-		closingCtx, opa.decisionLogCancelOnClose = context.WithCancel(context.Background())
-		go opa.runDecisionLogger(closingCtx)
+		if t := decisionLogS3OutputTimeout(opaConfig.DecisionLogs); t > 0 {
+			opa.decisionLogTaskTimeout = t
+		} else {
+			opa.decisionLogTaskTimeout = registry.decisionLogTaskTimeout
+		}
+		go opa.runDecisionLogger()
 	}
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
@@ -821,6 +833,43 @@ func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ..
 		}
 	}
 	return true
+}
+
+// decisionLogS3OutputTimeout parses the eopa_dl decision_logs config and returns
+// the timeout from the first S3 output entry, or 0 if not present or unparseable.
+func decisionLogS3OutputTimeout(rawConfig json.RawMessage) time.Duration {
+	if rawConfig == nil {
+		return 0
+	}
+	var cfg struct {
+		Output json.RawMessage `json:"output"`
+	}
+	if err := json.Unmarshal(rawConfig, &cfg); err != nil || cfg.Output == nil {
+		return 0
+	}
+	// Output may be a single object or an array.
+	var outputs []json.RawMessage
+	if err := json.Unmarshal(cfg.Output, &outputs); err != nil {
+		// Not an array — try as a single object.
+		outputs = []json.RawMessage{cfg.Output}
+	}
+	type outputEntry struct {
+		Type    string `json:"type"`
+		Timeout string `json:"timeout"`
+	}
+	for _, raw := range outputs {
+		var entry outputEntry
+		if err := json.Unmarshal(raw, &entry); err != nil {
+			continue
+		}
+		if entry.Type == "s3" && entry.Timeout != "" {
+			d, err := time.ParseDuration(entry.Timeout)
+			if err == nil {
+				return d
+			}
+		}
+	}
+	return 0
 }
 
 func decisionLogBufferSize(rawConfig json.RawMessage) int {
@@ -1027,7 +1076,6 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 		opa.Logger().Info("Closing OPA instance...")
 		opa.closing = true
 		if opa.decisionLogChan != nil {
-			opa.decisionLogCancelOnClose()
 			close(opa.decisionLogChan)
 			select {
 			case <-opa.decisionsProcessed:
@@ -1041,18 +1089,17 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 // runDecisionLogger drains decisionLogChan in the background so that logDecision
 // is never called on the request goroutine. The goroutine exits when the channel
 // is closed (during Close) and signals completion via decisionsProcessed.
-// closingCtx is cancelled by Close() to unblock any doLogDecision call that is stuck
-// (e.g. a Benthos stream.Consume() call on a stream stopped during eopa_dl.Reconfigure()).
-// A per-task timeout additionally bounds stuck calls during normal operation.
-func (opa *OpenPolicyAgentInstance) runDecisionLogger(closingCtx context.Context) {
+// A per-task timeout bounds stuck calls (e.g. a Benthos stream.Consume() call on a
+// stream stopped during eopa_dl.Reconfigure()).
+func (opa *OpenPolicyAgentInstance) runDecisionLogger() {
 	defer close(opa.decisionsProcessed)
 	for task := range opa.decisionLogChan {
-		opa.processDecisionLogTask(closingCtx, task)
+		opa.processDecisionLogTask(task)
 	}
 }
 
-func (opa *OpenPolicyAgentInstance) processDecisionLogTask(closingCtx context.Context, task decisionLogTask) {
-	ctx, cancel := context.WithTimeout(closingCtx, defaultDecisionLogTaskTimeout)
+func (opa *OpenPolicyAgentInstance) processDecisionLogTask(task decisionLogTask) {
+	ctx, cancel := context.WithTimeout(context.Background(), opa.decisionLogTaskTimeout)
 	defer cancel()
 	if span := opentracing.SpanFromContext(task.ctx); span != nil {
 		ctx = opentracing.ContextWithSpan(ctx, span)
