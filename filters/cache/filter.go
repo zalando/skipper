@@ -65,14 +65,14 @@ const (
 //
 //	-> cache("5m", "15s", "30s", "60s") -> "https://example.org"
 func NewCacheFilter(maxBytes int64, listenAddr string, netOpts skpnet.Options, valkeyRing *skpnet.ValkeyRingClient) filters.Spec {
-	var lru *LRUStorage
-	lru = NewLRUStorage(maxBytes, func() {
-		metrics.Default.IncCounter("lru_eviction")
-	})
+	m := metrics.Default
+	lru := NewLRUStorage(maxBytes, func() {
+		m.IncCounter("lru_eviction")
+	}, m)
 
 	var store Storage = lru
 	if valkeyRing != nil {
-		store = NewValkeyStorage(valkeyRing, lru, metrics.Default)
+		store = NewValkeyStorage(valkeyRing, lru, m)
 	}
 
 	return &cacheSpec{
@@ -81,6 +81,7 @@ func NewCacheFilter(maxBytes int64, listenAddr string, netOpts skpnet.Options, v
 		client:     skpnet.NewClient(netOpts),
 		storage:    store,
 		lruStorage: lru,
+		metrics:    m,
 	}
 }
 
@@ -90,6 +91,7 @@ type cacheSpec struct {
 	client     *skpnet.Client
 	storage    Storage     // shared across all filter instances
 	lruStorage *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
+	metrics    metrics.Metrics
 }
 
 func (s *cacheSpec) Name() string { return filterName }
@@ -152,7 +154,7 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		swrWindow:    swr,
 		staleIfError: staleIfError,
 		rfcMode:      rfcMode,
-		metrics:      metrics.Default,
+		metrics:      s.metrics,
 		keyHeaders:   keyHeaders,
 		revalJobs:    make(chan revalJob, revalQueueSize),
 		lruBytesDone: make(chan struct{}),
@@ -208,7 +210,7 @@ type revalJob struct {
 
 type cacheFilter struct {
 	storage      Storage
-	lruStorage   *LRUStorage // non-nil when backed by LRU (always in L1-only; L1 within Valkey path)
+	lruStorage   *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
 	listenAddr   string
 	ttl          time.Duration
 	errorTTL     time.Duration
