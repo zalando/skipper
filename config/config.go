@@ -251,9 +251,11 @@ type Config struct {
 	EnableAdvancedValidation  bool   `yaml:"enable-advanced-validation"`
 
 	// TLS client certs
-	ClientKeyFile  string            `yaml:"client-tls-key"`
-	ClientCertFile string            `yaml:"client-tls-cert"`
-	Certificates   []tls.Certificate `yaml:"-"`
+	ClientKeyFile             string            `yaml:"client-tls-key"`
+	ClientCertFile            string            `yaml:"client-tls-cert"`
+	ClientCertRefreshInterval time.Duration     `yaml:"client-tls-cert-refresh-interval"`
+	Certificates              []tls.Certificate `yaml:"-"`
+	EnableMTLS                bool              `yaml:"enable-mtls"`
 
 	// TLS version
 	TLSMinVersion string             `yaml:"tls-min-version"`
@@ -629,6 +631,9 @@ func NewConfig() *Config {
 	// TLS client certs
 	flag.StringVar(&cfg.ClientKeyFile, "client-tls-key", "", "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs")
 	flag.StringVar(&cfg.ClientCertFile, "client-tls-cert", "", "TLS certificate files for backend connections, multiple keys may be given comma separated - the order must match the keys")
+	flag.DurationVar(&cfg.ClientCertRefreshInterval, "client-tls-cert-refresh-interval", 0, "How often to reload client TLS certificate and key files for backend connections. Defaults to 5 minutes if certificate files are set.")
+	// MTLS
+	flag.BoolVar(&cfg.EnableMTLS, "enable-mtls", false, "Enables MTLS support in the proxy. It uses -client-tls-cert and -client-tls-key as files and rotates the client cert every -client-tls-cert-refresh-interval time.Duration. It only supports one cert and one key file!")
 
 	// TLS version
 	flag.StringVar(&cfg.TLSMinVersion, "tls-min-version", defaultMinTLSVersion, "minimal TLS Version to be used in server, proxy and client connections")
@@ -838,7 +843,8 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 	c.ResponseSizeBuckets, _ = c.parseHistogramBuckets(c.ResponseSizeBucketsString, metrics.DefaultResponseSizeBuckets)
 	c.RequestSizeBuckets, _ = c.parseHistogramBuckets(c.RequestSizeBucketsString, metrics.DefaultRequestSizeBuckets)
 
-	if c.ClientKeyFile != "" && c.ClientCertFile != "" {
+	// static client certs
+	if !c.EnableMTLS && c.ClientKeyFile != "" && c.ClientCertFile != "" {
 		certsFiles := strings.Split(c.ClientCertFile, ",")
 		keyFiles := strings.Split(c.ClientKeyFile, ",")
 
@@ -1190,12 +1196,19 @@ func (c *Config) ToOptions() skipper.Options {
 		options.ProxyFlags |= proxy.PatchPath
 	}
 
+	// static client certs
 	if len(c.Certificates) > 0 {
 		options.ClientTLS = &tls.Config{
 			Certificates: c.Certificates,
 			MinVersion:   c.getMinTLSVersion(),
 		}
 	}
+
+	// mtls support
+	options.EnableMTLS = c.EnableMTLS
+	options.ClientCertFile = c.ClientCertFile
+	options.ClientKeyFile = c.ClientKeyFile
+	options.ClientCertRefreshInterval = c.ClientCertRefreshInterval
 
 	var wrappers []func(handler http.Handler) http.Handler
 	options.CustomHttpHandlerWrap = func(handler http.Handler) http.Handler {
