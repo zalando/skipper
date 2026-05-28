@@ -49,7 +49,7 @@ func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
 			return nil, nil
 		}
 		s.metrics.IncCounter("valkey_get_fallback")
-		log.WithError(err).Debug("cache: valkey Get failed, falling back to L1")
+		log.WithError(err).Warn("cache: valkey Get failed, falling back to L1")
 		return s.l1.Get(ctx, key)
 	}
 	var e Entry
@@ -72,7 +72,7 @@ func (s *ValkeyStorage) Set(ctx context.Context, key string, entry *Entry) error
 
 	if err := s.ring.SetWithExpire(ctx, key, string(data), ttl); err != nil {
 		s.metrics.IncCounter("valkey_set_fallback")
-		log.WithError(err).Debug("cache: valkey Set failed, falling back to L1")
+		log.WithError(err).Warn("cache: valkey Set failed, falling back to L1")
 		return s.l1.Set(ctx, key, entry)
 	}
 	// Write-around: L1 is not warmed on a successful Valkey Set. Subsequent
@@ -85,7 +85,7 @@ func (s *ValkeyStorage) Delete(ctx context.Context, key string) error {
 	// -1*time.Second is required: time.Duration(-1) is -1ns, which truncates to EXPIRE key 0.
 	// Valkey errors are best-effort — L1 delete always runs.
 	if _, err := s.ring.Expire(ctx, key, -1*time.Second); err != nil {
-		log.WithError(err).Debug("cache: valkey Delete failed")
+		log.WithError(err).Warn("cache: valkey Delete failed")
 	}
 	return s.l1.Delete(ctx, key)
 }
