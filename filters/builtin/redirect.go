@@ -149,6 +149,8 @@ func getLocation(ctx filters.FilterContext, location *url.URL, typ redirectType)
 
 	if u.RawQuery == "" {
 		u.RawQuery = r.URL.RawQuery
+	} else {
+		u.RawQuery = r.URL.RawQuery + "&" + u.RawQuery
 	}
 
 	return u.String()
