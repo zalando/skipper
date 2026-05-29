@@ -803,7 +803,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		bufSize := decisionLogBufferSize(opaConfig.DecisionLogs)
 		opa.decisionLogChan = make(chan decisionLogTask, bufSize)
 		opa.decisionsProcessed = make(chan struct{})
-		if t := decisionLogS3OutputTimeout(opaConfig.DecisionLogs); t > 0 {
+		if t := decisionLogMaxOutputTimeout(opaConfig.DecisionLogs); t > 0 {
 			opa.decisionLogTaskTimeout = t
 		} else {
 			opa.decisionLogTaskTimeout = registry.decisionLogTaskTimeout
@@ -835,15 +835,21 @@ func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ..
 	return true
 }
 
-// decisionLogS3OutputTimeout parses the eopa_dl decision_logs config and returns
-// the timeout from the first S3 output entry, or 0 if not present or unparseable.
-func decisionLogS3OutputTimeout(rawConfig json.RawMessage) time.Duration {
+type decisionLogPluginConfig struct {
+	Output json.RawMessage `json:"output"`
+}
+
+type decisionLogOutputEntry struct {
+	Timeout string `json:"timeout"`
+}
+
+// decisionLogMaxOutputTimeout parses the eopa_dl decision_logs config and returns
+// the highest timeout defined across all output entries, or 0 if none are present or parseable.
+func decisionLogMaxOutputTimeout(rawConfig json.RawMessage) time.Duration {
 	if rawConfig == nil {
 		return 0
 	}
-	var cfg struct {
-		Output json.RawMessage `json:"output"`
-	}
+	var cfg decisionLogPluginConfig
 	if err := json.Unmarshal(rawConfig, &cfg); err != nil || cfg.Output == nil {
 		return 0
 	}
@@ -853,23 +859,17 @@ func decisionLogS3OutputTimeout(rawConfig json.RawMessage) time.Duration {
 		// Not an array — try as a single object.
 		outputs = []json.RawMessage{cfg.Output}
 	}
-	type outputEntry struct {
-		Type    string `json:"type"`
-		Timeout string `json:"timeout"`
-	}
+	var max time.Duration
 	for _, raw := range outputs {
-		var entry outputEntry
-		if err := json.Unmarshal(raw, &entry); err != nil {
+		var entry decisionLogOutputEntry
+		if err := json.Unmarshal(raw, &entry); err != nil || entry.Timeout == "" {
 			continue
 		}
-		if entry.Type == "s3" && entry.Timeout != "" {
-			d, err := time.ParseDuration(entry.Timeout)
-			if err == nil {
-				return d
-			}
+		if d, err := time.ParseDuration(entry.Timeout); err == nil && d > max {
+			max = d
 		}
 	}
-	return 0
+	return max
 }
 
 func decisionLogBufferSize(rawConfig json.RawMessage) int {

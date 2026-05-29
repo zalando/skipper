@@ -1472,7 +1472,7 @@ func TestPrintTracing(t *testing.T) {
 	}
 }
 
-func TestDecisionLogS3OutputTimeout(t *testing.T) {
+func TestDecisionLogMaxOutputTimeout(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		config   string
@@ -1494,14 +1494,19 @@ func TestDecisionLogS3OutputTimeout(t *testing.T) {
 			expected: 0,
 		},
 		{
-			name:     "non-s3 output with timeout",
+			name:     "http output with timeout",
 			config:   `{"output": [{"type": "http", "url": "http://example.com", "timeout": "5s"}]}`,
-			expected: 0,
+			expected: 5 * time.Second,
 		},
 		{
 			name:     "s3 and console outputs",
 			config:   `{"output": [{"type": "s3", "bucket": "b", "region": "eu-west-1", "timeout": "3s"}, {"type": "console"}]}`,
 			expected: 3 * time.Second,
+		},
+		{
+			name:     "multiple outputs with different timeouts returns highest",
+			config:   `{"output": [{"type": "s3", "bucket": "b", "region": "eu-west-1", "timeout": "3s"}, {"type": "http", "url": "http://example.com", "timeout": "7s"}]}`,
+			expected: 7 * time.Second,
 		},
 		{
 			name:     "nil config",
@@ -1524,7 +1529,7 @@ func TestDecisionLogS3OutputTimeout(t *testing.T) {
 			if tc.config != "" {
 				raw = json.RawMessage(tc.config)
 			}
-			assert.Equal(t, tc.expected, decisionLogS3OutputTimeout(raw))
+			assert.Equal(t, tc.expected, decisionLogMaxOutputTimeout(raw))
 		})
 	}
 }
