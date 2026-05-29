@@ -865,7 +865,8 @@ func decisionLogMaxOutputTimeout(rawConfig json.RawMessage) time.Duration {
 		if err := json.Unmarshal(raw, &entry); err != nil || entry.Timeout == "" {
 			continue
 		}
-		if d, err := time.ParseDuration(entry.Timeout); err == nil && d > max {
+
+		if d, _ := time.ParseDuration(entry.Timeout); d > max {
 			max = d
 		}
 	}
