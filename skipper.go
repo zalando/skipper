@@ -2172,40 +2172,41 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 	}
 
-	// cache() filter registered here (not in filterRegistry) so the resolved tracer,
-	// connection options, and valkeyOptions from skipper.Options can be wired through.
-	if !slices.Contains(o.DisabledFilters, cache.Name) {
-		var cacheValkeyRing *skpnet.ValkeyRingClient
-		if valkeyOptions != nil {
-			// Shallow copy so NewValkeyRingClient can mutate opt.Addrs without
-			// racing against the ratelimit registry's copy of the same pointer.
-			cacheValkeyOpts := *valkeyOptions
-			cacheValkeyRing, err = skpnet.NewValkeyRingClient(&cacheValkeyOpts)
-			if err != nil {
-				return fmt.Errorf("failed to create Valkey ring for cache filter: %w", err)
-			}
-			defer cacheValkeyRing.Close()
+	var valkeyRing *skpnet.ValkeyRingClient
+	if valkeyOptions != nil {
+		if valkeyOptions.MetricsPrefix == "" {
+			valkeyOptions.MetricsPrefix = ratelimit.ValkeyMetricsPrefix
 		}
-		o.CustomFilters = append(o.CustomFilters, cache.NewCacheFilter(
-			o.cacheBudget(),
-			o.Address,
-			skpnet.Options{
-				IdleConnTimeout:         o.CloseIdleConnsPeriod,
-				MaxIdleConnsPerHost:     o.IdleConnectionsPerHost,
-				Tracer:                  tracer,
-				OpentracingComponentTag: "skipper",
-				OpentracingSpanName:     "cache_revalidation",
-				OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
-			},
-			cacheValkeyRing,
-		))
+		valkeyRing, err = skpnet.NewValkeyRingClient(valkeyOptions)
+		if err != nil {
+			return err
+		}
+		defer valkeyRing.Close()
 	}
 
-	var ratelimitRegistry *ratelimit.Registry
-	var failClosedRatelimitPostProcessor *ratelimitfilters.FailClosedPostProcessor
+	var (
+		ratelimitRegistry                *ratelimit.Registry
+		failClosedRatelimitPostProcessor *ratelimitfilters.FailClosedPostProcessor
+	)
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		ratelimitRegistry = ratelimit.NewSwarmRegistry(swarmer, redisOptions, valkeyOptions, o.RatelimitSettings...)
+
+		switch {
+		case valkeyRing != nil:
+			ratelimitRegistry = ratelimit.NewRatelimitRegistryValkey(valkeyRing, o.RatelimitSettings...)
+
+		case redisOptions != nil:
+			if redisOptions.MetricsPrefix == "" {
+				redisOptions.MetricsPrefix = ratelimit.RedisMetricsPrefix
+			}
+			redisRing := skpnet.NewRedisRingClient(redisOptions)
+			ratelimitRegistry = ratelimit.NewRatelimitRegistryRedis(redisRing, o.RatelimitSettings...)
+			defer redisRing.Close()
+
+		default:
+			// swim based Swarmer (deprecated)
+			ratelimitRegistry = ratelimit.NewSwarmRegistry(swarmer, redisOptions, valkeyOptions, o.RatelimitSettings...)
+		}
 		defer ratelimitRegistry.Close()
 
 		if hook := o.SwarmRegistry; hook != nil {
@@ -2234,6 +2235,22 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		if redisOptions != nil || valkeyOptions != nil {
 			o.CustomFilters = append(o.CustomFilters, ratelimitfilters.NewClusterLeakyBucketRatelimit(ratelimitRegistry))
 		}
+	}
+
+	if !slices.Contains(o.DisabledFilters, cache.Name) && valkeyRing != nil {
+		o.CustomFilters = append(o.CustomFilters, cache.NewCacheFilter(
+			o.cacheBudget(),
+			o.Address,
+			skpnet.Options{
+				IdleConnTimeout:         o.CloseIdleConnsPeriod,
+				MaxIdleConnsPerHost:     o.IdleConnectionsPerHost,
+				Tracer:                  tracer,
+				OpentracingComponentTag: "skipper",
+				OpentracingSpanName:     "cache_revalidation",
+				OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
+			},
+			valkeyRing,
+		))
 	}
 
 	if o.TLSMinVersion == 0 {

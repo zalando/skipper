@@ -28,11 +28,11 @@ type clusterLimitRedis struct {
 }
 
 const (
-	redisMetricsPrefix                    = "swarm.redis."
-	redisAllowMetricsFormat               = redisMetricsPrefix + "query.allow.%s"
-	redisRetryAfterMetricsFormat          = redisMetricsPrefix + "query.retryafter.%s"
-	redisAllowMetricsFormatWithGroup      = redisMetricsPrefix + "query.allow.%s.%s"
-	redisRetryAfterMetricsFormatWithGroup = redisMetricsPrefix + "query.retryafter.%s.%s"
+	RedisMetricsPrefix                    = "swarm.redis."
+	redisAllowMetricsFormat               = RedisMetricsPrefix + "query.allow.%s"
+	redisRetryAfterMetricsFormat          = RedisMetricsPrefix + "query.retryafter.%s"
+	redisAllowMetricsFormatWithGroup      = RedisMetricsPrefix + "query.allow.%s.%s"
+	redisRetryAfterMetricsFormatWithGroup = RedisMetricsPrefix + "query.retryafter.%s.%s"
 
 	redisAllowSpanName       = "redis_allow"
 	redisOldestScoreSpanName = "redis_oldest_score"
@@ -111,7 +111,7 @@ func (c *clusterLimitRedis) commonTags() opentracing.Tags {
 //
 // Uses provided context for creating an OpenTracing span.
 func (c *clusterLimitRedis) Allow(ctx context.Context, clearText string) bool {
-	c.metrics.IncCounter(redisMetricsPrefix + "total")
+	c.metrics.IncCounter(RedisMetricsPrefix + "total")
 	now := time.Now()
 
 	var span opentracing.Span
@@ -135,9 +135,9 @@ func (c *clusterLimitRedis) Allow(ctx context.Context, clearText string) bool {
 	c.measureQuery(redisAllowMetricsFormat, redisAllowMetricsFormatWithGroup, &failed, now)
 
 	if allow {
-		c.metrics.IncCounter(redisMetricsPrefix + "allows")
+		c.metrics.IncCounter(RedisMetricsPrefix + "allows")
 	} else {
-		c.metrics.IncCounter(redisMetricsPrefix + "forbids")
+		c.metrics.IncCounter(RedisMetricsPrefix + "forbids")
 	}
 	return allow
 }
