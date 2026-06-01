@@ -462,6 +462,116 @@ func TestProxyMTLS_CertRotation(t *testing.T) {
 	}
 }
 
+// TestProxyMTLS_OutboundFutureClientCert verifies that a backend rejects a proxy
+// presenting a client certificate whose validity period has not started yet.
+func TestProxyMTLS_OutboundFutureClientCert(t *testing.T) {
+	caPEM, _, caCert, caKey := makeMTLSCA(t, "Test CA")
+
+	now := time.Now()
+	futureCertPEM, futureKeyPEM, _, _ := generateMTLSCert(t, mtlsCertOptions{
+		cn:        "future-client",
+		dns:       "localhost",
+		ip:        "127.0.0.1",
+		notBefore: now.Add(1 * time.Hour), // not valid yet
+		notAfter:  now.Add(5 * time.Hour),
+		extKeyUsages: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageClientAuth,
+			x509.ExtKeyUsageServerAuth,
+		},
+		signerCert: caCert,
+		signerKey:  caKey,
+	})
+
+	certFile, keyFile := writeMTLSTempCertFiles(t, futureCertPEM, futureKeyPEM)
+
+	clientCAs := x509.NewCertPool()
+	clientCAs.AppendCertsFromPEM(caPEM)
+
+	serverCert, err := tls.X509KeyPair(caPEM, marshalECKeyPEM(t, caKey))
+	if err != nil {
+		t.Fatalf("failed to create server cert: %v", err)
+	}
+
+	backend := newMTLSBackend(t, serverCert, clientCAs)
+
+	clientRootCAs := x509.NewCertPool()
+	clientRootCAs.AppendCertsFromPEM(caPEM)
+
+	params := Params{
+		EnableMTLS:                true,
+		ClientCertFile:            certFile,
+		ClientKeyFile:             keyFile,
+		ClientCertRefreshInterval: 50 * time.Millisecond,
+		ClientTLS:                 &tls.Config{RootCAs: clientRootCAs},
+	}
+
+	tp, err := newTestProxyWithParams(fmt.Sprintf(`* -> "%s"`, backend.URL), params)
+	if err != nil {
+		t.Fatalf("failed to create test proxy: %v", err)
+	}
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	rsp, err := ps.Client().Get(ps.URL + "/")
+	if err != nil {
+		t.Fatalf("proxy server request failed: %v", err)
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != http.StatusBadGateway && rsp.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("expected 502 or 503 for not-yet-valid cert, got %d", rsp.StatusCode)
+	}
+}
+
+// TestProxyMTLS_OutboundInsecureSkipVerify verifies that when InsecureSkipVerify
+// is set, the proxy connects to a backend with a self-signed cert without needing
+// to add the backend CA to RootCAs, while still presenting its own client cert.
+func TestProxyMTLS_OutboundInsecureSkipVerify(t *testing.T) {
+	caPEM, _, caCert, caKey := makeMTLSCA(t, "Test CA")
+	clientCertPEM, clientKeyPEM := makeMTLSClientCert(t, "test-client", caCert, caKey)
+	certFile, keyFile := writeMTLSTempCertFiles(t, clientCertPEM, clientKeyPEM)
+
+	clientCAs := x509.NewCertPool()
+	clientCAs.AppendCertsFromPEM(caPEM)
+
+	serverCert, err := tls.X509KeyPair(caPEM, marshalECKeyPEM(t, caKey))
+	if err != nil {
+		t.Fatalf("failed to create server cert: %v", err)
+	}
+
+	backend := newMTLSBackend(t, serverCert, clientCAs)
+
+	params := Params{
+		EnableMTLS:                true,
+		ClientCertFile:            certFile,
+		ClientKeyFile:             keyFile,
+		ClientCertRefreshInterval: 50 * time.Millisecond,
+		// No RootCAs set — InsecureSkipVerify bypasses server cert verification.
+		ClientTLS: &tls.Config{InsecureSkipVerify: true}, // #nosec G402
+	}
+
+	tp, err := newTestProxyWithParams(fmt.Sprintf(`* -> "%s"`, backend.URL), params)
+	if err != nil {
+		t.Fatalf("failed to create test proxy: %v", err)
+	}
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	rsp, err := ps.Client().Get(ps.URL + "/")
+	if err != nil {
+		t.Fatalf("proxy request failed: %v", err)
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 with InsecureSkipVerify, got %d", rsp.StatusCode)
+	}
+}
+
 // TestProxyMTLS_InboundNoTLS verifies the mtlsCN filter returns 401 when the
 // downstream client connects over plain HTTP (req.TLS == nil).
 func TestProxyMTLS_InboundNoTLS(t *testing.T) {
