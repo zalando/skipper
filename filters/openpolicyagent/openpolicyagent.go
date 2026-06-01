@@ -1254,17 +1254,28 @@ func bodyUpperBound(contentLength, maxBodyBytes int64) int64 {
 func (opa *OpenPolicyAgentInstance) ExtractHttpBodyOptionally(req *http.Request) (io.ReadCloser, []byte, func(), error) {
 	body := req.Body
 
+	// `req.ContentLength == -1` is set by net/http when the client uses
+	// Transfer-Encoding: chunked (HTTP/1.1) or omits content-length in
+	// HTTP/2 framing. Treat unknown-length bodies as up-to-max-bytes and
+	// drive fillBuffer with the policy cap instead of the negative
+	// sentinel, otherwise the fillBuffer loop short-circuits on its
+	// `len < expectedSize` predicate and OPA evaluates an empty body.
+	expectedSize := req.ContentLength
+	if expectedSize < 0 {
+		expectedSize = opa.maxBodyBytes
+	}
+
 	if body != nil && !opa.EnvoyPluginConfig().SkipRequestBodyParse &&
-		req.ContentLength <= int64(opa.maxBodyBytes) {
+		expectedSize <= int64(opa.maxBodyBytes) {
 
 		wrapper := newBufferedBodyReader(req.Body, opa.maxBodyBytes, opa.bodyReadBufferSize)
 
-		requestedBodyBytes := bodyUpperBound(req.ContentLength, opa.maxBodyBytes)
+		requestedBodyBytes := bodyUpperBound(expectedSize, opa.maxBodyBytes)
 		if !opa.registry.maxMemoryBodyParsingSem.TryAcquire(requestedBodyBytes) {
 			return req.Body, nil, func() {}, ErrTotalBodyBytesExceeded
 		}
 
-		rawBody, err := wrapper.fillBuffer(req.ContentLength)
+		rawBody, err := wrapper.fillBuffer(expectedSize)
 		return wrapper, rawBody, func() { opa.registry.maxMemoryBodyParsingSem.Release(requestedBodyBytes) }, err
 	}
 
