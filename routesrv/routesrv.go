@@ -2,6 +2,7 @@ package routesrv
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,8 +12,6 @@ import (
 	"time"
 
 	ot "github.com/opentracing/opentracing-go"
-	sotel "github.com/zalando/skipper/otel"
-	"github.com/zalando/skipper/tracing"
 	"go.opentelemetry.io/otel"
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/trace"
@@ -22,8 +21,14 @@ import (
 
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/filters/builtin"
+	tlsfilters "github.com/zalando/skipper/filters/tls"
 	"github.com/zalando/skipper/metrics"
+	sotel "github.com/zalando/skipper/otel"
+	"github.com/zalando/skipper/secrets/certregistry"
+	"github.com/zalando/skipper/tracing"
 )
 
 // RouteServer is used to serve eskip-formatted routes,
@@ -36,7 +41,10 @@ type RouteServer struct {
 	tracerShutdown func(context.Context) error
 }
 
-const otelTracerName = "routesrv"
+const (
+	otelTracerName = "routesrv"
+	healthPath     = "/health"
+)
 
 // New returns an initialized route server according to the passed options.
 // This call does not start data source updates automatically. Kept routes
@@ -86,7 +94,7 @@ func New(opts skipper.Options) (*RouteServer, error) {
 
 	mux.Handle("/routes", b)
 	mux.Handle("/routes/{zone}", b)
-	mux.Handle("/health", bs)
+	mux.Handle(healthPath, bs)
 
 	supportHandler := http.NewServeMux()
 	supportHandler.Handle("/metrics", metricsHandler)
@@ -137,11 +145,32 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		mux.Handle("/swarm/valkey/shards", vh)
 	}
 
+	// filters to Routesrv listener to secure communication for example
+	addCustomerFilters(&opts)
+	filterChain, err := createFilterChain(&opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create filter chain: %w", err)
+	}
+
+	var tlsConfig *tls.Config
+	if opts.EnableMTLS {
+		cr := certregistry.NewCertRegistry()
+		tlsConfig, err = opts.TlsConfig(cr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create tls config: %w", err)
+		}
+		if tlsConfig != nil {
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+			tlsConfig.ClientCAs = opts.MtlsAuthnCA
+		}
+	}
+
 	rs.server = &http.Server{
 		Addr:              opts.Address,
-		Handler:           mux,
+		Handler:           withFilters(mux, filterChain),
 		ReadTimeout:       1 * time.Minute,
 		ReadHeaderTimeout: 1 * time.Minute,
+		TLSConfig:         tlsConfig,
 	}
 
 	rs.supportServer = &http.Server{
@@ -167,6 +196,52 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	rs.wg = &sync.WaitGroup{}
 
 	return rs, nil
+}
+
+func createFilterChain(opts *skipper.Options) ([]filters.Filter, error) {
+	filterChain := make([]filters.Filter, 0)
+	registry := make(filters.Registry)
+	for _, f := range builtin.Filters() {
+		registry.Register(f)
+	}
+	for _, f := range opts.CustomFilters {
+		registry.Register(f)
+	}
+	for _, eskipFilter := range opts.RouteServerFilters {
+		spec, ok := registry[eskipFilter.Name]
+		if !ok {
+			return nil, fmt.Errorf("failed to get filter for routeserver %q", eskipFilter.Name)
+		}
+		filter, err := spec.CreateFilter(eskipFilter.Args)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create filter %q for routeserver: %v", eskipFilter.Name, err)
+		}
+		filterChain = append(filterChain, filter)
+	}
+	return filterChain, nil
+}
+
+func addCustomerFilters(opts *skipper.Options) {
+	if opts.MtlsAuthnCA != nil {
+		opts.CustomFilters = append(opts.CustomFilters, tlsfilters.NewMtlsAuthn(opts.MtlsAuthnCA, opts.MtlsAuthnInterMediateCA))
+	}
+	if opts.OAuthTokeninfoURL != "" {
+		tio := auth.TokeninfoOptions{
+			URL:                         opts.OAuthTokeninfoURL,
+			Timeout:                     opts.OAuthTokeninfoTimeout,
+			MaxIdleConns:                opts.IdleConnectionsPerHost,
+			CacheSize:                   opts.OAuthTokeninfoCacheSize,
+			CacheTTL:                    opts.OAuthTokeninfoCacheTTL,
+			OpenTracingClientTraceByTag: opts.OpenTracingClientTraceByTag,
+		}
+		opts.CustomFilters = append(opts.CustomFilters,
+			auth.NewOAuthTokeninfoAllScopeWithOptions(tio),
+			auth.NewOAuthTokeninfoAnyScopeWithOptions(tio),
+			auth.NewOAuthTokeninfoAllKVWithOptions(tio),
+			auth.NewOAuthTokeninfoAnyKVWithOptions(tio),
+			auth.NewOAuthTokeninfoValidate(tio),
+		)
+	}
 }
 
 func tracerInstance(o *skipper.Options) (ot.Tracer, func(context.Context) error, error) {
@@ -282,10 +357,18 @@ func run(rs *RouteServer, opts skipper.Options, sigs chan os.Signal) error {
 	rs.StartUpdates()
 
 	go rs.startSupportListener()
-	if err = rs.server.ListenAndServe(); err != http.ErrServerClosed {
-		go shutdown(0)
+	if tlsConfig := rs.server.TLSConfig; tlsConfig != nil {
+		if err = rs.server.ListenAndServeTLS("", ""); err != http.ErrServerClosed {
+			go shutdown(0)
+		} else {
+			err = nil
+		}
 	} else {
-		err = nil
+		if err = rs.server.ListenAndServe(); err != http.ErrServerClosed {
+			go shutdown(0)
+		} else {
+			err = nil
+		}
 	}
 
 	rs.wg.Wait()
