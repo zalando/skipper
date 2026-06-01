@@ -347,28 +347,44 @@ func TestCacheFilter_SWR_HardExpiry_Miss(t *testing.T) {
 	})
 }
 
+// missCounting wraps a Storage and signals wg on each non-vary Get that returns a miss.
+type missCounting struct {
+	Storage
+	wg sync.WaitGroup
+}
+
+func (mc *missCounting) Get(ctx context.Context, key string) (*Entry, error) {
+	e, err := mc.Storage.Get(ctx, key)
+	if e == nil && err == nil && !strings.HasPrefix(key, "vary:") {
+		mc.wg.Done()
+	}
+	return e, err
+}
+
 func TestCacheFilter_ColdMissCoalescing(t *testing.T) {
-	// Hold the upstream fetch until all N goroutines have checked in, proving
-	// that exactly 1 fetch fires for the whole cohort.
+	// Hold the upstream fetch until all N goroutines have performed their
+	// storage.Get and observed a miss. At that point every goroutine is either
+	// already inside DoChan's wait list or in the scheduler-opaque gap between
+	// the nil check and the DoChan call — so exactly 1 fetch fires.
+	//
+	// mc.wg is the barrier: each goroutine calls wg.Done() inside storage.Get
+	// on a miss, and the fetch stub calls wg.Wait() before returning, keeping
+	// the singleflight open until all N goroutines have committed to joining it.
 	const N = 50
 	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
 
-	var fetchStarted sync.Once
-	fetchStartedCh := make(chan struct{})
-	releaseAll := make(chan struct{})
-	var fetchCount int64
+	mc := &missCounting{Storage: f.storage}
+	mc.wg.Add(N)
+	f.storage = mc
 
-	// The leader waits for all N goroutines to signal (wgIn.Done) before the
-	// fetch returns. Each goroutine signals just before calling f.Request so
-	// it is either already in DoChan's wait list or about to enter it while
-	// the leader is still blocked on <-releaseAll.
-	var wgIn sync.WaitGroup
-	wgIn.Add(N)
+	var fetchCount int64
+	fetchStarted := make(chan struct{})
+	releaseAll := make(chan struct{})
 
 	f.fetch = func(req *http.Request) (*http.Response, error) {
 		atomic.AddInt64(&fetchCount, 1)
-		fetchStarted.Do(func() { close(fetchStartedCh) })
-		wgIn.Wait()
+		close(fetchStarted)
+		mc.wg.Wait() // block until every goroutine has confirmed a cache miss
 		<-releaseAll
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -387,13 +403,12 @@ func TestCacheFilter_ColdMissCoalescing(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			ctx := newCtx("GET", url, "")
-			wgIn.Done()
 			f.Request(ctx)
 			results[i] = ctx
 		}()
 	}
 
-	<-fetchStartedCh
+	<-fetchStarted // fetch is running; all N misses will be counted before it returns
 	close(releaseAll)
 	wg.Wait()
 
