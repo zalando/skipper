@@ -550,6 +550,65 @@ Example:
 * -> tlsPassClientCertificates() -> "http://10.2.5.21:8080";
 ```
 
+### mtlsAuthn
+
+This filter validates the client certificate provided by verifying
+with the configured system CA certificates.
+
+Example:
+
+```
+* -> mtlsAuthn() -> "http://10.2.5.21:8080";
+```
+
+### mtlsIssuerDN
+
+This authz filter checks the DN value of the provided certificate. You have
+to use `mtlsAuthn()` to verify validity.
+
+Parameters:
+
+* DN (string)
+
+Example:
+
+```
+* -> mtlsAuthn() ->  mtlsIssuerDN("CN=My CA,O=My Org,C=DE") -> "http://10.2.5.21:8080";
+```
+
+### mtlsCN
+
+This authz filter checks the CN value of the provided certificate. You have
+to use `mtlsAuthn()` to verify validity.
+
+Parameters:
+
+* CN (string)
+
+Example:
+
+```
+* -> mtlsAuthn() ->  mtlsCN("My CA") -> "http://10.2.5.21:8080";
+```
+
+### mtlsSAN
+
+This authz filter checks the SAN value of the provided certificate. You have
+to use `mtlsAuthn()` to verify validity.
+
+Parameters are one or more:
+
+* DNS hostnames (string)
+* CIDR (string)
+* IPv4 (string)
+* IPv6 (string)
+
+Example:
+
+```
+* -> mtlsAuthn() ->  mtlsSAN("my.host.example", "2a05:aec0::/29", "10.0.5.0/15", "1.2.3.4") -> "http://10.2.5.21:8080";
+```
+
 ## Diagnostics
 
 These filters are meant for diagnostic or load testing purposes.
