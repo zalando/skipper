@@ -135,7 +135,6 @@ func TestCipherRefreshing(t *testing.T) {
 		enc := &Encrypter{
 			secretSource: SecSource,
 			closer:       make(chan struct{}),
-			closedHook:   make(chan struct{}),
 		}
 		enc.runCipherRefresher(d)
 		time.Sleep(sleepD)
