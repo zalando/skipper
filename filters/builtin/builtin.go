@@ -243,6 +243,10 @@ func Filters() []filters.Spec {
 		consistenthash.NewConsistentHashKey(),
 		consistenthash.NewConsistentHashBalanceFactor(),
 		tls.New(),
+		tls.NewMtlsAuthn(),
+		tls.NewMtlsCN(),
+		tls.NewMtlsIssuerDN(),
+		tls.NewMtlsSAN(),
 	}
 }
 
