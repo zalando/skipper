@@ -7,15 +7,18 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
+	nethttptest "github.com/zalando/skipper/net/httptest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/tracing/tracingtest"
 
@@ -921,20 +924,13 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin_SlowS3BlocksClientRespons
 	proxy := proxytest.New(fr, r...)
 	defer proxy.Close()
 
-	req, err := http.NewRequest(http.MethodGet, proxy.URL+"/allow", nil)
-	require.NoError(t, err)
+	va := nethttptest.NewVegetaAttacker(proxy.URL+"/allow", 10, time.Second, 2*s3Delay)
+	va.Attack(io.Discard, 3*time.Second, t.Name())
 
-	start := time.Now()
-	rsp, err := proxy.Client().Do(req)
-	elapsed := time.Since(start)
-
-	require.NoError(t, err)
-	defer rsp.Body.Close()
-	assert.Equal(t, http.StatusOK, rsp.StatusCode)
-
-	assert.Less(t, elapsed, s3Delay,
-		"client round-trip (%v) should not be delayed by the S3 upload (%v); "+
-			"logDecision must not run on the request goroutine", elapsed, s3Delay)
+	assert.Equal(t, 1.0, va.Success(), "all requests should succeed")
+	assert.Less(t, va.Metrics().Latencies.Mean, s3Delay,
+		"mean client latency (%v) should not be delayed by the S3 upload (%v); "+
+			"logDecision must not run on the request goroutine", va.Metrics().Latencies.Mean, s3Delay)
 }
 
 // TestFullDecisionLogBufferBlocksClientResponse is the regression test for the buffer full scenario when
@@ -1245,6 +1241,214 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
 		})
 	}
+}
+
+// TestDecisionLogDroppedOnBundleReload verifies that runDecisionLogger recovers after a
+// bundle reload. During eopa_dl.Reconfigure(), Stop() tears down the Benthos stream while
+// runDecisionLogger may be inside stream.Consume(). Without a context deadline the blocked
+// send never returns, decisionLogChan fills up, and all decisions are dropped permanently.
+// The fix passes a timeout context so the goroutine can unblock and resume draining.
+func TestDecisionLogDroppedOnBundleReload(t *testing.T) {
+	if testing.Short() {
+		t.Skip("timing-sensitive test, skipped in short mode")
+	}
+
+	hook := &dropCaptureHook{}
+	logrus.AddHook(hook)
+	t.Cleanup(func() {
+		logrus.StandardLogger().Hooks = make(logrus.LevelHooks)
+	})
+
+	// sinkReached signals once the stream has delivered its first batch.
+	// sinkRelease unblocks the sink so the in-flight batch can complete.
+	sinkReached := make(chan struct{}, 1)
+	sinkRelease := make(chan struct{})
+
+	// Slow sink keeps the eopa_dl buffer full, applying backpressure to Consume.
+	const sinkDelay = 200 * time.Millisecond
+	logSink := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case sinkReached <- struct{}{}:
+		default:
+		}
+		select {
+		case <-sinkRelease:
+		case <-r.Context().Done():
+			return
+		}
+		time.Sleep(sinkDelay)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer logSink.Close()
+
+	clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ok"))
+	}))
+	defer clientServer.Close()
+
+	// max_bytes=1200 fits one event; a second event triggers backpressure and blocks Consume.
+	eopaDLConfig := fmt.Sprintf(`{
+		"buffer": { "type": "memory", "max_bytes": 1200 },
+		"output": {
+			"type": "http",
+			"url": %q,
+			"timeout": "60s",
+			"batching": { "at_period": "1ms", "at_bytes": 1 }
+		}
+	}`, logSink.URL+"/logs")
+
+	// Bumping the revision triggers eopa_dl.Reconfigure() → Stop() + Start().
+	discoveryData := func(version int) string {
+		return fmt.Sprintf(`{
+		  "discovery": {
+			"revision": "v%d",
+			"bundles": {
+			  "bundles/test": {
+				"persist": false,
+				"resource": "bundles/test",
+				"service": "test",
+				"polling": { "min_delay_seconds": 1, "max_delay_seconds": 1 }
+			  }
+			},
+			"plugins": { "eopa_dl": %s }
+		  }
+		}`, version, eopaDLConfig)
+	}
+
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/test", map[string]string{
+			"main.rego": `
+				package envoy.authz
+				default allow = true
+			`,
+		}),
+		opasdktest.MockBundle("/bundles/discovery", map[string]string{
+			"data.json": discoveryData(1),
+		}),
+	)
+	defer opaControlPlane.Stop()
+
+	// buffer_size_limit_events=5 so the channel fills quickly once the drainer is stuck.
+	config := []byte(fmt.Sprintf(`{
+		"services": { "test": { "url": %q } },
+		"discovery": {
+			"name": "discovery",
+			"resource": "/bundles/discovery",
+			"service": "test"
+		},
+		"labels": { "environment": "test" },
+		"decision_logs": {
+			"plugin": "eopa_dl",
+			"reporting": {
+				"buffer_type": "event",
+				"buffer_size_limit_events": 5
+			}
+		},
+		"plugins": {
+			"envoy_ext_authz_grpc": { "path": "envoy/authz/allow", "dry-run": false },
+			"eopa_dl": %s
+		}
+	}`, opaControlPlane.URL(), eopaDLConfig))
+
+	fr := make(filters.Registry)
+	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(
+		openpolicyagent.WithTracer(tracingtest.NewTracer()),
+		openpolicyagent.WithAsyncDecisionLogging(true),
+		openpolicyagent.WithOpenPolicyAgentInstanceConfig(
+			openpolicyagent.WithConfigTemplate(config),
+		),
+	)
+	require.NoError(t, err)
+
+	ftSpec := NewOpaAuthorizeRequestSpec(opaFactory)
+	fr.Register(ftSpec)
+
+	r := eskip.MustParse(fmt.Sprintf(`* -> opaAuthorizeRequest("test") -> %q`, clientServer.URL))
+	proxy := proxytest.New(fr, r...)
+	defer proxy.Close()
+
+	req, err := http.NewRequest(http.MethodGet, proxy.URL+"/", nil)
+	require.NoError(t, err)
+
+	// Warm up the pipeline.
+	for i := 0; i < 5; i++ {
+		rsp, doErr := proxy.Client().Do(req)
+		require.NoError(t, doErr)
+		rsp.Body.Close()
+	}
+
+	// Confirm the stream is live before triggering the reload.
+	select {
+	case <-sinkReached:
+	case <-time.After(10 * time.Second):
+		t.Fatal("log sink never received a request — decisions are not reaching eopa_dl")
+	}
+
+	// Push revision v2 to trigger eopa_dl.Reconfigure() → Stop() + Start().
+	opaControlPlane.WithTestBundle("/bundles/discovery", map[string]string{
+		"data.json": discoveryData(2),
+	})
+
+	// Unblock the sink; on a buggy build the next Consume() on the stopped stream deadlocks.
+	close(sinkRelease)
+
+	// Wait for the discovery poller to pick up v2 and call Reconfigure.
+	time.Sleep(2500 * time.Millisecond)
+
+	// Fill the channel; if the drainer is stuck all events are dropped.
+	for i := 0; i < 20; i++ {
+		rsp, doErr := proxy.Client().Do(req)
+		require.NoError(t, doErr)
+		rsp.Body.Close()
+	}
+
+	dropsWhileStalled := hook.countContaining("Decision log dropped: async buffer full")
+	assert.Greater(t, dropsWhileStalled, 0,
+		"expected at least some decision log drops immediately after bundle reload "+
+			"(channel full while drainer is blocked) — check async logging is enabled and Reconfigure was triggered")
+
+	// Once the context timeout fires, runDecisionLogger unblocks and the channel drains.
+	require.Eventually(t, func() bool {
+		before := hook.countContaining("Decision log dropped: async buffer full")
+		rsp, doErr := proxy.Client().Do(req)
+		if doErr != nil {
+			return false
+		}
+		rsp.Body.Close()
+		time.Sleep(200 * time.Millisecond)
+		after := hook.countContaining("Decision log dropped: async buffer full")
+		return after == before
+	}, 60*time.Second, 500*time.Millisecond,
+		"decision log drops did not stop after Reconfigure completed — runDecisionLogger did not recover; "+
+			"fix: pass a context with a deadline into doLogDecision instead of context.Background()")
+}
+
+// dropCaptureHook counts logrus entries containing a given substring.
+type dropCaptureHook struct {
+	mu      sync.Mutex
+	entries []string
+}
+
+func (h *dropCaptureHook) countContaining(sub string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	n := 0
+	for _, e := range h.entries {
+		if strings.Contains(e, sub) {
+			n++
+		}
+	}
+	return n
+}
+
+func (h *dropCaptureHook) Levels() []logrus.Level { return logrus.AllLevels }
+
+func (h *dropCaptureHook) Fire(entry *logrus.Entry) error {
+	line, _ := entry.String()
+	h.mu.Lock()
+	h.entries = append(h.entries, line)
+	h.mu.Unlock()
+	return nil
 }
 
 func isHeadersPresent(t *testing.T, expectedHeaders http.Header, headers http.Header) bool {

@@ -1472,6 +1472,68 @@ func TestPrintTracing(t *testing.T) {
 	}
 }
 
+func TestDecisionLogMaxOutputTimeout(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		config   string
+		expected time.Duration
+	}{
+		{
+			name:     "s3 output with timeout",
+			config:   `{"output": [{"type": "s3", "bucket": "b", "region": "eu-west-1", "timeout": "2s"}]}`,
+			expected: 2 * time.Second,
+		},
+		{
+			name:     "s3 output as single object",
+			config:   `{"output": {"type": "s3", "bucket": "b", "region": "eu-west-1", "timeout": "10s"}}`,
+			expected: 10 * time.Second,
+		},
+		{
+			name:     "s3 output without timeout",
+			config:   `{"output": [{"type": "s3", "bucket": "b", "region": "eu-west-1"}]}`,
+			expected: 0,
+		},
+		{
+			name:     "http output with timeout",
+			config:   `{"output": [{"type": "http", "url": "http://example.com", "timeout": "5s"}]}`,
+			expected: 5 * time.Second,
+		},
+		{
+			name:     "s3 and console outputs",
+			config:   `{"output": [{"type": "s3", "bucket": "b", "region": "eu-west-1", "timeout": "3s"}, {"type": "console"}]}`,
+			expected: 3 * time.Second,
+		},
+		{
+			name:     "multiple outputs with different timeouts returns highest",
+			config:   `{"output": [{"type": "s3", "bucket": "b", "region": "eu-west-1", "timeout": "3s"}, {"type": "http", "url": "http://example.com", "timeout": "7s"}]}`,
+			expected: 7 * time.Second,
+		},
+		{
+			name:     "nil config",
+			config:   "",
+			expected: 0,
+		},
+		{
+			name:     "invalid json",
+			config:   `{invalid}`,
+			expected: 0,
+		},
+		{
+			name:     "invalid timeout value",
+			config:   `{"output": [{"type": "s3", "bucket": "b", "region": "eu-west-1", "timeout": "notaduration"}]}`,
+			expected: 0,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var raw json.RawMessage
+			if tc.config != "" {
+				raw = json.RawMessage(tc.config)
+			}
+			assert.Equal(t, tc.expected, decisionLogMaxOutputTimeout(raw))
+		})
+	}
+}
+
 // TestAsyncDecisionLogDroppedCounter verifies the decision_log.dropped counter
 func TestAsyncDecisionLogDroppedCounter(t *testing.T) {
 	mockMetrics := &metricstest.MockMetrics{}

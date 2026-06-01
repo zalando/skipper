@@ -64,10 +64,10 @@ const (
 	defaultShutdownGracePeriod      = 30 * time.Second
 	DefaultOpaStartupTimeout        = 30 * time.Second
 	DefaultBackgroundTaskBufferSize = 100
-
-	DefaultMaxRequestBodySize    = 1 << 20 // 1 MB
-	DefaultMaxMemoryBodyParsing  = 100 * DefaultMaxRequestBodySize
-	DefaultRequestBodyBufferSize = 8 * 1024 // 8 KB
+	DefaultDecisionLogTaskTimeout   = 5 * time.Second
+	DefaultMaxRequestBodySize       = 1 << 20 // 1 MB
+	DefaultMaxMemoryBodyParsing     = 100 * DefaultMaxRequestBodySize
+	DefaultRequestBodyBufferSize    = 8 * 1024 // 8 KB
 
 	spanNameEval = "open-policy-agent"
 )
@@ -131,7 +131,8 @@ type OpenPolicyAgentRegistry struct {
 	// New fields for pre-loading support
 	preloadingEnabled bool
 
-	asyncDecisionLogging bool
+	asyncDecisionLogging   bool
+	decisionLogTaskTimeout time.Duration
 
 	// Background task system
 	backgroundTaskChan       chan *BackgroundTask
@@ -239,6 +240,13 @@ func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegi
 	}
 }
 
+func WithDecisionLogTaskTimeout(timeout time.Duration) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.decisionLogTaskTimeout = timeout
+		return nil
+	}
+}
+
 func WithPrometheusRegisterer(registerer prometheus.Registerer) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.prometheusRegisterer = registerer
@@ -302,6 +310,7 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*
 		bodyReadBufferSize:       DefaultRequestBodyBufferSize,
 		controlLoopInterval:      DefaultControlLoopInterval,
 		controlLoopMaxJitter:     DefaultControlLoopMaxJitter,
+		decisionLogTaskTimeout:   DefaultDecisionLogTaskTimeout,
 		backgroundTaskBufferSize: DefaultBackgroundTaskBufferSize,
 	}
 
@@ -623,6 +632,7 @@ type decisionLogTask struct {
 	input  interface{}
 	result *envoyauth.EvalResult
 	err    error
+	ctx    context.Context
 }
 
 type OpenPolicyAgentInstance struct {
@@ -650,8 +660,9 @@ type OpenPolicyAgentInstance struct {
 
 	idGenerator flowid.Generator
 
-	decisionLogChan    chan decisionLogTask
-	decisionsProcessed chan struct{}
+	decisionLogChan        chan decisionLogTask
+	decisionsProcessed     chan struct{}
+	decisionLogTaskTimeout time.Duration
 }
 
 func envVariablesMap() map[string]string {
@@ -792,6 +803,11 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		bufSize := decisionLogBufferSize(opaConfig.DecisionLogs)
 		opa.decisionLogChan = make(chan decisionLogTask, bufSize)
 		opa.decisionsProcessed = make(chan struct{})
+		if t := decisionLogMaxOutputTimeout(opaConfig.DecisionLogs); t > 0 {
+			opa.decisionLogTaskTimeout = t
+		} else {
+			opa.decisionLogTaskTimeout = registry.decisionLogTaskTimeout
+		}
 		go opa.runDecisionLogger()
 	}
 
@@ -817,6 +833,44 @@ func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ..
 		}
 	}
 	return true
+}
+
+type decisionLogPluginConfig struct {
+	Output json.RawMessage `json:"output"`
+}
+
+type decisionLogOutputEntry struct {
+	Timeout string `json:"timeout"`
+}
+
+// decisionLogMaxOutputTimeout parses the eopa_dl decision_logs config and returns
+// the highest timeout defined across all output entries, or 0 if none are present or parseable.
+func decisionLogMaxOutputTimeout(rawConfig json.RawMessage) time.Duration {
+	if rawConfig == nil {
+		return 0
+	}
+	var cfg decisionLogPluginConfig
+	if err := json.Unmarshal(rawConfig, &cfg); err != nil || cfg.Output == nil {
+		return 0
+	}
+	// Output may be a single object or an array.
+	var outputs []json.RawMessage
+	if err := json.Unmarshal(cfg.Output, &outputs); err != nil {
+		// Not an array — try as a single object.
+		outputs = []json.RawMessage{cfg.Output}
+	}
+	var max time.Duration
+	for _, raw := range outputs {
+		var entry decisionLogOutputEntry
+		if err := json.Unmarshal(raw, &entry); err != nil || entry.Timeout == "" {
+			continue
+		}
+
+		if d, _ := time.ParseDuration(entry.Timeout); d > max {
+			max = d
+		}
+	}
+	return max
 }
 
 func decisionLogBufferSize(rawConfig json.RawMessage) int {
@@ -1036,12 +1090,23 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 // runDecisionLogger drains decisionLogChan in the background so that logDecision
 // is never called on the request goroutine. The goroutine exits when the channel
 // is closed (during Close) and signals completion via decisionsProcessed.
+// A per-task timeout bounds stuck calls (e.g. a Benthos stream.Consume() call on a
+// stream stopped during eopa_dl.Reconfigure()).
 func (opa *OpenPolicyAgentInstance) runDecisionLogger() {
 	defer close(opa.decisionsProcessed)
 	for task := range opa.decisionLogChan {
-		if err := opa.doLogDecision(context.Background(), task.input, task.result, task.err); err != nil {
-			opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
-		}
+		opa.processDecisionLogTask(task)
+	}
+}
+
+func (opa *OpenPolicyAgentInstance) processDecisionLogTask(task decisionLogTask) {
+	ctx, cancel := context.WithTimeout(context.Background(), opa.decisionLogTaskTimeout)
+	defer cancel()
+	if span := opentracing.SpanFromContext(task.ctx); span != nil {
+		ctx = opentracing.ContextWithSpan(ctx, span)
+	}
+	if err := opa.doLogDecision(ctx, task.input, task.result, task.err); err != nil {
+		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
 	}
 }
 
