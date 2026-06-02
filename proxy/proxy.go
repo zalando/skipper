@@ -361,6 +361,24 @@ type Params struct {
 	// ClientTLS configuration to connect to Backends
 	ClientTLS *tls.Config
 
+	// ClientCertFile is the path to a PEM-encoded client certificate for mTLS to backends.
+	// Must be set together with ClientKeyFile. When set, GetClientCertificate is used for cert rotation.
+	ClientCertFile string
+
+	// ClientKeyFile is the path to a PEM-encoded private key for mTLS to backends.
+	// Must be set together with ClientCertFile.
+	ClientKeyFile string
+
+	// ClientCertRefreshInterval is how often ClientCertFile/ClientKeyFile are re-read.
+	// Defaults to 5 minutes if zero.
+	ClientCertRefreshInterval time.Duration
+
+	// EnableMTLS enables MTLS support in the proxy if we have
+	// ClientCertFile, ClientKeyFile and uses
+	// ClientCertRefreshInterval to update rotated x509 cert from
+	// the provided files.
+	EnableMTLS bool
+
 	// OpenTracing contains parameters related to OpenTracing instrumentation. For default values
 	// check OpenTracingParams
 	OpenTracing *OpenTracingParams
@@ -477,6 +495,7 @@ type Proxy struct {
 	clientTLS                *tls.Config
 	hostname                 string
 	onPanicSometimes         rate.Sometimes
+	cr                       *snet.CertReloader
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -845,6 +864,26 @@ func WithParams(p Params) *Proxy {
 		}
 	}
 
+	log := &logging.DefaultLog{}
+	var cr *snet.CertReloader
+	if p.EnableMTLS && p.ClientCertFile != "" && p.ClientKeyFile != "" {
+		interval := p.ClientCertRefreshInterval
+		if interval == 0 {
+			interval = 5 * time.Minute
+		}
+		var err error
+		cr, err = snet.NewCertReloader(p.ClientCertFile, p.ClientKeyFile, interval, log)
+		if err != nil {
+			log.Errorf("Failed to initialize cert reloader in proxy: %v", err)
+			os.Exit(2)
+		} else {
+			if tr.TLSClientConfig == nil {
+				tr.TLSClientConfig = &tls.Config{}
+			}
+			tr.TLSClientConfig.GetClientCertificate = cr.GetClientCertificate
+		}
+	}
+
 	m := p.Metrics
 	if m == nil {
 		m = metrics.Default
@@ -897,7 +936,7 @@ func WithParams(p Params) *Proxy {
 		maxLoops:                 p.MaxLoopbacks,
 		breakers:                 p.CircuitBreakers,
 		limiters:                 p.RateLimiters,
-		log:                      &logging.DefaultLog{},
+		log:                      log,
 		accessLogger:             p.AccessLogger,
 		defaultHTTPStatus:        defaultHTTPStatus,
 		tracing:                  newProxyTracing(p.OpenTracing),
@@ -908,6 +947,7 @@ func WithParams(p Params) *Proxy {
 		clientTLS:                tr.TLSClientConfig,
 		hostname:                 hostname,
 		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
+		cr:                       cr,
 	}
 }
 
@@ -1866,6 +1906,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *Proxy) Close() error {
 	close(p.quit)
 	p.registry.Close()
+	if p.cr != nil {
+		p.cr.Close()
+	}
 	return nil
 }
 

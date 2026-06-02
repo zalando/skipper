@@ -713,6 +713,21 @@ type Options struct {
 	// Client TLS to connect to Backends
 	ClientTLS *tls.Config
 
+	// ClientCertFile is the path to a PEM-encoded client certificate for mTLS to backends.
+	// Must be set together with ClientKeyFile. When set, certificate rotation is enabled.
+	ClientCertFile string
+
+	// ClientKeyFile is the path to a PEM-encoded private key for mTLS to backends.
+	// Must be set together with ClientCertFile.
+	ClientKeyFile string
+
+	// ClientCertRefreshInterval is how often ClientCertFile/ClientKeyFile are re-read.
+	// Defaults to 5 minutes if zero.
+	ClientCertRefreshInterval time.Duration
+
+	// EnableMTLS enables mTLS support in the proxy with rotated client cert
+	EnableMTLS bool
+
 	// TLSMinVersion to set the minimal TLS version for all TLS configurations
 	TLSMinVersion uint16
 
@@ -2411,6 +2426,17 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ro.PostProcessors = append(ro.PostProcessors, opaRegistry)
 	}
 
+	// check if MTLS configuration is correct and we can start MTLS in the proxy
+	if o.EnableMTLS {
+		if n := len(o.ClientTLS.Certificates); n != 0 {
+			return fmt.Errorf("failed to enable MTLS, you have passed static certificates, which is not possible, found static %d identities", n)
+		}
+		_, err := tls.LoadX509KeyPair(o.ClientCertFile, o.ClientKeyFile)
+		if err != nil {
+			return fmt.Errorf("failed to enable MTLS, invalid key/cert pair: %w", err)
+		}
+	}
+
 	if o.CustomRoutingPreProcessors != nil {
 		ro.PreProcessors = append(ro.PreProcessors, o.CustomRoutingPreProcessors...)
 	}
@@ -2449,6 +2475,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		AccessLogger:                     accessLogger,
 		EnableCopyStreamPoolExperimental: o.EnableCopyStreamPoolExperimental,
 		ClientTLS:                        o.ClientTLS,
+		ClientCertFile:                   o.ClientCertFile,
+		ClientKeyFile:                    o.ClientKeyFile,
+		ClientCertRefreshInterval:        o.ClientCertRefreshInterval,
+		EnableMTLS:                       o.EnableMTLS,
 		CustomHttpRoundTripperWrap:       o.CustomHttpRoundTripperWrap,
 		RateLimiters:                     ratelimitRegistry,
 		EndpointRegistry:                 endpointRegistry,
