@@ -2237,7 +2237,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 	}
 
-	if !slices.Contains(o.DisabledFilters, cache.Name) && valkeyRing != nil {
+	if !slices.Contains(o.DisabledFilters, cache.Name) {
 		o.CustomFilters = append(o.CustomFilters, cache.NewCacheFilter(
 			o.cacheBudget(),
 			o.Address,
