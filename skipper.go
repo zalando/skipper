@@ -2287,6 +2287,28 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 	}
 
+	if !slices.Contains(o.DisabledFilters, cache.Name) {
+		cacheSpec := cache.NewCacheFilter(
+			cache.Options{
+				MaxBytes:   o.cacheBudget(),
+				ListenAddr: o.Address,
+				NetOpts: skpnet.Options{
+					IdleConnTimeout:         o.CloseIdleConnsPeriod,
+					MaxIdleConnsPerHost:     o.IdleConnectionsPerHost,
+					Tracer:                  tracer,
+					OpentracingComponentTag: "skipper",
+					OpentracingSpanName:     "cache_revalidation",
+					OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
+				},
+				ValkeyRing: valkeyRing,
+				L1TTL:      o.CacheL1TTL,
+			},
+		)
+		defer cacheSpec.(io.Closer).Close()
+		o.CustomFilters = append(o.CustomFilters, cacheSpec)
+	}
+
+
 	if o.TLSMinVersion == 0 {
 		o.TLSMinVersion = tls.VersionTLS12
 	}
