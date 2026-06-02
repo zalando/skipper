@@ -17,7 +17,7 @@ import (
 // makeMTLSRegistry returns a filter registry that includes the mtlsCN filter.
 func makeMTLSRegistry() filters.Registry {
 	r := builtin.MakeRegistry()
-	r.Register(filterstls.NewMtls())
+	r.Register(filterstls.NewMtlsCN())
 	return r
 }
 
