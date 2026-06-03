@@ -638,7 +638,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.ClientCertRefreshInterval, "client-tls-cert-refresh-interval", 0, "How often to reload client TLS certificate and key files for backend connections. Defaults to 5 minutes if certificate files are set.")
 	// MTLS
 	flag.StringVar(&cfg.MtlsAuthnCaFile, "mtls-authn-ca", "", "PEM encoded CA files to use in mtlsAuthn() filter to validate client certificates, multiple files may be given comma separated")
-	flag.BoolVar(&cfg.MtlsAuthnAppendCA, "mtls-authn-append-ca", true, "If set to false -mtls-authn-ca will not load system CAs, defaults to true.")
+	flag.BoolVar(&cfg.MtlsAuthnAppendCA, "mtls-authn-append-ca", false, "If set to true -mtls-authn-ca will load system CAs, too.")
 	flag.BoolVar(&cfg.EnableMTLS, "enable-mtls", false, "Enables MTLS support in the proxy. It uses -client-tls-cert and -client-tls-key as files and rotates the client cert every -client-tls-cert-refresh-interval time.Duration. It only supports one cert and one key file!")
 
 	// TLS version
