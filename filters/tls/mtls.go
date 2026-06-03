@@ -99,11 +99,10 @@ func NewMtlsCN() filters.Spec {
 	}
 }
 
-// NewMtlsAuthn returns a filter spec for the mtlsAuthn filter. It
-// takes no argument and loads the system CA certificates used to
-// verify the client certificate chain.
-func NewMtlsAuthn() filters.Spec {
-	pool, _ := x509.SystemCertPool()
+// NewMtlsAuthn returns a filter spec for the mtlsAuthn filter. You
+// need to pass the x509.CertPool that it will use to validate client
+// certificates for authentication.
+func NewMtlsAuthn(pool *x509.CertPool) filters.Spec {
 	return &mtlsSpec{
 		typ:    mtlsAuthn,
 		caPool: pool,
