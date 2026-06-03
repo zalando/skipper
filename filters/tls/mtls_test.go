@@ -794,7 +794,8 @@ func signLeaf(t *testing.T, ca *caBundle, leafCN string, notBefore, notAfter tim
 
 // TestNewMtlsAuthn_CreateFilter verifies argument validation in CreateFilter.
 func TestNewMtlsAuthn_CreateFilter(t *testing.T) {
-	spec := NewMtlsAuthn()
+	ca, _ := x509.SystemCertPool()
+	spec := NewMtlsAuthn(ca)
 	assert.Equal(t, "mtlsAuthn", spec.Name())
 
 	for _, tt := range []struct {
@@ -855,11 +856,10 @@ func TestMtlsAuthn_Request(t *testing.T) {
 	futureLeafTLS, _ := signLeaf(t, trustedCA, "future-service",
 		now.Add(time.Hour), now.Add(2*time.Hour))
 
-	spec := NewMtlsAuthn()
 	pool, err := x509.SystemCertPool()
 	require.NoError(t, err)
 	pool.AddCert(trustedCA.cert)
-	spec.(*mtlsSpec).caPool = pool
+	spec := NewMtlsAuthn(pool)
 
 	for _, tt := range []struct {
 		name           string
@@ -1131,14 +1131,12 @@ func BenchmarkMtlsAuthn(b *testing.B) {
 	trustedCA := newCABundleForBench("Trusted CA")
 	validLeafTLS, _ := signLeafForBench(trustedCA, "my-service", now.Add(-time.Hour), now.Add(time.Hour))
 
-	spec := NewMtlsAuthn()
 	pool, err := x509.SystemCertPool()
 	if err != nil {
 		b.Fatalf("Failed to get system cert pool: %v", err)
 	}
-
 	pool.AddCert(trustedCA.cert)
-	spec.(*mtlsSpec).caPool = pool
+	spec := NewMtlsAuthn(pool)
 
 	f, err := spec.CreateFilter([]any{})
 	if err != nil {
