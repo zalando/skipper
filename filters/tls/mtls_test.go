@@ -420,10 +420,10 @@ func TestMtlsIssuerDN_Request(t *testing.T) {
 			expectServed:   true,
 		},
 		{
-			name:           "TLS but no peer certificates — 403 Forbidden",
+			name:           "TLS but no peer certificates",
 			tlsState:       &tls.ConnectionState{},
 			filterArgs:     []any{"CN=My CA"},
-			expectedStatus: http.StatusForbidden,
+			expectedStatus: http.StatusUnauthorized,
 			expectServed:   true,
 		},
 		{
@@ -549,10 +549,10 @@ func TestMtlsIssuerCN_Request(t *testing.T) {
 			expectServed:   true,
 		},
 		{
-			name:           "TLS but no peer certificates — 403 Forbidden",
+			name:           "TLS but no peer certificates",
 			tlsState:       &tls.ConnectionState{},
 			filterArgs:     []any{exactCN},
-			expectedStatus: http.StatusForbidden,
+			expectedStatus: http.StatusUnauthorized,
 			expectServed:   true,
 		},
 		{
@@ -621,6 +621,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
 		tlsState       *tls.ConnectionState // nil → req.TLS == nil (plain HTTP)
+		spec           filters.Spec
 		filterArgs     []any
 		expectedStatus int  // 0 = allowed (no rejection)
 		expectServed   bool // true when filter short-circuits via Serve()
@@ -628,20 +629,23 @@ func TestMtlsSAN_Request(t *testing.T) {
 		{
 			name:           "no TLS — req.TLS is nil — 401 Unauthorized",
 			tlsState:       nil,
+			spec:           NewMtlsSanDNS(),
 			filterArgs:     []any{"example.com"},
 			expectedStatus: http.StatusUnauthorized,
 			expectServed:   true,
 		},
 		{
-			name:           "TLS but no peer certificates — 403 Forbidden",
+			name:           "TLS but no peer certificates",
 			tlsState:       &tls.ConnectionState{},
+			spec:           NewMtlsSanDNS(),
 			filterArgs:     []any{"example.com"},
-			expectedStatus: http.StatusForbidden,
+			expectedStatus: http.StatusUnauthorized,
 			expectServed:   true,
 		},
 		{
 			name:           "DNS name matches exactly",
 			tlsState:       buildConnStateWithSANs(nil, []string{"example.com"}, nil, nil),
+			spec:           NewMtlsSanDNS(),
 			filterArgs:     []any{"example.com"},
 			expectedStatus: 0,
 			expectServed:   false,
@@ -649,6 +653,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 		{
 			name:           "DNS name match is case-insensitive",
 			tlsState:       buildConnStateWithSANs(nil, []string{"Example.COM"}, nil, nil),
+			spec:           NewMtlsSanDNS(),
 			filterArgs:     []any{"example.com"},
 			expectedStatus: 0,
 			expectServed:   false,
@@ -656,6 +661,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 		{
 			name:           "DNS name does not match — 403 Forbidden",
 			tlsState:       buildConnStateWithSANs(nil, []string{"other.com"}, nil, nil),
+			spec:           NewMtlsSanDNS(),
 			filterArgs:     []any{"example.com"},
 			expectedStatus: http.StatusForbidden,
 			expectServed:   true,
@@ -663,6 +669,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 		{
 			name:           "IP exact match",
 			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("1.2.3.4")}, nil),
+			spec:           NewMtlsSanIP(),
 			filterArgs:     []any{"1.2.3.4"},
 			expectedStatus: 0,
 			expectServed:   false,
@@ -670,6 +677,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 		{
 			name:           "IP does not match — 403 Forbidden",
 			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("1.2.3.4")}, nil),
+			spec:           NewMtlsSanIP(),
 			filterArgs:     []any{"5.6.7.8"},
 			expectedStatus: http.StatusForbidden,
 			expectServed:   true,
@@ -677,6 +685,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 		{
 			name:           "IP inside CIDR /8 matches",
 			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("10.1.2.3")}, nil),
+			spec:           NewMtlsSanCIDR(),
 			filterArgs:     []any{"10.0.0.0/8"},
 			expectedStatus: 0,
 			expectServed:   false,
@@ -684,6 +693,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 		{
 			name:           "IP outside CIDR /8 — 403 Forbidden",
 			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("192.168.1.1")}, nil),
+			spec:           NewMtlsSanCIDR(),
 			filterArgs:     []any{"10.0.0.0/8"},
 			expectedStatus: http.StatusForbidden,
 			expectServed:   true,
@@ -691,6 +701,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 		{
 			name:           "IP inside /24 matches",
 			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("192.168.1.100")}, nil),
+			spec:           NewMtlsSanCIDR(),
 			filterArgs:     []any{"192.168.1.0/24"},
 			expectedStatus: 0,
 			expectServed:   false,
@@ -698,6 +709,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 		{
 			name:           "IP outside /24 — 403 Forbidden",
 			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("192.168.2.1")}, nil),
+			spec:           NewMtlsSanCIDR(),
 			filterArgs:     []any{"192.168.1.0/24"},
 			expectedStatus: http.StatusForbidden,
 			expectServed:   true,
@@ -705,6 +717,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 		{
 			name:           "multiple patterns — first matches",
 			tlsState:       buildConnStateWithSANs(nil, []string{"a.com"}, nil, nil),
+			spec:           NewMtlsSanDNS(),
 			filterArgs:     []any{"a.com", "b.com"},
 			expectedStatus: 0,
 			expectServed:   false,
@@ -712,6 +725,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 		{
 			name:           "multiple patterns — second matches",
 			tlsState:       buildConnStateWithSANs(nil, []string{"b.com"}, nil, nil),
+			spec:           NewMtlsSanDNS(),
 			filterArgs:     []any{"a.com", "b.com"},
 			expectedStatus: 0,
 			expectServed:   false,
@@ -719,6 +733,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 		{
 			name:           "multiple patterns — none match — 403 Forbidden",
 			tlsState:       buildConnStateWithSANs(nil, []string{"c.com"}, nil, nil),
+			spec:           NewMtlsSanDNS(),
 			filterArgs:     []any{"a.com", "b.com"},
 			expectedStatus: http.StatusForbidden,
 			expectServed:   true,
@@ -726,6 +741,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 		{
 			name:           "multiple patterns including CIDR — IP matches second CIDR",
 			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("172.16.0.5")}, nil),
+			spec:           NewMtlsSanCIDR(),
 			filterArgs:     []any{"10.0.0.0/8", "172.16.0.0/12"},
 			expectedStatus: 0,
 			expectServed:   false,
@@ -734,6 +750,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 			name: "URI exact match — allowed",
 			tlsState: buildConnStateWithSANs(nil, nil, nil,
 				[]*url.URL{{Scheme: "spiffe", Host: "example.org", Path: "/svc"}}),
+			spec:           NewMtlsSanURI(),
 			filterArgs:     []any{"spiffe://example.org/svc"},
 			expectedStatus: 0,
 			expectServed:   false,
@@ -742,6 +759,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 			name: "URI no match — 403 Forbidden",
 			tlsState: buildConnStateWithSANs(nil, nil, nil,
 				[]*url.URL{{Scheme: "spiffe", Host: "example.org", Path: "/svc"}}),
+			spec:           NewMtlsSanURI(),
 			filterArgs:     []any{"spiffe://other.org/svc"},
 			expectedStatus: http.StatusForbidden,
 			expectServed:   true,
@@ -750,6 +768,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 			name: "URI match among multiple patterns — second matches",
 			tlsState: buildConnStateWithSANs(nil, nil, nil,
 				[]*url.URL{{Scheme: "spiffe", Host: "b.org", Path: "/svc"}}),
+			spec:           NewMtlsSanURI(),
 			filterArgs:     []any{"spiffe://a.org/svc", "spiffe://b.org/svc"},
 			expectedStatus: 0,
 			expectServed:   false,
@@ -758,6 +777,7 @@ func TestMtlsSAN_Request(t *testing.T) {
 			name: "URI — multiple patterns, none match — 403 Forbidden",
 			tlsState: buildConnStateWithSANs(nil, nil, nil,
 				[]*url.URL{{Scheme: "spiffe", Host: "c.org", Path: "/svc"}}),
+			spec:           NewMtlsSanURI(),
 			filterArgs:     []any{"spiffe://a.org/svc", "spiffe://b.org/svc"},
 			expectedStatus: http.StatusForbidden,
 			expectServed:   true,
@@ -766,20 +786,23 @@ func TestMtlsSAN_Request(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f, err := spec.CreateFilter(tt.filterArgs)
-			require.NoError(t, err)
+			_ = spec
+			for _, spec := range []filters.Spec{tt.spec} {
+				f, err := spec.CreateFilter(tt.filterArgs)
+				require.NoError(t, err)
 
-			req, err := http.NewRequest(http.MethodGet, "https://example.com/", nil)
-			require.NoError(t, err)
-			req.TLS = tt.tlsState
+				req, err := http.NewRequest(http.MethodGet, "https://example.com/", nil)
+				require.NoError(t, err)
+				req.TLS = tt.tlsState
 
-			ctx := &filtertest.Context{FRequest: req}
-			f.Request(ctx)
+				ctx := &filtertest.Context{FRequest: req}
+				f.Request(ctx)
 
-			assert.Equal(t, tt.expectServed, ctx.FServed)
-			if tt.expectServed {
-				require.NotNil(t, ctx.FResponse)
-				assert.Equal(t, tt.expectedStatus, ctx.FResponse.StatusCode)
+				assert.Equal(t, tt.expectServed, ctx.FServed)
+				if tt.expectServed {
+					require.NotNil(t, ctx.FResponse)
+					assert.Equal(t, tt.expectedStatus, ctx.FResponse.StatusCode)
+				}
 			}
 		})
 	}
@@ -919,9 +942,9 @@ func TestMtlsAuthn_Request(t *testing.T) {
 			expectServed:   true,
 		},
 		{
-			name:           "TLS but no peer certificates — 403 Forbidden",
+			name:           "TLS but no peer certificates",
 			tlsState:       &tls.ConnectionState{},
-			expectedStatus: http.StatusForbidden,
+			expectedStatus: http.StatusUnauthorized,
 			expectServed:   true,
 		},
 		{
