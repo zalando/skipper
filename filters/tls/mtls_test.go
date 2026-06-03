@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -21,9 +22,9 @@ import (
 )
 
 // buildConnStateWithSANs generates an ECDSA P-256 certificate with the given
-// DNS names and IP addresses and returns a *tls.ConnectionState with it as the
-// sole peer certificate.
-func buildConnStateWithSANs(t *testing.T, dnsNames []string, ips []net.IP) *tls.ConnectionState {
+// DNS names, IP addresses, and URI SANs and returns a *tls.ConnectionState
+// with it as the sole peer certificate.
+func buildConnStateWithSANs(t *testing.T, dnsNames []string, ips []net.IP, uris []*url.URL) *tls.ConnectionState {
 	if t != nil {
 		t.Helper()
 	}
@@ -42,6 +43,7 @@ func buildConnStateWithSANs(t *testing.T, dnsNames []string, ips []net.IP) *tls.
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		DNSNames:              dnsNames,
 		IPAddresses:           ips,
+		URIs:                  uris,
 		BasicConstraintsValid: true,
 	}
 
@@ -140,6 +142,21 @@ func TestNewMtlsSAN_CreateFilter(t *testing.T) {
 			name:    "valid then invalid arg",
 			args:    []any{"example.com", "not!!valid"},
 			wantErr: true,
+		},
+		{
+			name:    "valid URI (spiffe scheme)",
+			args:    []any{"spiffe://example.org/service"},
+			wantErr: false,
+		},
+		{
+			name:    "valid URI (https scheme)",
+			args:    []any{"https://example.com/path"},
+			wantErr: false,
+		},
+		{
+			name:    "multiple valid mixed args including URI",
+			args:    []any{"10.0.0.0/8", "example.com", "spiffe://trust-domain/svc"},
+			wantErr: false,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -579,94 +596,126 @@ func TestMtlsSAN_Request(t *testing.T) {
 		},
 		{
 			name:           "DNS name matches exactly",
-			tlsState:       buildConnStateWithSANs(nil, []string{"example.com"}, nil),
+			tlsState:       buildConnStateWithSANs(nil, []string{"example.com"}, nil, nil),
 			filterArgs:     []any{"example.com"},
 			expectedStatus: 0,
 			expectServed:   false,
 		},
 		{
 			name:           "DNS name match is case-insensitive",
-			tlsState:       buildConnStateWithSANs(nil, []string{"Example.COM"}, nil),
+			tlsState:       buildConnStateWithSANs(nil, []string{"Example.COM"}, nil, nil),
 			filterArgs:     []any{"example.com"},
 			expectedStatus: 0,
 			expectServed:   false,
 		},
 		{
 			name:           "DNS name does not match — 403 Forbidden",
-			tlsState:       buildConnStateWithSANs(nil, []string{"other.com"}, nil),
+			tlsState:       buildConnStateWithSANs(nil, []string{"other.com"}, nil, nil),
 			filterArgs:     []any{"example.com"},
 			expectedStatus: http.StatusForbidden,
 			expectServed:   true,
 		},
 		{
 			name:           "IP exact match",
-			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("1.2.3.4")}),
+			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("1.2.3.4")}, nil),
 			filterArgs:     []any{"1.2.3.4"},
 			expectedStatus: 0,
 			expectServed:   false,
 		},
 		{
 			name:           "IP does not match — 403 Forbidden",
-			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("1.2.3.4")}),
+			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("1.2.3.4")}, nil),
 			filterArgs:     []any{"5.6.7.8"},
 			expectedStatus: http.StatusForbidden,
 			expectServed:   true,
 		},
 		{
 			name:           "IP inside CIDR /8 matches",
-			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("10.1.2.3")}),
+			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("10.1.2.3")}, nil),
 			filterArgs:     []any{"10.0.0.0/8"},
 			expectedStatus: 0,
 			expectServed:   false,
 		},
 		{
 			name:           "IP outside CIDR /8 — 403 Forbidden",
-			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("192.168.1.1")}),
+			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("192.168.1.1")}, nil),
 			filterArgs:     []any{"10.0.0.0/8"},
 			expectedStatus: http.StatusForbidden,
 			expectServed:   true,
 		},
 		{
 			name:           "IP inside /24 matches",
-			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("192.168.1.100")}),
+			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("192.168.1.100")}, nil),
 			filterArgs:     []any{"192.168.1.0/24"},
 			expectedStatus: 0,
 			expectServed:   false,
 		},
 		{
 			name:           "IP outside /24 — 403 Forbidden",
-			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("192.168.2.1")}),
+			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("192.168.2.1")}, nil),
 			filterArgs:     []any{"192.168.1.0/24"},
 			expectedStatus: http.StatusForbidden,
 			expectServed:   true,
 		},
 		{
 			name:           "multiple patterns — first matches",
-			tlsState:       buildConnStateWithSANs(nil, []string{"a.com"}, nil),
+			tlsState:       buildConnStateWithSANs(nil, []string{"a.com"}, nil, nil),
 			filterArgs:     []any{"a.com", "b.com"},
 			expectedStatus: 0,
 			expectServed:   false,
 		},
 		{
 			name:           "multiple patterns — second matches",
-			tlsState:       buildConnStateWithSANs(nil, []string{"b.com"}, nil),
+			tlsState:       buildConnStateWithSANs(nil, []string{"b.com"}, nil, nil),
 			filterArgs:     []any{"a.com", "b.com"},
 			expectedStatus: 0,
 			expectServed:   false,
 		},
 		{
 			name:           "multiple patterns — none match — 403 Forbidden",
-			tlsState:       buildConnStateWithSANs(nil, []string{"c.com"}, nil),
+			tlsState:       buildConnStateWithSANs(nil, []string{"c.com"}, nil, nil),
 			filterArgs:     []any{"a.com", "b.com"},
 			expectedStatus: http.StatusForbidden,
 			expectServed:   true,
 		},
 		{
 			name:           "multiple patterns including CIDR — IP matches second CIDR",
-			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("172.16.0.5")}),
+			tlsState:       buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("172.16.0.5")}, nil),
 			filterArgs:     []any{"10.0.0.0/8", "172.16.0.0/12"},
 			expectedStatus: 0,
 			expectServed:   false,
+		},
+		{
+			name: "URI exact match — allowed",
+			tlsState: buildConnStateWithSANs(nil, nil, nil,
+				[]*url.URL{{Scheme: "spiffe", Host: "example.org", Path: "/svc"}}),
+			filterArgs:     []any{"spiffe://example.org/svc"},
+			expectedStatus: 0,
+			expectServed:   false,
+		},
+		{
+			name: "URI no match — 403 Forbidden",
+			tlsState: buildConnStateWithSANs(nil, nil, nil,
+				[]*url.URL{{Scheme: "spiffe", Host: "example.org", Path: "/svc"}}),
+			filterArgs:     []any{"spiffe://other.org/svc"},
+			expectedStatus: http.StatusForbidden,
+			expectServed:   true,
+		},
+		{
+			name: "URI match among multiple patterns — second matches",
+			tlsState: buildConnStateWithSANs(nil, nil, nil,
+				[]*url.URL{{Scheme: "spiffe", Host: "b.org", Path: "/svc"}}),
+			filterArgs:     []any{"spiffe://a.org/svc", "spiffe://b.org/svc"},
+			expectedStatus: 0,
+			expectServed:   false,
+		},
+		{
+			name: "URI — multiple patterns, none match — 403 Forbidden",
+			tlsState: buildConnStateWithSANs(nil, nil, nil,
+				[]*url.URL{{Scheme: "spiffe", Host: "c.org", Path: "/svc"}}),
+			filterArgs:     []any{"spiffe://a.org/svc", "spiffe://b.org/svc"},
+			expectedStatus: http.StatusForbidden,
+			expectServed:   true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1025,22 +1074,22 @@ func BenchmarkMtlsSAN(b *testing.B) {
 	}{
 		{
 			name:       "DNS name matches exactly",
-			tlsState:   buildConnStateWithSANs(nil, []string{"example.com"}, nil),
+			tlsState:   buildConnStateWithSANs(nil, []string{"example.com"}, nil, nil),
 			filterArgs: []any{"example.com"},
 		},
 		{
 			name:       "IP exact match",
-			tlsState:   buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("1.2.3.4")}),
+			tlsState:   buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("1.2.3.4")}, nil),
 			filterArgs: []any{"1.2.3.4"},
 		},
 		{
 			name:       "IP inside CIDR /8 matches",
-			tlsState:   buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("10.1.2.3")}),
+			tlsState:   buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("10.1.2.3")}, nil),
 			filterArgs: []any{"10.0.0.0/8"},
 		},
 		{
 			name:       "multiple patterns — first matches",
-			tlsState:   buildConnStateWithSANs(nil, []string{"a.com"}, nil),
+			tlsState:   buildConnStateWithSANs(nil, []string{"a.com"}, nil, nil),
 			filterArgs: []any{"a.com", "b.com"},
 		},
 	} {
