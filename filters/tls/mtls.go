@@ -296,7 +296,7 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 	allowed := false
 
 	if len(peerCerts) == 0 {
-		reject(ctx, http.StatusForbidden, "", mf.typ.rejectReason(), req.Host)
+		reject(ctx, http.StatusUnauthorized, "", mf.typ.rejectReason(), req.Host)
 		return
 	}
 
