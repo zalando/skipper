@@ -621,8 +621,70 @@ Example:
 * -> mtlsAuthn() ->  mtlsSAN("my.host.example", "2a05:aec0::/29", "10.0.5.0/15", "1.2.3.4", "spiffe://my-service.example/app1") -> "http://10.2.5.21:8080";
 * -> mtlsAuthn() ->  mtlsSAN("my.host.example") -> "http://10.2.5.21:8080";
 * -> mtlsAuthn() ->  mtlsSAN("2a05:aec0::/29", "10.0.5.0/15", "1.2.3.4") -> "http://10.2.5.21:8080";
-* -> mtlsAuthn() ->  mtlsSAN("spiffe://my-service.example/app1) -> "http://10.2.5.21:8080";
+* -> mtlsAuthn() ->  mtlsSAN("spiffe://my-service.example/app1") -> "http://10.2.5.21:8080";
 ```
+
+### mtlsSanCIDR
+
+This authz filter checks CIDRs of the SAN value of the provided certificate. You have
+to use `mtlsAuthn()` to verify validity.
+
+Parameters are one or more:
+
+* CIDR (string)
+
+Example:
+
+```
+* -> mtlsAuthn() ->  mtlsSanCIDR("2a05:aec0::/29", "10.0.5.0/15") -> "http://10.2.5.21:8080";
+```
+
+### mtlsSanDNS
+
+This authz filter checks DNS of the SAN value of the provided certificate. You have
+to use `mtlsAuthn()` to verify validity.
+
+Parameters are one or more:
+
+* DNS hostnames (string)
+
+Example:
+
+```
+* -> mtlsAuthn() ->  mtlsSanDNS("my.host.example") -> "http://10.2.5.21:8080";
+```
+
+### mtlsSanIP
+
+This authz filter checks IPs of the SAN value of the provided certificate. You have
+to use `mtlsAuthn()` to verify validity.
+
+Parameters are one or more:
+
+* IP (string)
+
+Example:
+
+```
+* -> mtlsAuthn() ->  mtlsSanIP("2a05:aec0::5", "10.0.5.10") -> "http://10.2.5.21:8080";
+```
+
+### mtlsSanURI
+
+This authz filter checks URIs of the SAN value of the provided certificate. You have
+to use `mtlsAuthn()` to verify validity.
+
+Parameters are one or more:
+
+* URI (string)
+
+Example:
+
+```
+* -> mtlsAuthn() ->  mtlsSAN("spiffe://my-service.example/app1") -> "http://10.2.5.21:8080";
+```
+
+
 
 ## Diagnostics
 
