@@ -294,61 +294,66 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 
 	peerCerts := req.TLS.PeerCertificates
 	allowed := false
-	for _, cert := range peerCerts {
-		switch mf.typ {
-		case mtlsIssuerDN:
-			issuerDN := cert.Issuer.String()
-			if _, ok := mf.allowedDN.Load(issuerDN); ok {
-				allowed = true
-				auditCertData.WriteString("DN: ")
-				auditCertData.WriteString(issuerDN)
-			}
 
-		case mtlsSAN:
-			// Check IP/CIDR SANs via the pre-built IPSet.
-			if mf.allowedIPs != nil {
-				for _, ip := range cert.IPAddresses {
-					addr, ok := netip.AddrFromSlice(ip)
-					if ok && mf.allowedIPs.Contains(addr.Unmap()) {
-						allowed = true
-						auditCertData.WriteString("SAN IP: ")
-						auditCertData.WriteString(ip.String())
-					}
+	if len(peerCerts) == 0 {
+		reject(ctx, http.StatusForbidden, "", mf.typ.rejectReason(), req.Host)
+		return
+	}
+
+	cert := peerCerts[0]
+	switch mf.typ {
+	case mtlsIssuerDN:
+		issuerDN := cert.Issuer.String()
+		if _, ok := mf.allowedDN.Load(issuerDN); ok {
+			allowed = true
+			auditCertData.WriteString("DN: ")
+			auditCertData.WriteString(issuerDN)
+		}
+
+	case mtlsSAN:
+		// Check IP/CIDR SANs via the pre-built IPSet.
+		if mf.allowedIPs != nil {
+			for _, ip := range cert.IPAddresses {
+				addr, ok := netip.AddrFromSlice(ip)
+				if ok && mf.allowedIPs.Contains(addr.Unmap()) {
+					allowed = true
+					auditCertData.WriteString("SAN IP: ")
+					auditCertData.WriteString(ip.String())
 				}
 			}
-			if !allowed {
-				// Check hostname SANs against the allowlist.
-				for _, dns := range cert.DNSNames {
-					if _, ok := mf.allowedHostnames.Load(strings.ToLower(dns)); ok {
-						allowed = true
-						auditCertData.WriteString("SAN DNS: ")
-						auditCertData.WriteString(dns)
-					}
+		}
+
+		if !allowed {
+			// Check hostname SANs against the allowlist.
+			for _, dns := range cert.DNSNames {
+				if _, ok := mf.allowedHostnames.Load(strings.ToLower(dns)); ok {
+					allowed = true
+					auditCertData.WriteString("SAN DNS: ")
+					auditCertData.WriteString(dns)
 				}
 			}
+		}
 
-			if !allowed {
-				// Check URI SANs against the allowlist (exact string match).
-				for _, u := range cert.URIs {
-					if _, ok := mf.allowedURIs.Load(u.String()); ok {
-						allowed = true
-						auditCertData.WriteString("SAN URI: ")
-						auditCertData.WriteString(u.String())
-					}
+		if !allowed {
+			// Check URI SANs against the allowlist (exact string match).
+			for _, u := range cert.URIs {
+				if _, ok := mf.allowedURIs.Load(u.String()); ok {
+					allowed = true
+					auditCertData.WriteString("SAN URI: ")
+					auditCertData.WriteString(u.String())
 				}
 			}
+		}
 
-		case mtlsCN:
-			if _, ok := mf.allowedCN.Load(cert.Subject.CommonName); ok {
-				allowed = true
-				auditCertData.WriteString("CN: ")
-				auditCertData.WriteString(cert.Subject.CommonName)
-			}
+	case mtlsCN:
+		if _, ok := mf.allowedCN.Load(cert.Subject.CommonName); ok {
+			allowed = true
+			auditCertData.WriteString("CN: ")
+			auditCertData.WriteString(cert.Subject.CommonName)
+		}
 
-		case mtlsAuthn:
-			if _, err := cert.Verify(mf.verifyOpt); err != nil {
-				break
-			}
+	case mtlsAuthn:
+		if _, err := cert.Verify(mf.verifyOpt); err == nil {
 			allowed = true
 			auditCertData.WriteString("authn: ")
 			auditCertData.WriteString(cert.Subject.String())
@@ -357,6 +362,7 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 
 	if !allowed {
 		reject(ctx, http.StatusForbidden, "", mf.typ.rejectReason(), req.Host)
+		return
 	}
 	if mf.enableAuditLog {
 		logrus.Infof("access allowed by %s: %s", mf.typ.String(), auditCertData.String())
