@@ -166,7 +166,8 @@ func (ms *mtlsSpec) Name() string {
 
 func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 	mf := &mtlsFilter{
-		typ: ms.typ,
+		typ:            ms.typ,
+		enableAuditLog: ms.enableAuditLog,
 	}
 
 	switch ms.typ {
