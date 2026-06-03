@@ -11,7 +11,6 @@ import (
 	"math/big"
 	"net"
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
@@ -690,18 +689,6 @@ func TestMtlsSAN_Request(t *testing.T) {
 			}
 		})
 	}
-}
-
-// writeTempCAFile writes PEM bytes to a temp file and registers cleanup.
-func writeTempCAFile(t *testing.T, pemBytes []byte) string {
-	t.Helper()
-	f, err := os.CreateTemp("", "mtls-ca-*.pem")
-	require.NoError(t, err)
-	_, err = f.Write(pemBytes)
-	require.NoError(t, err)
-	require.NoError(t, f.Close())
-	t.Cleanup(func() { os.Remove(f.Name()) })
-	return f.Name()
 }
 
 // caBundle holds a CA certificate and its private key so callers can sign
