@@ -139,7 +139,7 @@ func New(opts skipper.Options) (*RouteServer, error) {
 
 	rs.server = &http.Server{
 		Addr:              opts.Address,
-		Handler:           mux,
+		Handler:           withFilters(mux, opts.RouteServerFilters),
 		ReadTimeout:       1 * time.Minute,
 		ReadHeaderTimeout: 1 * time.Minute,
 	}
