@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -81,10 +82,11 @@ type mtlsFilter struct {
 	// mtlsIssuerDN allow-list (RFC 2253 DN strings)
 	allowedDN sync.Map // string -> struct{}
 
-	// mtlsSAN allow-lists: hostnames and IP/CIDR ranges are stored separately
-	// so the hot path can use a single IPSet.Contains call instead of
-	// re-parsing every pattern on each request.
-	allowedHostnames sync.Map // string -> struct{}
+	// mtlsSAN allow-lists: hostnames, URIs, and IP/CIDR ranges are stored
+	// separately so the hot path can use a single IPSet.Contains call for IPs
+	// instead of re-parsing every pattern on each request.
+	allowedHostnames sync.Map // string -> struct{} (lowercased)
+	allowedURIs      sync.Map // string -> struct{} (exact match)
 	allowedIPs       *netipx.IPSet
 
 	// mtlsAuthn: verfiy options created at filter-creation time.
@@ -124,7 +126,7 @@ func NewMtlsSAN() filters.Spec {
 	return &mtlsSpec{typ: mtlsSAN}
 }
 
-// isValidSAN returns true if s is a valid CIDR, IPv4/IPv6 address, or hostname.
+// isValidSAN returns true if s is a valid CIDR, IPv4/IPv6 address, URI, or hostname.
 func isValidSAN(s string) bool {
 	if s == "" {
 		return false
@@ -133,6 +135,9 @@ func isValidSAN(s string) bool {
 		return true
 	}
 	if _, err := netip.ParseAddr(s); err == nil {
+		return true
+	}
+	if u, err := url.Parse(s); err == nil && u.Scheme != "" {
 		return true
 	}
 	return isValidHostname(s)
@@ -220,6 +225,8 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 				ipStrs = append(ipStrs, s)
 			} else if _, err := netip.ParseAddr(s); err == nil {
 				ipStrs = append(ipStrs, s)
+			} else if u, err := url.Parse(s); err == nil && u.Scheme != "" {
+				mf.allowedURIs.Store(s, struct{}{})
 			} else {
 				mf.allowedHostnames.Store(strings.ToLower(s), struct{}{})
 			}
@@ -316,6 +323,14 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 					allowed = true
 					auditCertData.WriteString("SAN DNS: ")
 					auditCertData.WriteString(dns)
+				}
+			}
+			// Check URI SANs against the allowlist (exact string match).
+			for _, u := range cert.URIs {
+				if _, ok := mf.allowedURIs.Load(u.String()); ok {
+					allowed = true
+					auditCertData.WriteString("SAN URI: ")
+					auditCertData.WriteString(u.String())
 				}
 			}
 
