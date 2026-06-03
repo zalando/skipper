@@ -217,6 +217,51 @@ func buildConnStateWithIssuer(t *testing.T, issuerName pkix.Name) (*tls.Connecti
 	return &tls.ConnectionState{PeerCertificates: []*x509.Certificate{leafCert}}, leafCert
 }
 
+// buildConnStateWithSubject generates a certificate whose Subject is
+// set to subjectName by signing it with a CA that has issuerName "testCA" as its Subject.
+// Returns a *tls.ConnectionState containing the leaf cert as the sole peer
+// certificate, plus the leaf cert itself so callers can read Subject.String().
+func buildConnStateWithSubject(t *testing.T, subjectName pkix.Name) (*tls.ConnectionState, *x509.Certificate) {
+	t.Helper()
+	now := time.Now()
+
+	// Generate CA key and self-signed CA cert with the desired Subject.
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	caTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "testCA"},
+		NotBefore:             now.Add(-time.Hour),
+		NotAfter:              now.Add(time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caKey.PublicKey, caKey)
+	require.NoError(t, err)
+	caCert, err := x509.ParseCertificate(caDER)
+	require.NoError(t, err)
+
+	// Generate leaf key and cert signed by the CA.
+	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	leafTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(2),
+		Subject:               subjectName,
+		NotBefore:             now.Add(-time.Hour),
+		NotAfter:              now.Add(time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		BasicConstraintsValid: true,
+	}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, caCert, &leafKey.PublicKey, caKey)
+	require.NoError(t, err)
+	leafCert, err := x509.ParseCertificate(leafDER)
+	require.NoError(t, err)
+
+	return &tls.ConnectionState{PeerCertificates: []*x509.Certificate{leafCert}}, leafCert
+}
+
 // TestNewMtlsIssuerDN_CreateFilter verifies argument validation in CreateFilter.
 func TestNewMtlsIssuerDN_CreateFilter(t *testing.T) {
 	spec := NewMtlsIssuerDN()
@@ -459,30 +504,30 @@ func TestMtlsIssuerCN_Request(t *testing.T) {
 	spec := NewMtlsCN()
 
 	// Build connection states once; derive the expected CN from the parsed cert.
-	tlsExactMatch, certExact := buildConnStateWithIssuer(t, pkix.Name{
+	tlsExactMatch, certExact := buildConnStateWithSubject(t, pkix.Name{
 		CommonName:   "CA",
 		Organization: []string{"Org"},
 		Country:      []string{"DE"},
 	})
-	exactCN := certExact.Issuer.CommonName
+	exactCN := certExact.Subject.CommonName
 
-	tlsWrongCN, _ := buildConnStateWithIssuer(t, pkix.Name{
+	tlsWrongCN, _ := buildConnStateWithSubject(t, pkix.Name{
 		CommonName:   "Other CA",
 		Organization: []string{"Org"},
 		Country:      []string{"DE"},
 	})
 
-	tlsCA1, certCA1 := buildConnStateWithIssuer(t, pkix.Name{
+	tlsCA1, certCA1 := buildConnStateWithSubject(t, pkix.Name{
 		CommonName:   "cn1",
 		Organization: []string{"Org"},
 	})
-	cn1 := certCA1.Issuer.CommonName
+	cn1 := certCA1.Subject.CommonName
 
-	tlsCA2, certCA2 := buildConnStateWithIssuer(t, pkix.Name{
+	tlsCA2, certCA2 := buildConnStateWithSubject(t, pkix.Name{
 		CommonName:   "cn2",
 		Organization: []string{"Org"},
 	})
-	cn2 := certCA2.Issuer.CommonName
+	cn2 := certCA2.Subject.CommonName
 
 	tlsCA3, _ := buildConnStateWithIssuer(t, pkix.Name{
 		CommonName:   "cn3",
