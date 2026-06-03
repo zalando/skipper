@@ -1,14 +1,20 @@
 package proxy
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	filterstls "github.com/zalando/skipper/filters/tls"
@@ -47,11 +53,33 @@ func TestProxyMTLS_InboundNoTLS(t *testing.T) {
 	}
 }
 
+func generateAndSignLeafCert(t *testing.T, subjectName pkix.Name, caCert *x509.Certificate, caKey *ecdsa.PrivateKey) *x509.Certificate {
+	t.Helper()
+	now := time.Now()
+	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	leafTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(2),
+		Subject:               subjectName,
+		NotBefore:             now.Add(-time.Hour),
+		NotAfter:              now.Add(time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		BasicConstraintsValid: true,
+	}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, caCert, &leafKey.PublicKey, caKey)
+	require.NoError(t, err)
+	leafCert, err := x509.ParseCertificate(leafDER)
+	require.NoError(t, err)
+
+	return leafCert
+}
+
 // TestProxyMTLS_InboundFilterCNCheck tests the mtlsCN filter allow-list on a
 // TLS-terminating proxy that accepts client certificates.
 func TestProxyMTLS_InboundFilterCNCheck(t *testing.T) {
 	caPEM, _, caCert, caKey := makeMTLSCA(t, "trusted-issuer-ca")
-	clientCertPEM, clientKeyPEM := makeMTLSClientCert(t, "test-client", caCert, caKey)
+	clientCertPEM, clientKeyPEM := makeMTLSClientCert(t, "trusted-cn", caCert, caKey)
 
 	for _, tt := range []struct {
 		name           string
@@ -59,13 +87,13 @@ func TestProxyMTLS_InboundFilterCNCheck(t *testing.T) {
 		expectedStatus int
 	}{
 		{
-			name:           "matching issuer CN is allowed",
-			filterCN:       "trusted-issuer-ca",
+			name:           "matching CN is allowed",
+			filterCN:       "trusted-cn",
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:           "wrong issuer CN is forbidden",
-			filterCN:       "other-ca",
+			name:           "wrong CN is forbidden",
+			filterCN:       "untrusted-cn",
 			expectedStatus: http.StatusForbidden,
 		},
 	} {
@@ -187,9 +215,9 @@ func TestProxyMTLS_InboundNoCertPresented(t *testing.T) {
 	}
 	defer rsp.Body.Close()
 
-	// PeerCertificates is empty → no CN match → 403 Forbidden
-	if rsp.StatusCode != http.StatusForbidden {
-		t.Errorf("expected 403 Forbidden when no client cert presented, got %d", rsp.StatusCode)
+	// PeerCertificates is empty → 401 Forbidden
+	if rsp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 Forbidden when no client cert presented, got %d", rsp.StatusCode)
 	}
 }
 
@@ -220,7 +248,7 @@ func TestProxyMTLS_OutboundAndInboundCombined(t *testing.T) {
 	proxyClientRootCAs.AppendCertsFromPEM(outboundCAPEM)
 
 	fr := makeMTLSRegistry()
-	doc := fmt.Sprintf(`* -> mtlsCN("inbound-ca") -> "%s"`, backend.URL)
+	doc := fmt.Sprintf(`* -> mtlsCN("downstream-client") -> "%s"`, backend.URL)
 
 	params := Params{
 		EnableMTLS:                true,
