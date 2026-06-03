@@ -613,11 +613,15 @@ Parameters are one or more:
 * CIDR (string)
 * IPv4 (string)
 * IPv6 (string)
+* URI (string)
 
 Example:
 
 ```
-* -> mtlsAuthn() ->  mtlsSAN("my.host.example", "2a05:aec0::/29", "10.0.5.0/15", "1.2.3.4") -> "http://10.2.5.21:8080";
+* -> mtlsAuthn() ->  mtlsSAN("my.host.example", "2a05:aec0::/29", "10.0.5.0/15", "1.2.3.4", "spiffe://my-service.example/app1") -> "http://10.2.5.21:8080";
+* -> mtlsAuthn() ->  mtlsSAN("my.host.example") -> "http://10.2.5.21:8080";
+* -> mtlsAuthn() ->  mtlsSAN("2a05:aec0::/29", "10.0.5.0/15", "1.2.3.4") -> "http://10.2.5.21:8080";
+* -> mtlsAuthn() ->  mtlsSAN("spiffe://my-service.example/app1) -> "http://10.2.5.21:8080";
 ```
 
 ## Diagnostics

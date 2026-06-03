@@ -317,20 +317,25 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 					}
 				}
 			}
-			// Check hostname SANs against the allowlist.
-			for _, dns := range cert.DNSNames {
-				if _, ok := mf.allowedHostnames.Load(strings.ToLower(dns)); ok {
-					allowed = true
-					auditCertData.WriteString("SAN DNS: ")
-					auditCertData.WriteString(dns)
+			if !allowed {
+				// Check hostname SANs against the allowlist.
+				for _, dns := range cert.DNSNames {
+					if _, ok := mf.allowedHostnames.Load(strings.ToLower(dns)); ok {
+						allowed = true
+						auditCertData.WriteString("SAN DNS: ")
+						auditCertData.WriteString(dns)
+					}
 				}
 			}
-			// Check URI SANs against the allowlist (exact string match).
-			for _, u := range cert.URIs {
-				if _, ok := mf.allowedURIs.Load(u.String()); ok {
-					allowed = true
-					auditCertData.WriteString("SAN URI: ")
-					auditCertData.WriteString(u.String())
+
+			if !allowed {
+				// Check URI SANs against the allowlist (exact string match).
+				for _, u := range cert.URIs {
+					if _, ok := mf.allowedURIs.Load(u.String()); ok {
+						allowed = true
+						auditCertData.WriteString("SAN URI: ")
+						auditCertData.WriteString(u.String())
+					}
 				}
 			}
 

@@ -1064,6 +1064,7 @@ func BenchmarkMtlsIssuerCN(b *testing.B) {
 // BenchmarkMtlsSAN/IP_exact_match                         13228872                83.84 ns/op            8 B/op          1 allocs/op
 // BenchmarkMtlsSAN/IP_inside_CIDR_/8_matches              13206384                84.08 ns/op            8 B/op          1 allocs/op
 // BenchmarkMtlsSAN/multiple_patterns_—_first_matches      29038336                39.24 ns/op            0 B/op          0 allocs/op
+// BenchmarkMtlsSAN/URI_match                               5628175                209.8 ns/op           64 B/op          2 allocs/op
 func BenchmarkMtlsSAN(b *testing.B) {
 	spec := NewMtlsSAN()
 
@@ -1091,6 +1092,11 @@ func BenchmarkMtlsSAN(b *testing.B) {
 			name:       "multiple patterns — first matches",
 			tlsState:   buildConnStateWithSANs(nil, []string{"a.com"}, nil, nil),
 			filterArgs: []any{"a.com", "b.com"},
+		},
+		{
+			name:       "URI match",
+			tlsState:   buildConnStateWithSANs(nil, nil, nil, []*url.URL{{Scheme: "spiffe", Host: "b.org", Path: "/svc"}}),
+			filterArgs: []any{"spiffe://a.org/svc", "spiffe://b.org/svc"},
 		},
 	} {
 		b.Run(bb.name, func(b *testing.B) {
