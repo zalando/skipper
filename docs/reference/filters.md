@@ -574,7 +574,7 @@ Example:
 
 ### mtlsIssuerDN
 
-This authz filter checks the DN value of the provided certificate. You have
+This authz filter checks the DN value of the issuer of the provided certificate. You have
 to use `mtlsAuthn()` to verify validity.
 
 Parameters:
@@ -589,8 +589,8 @@ Example:
 
 ### mtlsCN
 
-This authz filter checks the CN value of the provided certificate. You have
-to use `mtlsAuthn()` to verify validity.
+This authz filter checks the CN value of the subject of the provided
+certificate. You have to use `mtlsAuthn()` to verify validity.
 
 Parameters:
 

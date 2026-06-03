@@ -339,10 +339,10 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 			}
 
 		case mtlsCN:
-			if _, ok := mf.allowedCN.Load(cert.Issuer.CommonName); ok {
+			if _, ok := mf.allowedCN.Load(cert.Subject.CommonName); ok {
 				allowed = true
 				auditCertData.WriteString("CN: ")
-				auditCertData.WriteString(cert.Issuer.CommonName)
+				auditCertData.WriteString(cert.Subject.CommonName)
 			}
 
 		case mtlsAuthn:
