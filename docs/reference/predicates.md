@@ -13,7 +13,7 @@ all: Host(/^my-host-header\.example\.org$/) && Method("GET") && Path("/hello") -
 ## Security consideration
 
 **Routing is not a security feature!**
-Please use [auth filters](../filters.md#authentication-and-authorization) to make sure routes are secure.
+Please use [auth filters](filters.md#authentication-and-authorization) to make sure routes are secure.
 
 Known security issues in predicates:
 
