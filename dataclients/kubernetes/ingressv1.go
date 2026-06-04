@@ -103,7 +103,7 @@ func convertPathRuleV1(
 		return nil, err
 	}
 
-	zoneAwareTraffic := metadata.Annotations[tafficZoneAwareAnnotationKey]
+	zoneAwareTraffic := metadata.Annotations[trafficZoneAwareAnnotationKey]
 
 	servicePort, err := svc.getServicePortV1(svcPort)
 	if err != nil {
@@ -390,7 +390,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		return nil, false, err
 	}
 
-	zoneAwareTraffic := i.Metadata.Annotations[tafficZoneAwareAnnotationKey]
+	zoneAwareTraffic := i.Metadata.Annotations[trafficZoneAwareAnnotationKey]
 
 	servicePort, err := svc.getServicePortV1(svcPort)
 	if err != nil {
