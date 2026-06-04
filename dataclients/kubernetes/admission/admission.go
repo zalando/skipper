@@ -13,6 +13,7 @@ import (
 const (
 	metricNamespace = "routegroup_admission"
 	metricSubsystem = "admitter"
+	maxBodySize     = 3145728
 )
 
 var (
@@ -71,9 +72,9 @@ func Handler(admitter admitter) http.HandlerFunc {
 			return
 		}
 
-		defer r.Body.Close()
-
-		body, err := io.ReadAll(r.Body)
+		rc := http.MaxBytesReader(w, r.Body, maxBodySize)
+		defer rc.Close()
+		body, err := io.ReadAll(rc)
 		if err != nil {
 			log.Errorf("Failed to read request: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
