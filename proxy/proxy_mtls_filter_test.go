@@ -1,20 +1,14 @@
 package proxy
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"fmt"
-	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	filterstls "github.com/zalando/skipper/filters/tls"
@@ -53,27 +47,27 @@ func TestProxyMTLS_InboundNoTLS(t *testing.T) {
 	}
 }
 
-func generateAndSignLeafCert(t *testing.T, subjectName pkix.Name, caCert *x509.Certificate, caKey *ecdsa.PrivateKey) *x509.Certificate {
-	t.Helper()
-	now := time.Now()
-	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	leafTmpl := &x509.Certificate{
-		SerialNumber:          big.NewInt(2),
-		Subject:               subjectName,
-		NotBefore:             now.Add(-time.Hour),
-		NotAfter:              now.Add(time.Hour),
-		KeyUsage:              x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-		BasicConstraintsValid: true,
-	}
-	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, caCert, &leafKey.PublicKey, caKey)
-	require.NoError(t, err)
-	leafCert, err := x509.ParseCertificate(leafDER)
-	require.NoError(t, err)
+// func generateAndSignLeafCert(t *testing.T, subjectName pkix.Name, caCert *x509.Certificate, caKey *ecdsa.PrivateKey) *x509.Certificate {
+// 	t.Helper()
+// 	now := time.Now()
+// 	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+// 	require.NoError(t, err)
+// 	leafTmpl := &x509.Certificate{
+// 		SerialNumber:          big.NewInt(2),
+// 		Subject:               subjectName,
+// 		NotBefore:             now.Add(-time.Hour),
+// 		NotAfter:              now.Add(time.Hour),
+// 		KeyUsage:              x509.KeyUsageDigitalSignature,
+// 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+// 		BasicConstraintsValid: true,
+// 	}
+// 	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, caCert, &leafKey.PublicKey, caKey)
+// 	require.NoError(t, err)
+// 	leafCert, err := x509.ParseCertificate(leafDER)
+// 	require.NoError(t, err)
 
-	return leafCert
-}
+// 	return leafCert
+// }
 
 // TestProxyMTLS_InboundFilterCNCheck tests the mtlsCN filter allow-list on a
 // TLS-terminating proxy that accepts client certificates.
