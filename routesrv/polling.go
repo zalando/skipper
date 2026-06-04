@@ -141,6 +141,11 @@ func getZones(routes []*eskip.Route) map[string]struct{} {
 
 func getRouteForZone(zone string, route *eskip.Route) *eskip.Route {
 	var zoneAwareEps []*eskip.LBEndpoint
+
+	if route.EnableZoneAwareness == "false" {
+		return route
+	}
+
 	for _, eps := range route.LBEndpoints {
 		if eps.Zone == zone {
 			zoneAwareEps = append(zoneAwareEps, eps)

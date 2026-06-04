@@ -24,6 +24,7 @@ const (
 	skipperLoadBalancerAnnotationKey    = "zalando.org/skipper-loadbalancer"
 	skipperBackendProtocolAnnotationKey = "zalando.org/skipper-backend-protocol"
 	pathModeAnnotationKey               = "zalando.org/skipper-ingress-path-mode"
+	tafficZoneAwareAnnotationKey        = "zalando.org/traffic-zone-aware"
 	ingressOriginName                   = "ingress"
 	tlsSecretType                       = "kubernetes.io/tls"
 	tlsSecretDataCrt                    = "tls.crt"

@@ -178,6 +178,9 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 		protocol = p
 	}
 
+	zoneAwareTraffic, _ := ctx.routeGroup.Metadata.Annotations[tafficZoneAwareAnnotationKey]
+	r.EnableZoneAwareness = zoneAwareTraffic
+
 	s, err := getBackendService(ctx, backend)
 	if err != nil {
 		return err
@@ -197,7 +200,8 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 			s.Meta.Name,
 			"TCP",
 			protocol,
-			targetPort)
+			targetPort,
+			zoneAwareTraffic)
 		for _, epSlice := range epSlices {
 			eps = append(eps, epSlice.Address)
 		}
