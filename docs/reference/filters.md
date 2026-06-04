@@ -2060,7 +2060,11 @@ oidcClaimsQuery("<path>:[<query>]", ...)
 The filter is chained after `oauthOidc*` authentication as it parses the ID token that has been saved in the internal `StateBag` for this request. It validates access control of the requested path against the defined query.
 It accepts one or more arguments, that is a path prefix which is granted access to when the query definition evaluates positive.
 It supports exact matches of keys, key-value pairs, introspecting of arrays or exact and wildcard matching of nested structures.
-The query definition can be one or more queries per path, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) with a convenience modifier of `@_` which unfolds to `[@this].#("+arg+")`
+The query definition can be one or more queries per path, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) with a convenience modifier of `@_` which unfolds to `[@this].#("+arg+")`.
+
+!!! note
+    In GJSON [comparison operators](https://github.com/tidwall/gjson/blob/master/SYNTAX.md#queries) (`==`, `!=, `%`, etc.)
+	are only supported for arrays.
 
 Given following example ID token:
 
@@ -2087,7 +2091,7 @@ For above ID token following query definitions would also be positive:
 ```
 oidcClaimsQuery("/:email")
 oidcClaimsQuery("/another/path:groups.#[%\"CD-*\"]")
-oidcClaimsQuery("/:name%\"*One\"", "/path:groups.#[%\"*-Test-Users\"] groups.#[==\"Purchasing-Department\"]")
+oidcClaimsQuery("/:[name].#(%\"*One\")", "/path:groups.#(%\"*-Test-Users\") groups.#(==\"Purchasing-Department\")")
 ```
 
 As of now there is no negative/deny rule possible. The first matching path is evaluated against the defined query/queries and if positive, permitted.
