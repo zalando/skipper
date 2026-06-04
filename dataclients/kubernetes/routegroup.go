@@ -178,7 +178,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 		protocol = p
 	}
 
-	zoneAwareTraffic, _ := ctx.routeGroup.Metadata.Annotations[tafficZoneAwareAnnotationKey]
+	zoneAwareTraffic := ctx.routeGroup.Metadata.Annotations[tafficZoneAwareAnnotationKey]
 	r.EnableZoneAwareness = zoneAwareTraffic
 
 	s, err := getBackendService(ctx, backend)
