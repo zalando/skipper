@@ -2942,6 +2942,8 @@ Can be used only with `<dynamic>` backend. Meant to be used together with [setDy
 or [setDynamicBackendScheme](#setdynamicbackendscheme). If this filter chained together with [setDynamicBackendUrlFromHeader](#setdynamicbackendurlfromheader)
 or [setDynamicBackendUrl](#setdynamicbackendurl) filters, the latter ones would have priority.
 
+Security: This can lead to client controlled targeting of backend, leading to SSRF. Use it by your own risk.
+
 Parameters:
 
 * header name (string)
