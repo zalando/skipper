@@ -878,11 +878,15 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 		c.MtlsAuthnCA = x509.NewCertPool()
 	}
 	if c.MtlsAuthnCaFile != "" {
-		pem, err := os.ReadFile(c.MtlsAuthnCaFile)
-		if err != nil {
-			return fmt.Errorf("failed to read %q: %v", c.MtlsAuthnCaFile, err)
+		for f := range strings.SplitSeq(c.MtlsAuthnCaFile, ",") {
+			pem, err := os.ReadFile(f)
+			if err != nil {
+				return fmt.Errorf("failed to read %q: %v", f, err)
+			}
+			if !c.MtlsAuthnCA.AppendCertsFromPEM(pem) {
+				return fmt.Errorf("failed to append CA cert %q", f)
+			}
 		}
-		c.MtlsAuthnCA.AppendCertsFromPEM(pem)
 	}
 
 	if c.NormalizeHost || c.KubernetesIngress {
