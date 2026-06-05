@@ -245,7 +245,6 @@ func Filters() []filters.Spec {
 		tls.New(),
 		tls.NewMtlsCN(),
 		tls.NewMtlsIssuerDN(),
-		tls.NewMtlsSAN(),
 		tls.NewMtlsSanCIDR(),
 		tls.NewMtlsSanDNS(),
 		tls.NewMtlsSanIP(),
