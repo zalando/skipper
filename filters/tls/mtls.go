@@ -19,7 +19,6 @@ type mtlsType uint
 
 const (
 	mtlsIssuerDN mtlsType = iota + 1
-	mtlsSAN
 	mtlsSanDNS
 	mtlsSanCIDR
 	mtlsSanIP
@@ -32,8 +31,6 @@ func (mt mtlsType) String() string {
 	switch mt {
 	case mtlsIssuerDN:
 		return filters.MtlsIssuerDN
-	case mtlsSAN:
-		return filters.MtlsSAN
 	case mtlsSanCIDR:
 		return filters.MtlsSanCIDR
 	case mtlsSanDNS:
@@ -55,7 +52,7 @@ func (mt mtlsType) rejectReason() rejectReason {
 	switch mt {
 	case mtlsIssuerDN:
 		return wrongDN
-	case mtlsSAN:
+	case mtlsSanCIDR, mtlsSanDNS, mtlsSanIP, mtlsSanURI:
 		return wrongSAN
 	case mtlsCN:
 		return wrongCN
@@ -93,7 +90,7 @@ type mtlsFilter struct {
 	// mtlsIssuerDN allow-list (RFC 2253 DN strings)
 	allowedDN map[string]struct{}
 
-	// mtlsSAN allow-lists: hostnames, URIs, and IP/CIDR ranges are stored
+	// mtlsSAN* allow-lists: hostnames, URIs, and IP/CIDR ranges are stored
 	// separately so the hot path can use a single IPSet.Contains call for IPs
 	// instead of re-parsing every pattern on each request.
 	allowedHostnames map[string]struct{} // lowercased
@@ -128,14 +125,6 @@ func NewMtlsIssuerDN() filters.Spec {
 	return &mtlsSpec{typ: mtlsIssuerDN}
 }
 
-// NewMtlsSAN returns a filter spec for the mtlsSAN filter. Each argument must
-// be a valid IP address, CIDR block, or hostname. IP addresses and CIDRs are
-// combined into a single netipx.IPSet at filter-creation time so that matching
-// in the hot path is O(log n) rather than O(n).
-func NewMtlsSAN() filters.Spec {
-	return &mtlsSpec{typ: mtlsSAN}
-}
-
 // NewMtlsSanCIDR returns a filter spec for the mtlsSanCIDR
 // filter. Each argument must be a valid CIDR block. CIDRs are
 // combined into a single netipx.IPSet at filter-creation time so that
@@ -164,29 +153,17 @@ func NewMtlsSanURI() filters.Spec {
 	return &mtlsSpec{typ: mtlsSanURI}
 }
 
-// isValidSAN returns true if s is a valid CIDR, IPv4/IPv6 address, URI, or hostname.
-func isValidSAN(s string) bool {
-	if s == "" {
-		return false
-	}
-	if _, err := netip.ParsePrefix(s); err == nil {
-		return true
-	}
-	if _, err := netip.ParseAddr(s); err == nil {
-		return true
-	}
-	if u, err := url.Parse(s); err == nil && u.Scheme != "" {
-		return true
-	}
-	return isValidHostname(s)
-}
-
 // isValidHostname accepts dot-separated labels of [a-zA-Z0-9-], allowing a
 // leading wildcard label ("*.example.com").
 func isValidHostname(s string) bool {
 	if s == "" {
 		return false
 	}
+	// valid IP would be detected as valid hostname.
+	if _, err := netip.ParseAddr(s); err == nil {
+		return false
+	}
+
 	for i, label := range strings.Split(s, ".") {
 		if label == "" {
 			return false
@@ -240,6 +217,7 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 			}
 			mf.allowedDN[s] = struct{}{}
 		}
+
 	case mtlsCN:
 		mf.allowedCN = make(map[string]struct{})
 		for _, arg := range args {
@@ -248,40 +226,6 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 			} else {
 				mf.allowedCN[s] = struct{}{}
 			}
-		}
-	case mtlsSAN:
-		mf.allowedHostnames = make(map[string]struct{})
-		mf.allowedURIs = make(map[string]struct{})
-
-		var ipStrs []string
-		for _, arg := range args {
-			s, ok := arg.(string)
-			if !ok {
-				return nil, filters.ErrInvalidFilterParameters
-			}
-			if !isValidSAN(s) {
-				return nil, filters.ErrInvalidFilterParameters
-			} else if isValidHostname(s) {
-				mf.allowedHostnames[strings.ToLower(s)] = struct{}{}
-				continue
-			}
-
-			// Route to the appropriate bucket: hostnames go into the slice,
-			// IP addresses and CIDRs are collected for the IPSet.
-			if _, err := netip.ParsePrefix(s); err == nil {
-				ipStrs = append(ipStrs, s)
-			} else if _, err := netip.ParseAddr(s); err == nil {
-				ipStrs = append(ipStrs, s)
-			} else if u, err := url.Parse(s); err == nil && u.Scheme != "" {
-				mf.allowedURIs[s] = struct{}{}
-			}
-		}
-		if len(ipStrs) > 0 {
-			ipSet, err := snet.ParseIPCIDRs(ipStrs)
-			if err != nil {
-				return nil, filters.ErrInvalidFilterParameters
-			}
-			mf.allowedIPs = ipSet
 		}
 
 	case mtlsSanCIDR:
@@ -422,41 +366,6 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 			allowed = true
 			auditCertData.WriteString("DN: ")
 			auditCertData.WriteString(issuerDN)
-		}
-
-	case mtlsSAN:
-		// Check IP/CIDR SANs via the pre-built IPSet.
-		if mf.allowedIPs != nil {
-			for _, ip := range cert.IPAddresses {
-				addr, ok := netip.AddrFromSlice(ip)
-				if ok && mf.allowedIPs.Contains(addr.Unmap()) {
-					allowed = true
-					auditCertData.WriteString("SAN IP: ")
-					auditCertData.WriteString(ip.String())
-				}
-			}
-		}
-
-		if !allowed {
-			// Check hostname SANs against the allowlist.
-			for _, dns := range cert.DNSNames {
-				if _, ok := mf.allowedHostnames[strings.ToLower(dns)]; ok {
-					allowed = true
-					auditCertData.WriteString("SAN DNS: ")
-					auditCertData.WriteString(dns)
-				}
-			}
-		}
-
-		if !allowed {
-			// Check URI SANs against the allowlist (exact string match).
-			for _, u := range cert.URIs {
-				if _, ok := mf.allowedURIs[u.String()]; ok {
-					allowed = true
-					auditCertData.WriteString("SAN URI: ")
-					auditCertData.WriteString(u.String())
-				}
-			}
 		}
 
 	case mtlsSanCIDR, mtlsSanIP:
