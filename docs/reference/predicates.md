@@ -10,6 +10,20 @@ Example route with a Host, Method and Path match predicates and a backend:
 all: Host(/^my-host-header\.example\.org$/) && Method("GET") && Path("/hello") -> "http://127.0.0.1:1234/";
 ```
 
+## Security consideration
+
+**Routing is not a security feature!**
+Please use [auth filters](filters.md#authentication-and-authorization) to make sure routes are secure.
+
+Known security issues in predicates:
+
+- [ForwardedHost](#forwardedhost) can be forged by the client if proxy layer in front of skipper does not handle it.
+- [JWTPayloadAnyKV](#jwtpayloadanykv), [JWTPayloadAllKV](#jwtpayloadallkv), [JWTPayloadAnyKVRegexp, JWTPayloadAllKVRegexp](#jwtpayloadanykvregexp-jwtpayloadallkvregexp) are not validating that JWT is valid for performance reasons
+- [QueryParam](#queryparam) can be tricked by a duplicate key, example: `?k1=foo&k1=bar`
+- [Source](#source) and [SourceFromLast](#sourcefromlast) can be byassed via XFF header controlled by the client, if the front layer load balancer does not make sure that the client IP is set in the expected order.
+- [ClientIP](#clientip) can be tricked if the attacker is able to forge its IP.
+- [OTelBaggage](#otelbaggage) can be tricked if the attacker adds valid OTEL http headers into their HTTP request.
+
 ## Predicate arguments
 
 The predicate arguments can be strings, regular expressions or numbers (float64, int). In the eskip syntax
