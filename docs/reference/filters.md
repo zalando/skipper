@@ -49,6 +49,17 @@ Example route that creates header from query parameter:
 r: Path("/redirect") && QueryParam("to") -> status(303) -> setResponseHeader("Location", "${request.query.to}") -> <shunt>;
 ```
 
+### Security consideration of using Templates
+
+Please make sure you can create security related issues, by changing
+headers by values controlled by the client connecting to
+skipper. Skipper does not sanitize user or client input in templates.
+
+Vulnerable Example creates an SSRF vulnerability:
+```
+setRequestHeader('Host', '${request.header.X-Forwarded-Host}')
+```
+
 ## status
 
 Sets the response status code to the given value, with no regards to the backend response.
