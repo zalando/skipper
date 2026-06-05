@@ -59,10 +59,12 @@ func TestTracingIngressSpan(t *testing.T) {
 	}
 	req.Header.Set("X-Flow-Id", "test-flow-id")
 
-	_, err = http.DefaultClient.Do(req)
+	rsp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
+	io.Copy(io.Discard, rsp.Body)
+	rsp.Body.Close()
 
 	span := tracer.FindSpan("ingress")
 	if span == nil {
@@ -313,10 +315,12 @@ func TestTracingProxySpan(t *testing.T) {
 	}
 	req.Header.Set("X-Flow-Id", "test-flow-id")
 
-	_, err = http.DefaultClient.Do(req)
+	rsp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
+	io.Copy(io.Discard, rsp.Body)
+	rsp.Body.Close()
 
 	span := tracer.FindSpan("proxy")
 	if span == nil {

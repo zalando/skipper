@@ -719,7 +719,11 @@ func TestFastCgi(t *testing.T) {
 
 	for _, table := range testTables {
 		payload := table.payload
-		http.HandleFunc(table.path, func(w http.ResponseWriter, r *http.Request) {
+		// Use a per-iteration ServeMux instead of the global DefaultServeMux.
+		// The global mux panics on duplicate registration when the test runs
+		// with -count>1 (Go 1.22+ enforces uniqueness on DefaultServeMux).
+		mux := http.NewServeMux()
+		mux.HandleFunc(table.path, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("X-Test-Response-Header", "response header value")
 
 			if len(payload) <= 0 {
@@ -739,7 +743,7 @@ func TestFastCgi(t *testing.T) {
 		}
 		defer l.Close()
 
-		go fcgi.Serve(l, nil)
+		go fcgi.Serve(l, mux)
 
 		doc := fmt.Sprintf(`fastcgi: * -> "%s"`, "fastcgi://"+l.Addr().String())
 		tp, err := newTestProxy(doc, FlagsNone)
@@ -1103,8 +1107,20 @@ func TestFilterPanic(t *testing.T) {
 		t.Errorf("expected '%s' in logs", msg)
 	}
 
-	// wait for updateMetrics to happen
-	time.Sleep(d - time.Since(now))
+	// Poll until updateMetrics has zeroed the gauges. Using a retry loop instead
+	// of a fixed sleep avoids flakiness when d - time.Since(now) is negative.
+	deadline := now.Add(3 * d)
+	for time.Now().Before(deadline) {
+		var active, queued float64
+		metrics.WithGauges(func(g map[string]float64) {
+			active = g["fifo.test.active"]
+			queued = g["fifo.test.queued"]
+		})
+		if active == 0 && queued == 0 {
+			break
+		}
+		time.Sleep(d / 5)
+	}
 
 	// metrics should show that we cleaned up the active request
 	metrics.WithGauges(func(g map[string]float64) {

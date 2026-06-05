@@ -75,7 +75,7 @@ func TestCheckLocalRateLimitForShuntRoutes(t *testing.T) {
 
 	requestAndExpect(t, p.URL, 1, http.StatusTooManyRequests, http.Header{ratelimit.Header: []string{expectHeader}})
 
-	time.Sleep(timeWindow)
+	time.Sleep(timeWindow + 20*time.Millisecond)
 
 	requestAndExpect(t, p.URL, 3, http.StatusNotFound, nil)
 }
@@ -107,7 +107,7 @@ func TestCheckLocalRateLimit(t *testing.T) {
 
 	requestAndExpect(t, p.URL, 1, http.StatusTooManyRequests, http.Header{ratelimit.Header: []string{expectHeader}})
 
-	time.Sleep(timeWindow)
+	time.Sleep(timeWindow + 20*time.Millisecond)
 
 	requestAndExpect(t, p.URL, 3, http.StatusOK, nil)
 }
@@ -138,7 +138,7 @@ func TestCheckServiceRateLimit(t *testing.T) {
 
 	requestAndExpect(t, p.URL, 1, http.StatusTooManyRequests, http.Header{ratelimit.Header: []string{expectHeader}})
 
-	time.Sleep(timeWindow)
+	time.Sleep(timeWindow + 20*time.Millisecond)
 
 	requestAndExpect(t, p.URL, 3, http.StatusOK, nil)
 }

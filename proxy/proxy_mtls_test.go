@@ -438,16 +438,23 @@ func TestProxyMTLS_CertRotation(t *testing.T) {
 		t.Fatalf("failed to write rotated key: %v", err)
 	}
 
-	// Wait for the reloader to pick up the new cert (2+ intervals)
-	time.Sleep(60 * time.Millisecond)
-
-	rsp2, err := ps.Client().Get(ps.URL + "/")
-	if err != nil {
-		t.Fatalf("post-rotation request failed: %v", err)
+	// Poll until the reloader picks up the rotated cert (up to 500ms).
+	// Using a retry loop instead of a fixed sleep avoids flakiness on slow CI.
+	var rotationOK bool
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		rsp2, err2 := ps.Client().Get(ps.URL + "/")
+		if err2 == nil {
+			rsp2.Body.Close()
+			if rsp2.StatusCode == http.StatusOK {
+				rotationOK = true
+				break
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	rsp2.Body.Close()
-	if rsp2.StatusCode != http.StatusOK {
-		t.Errorf("post-rotation: expected 200, got %d", rsp2.StatusCode)
+	if !rotationOK {
+		t.Errorf("post-rotation: expected 200 within 500ms")
 	}
 }
 

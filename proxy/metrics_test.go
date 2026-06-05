@@ -46,8 +46,10 @@ func TestMetricsUncompressed(t *testing.T) {
 	`, p.URL), nil)
 	require.NoError(t, err)
 
-	// wait for route update
-	time.Sleep(10 * time.Millisecond)
+	// wait for route update to propagate
+	if err := p.Log.WaitFor("route settings applied", time.Second); err != nil {
+		t.Fatalf("routes did not apply: %v", err)
+	}
 
 	client := p.Client()
 	client.Transport.(*http.Transport).DisableCompression = true

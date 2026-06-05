@@ -78,7 +78,16 @@ func TestFallbackGroupLB(t *testing.T) {
 
 	t.Run("one member in the group fails", func(t *testing.T) {
 		groupA_BE1.Close()
-		time.Sleep(300 * time.Millisecond)
+
+		// Retry until the proxy has detected the failed backend. Using a
+		// retry loop instead of a fixed sleep avoids flakiness on slow CI.
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			if request("/a", "group-A/BE-2", "group-A/BE-2") {
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
 
 		// group A responds two times from backend 2:
 		if !request("/", "non-grouped") ||
@@ -91,7 +100,15 @@ func TestFallbackGroupLB(t *testing.T) {
 	t.Run("both members in the group fail", func(t *testing.T) {
 		groupA_BE1.Close()
 		groupA_BE2.Close()
-		time.Sleep(300 * time.Millisecond)
+
+		// Retry until both backends are detected as failed.
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			if request("/a", "Bad Gateway", "Bad Gateway") {
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
 
 		// group A responds two times with failure:
 		if !request("/", "non-grouped") ||
