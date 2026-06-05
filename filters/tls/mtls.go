@@ -6,7 +6,6 @@ import (
 	"net/netip"
 	"net/url"
 	"strings"
-	"sync"
 
 	"go4.org/netipx"
 
@@ -89,16 +88,16 @@ type mtlsFilter struct {
 	enableAuditLog bool
 
 	// mtlsCN allow-list
-	allowedCN sync.Map // string -> struct{}
+	allowedCN map[string]struct{}
 
 	// mtlsIssuerDN allow-list (RFC 2253 DN strings)
-	allowedDN sync.Map // string -> struct{}
+	allowedDN map[string]struct{}
 
 	// mtlsSAN allow-lists: hostnames, URIs, and IP/CIDR ranges are stored
 	// separately so the hot path can use a single IPSet.Contains call for IPs
 	// instead of re-parsing every pattern on each request.
-	allowedHostnames sync.Map // string -> struct{} (lowercased)
-	allowedURIs      sync.Map // string -> struct{} (exact match)
+	allowedHostnames map[string]struct{} // lowercased
+	allowedURIs      map[string]struct{} // exact match
 	allowedIPs       *netipx.IPSet
 
 	// mtlsAuthn: verfiy options created at filter-creation time.
@@ -233,22 +232,27 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 
 	switch ms.typ {
 	case mtlsIssuerDN:
+		mf.allowedDN = make(map[string]struct{})
 		for _, arg := range args {
 			s, ok := arg.(string)
 			if !ok || s == "" {
 				return nil, filters.ErrInvalidFilterParameters
 			}
-			mf.allowedDN.Store(s, struct{}{})
+			mf.allowedDN[s] = struct{}{}
 		}
 	case mtlsCN:
+		mf.allowedCN = make(map[string]struct{})
 		for _, arg := range args {
 			if s, ok := arg.(string); !ok {
 				return nil, filters.ErrInvalidFilterParameters
 			} else {
-				mf.allowedCN.Store(s, struct{}{})
+				mf.allowedCN[s] = struct{}{}
 			}
 		}
 	case mtlsSAN:
+		mf.allowedHostnames = make(map[string]struct{})
+		mf.allowedURIs = make(map[string]struct{})
+
 		var ipStrs []string
 		for _, arg := range args {
 			s, ok := arg.(string)
@@ -257,7 +261,11 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 			}
 			if !isValidSAN(s) {
 				return nil, filters.ErrInvalidFilterParameters
+			} else if isValidHostname(s) {
+				mf.allowedHostnames[strings.ToLower(s)] = struct{}{}
+				continue
 			}
+
 			// Route to the appropriate bucket: hostnames go into the slice,
 			// IP addresses and CIDRs are collected for the IPSet.
 			if _, err := netip.ParsePrefix(s); err == nil {
@@ -265,9 +273,7 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 			} else if _, err := netip.ParseAddr(s); err == nil {
 				ipStrs = append(ipStrs, s)
 			} else if u, err := url.Parse(s); err == nil && u.Scheme != "" {
-				mf.allowedURIs.Store(s, struct{}{})
-			} else {
-				mf.allowedHostnames.Store(strings.ToLower(s), struct{}{})
+				mf.allowedURIs[s] = struct{}{}
 			}
 		}
 		if len(ipStrs) > 0 {
@@ -319,6 +325,7 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 		}
 
 	case mtlsSanDNS:
+		mf.allowedHostnames = make(map[string]struct{})
 		for _, arg := range args {
 			s, ok := arg.(string)
 			if !ok {
@@ -327,11 +334,12 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 			if !isValidHostname(s) {
 				return nil, filters.ErrInvalidFilterParameters
 			} else {
-				mf.allowedHostnames.Store(strings.ToLower(s), struct{}{})
+				mf.allowedHostnames[strings.ToLower(s)] = struct{}{}
 			}
 		}
 
 	case mtlsSanURI:
+		mf.allowedURIs = make(map[string]struct{})
 		for _, arg := range args {
 			s, ok := arg.(string)
 			if !ok {
@@ -340,7 +348,7 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 			if u, err := url.Parse(s); err != nil || u.Scheme == "" {
 				return nil, filters.ErrInvalidFilterParameters
 			} else {
-				mf.allowedURIs.Store(s, struct{}{})
+				mf.allowedURIs[s] = struct{}{}
 			}
 		}
 	}
@@ -410,7 +418,7 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 	switch mf.typ {
 	case mtlsIssuerDN:
 		issuerDN := cert.Issuer.String()
-		if _, ok := mf.allowedDN.Load(issuerDN); ok {
+		if _, ok := mf.allowedDN[issuerDN]; ok {
 			allowed = true
 			auditCertData.WriteString("DN: ")
 			auditCertData.WriteString(issuerDN)
@@ -432,7 +440,7 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 		if !allowed {
 			// Check hostname SANs against the allowlist.
 			for _, dns := range cert.DNSNames {
-				if _, ok := mf.allowedHostnames.Load(strings.ToLower(dns)); ok {
+				if _, ok := mf.allowedHostnames[strings.ToLower(dns)]; ok {
 					allowed = true
 					auditCertData.WriteString("SAN DNS: ")
 					auditCertData.WriteString(dns)
@@ -443,7 +451,7 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 		if !allowed {
 			// Check URI SANs against the allowlist (exact string match).
 			for _, u := range cert.URIs {
-				if _, ok := mf.allowedURIs.Load(u.String()); ok {
+				if _, ok := mf.allowedURIs[u.String()]; ok {
 					allowed = true
 					auditCertData.WriteString("SAN URI: ")
 					auditCertData.WriteString(u.String())
@@ -467,7 +475,7 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 	case mtlsSanDNS:
 		// Check hostname SANs against the allowlist.
 		for _, dns := range cert.DNSNames {
-			if _, ok := mf.allowedHostnames.Load(strings.ToLower(dns)); ok {
+			if _, ok := mf.allowedHostnames[strings.ToLower(dns)]; ok {
 				allowed = true
 				auditCertData.WriteString("SAN DNS: ")
 				auditCertData.WriteString(dns)
@@ -477,7 +485,7 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 	case mtlsSanURI:
 		// Check URI SANs against the allowlist (exact string match).
 		for _, u := range cert.URIs {
-			if _, ok := mf.allowedURIs.Load(u.String()); ok {
+			if _, ok := mf.allowedURIs[u.String()]; ok {
 				allowed = true
 				auditCertData.WriteString("SAN URI: ")
 				auditCertData.WriteString(u.String())
@@ -485,7 +493,7 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 		}
 
 	case mtlsCN:
-		if _, ok := mf.allowedCN.Load(cert.Subject.CommonName); ok {
+		if _, ok := mf.allowedCN[cert.Subject.CommonName]; ok {
 			allowed = true
 			auditCertData.WriteString("CN: ")
 			auditCertData.WriteString(cert.Subject.CommonName)

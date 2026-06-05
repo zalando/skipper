@@ -1064,7 +1064,6 @@ func signLeafForBench(ca *caBundle, leafCN string, notBefore, notAfter time.Time
 	return &tls.ConnectionState{PeerCertificates: []*x509.Certificate{cert}}, cert
 }
 
-// BenchmarkMtlsIssuerDN             421309              2691 ns/op             624 B/op         21 allocs/op
 func BenchmarkMtlsIssuerDN(b *testing.B) {
 	spec := NewMtlsIssuerDN()
 
@@ -1096,7 +1095,6 @@ func BenchmarkMtlsIssuerDN(b *testing.B) {
 	}
 }
 
-// BenchmarkMtlsIssuerCN           26978078                44.30 ns/op            0 B/op          0 allocs/op
 func BenchmarkMtlsIssuerCN(b *testing.B) {
 	spec := NewMtlsCN()
 
@@ -1128,11 +1126,6 @@ func BenchmarkMtlsIssuerCN(b *testing.B) {
 	}
 }
 
-// BenchmarkMtlsSAN/DNS_name_matches_exactly               16645082                71.22 ns/op            0 B/op          0 allocs/op
-// BenchmarkMtlsSAN/IP_exact_match                         13228872                83.84 ns/op            8 B/op          1 allocs/op
-// BenchmarkMtlsSAN/IP_inside_CIDR_/8_matches              13206384                84.08 ns/op            8 B/op          1 allocs/op
-// BenchmarkMtlsSAN/multiple_patterns_—_first_matches      29038336                39.24 ns/op            0 B/op          0 allocs/op
-// BenchmarkMtlsSAN/URI_match                               5628175                209.8 ns/op           64 B/op          2 allocs/op
 func BenchmarkMtlsSAN(b *testing.B) {
 	spec := NewMtlsSAN()
 
@@ -1192,7 +1185,6 @@ func BenchmarkMtlsSAN(b *testing.B) {
 	}
 }
 
-// BenchmarkMtlsAuthn                 10000            114586 ns/op            1778 B/op         39 allocs/op
 func BenchmarkMtlsAuthn(b *testing.B) {
 	now := time.Now()
 
