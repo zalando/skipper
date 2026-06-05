@@ -378,7 +378,6 @@ const (
 	OpaServeResponseWithReqBodyName            = "opaServeResponseWithReqBody"
 	TLSName                                    = "tlsPassClientCertificates"
 	MtlsIssuerDN                               = "mtlsIssuerDN"
-	MtlsSAN                                    = "mtlsSAN"
 	MtlsSanCIDR                                = "mtlsSanCIDR"
 	MtlsSanDNS                                 = "mtlsSanDNS"
 	MtlsSanIP                                  = "mtlsSanIP"

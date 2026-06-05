@@ -68,10 +68,112 @@ func mustParseIP(s string) net.IP {
 	return ip
 }
 
-// TestNewMtlsSAN_CreateFilter verifies argument validation in CreateFilter.
-func TestNewMtlsSAN_CreateFilter(t *testing.T) {
-	spec := NewMtlsSAN()
-	assert.Equal(t, "mtlsSAN", spec.Name())
+func TestNewMtlsSanCIDR_CreateFilter(t *testing.T) {
+	spec := NewMtlsSanCIDR()
+	assert.Equal(t, "mtlsSanCIDR", spec.Name())
+
+	for _, tt := range []struct {
+		name    string
+		args    []any
+		wantErr bool
+	}{
+		{
+			name:    "no args",
+			args:    []any{},
+			wantErr: true,
+		},
+		{
+			name:    "non-string arg",
+			args:    []any{42},
+			wantErr: true,
+		},
+		{
+			name:    "empty string arg",
+			args:    []any{""},
+			wantErr: true,
+		},
+		{
+			name:    "invalid arg with special chars",
+			args:    []any{"not valid!!"},
+			wantErr: true,
+		},
+		{
+			name:    "invalid arg with space",
+			args:    []any{"foo bar"},
+			wantErr: true,
+		},
+		{
+			name:    "valid IP",
+			args:    []any{"192.168.1.1"},
+			wantErr: true,
+		},
+		{
+			name:    "valid IPv6",
+			args:    []any{"::1"},
+			wantErr: true,
+		},
+		{
+			name:    "valid CIDR",
+			args:    []any{"10.0.0.0/8"},
+			wantErr: false,
+		},
+		{
+			name:    "valid IPv6 CIDR",
+			args:    []any{"2001:db8::/32"},
+			wantErr: false,
+		},
+		{
+			name:    "valid hostname",
+			args:    []any{"example.com"},
+			wantErr: true,
+		},
+		{
+			name:    "valid wildcard hostname",
+			args:    []any{"*.example.com"},
+			wantErr: true,
+		},
+		{
+			name:    "multiple valid mixed CIDR args",
+			args:    []any{"10.0.0.0/8", "2001:db8::/32", "1.2.3.4/32"},
+			wantErr: false,
+		},
+		{
+			name:    "valid then invalid arg",
+			args:    []any{"example.com", "not!!valid"},
+			wantErr: true,
+		},
+		{
+			name:    "valid URI (spiffe scheme)",
+			args:    []any{"spiffe://example.org/service"},
+			wantErr: true,
+		},
+		{
+			name:    "valid URI (https scheme)",
+			args:    []any{"https://example.com/path"},
+			wantErr: true,
+		},
+		{
+			name:    "multiple valid mixed args including URI",
+			args:    []any{"10.0.0.0/8", "example.com", "spiffe://trust-domain/svc"},
+			wantErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := spec.CreateFilter(tt.args)
+			if tt.wantErr {
+				assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
+				assert.Nil(t, f)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, f)
+			}
+		})
+	}
+}
+
+func TestNewMtlsSanIP_CreateFilter(t *testing.T) {
+	spec := NewMtlsSanIP()
+	assert.Equal(t, "mtlsSanIP", spec.Name())
 
 	for _, tt := range []struct {
 		name    string
@@ -116,12 +218,115 @@ func TestNewMtlsSAN_CreateFilter(t *testing.T) {
 		{
 			name:    "valid CIDR",
 			args:    []any{"10.0.0.0/8"},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name:    "valid IPv6 CIDR",
 			args:    []any{"2001:db8::/32"},
+			wantErr: true,
+		},
+		{
+			name:    "valid hostname",
+			args:    []any{"example.com"},
+			wantErr: true,
+		},
+		{
+			name:    "valid wildcard hostname",
+			args:    []any{"*.example.com"},
+			wantErr: true,
+		},
+		{
+			name:    "multiple valid mixed IPs args",
+			args:    []any{"10.0.0.8", "2001:db8::32", "1.2.3.32"},
 			wantErr: false,
+		},
+		{
+			name:    "valid then invalid arg",
+			args:    []any{"example.com", "not!!valid"},
+			wantErr: true,
+		},
+		{
+			name:    "valid URI (spiffe scheme)",
+			args:    []any{"spiffe://example.org/service"},
+			wantErr: true,
+		},
+		{
+			name:    "valid URI (https scheme)",
+			args:    []any{"https://example.com/path"},
+			wantErr: true,
+		},
+		{
+			name:    "multiple valid mixed args including URI",
+			args:    []any{"10.0.0.0/8", "example.com", "spiffe://trust-domain/svc"},
+			wantErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := spec.CreateFilter(tt.args)
+			if tt.wantErr {
+				assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
+				assert.Nil(t, f)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, f)
+			}
+		})
+	}
+}
+
+func TestNewMtlsSanDNS_CreateFilter(t *testing.T) {
+	spec := NewMtlsSanDNS()
+	assert.Equal(t, "mtlsSanDNS", spec.Name())
+
+	for _, tt := range []struct {
+		name    string
+		args    []any
+		wantErr bool
+	}{
+		{
+			name:    "no args",
+			args:    []any{},
+			wantErr: true,
+		},
+		{
+			name:    "non-string arg",
+			args:    []any{42},
+			wantErr: true,
+		},
+		{
+			name:    "empty string arg",
+			args:    []any{""},
+			wantErr: true,
+		},
+		{
+			name:    "invalid arg with special chars",
+			args:    []any{"not valid!!"},
+			wantErr: true,
+		},
+		{
+			name:    "invalid arg with space",
+			args:    []any{"foo bar"},
+			wantErr: true,
+		},
+		{
+			name:    "valid IP",
+			args:    []any{"192.168.1.1"},
+			wantErr: true,
+		},
+		{
+			name:    "valid IPv6",
+			args:    []any{"::1"},
+			wantErr: true,
+		},
+		{
+			name:    "valid CIDR",
+			args:    []any{"10.0.0.0/8"},
+			wantErr: true,
+		},
+		{
+			name:    "valid IPv6 CIDR",
+			args:    []any{"2001:db8::/32"},
+			wantErr: true,
 		},
 		{
 			name:    "valid hostname",
@@ -134,8 +339,111 @@ func TestNewMtlsSAN_CreateFilter(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "multiple valid mixed args",
-			args:    []any{"10.0.0.0/8", "example.com", "1.2.3.4"},
+			name:    "multiple valid mixed hostnames args",
+			args:    []any{"www.example.com", "*.example", "f.c.g.r.org"},
+			wantErr: false,
+		},
+		{
+			name:    "valid then invalid arg",
+			args:    []any{"example.com", "not!!valid"},
+			wantErr: true,
+		},
+		{
+			name:    "valid URI (spiffe scheme)",
+			args:    []any{"spiffe://example.org/service"},
+			wantErr: true,
+		},
+		{
+			name:    "valid URI (https scheme)",
+			args:    []any{"https://example.com/path"},
+			wantErr: true,
+		},
+		{
+			name:    "multiple valid mixed args including URI",
+			args:    []any{"10.0.0.0/8", "example.com", "spiffe://trust-domain/svc"},
+			wantErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := spec.CreateFilter(tt.args)
+			if tt.wantErr {
+				assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
+				assert.Nil(t, f)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, f)
+			}
+		})
+	}
+}
+
+func TestNewMtlsSanURI_CreateFilter(t *testing.T) {
+	spec := NewMtlsSanURI()
+	assert.Equal(t, "mtlsSanURI", spec.Name())
+
+	for _, tt := range []struct {
+		name    string
+		args    []any
+		wantErr bool
+	}{
+		{
+			name:    "no args",
+			args:    []any{},
+			wantErr: true,
+		},
+		{
+			name:    "non-string arg",
+			args:    []any{42},
+			wantErr: true,
+		},
+		{
+			name:    "empty string arg",
+			args:    []any{""},
+			wantErr: true,
+		},
+		{
+			name:    "invalid arg with special chars",
+			args:    []any{"not valid!!"},
+			wantErr: true,
+		},
+		{
+			name:    "invalid arg with space",
+			args:    []any{"foo bar"},
+			wantErr: true,
+		},
+		{
+			name:    "valid IP",
+			args:    []any{"192.168.1.1"},
+			wantErr: true,
+		},
+		{
+			name:    "valid IPv6",
+			args:    []any{"::1"},
+			wantErr: true,
+		},
+		{
+			name:    "valid CIDR",
+			args:    []any{"10.0.0.0/8"},
+			wantErr: true,
+		},
+		{
+			name:    "valid IPv6 CIDR",
+			args:    []any{"2001:db8::/32"},
+			wantErr: true,
+		},
+		{
+			name:    "valid hostname",
+			args:    []any{"example.com"},
+			wantErr: true,
+		},
+		{
+			name:    "valid wildcard hostname",
+			args:    []any{"*.example.com"},
+			wantErr: true,
+		},
+		{
+			name:    "multiple valid mixed hostnames args",
+			args:    []any{"spiffe://example.org/service", "https://example.com/path", "spiffe://trust-domain/svc"},
 			wantErr: false,
 		},
 		{
@@ -156,7 +464,7 @@ func TestNewMtlsSAN_CreateFilter(t *testing.T) {
 		{
 			name:    "multiple valid mixed args including URI",
 			args:    []any{"10.0.0.0/8", "example.com", "spiffe://trust-domain/svc"},
-			wantErr: false,
+			wantErr: true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -616,8 +924,6 @@ func TestMtlsIssuerCN_Request(t *testing.T) {
 // TestMtlsSAN_Request verifies the filter's Request method covers all matching
 // and rejection paths.
 func TestMtlsSAN_Request(t *testing.T) {
-	spec := NewMtlsSAN()
-
 	for _, tt := range []struct {
 		name           string
 		tlsState       *tls.ConnectionState // nil → req.TLS == nil (plain HTTP)
@@ -786,23 +1092,20 @@ func TestMtlsSAN_Request(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_ = spec
-			for _, spec := range []filters.Spec{tt.spec} {
-				f, err := spec.CreateFilter(tt.filterArgs)
-				require.NoError(t, err)
+			f, err := tt.spec.CreateFilter(tt.filterArgs)
+			require.NoError(t, err)
 
-				req, err := http.NewRequest(http.MethodGet, "https://example.com/", nil)
-				require.NoError(t, err)
-				req.TLS = tt.tlsState
+			req, err := http.NewRequest(http.MethodGet, "https://example.com/", nil)
+			require.NoError(t, err)
+			req.TLS = tt.tlsState
 
-				ctx := &filtertest.Context{FRequest: req}
-				f.Request(ctx)
+			ctx := &filtertest.Context{FRequest: req}
+			f.Request(ctx)
 
-				assert.Equal(t, tt.expectServed, ctx.FServed)
-				if tt.expectServed {
-					require.NotNil(t, ctx.FResponse)
-					assert.Equal(t, tt.expectedStatus, ctx.FResponse.StatusCode)
-				}
+			assert.Equal(t, tt.expectServed, ctx.FServed)
+			if tt.expectServed {
+				require.NotNil(t, ctx.FResponse)
+				assert.Equal(t, tt.expectedStatus, ctx.FResponse.StatusCode)
 			}
 		})
 	}
@@ -1127,41 +1430,45 @@ func BenchmarkMtlsIssuerCN(b *testing.B) {
 }
 
 func BenchmarkMtlsSAN(b *testing.B) {
-	spec := NewMtlsSAN()
-
 	for _, bb := range []struct {
 		name       string
+		spec       filters.Spec
 		tlsState   *tls.ConnectionState // nil → req.TLS == nil (plain HTTP)
 		filterArgs []any
 	}{
 		{
 			name:       "DNS name matches exactly",
+			spec:       NewMtlsSanDNS(),
 			tlsState:   buildConnStateWithSANs(nil, []string{"example.com"}, nil, nil),
 			filterArgs: []any{"example.com"},
 		},
 		{
 			name:       "IP exact match",
+			spec:       NewMtlsSanIP(),
 			tlsState:   buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("1.2.3.4")}, nil),
 			filterArgs: []any{"1.2.3.4"},
 		},
 		{
 			name:       "IP inside CIDR /8 matches",
+			spec:       NewMtlsSanCIDR(),
 			tlsState:   buildConnStateWithSANs(nil, nil, []net.IP{mustParseIP("10.1.2.3")}, nil),
 			filterArgs: []any{"10.0.0.0/8"},
 		},
 		{
 			name:       "multiple patterns — first matches",
+			spec:       NewMtlsSanDNS(),
 			tlsState:   buildConnStateWithSANs(nil, []string{"a.com"}, nil, nil),
 			filterArgs: []any{"a.com", "b.com"},
 		},
 		{
 			name:       "URI match",
+			spec:       NewMtlsSanURI(),
 			tlsState:   buildConnStateWithSANs(nil, nil, nil, []*url.URL{{Scheme: "spiffe", Host: "b.org", Path: "/svc"}}),
 			filterArgs: []any{"spiffe://a.org/svc", "spiffe://b.org/svc"},
 		},
 	} {
 		b.Run(bb.name, func(b *testing.B) {
-			f, err := spec.CreateFilter(bb.filterArgs)
+			f, err := bb.spec.CreateFilter(bb.filterArgs)
 			if err != nil {
 				b.Fatalf("Failed to create filter: %v", err)
 			}
@@ -1175,6 +1482,7 @@ func BenchmarkMtlsSAN(b *testing.B) {
 
 			ctx := &filtertest.Context{FRequest: req}
 
+			b.ResetTimer()
 			for b.Loop() {
 				f.Request(ctx)
 				if ctx.FServed {
