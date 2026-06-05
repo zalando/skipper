@@ -29,7 +29,7 @@ spec:
       protocol: TCP
       targetPort: 8080
   selector:
-    app: app-with-opt-out
+    app: app-without-opt-out
   type: ClusterIP
 ---
 apiVersion: networking.k8s.io/v1

@@ -347,8 +347,8 @@ type Route struct {
 	// load balancing backends.
 	LBEndpoints []*LBEndpoint
 
-	// EnableZoneAwareness indicates that the route should be processed with zone awareness.
-	EnableZoneAwareness string
+	// DisableZoneAwareness indicates that the route should not be processed with zone awareness.
+	DisableZoneAwareness bool
 
 	// Name is deprecated and not used.
 	Name string

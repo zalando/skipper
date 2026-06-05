@@ -79,7 +79,7 @@ func (state *clusterState) GetEndpointsByService(namespace, name, protocol strin
 }
 
 // GetEndpointSlicesByService returns the skipper endpointslices for kubernetes endpointslices.
-func (state *clusterState) GetEndpointSlicesByService(zone, namespace, name, protocol string, servicePort *servicePort, zoneAwareTraffic string) []skipperEndpoint {
+func (state *clusterState) GetEndpointSlicesByService(zone, namespace, name, protocol string, servicePort *servicePort, zoneAwarenessDisabled bool) []skipperEndpoint {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
@@ -105,7 +105,7 @@ func (state *clusterState) GetEndpointSlicesByService(zone, namespace, name, pro
 		state.cachedEndpointSlices[epID] = targets
 	}
 
-	if zoneAwareTraffic == "false" {
+	if zoneAwarenessDisabled {
 		return targets
 	}
 
@@ -171,7 +171,7 @@ func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol, schem
 }
 
 // GetEndpointSlicesByTarget returns the skipper endpointslices for kubernetes endpointslices.
-func (state *clusterState) GetEndpointSlicesByTarget(zone, namespace, name, protocol, scheme string, target *definitions.BackendPort, zoneAwareTraffic string) []skipperEndpoint {
+func (state *clusterState) GetEndpointSlicesByTarget(zone, namespace, name, protocol, scheme string, target *definitions.BackendPort, zoneAwarenessDisabled bool) []skipperEndpoint {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
@@ -196,7 +196,7 @@ func (state *clusterState) GetEndpointSlicesByTarget(zone, namespace, name, prot
 		state.cachedEndpointSlices[epID] = targets
 	}
 
-	if zoneAwareTraffic == "false" {
+	if zoneAwarenessDisabled {
 		return targets
 	}
 
