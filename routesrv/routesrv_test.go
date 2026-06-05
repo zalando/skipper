@@ -1504,10 +1504,10 @@ func TestRouteServerFilters_PassFilter_RoutesStillServed(t *testing.T) {
 	defer ks.Close()
 
 	rs := newRouteServerWithOptions(t, skipper.Options{
-		SourcePollTimeout:    pollInterval,
-		Kubernetes:           true,
-		KubernetesURL:        ks.URL,
-		RouteServerFilters:   []filters.Filter{testPassFilter{}},
+		SourcePollTimeout:  pollInterval,
+		Kubernetes:         true,
+		KubernetesURL:      ks.URL,
+		RouteServerFilters: []filters.Filter{testPassFilter{}},
 	})
 	rs.StartUpdates()
 	defer rs.StopUpdates()
