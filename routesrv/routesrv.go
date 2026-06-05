@@ -140,43 +140,10 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	}
 
 	// filters to Routesrv listener to secure communication for example
-	if opts.OAuthTokeninfoURL != "" {
-		tio := auth.TokeninfoOptions{
-			URL:                         opts.OAuthTokeninfoURL,
-			Timeout:                     opts.OAuthTokeninfoTimeout,
-			MaxIdleConns:                opts.IdleConnectionsPerHost,
-			Tracer:                      tracer,
-			Metrics:                     m,
-			CacheSize:                   opts.OAuthTokeninfoCacheSize,
-			CacheTTL:                    opts.OAuthTokeninfoCacheTTL,
-			OpenTracingClientTraceByTag: opts.OpenTracingClientTraceByTag,
-		}
-		opts.CustomFilters = append(opts.CustomFilters,
-			auth.NewOAuthTokeninfoAllScopeWithOptions(tio),
-			auth.NewOAuthTokeninfoAnyScopeWithOptions(tio),
-			auth.NewOAuthTokeninfoAllKVWithOptions(tio),
-			auth.NewOAuthTokeninfoAnyKVWithOptions(tio),
-			auth.NewOAuthTokeninfoValidate(tio),
-		)
-	}
-	filterChain := make([]filters.Filter, 0)
-	registry := make(filters.Registry)
-	for _, f := range builtin.Filters() {
-		registry.Register(f)
-	}
-	for _, f := range opts.CustomFilters {
-		registry.Register(f)
-	}
-	for _, eskipFilter := range opts.RouteServerFilters {
-		spec, ok := registry[eskipFilter.Name]
-		if !ok {
-			return nil, fmt.Errorf("failed to get filter for routeserver %q", eskipFilter.Name)
-		}
-		filter, err := spec.CreateFilter(eskipFilter.Args)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create filter %q for routeserver: %v", eskipFilter.Name, err)
-		}
-		filterChain = append(filterChain, filter)
+	addCustomerFilters(&opts)
+	filterChain, err := createFilterChain(&opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create filter chain: %w", err)
 	}
 
 	rs.server = &http.Server{
@@ -209,6 +176,49 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	rs.wg = &sync.WaitGroup{}
 
 	return rs, nil
+}
+
+func createFilterChain(opts *skipper.Options) ([]filters.Filter, error) {
+	filterChain := make([]filters.Filter, 0)
+	registry := make(filters.Registry)
+	for _, f := range builtin.Filters() {
+		registry.Register(f)
+	}
+	for _, f := range opts.CustomFilters {
+		registry.Register(f)
+	}
+	for _, eskipFilter := range opts.RouteServerFilters {
+		spec, ok := registry[eskipFilter.Name]
+		if !ok {
+			return nil, fmt.Errorf("failed to get filter for routeserver %q", eskipFilter.Name)
+		}
+		filter, err := spec.CreateFilter(eskipFilter.Args)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create filter %q for routeserver: %v", eskipFilter.Name, err)
+		}
+		filterChain = append(filterChain, filter)
+	}
+	return filterChain, nil
+}
+
+func addCustomerFilters(opts *skipper.Options) {
+	if opts.OAuthTokeninfoURL != "" {
+		tio := auth.TokeninfoOptions{
+			URL:                         opts.OAuthTokeninfoURL,
+			Timeout:                     opts.OAuthTokeninfoTimeout,
+			MaxIdleConns:                opts.IdleConnectionsPerHost,
+			CacheSize:                   opts.OAuthTokeninfoCacheSize,
+			CacheTTL:                    opts.OAuthTokeninfoCacheTTL,
+			OpenTracingClientTraceByTag: opts.OpenTracingClientTraceByTag,
+		}
+		opts.CustomFilters = append(opts.CustomFilters,
+			auth.NewOAuthTokeninfoAllScopeWithOptions(tio),
+			auth.NewOAuthTokeninfoAnyScopeWithOptions(tio),
+			auth.NewOAuthTokeninfoAllKVWithOptions(tio),
+			auth.NewOAuthTokeninfoAnyKVWithOptions(tio),
+			auth.NewOAuthTokeninfoValidate(tio),
+		)
+	}
 }
 
 func tracerInstance(o *skipper.Options) (ot.Tracer, func(context.Context) error, error) {
