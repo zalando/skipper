@@ -315,3 +315,37 @@ func TestMalformedRequests(t *testing.T) {
 		})
 	}
 }
+
+func TestBodySizeLimit(t *testing.T) {
+	routeGroupHandler := Handler(&RouteGroupAdmitter{RouteGroupValidator: &definitions.RouteGroupValidator{}})
+	ingressHandler := Handler(&IngressAdmitter{IngressValidator: &definitions.IngressV1Validator{}})
+
+	size := maxBodySize + 1
+	buf := bytes.Buffer{}
+	buf.WriteString("{")
+	for range size - 1 {
+		buf.WriteString(" ")
+	}
+	buf.WriteString("}")
+
+	makeRequest := func() *http.Request {
+		method := "POST"
+
+		req := httptest.NewRequest(method, "http://example.com/foo", strings.NewReader(buf.String()))
+		req.Header.Set("Content-Type", "application/json")
+		return req
+	}
+
+	t.Run("route group", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		routeGroupHandler(w, makeRequest())
+		assert.Equal(t, 500, w.Code)
+	})
+
+	t.Run("ingress", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		ingressHandler(w, makeRequest())
+		assert.Equal(t, 500, w.Code)
+	})
+
+}
