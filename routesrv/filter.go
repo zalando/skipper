@@ -20,25 +20,25 @@ type filterContext struct {
 	stateBag map[string]interface{}
 }
 
-func (fc *filterContext) ResponseWriter() http.ResponseWriter        { return fc.w }
-func (fc *filterContext) Request() *http.Request                     { return fc.r }
-func (fc *filterContext) Response() *http.Response                   { return nil }
-func (fc *filterContext) OriginalRequest() *http.Request             { return fc.r }
-func (fc *filterContext) OriginalResponse() *http.Response           { return nil }
-func (fc *filterContext) Served() bool                               { return fc.served }
-func (fc *filterContext) MarkServed()                                { fc.served = true }
-func (fc *filterContext) StateBag() map[string]interface{}           { return fc.stateBag }
-func (fc *filterContext) BackendUrl() string                         { return "" }
-func (fc *filterContext) OutgoingHost() string                       { return "" }
-func (fc *filterContext) SetOutgoingHost(string)                     {}
-func (fc *filterContext) PathParam(string) string                    { return "" }
-func (fc *filterContext) RouteId() string                            { return "" }
-func (fc *filterContext) Metrics() filters.Metrics                   { return nil }
-func (fc *filterContext) Tracer() ot.Tracer                          { return nil }
-func (fc *filterContext) ParentSpan() ot.Span                        { return nil }
-func (fc *filterContext) Split() (filters.FilterContext, error)      { panic("not implemented") }
-func (fc *filterContext) Loopback()                                  { panic("not implemented") }
-func (fc *filterContext) LoopbackWithResponse()                      { panic("not implemented") }
+func (fc *filterContext) ResponseWriter() http.ResponseWriter   { return fc.w }
+func (fc *filterContext) Request() *http.Request                { return fc.r }
+func (fc *filterContext) Response() *http.Response              { return nil }
+func (fc *filterContext) OriginalRequest() *http.Request        { return fc.r }
+func (fc *filterContext) OriginalResponse() *http.Response      { return nil }
+func (fc *filterContext) Served() bool                          { return fc.served }
+func (fc *filterContext) MarkServed()                           { fc.served = true }
+func (fc *filterContext) StateBag() map[string]interface{}      { return fc.stateBag }
+func (fc *filterContext) BackendUrl() string                    { return "" }
+func (fc *filterContext) OutgoingHost() string                  { return "" }
+func (fc *filterContext) SetOutgoingHost(string)                {}
+func (fc *filterContext) PathParam(string) string               { return "" }
+func (fc *filterContext) RouteId() string                       { return "" }
+func (fc *filterContext) Metrics() filters.Metrics              { return nil }
+func (fc *filterContext) Tracer() ot.Tracer                     { return nil }
+func (fc *filterContext) ParentSpan() ot.Span                   { return nil }
+func (fc *filterContext) Split() (filters.FilterContext, error) { panic("not implemented") }
+func (fc *filterContext) Loopback()                             { panic("not implemented") }
+func (fc *filterContext) LoopbackWithResponse()                 { panic("not implemented") }
 
 func (fc *filterContext) Logger() filters.FilterContextLogger {
 	return log.StandardLogger()
@@ -73,7 +73,7 @@ func withFilters(h http.Handler, chain []filters.Filter) http.Handler {
 		ctx := &filterContext{
 			w:        w,
 			r:        r,
-			stateBag: make(map[string]interface{}),
+			stateBag: make(map[string]any),
 		}
 		for _, f := range chain {
 			f.Request(ctx)

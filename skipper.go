@@ -382,12 +382,12 @@ type Options struct {
 	DefaultFilters *eskip.DefaultFilters
 
 	// RouteServerFilters is an optional filter chain applied to every
-	// inbound request handled by the route server (e.g. /routes, /health).
+	// inbound request handled by the routesrv (e.g. /routes, /health).
 	// Filters run in order; if any filter calls ctx.Serve(), the request is
 	// short-circuited and subsequent filters and the handler are not called.
 	// This is the primary hook for adding authn/authz (e.g. mtlsAuthn,
-	// mtlsCN) to the route server endpoints.
-	RouteServerFilters []filters.Filter
+	// mtlsCN) to the routesrv endpoints.
+	RouteServerFilters []*eskip.Filter
 
 	// DisabledFilters is a list of filters unavailable for use
 	DisabledFilters []string

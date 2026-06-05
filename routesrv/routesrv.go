@@ -11,6 +11,7 @@ import (
 	"time"
 
 	ot "github.com/opentracing/opentracing-go"
+	"github.com/zalando/skipper/filters"
 	sotel "github.com/zalando/skipper/otel"
 	"github.com/zalando/skipper/tracing"
 	"go.opentelemetry.io/otel"
@@ -23,6 +24,7 @@ import (
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/metrics"
 )
 
@@ -137,9 +139,49 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		mux.Handle("/swarm/valkey/shards", vh)
 	}
 
+	// filters to Routesrv listener to secure communication for example
+	if opts.OAuthTokeninfoURL != "" {
+		tio := auth.TokeninfoOptions{
+			URL:                         opts.OAuthTokeninfoURL,
+			Timeout:                     opts.OAuthTokeninfoTimeout,
+			MaxIdleConns:                opts.IdleConnectionsPerHost,
+			Tracer:                      tracer,
+			Metrics:                     m,
+			CacheSize:                   opts.OAuthTokeninfoCacheSize,
+			CacheTTL:                    opts.OAuthTokeninfoCacheTTL,
+			OpenTracingClientTraceByTag: opts.OpenTracingClientTraceByTag,
+		}
+		opts.CustomFilters = append(opts.CustomFilters,
+			auth.NewOAuthTokeninfoAllScopeWithOptions(tio),
+			auth.NewOAuthTokeninfoAnyScopeWithOptions(tio),
+			auth.NewOAuthTokeninfoAllKVWithOptions(tio),
+			auth.NewOAuthTokeninfoAnyKVWithOptions(tio),
+			auth.NewOAuthTokeninfoValidate(tio),
+		)
+	}
+	filterChain := make([]filters.Filter, 0)
+	registry := make(filters.Registry)
+	for _, f := range builtin.Filters() {
+		registry.Register(f)
+	}
+	for _, f := range opts.CustomFilters {
+		registry.Register(f)
+	}
+	for _, eskipFilter := range opts.RouteServerFilters {
+		spec, ok := registry[eskipFilter.Name]
+		if !ok {
+			return nil, fmt.Errorf("failed to get filter for routeserver %q", eskipFilter.Name)
+		}
+		filter, err := spec.CreateFilter(eskipFilter.Args)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create filter %q for routeserver: %v", eskipFilter.Name, err)
+		}
+		filterChain = append(filterChain, filter)
+	}
+
 	rs.server = &http.Server{
 		Addr:              opts.Address,
-		Handler:           withFilters(mux, opts.RouteServerFilters),
+		Handler:           withFilters(mux, filterChain),
 		ReadTimeout:       1 * time.Minute,
 		ReadHeaderTimeout: 1 * time.Minute,
 	}
