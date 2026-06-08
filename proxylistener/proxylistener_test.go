@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pires/go-proxyproto"
+	proxyproto "github.com/pires/go-proxyproto"
 )
 
 // type testListener struct {
@@ -50,6 +50,7 @@ func createProxyClient(proxyAddr, destAddr string, destPort int) *http.Client {
 
 	return &http.Client{
 		Transport: &http.Transport{
+			DisableKeepAlives: true, // each request uses its own connection; prevents idle-connection races
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				conn, err := dialer.Dial(network, proxyAddr)
 				if err != nil {
@@ -88,6 +89,7 @@ func createBogusProxyClient(proxyAddr, destAddr string, destPort int, version by
 
 	cli := &http.Client{
 		Transport: &http.Transport{
+			DisableKeepAlives: true, // each request uses its own connection; prevents idle-connection races
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				conn, err := dialer.Dial(network, proxyAddr)
 				if err != nil {
@@ -199,11 +201,16 @@ func TestProxyListenerWithProxyClient(t *testing.T) {
 
 			client := createProxyClient(addr, "10.0.0.5", 8080)
 
+			// shutdownCH is closed after client.Do returns so that srv.Shutdown
+			// is only called once the request has completed, not on a fixed timer.
+			shutdownCH := make(chan struct{})
 			waitShutdownCH := make(chan struct{})
 			go func() {
-				time.Sleep(time.Second)
+				<-shutdownCH
 				t.Log("Start shutdown")
-				if err := srv.Shutdown(context.Background()); err != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := srv.Shutdown(ctx); err != nil {
 					t.Logf("Failed to graceful shutdown: %v", err)
 				}
 				close(waitShutdownCH)
@@ -224,8 +231,12 @@ func TestProxyListenerWithProxyClient(t *testing.T) {
 			}
 			req.Host = tt.host
 			rsp, err := client.Do(req)
+			close(shutdownCH) // trigger shutdown now that request has completed or failed
 			if err != nil && !tt.wantErr {
 				t.Fatalf("Failed to get response: %v", err)
+			}
+			if rsp != nil {
+				rsp.Body.Close()
 			}
 			if !tt.wantErr && rsp.StatusCode != tt.want {
 				t.Fatalf("Failed to get %d, got %d", tt.want, rsp.StatusCode)
@@ -327,11 +338,14 @@ func TestProxyListenerWithBogusProxyClient(t *testing.T) {
 
 			client := createBogusProxyClient(addr, tt.destAddr, 8080, tt.version, tt.protocol)
 
+			shutdownCH := make(chan struct{})
 			waitShutdownCH := make(chan struct{})
 			go func() {
-				time.Sleep(time.Second)
+				<-shutdownCH
 				t.Log("Start shutdown")
-				if err := srv.Shutdown(context.Background()); err != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := srv.Shutdown(ctx); err != nil {
 					t.Logf("Failed to graceful shutdown: %v", err)
 				}
 				close(waitShutdownCH)
@@ -352,8 +366,12 @@ func TestProxyListenerWithBogusProxyClient(t *testing.T) {
 			}
 			req.Host = tt.host
 			rsp, err := client.Do(req)
+			close(shutdownCH)
 			if err != nil && !tt.wantErr {
 				t.Fatalf("Failed to get response: %v", err)
+			}
+			if rsp != nil {
+				rsp.Body.Close()
 			}
 			if !tt.wantErr && rsp.StatusCode != tt.want {
 				t.Fatalf("Failed to get %d, got %d", tt.want, rsp.StatusCode)
@@ -488,13 +506,20 @@ func TestProxyListenerWithHttpClient(t *testing.T) {
 				}),
 			}
 
-			client := http.DefaultClient
+			// Use a per-subtest client with keep-alives disabled to prevent
+			// idle connections from one subtest from contaminating the next.
+			client := &http.Client{
+				Transport: &http.Transport{DisableKeepAlives: true},
+			}
 
+			shutdownCH := make(chan struct{})
 			waitShutdownCH := make(chan struct{})
 			go func() {
-				time.Sleep(time.Second)
+				<-shutdownCH
 				t.Log("Start shutdown")
-				if err := srv.Shutdown(context.Background()); err != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := srv.Shutdown(ctx); err != nil {
 					t.Logf("Failed to graceful shutdown: %v", err)
 				}
 				close(waitShutdownCH)
@@ -515,8 +540,12 @@ func TestProxyListenerWithHttpClient(t *testing.T) {
 			}
 			req.Host = tt.host
 			rsp, err := client.Do(req)
+			close(shutdownCH)
 			if err != nil && !tt.wantErr {
 				t.Fatalf("Failed to get response: %v", err)
+			}
+			if rsp != nil {
+				rsp.Body.Close()
 			}
 			if !tt.wantErr && rsp.StatusCode != tt.want {
 				t.Fatalf("Failed to get %d, got %d", tt.want, rsp.StatusCode)
