@@ -103,6 +103,8 @@ func convertPathRuleV1(
 		return nil, err
 	}
 
+	zoneAwarenessDisabled := metadata.Annotations[trafficZoneAwareAnnotationKey] == "false"
+
 	servicePort, err := svc.getServicePortV1(svcPort)
 	if err != nil {
 		// service definition is wrong or no pods
@@ -125,7 +127,7 @@ func convertPathRuleV1(
 		}
 
 		if state.enableEndpointSlices {
-			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort)
+			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort, zoneAwarenessDisabled)
 			for _, ep := range epSlices {
 				eps = append(eps, ep.Address)
 			}
@@ -178,6 +180,8 @@ func convertPathRuleV1(
 	} else {
 		r.LBEndpoints = eskip.NewLBEndpoints(eps)
 	}
+
+	r.DisableZoneAwareness = zoneAwarenessDisabled
 
 	setPathV1(pathMode, r, prule.PathType, prule.Path)
 	traffic.apply(r)
@@ -386,6 +390,8 @@ func (ing *ingress) convertDefaultBackendV1(
 		return nil, false, err
 	}
 
+	zoneAwarenessDisabled := i.Metadata.Annotations[trafficZoneAwareAnnotationKey] == "false"
+
 	servicePort, err := svc.getServicePortV1(svcPort)
 	if err != nil {
 		ic.logger.Errorf("Failed to find target port %v, %s, for service %s add shuntroute: %v", svc.Spec.Ports, svcPort, svcName, err)
@@ -407,7 +413,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		}
 
 		if state.enableEndpointSlices {
-			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort)
+			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort, zoneAwarenessDisabled)
 			for _, ep := range epSlices {
 				eps = append(eps, ep.Address)
 			}
@@ -453,6 +459,8 @@ func (ing *ingress) convertDefaultBackendV1(
 	} else {
 		r.LBEndpoints = eskip.NewLBEndpoints(eps)
 	}
+
+	r.DisableZoneAwareness = zoneAwarenessDisabled
 
 	return r, true, nil
 }

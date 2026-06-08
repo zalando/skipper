@@ -1090,6 +1090,12 @@ func TestRoutesWithZone(t *testing.T) {
 			ing:   "testdata/zone-aware-traffic/mixed-zone-application-with-no-endpoints.yaml",
 			eskip: "testdata/zone-aware-traffic/mixed-zone-application-with-no-endpoints.eskip",
 		},
+		{
+			name:  "MixedZoneThresholdApplicationWithOptOut",
+			zone:  "eu-central-1a",
+			ing:   "testdata/zone-aware-traffic/mixed-zone-threshold-with-opt-out.yaml",
+			eskip: "testdata/zone-aware-traffic/mixed-zone-threshold-with-opt-out.eskip",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			defer tl.Reset()
