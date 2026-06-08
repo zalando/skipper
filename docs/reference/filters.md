@@ -465,6 +465,44 @@ redirect2: * -> redirectTo(301) -> <shunt>;
 
 see also [redirect-handling](../tutorials/common-use-cases.md#redirect-handling)
 
+#### Manipulating the redirect Location query string
+
+`redirectTo` reuses the request query string when the configured location has no
+query string. If the configured location contains a query string, that query
+string is used for the `Location` header instead.
+
+To remove the incoming query string from the redirect `Location`, run
+`stripQuery` before `redirectTo`:
+
+```
+strip_redirect_query:
+  * -> stripQuery() -> redirectTo(301, "https://example.com/new-path") -> <shunt>;
+```
+
+To replace the incoming query string, configure the redirect location with the
+query string to send:
+
+```
+replace_redirect_query:
+  * -> redirectTo(301, "https://example.com/new-path?key=value") -> <shunt>;
+```
+
+To rewrite the generated `Location` header, run `modResponseHeader` before
+`redirectTo` in the route. `redirectTo` creates the response on the request
+path, and only the filters reached before the request is shunted run on the
+response path:
+
+```
+rewrite_redirect_query:
+  * -> modResponseHeader("Location", "([?].*)?$", "?key=value")
+    -> redirectTo(301, "https://example.com/new-path")
+    -> <shunt>;
+```
+
+Request-side query filters, such as [stripQuery](#stripquery),
+[setQuery](#setquery), and [dropQuery](#dropquery), must be placed before
+`redirectTo` when they should affect the inherited redirect query string.
+
 ### redirectToLower
 
 Same as [redirectTo](#redirectto), but replaces all strings to lowercase.
@@ -482,6 +520,9 @@ Example:
 * -> stripQuery() -> "http://backend.example.org";
 * -> stripQuery("true") -> "http://backend.example.org";
 ```
+
+See also [manipulating the redirect Location query string](#manipulating-the-redirect-location-query-string)
+for redirect examples that use `stripQuery`.
 
 ### setQuery
 
