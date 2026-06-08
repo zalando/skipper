@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	"net/http"
@@ -256,6 +257,9 @@ type Config struct {
 	ClientCertRefreshInterval time.Duration     `yaml:"client-tls-cert-refresh-interval"`
 	Certificates              []tls.Certificate `yaml:"-"`
 	EnableMTLS                bool              `yaml:"enable-mtls"`
+	MtlsAuthnAppendCA         bool              `yaml:"mtls-authn-append-ca"`
+	MtlsAuthnCaFile           string            `yaml:"mtls-authn-ca"`
+	MtlsAuthnCA               *x509.CertPool    `yaml:"-"`
 
 	// TLS version
 	TLSMinVersion string             `yaml:"tls-min-version"`
@@ -633,6 +637,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.ClientCertFile, "client-tls-cert", "", "TLS certificate files for backend connections, multiple keys may be given comma separated - the order must match the keys")
 	flag.DurationVar(&cfg.ClientCertRefreshInterval, "client-tls-cert-refresh-interval", 0, "How often to reload client TLS certificate and key files for backend connections. Defaults to 5 minutes if certificate files are set.")
 	// MTLS
+	flag.StringVar(&cfg.MtlsAuthnCaFile, "mtls-authn-ca", "", "PEM encoded CA files to use in mtlsAuthn() filter to validate client certificates, multiple files may be given comma separated")
+	flag.BoolVar(&cfg.MtlsAuthnAppendCA, "mtls-authn-append-ca", false, "If set to true -mtls-authn-ca will load system CAs, too.")
 	flag.BoolVar(&cfg.EnableMTLS, "enable-mtls", false, "Enables MTLS support in the proxy. It uses -client-tls-cert and -client-tls-key as files and rotates the client cert every -client-tls-cert-refresh-interval time.Duration. It only supports one cert and one key file!")
 
 	// TLS version
@@ -859,6 +865,28 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 		}
 
 		c.Certificates = certificates
+	}
+
+	if c.MtlsAuthnAppendCA {
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			return fmt.Errorf("failed to load system cert pool: %v", err)
+		} else {
+			c.MtlsAuthnCA = pool
+		}
+	} else {
+		c.MtlsAuthnCA = x509.NewCertPool()
+	}
+	if c.MtlsAuthnCaFile != "" {
+		for f := range strings.SplitSeq(c.MtlsAuthnCaFile, ",") {
+			pem, err := os.ReadFile(f)
+			if err != nil {
+				return fmt.Errorf("failed to read %q: %v", f, err)
+			}
+			if !c.MtlsAuthnCA.AppendCertsFromPEM(pem) {
+				return fmt.Errorf("failed to append CA cert %q", f)
+			}
+		}
 	}
 
 	if c.NormalizeHost || c.KubernetesIngress {
@@ -1209,6 +1237,7 @@ func (c *Config) ToOptions() skipper.Options {
 	options.ClientCertFile = c.ClientCertFile
 	options.ClientKeyFile = c.ClientKeyFile
 	options.ClientCertRefreshInterval = c.ClientCertRefreshInterval
+	options.MtlsAuthnCA = c.MtlsAuthnCA
 
 	var wrappers []func(handler http.Handler) http.Handler
 	options.CustomHttpHandlerWrap = func(handler http.Handler) http.Handler {

@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"os"
@@ -190,6 +191,9 @@ func defaultConfig(with func(*Config)) *Config {
 		ProxyAllowListCIDRs:                     commaListFlag(),
 		ProxyDenyListCIDRs:                      commaListFlag(),
 		ProxySkipListCIDRs:                      commaListFlag(),
+		MtlsAuthnAppendCA:                       false,
+		MtlsAuthnCaFile:                         "",
+		MtlsAuthnCA:                             x509.NewCertPool(),
 	}
 	with(cfg)
 	return cfg

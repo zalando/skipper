@@ -561,6 +561,109 @@ Example:
 * -> tlsPassClientCertificates() -> "http://10.2.5.21:8080";
 ```
 
+### mtlsAuthn
+
+This filter validates the client certificate provided by verifying
+with the configured system CA certificates.
+
+Example:
+
+```
+* -> mtlsAuthn() -> "http://10.2.5.21:8080";
+```
+
+### mtlsIssuerDN
+
+This authz filter checks the DN value of the issuer of the provided certificate. You have
+to use `mtlsAuthn()` to verify validity.
+
+Parameters:
+
+* DN (string)
+
+Example:
+
+```
+* -> mtlsAuthn() ->  mtlsIssuerDN("CN=My CA,O=My Org,C=DE") -> "http://10.2.5.21:8080";
+```
+
+### mtlsCN
+
+This authz filter checks the CN value of the subject of the provided
+certificate. You have to use `mtlsAuthn()` to verify validity.
+
+Parameters:
+
+* CN (string)
+
+Example:
+
+```
+* -> mtlsAuthn() ->  mtlsCN("My CA") -> "http://10.2.5.21:8080";
+```
+
+### mtlsSanCIDR
+
+This authz filter checks CIDRs of the SAN value of the provided certificate. You have
+to use `mtlsAuthn()` to verify validity.
+
+Parameters are one or more:
+
+* CIDR (string)
+
+Example:
+
+```
+* -> mtlsAuthn() ->  mtlsSanCIDR("2a05:aec0::/29", "10.0.5.0/15") -> "http://10.2.5.21:8080";
+```
+
+### mtlsSanDNS
+
+This authz filter checks DNS of the SAN value of the provided certificate. You have
+to use `mtlsAuthn()` to verify validity.
+
+Parameters are one or more:
+
+* DNS hostnames (string)
+
+Example:
+
+```
+* -> mtlsAuthn() ->  mtlsSanDNS("my.host.example") -> "http://10.2.5.21:8080";
+```
+
+### mtlsSanIP
+
+This authz filter checks IPs of the SAN value of the provided certificate. You have
+to use `mtlsAuthn()` to verify validity.
+
+Parameters are one or more:
+
+* IP (string)
+
+Example:
+
+```
+* -> mtlsAuthn() ->  mtlsSanIP("2a05:aec0::5", "10.0.5.10") -> "http://10.2.5.21:8080";
+```
+
+### mtlsSanURI
+
+This authz filter checks URIs of the SAN value of the provided certificate. You have
+to use `mtlsAuthn()` to verify validity.
+
+Parameters are one or more:
+
+* URI (string)
+
+Example:
+
+```
+* -> mtlsAuthn() ->  mtlsSanURI("spiffe://my-service.example/app1") -> "http://10.2.5.21:8080";
+```
+
+
+
 ## Diagnostics
 
 These filters are meant for diagnostic or load testing purposes.
