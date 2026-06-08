@@ -591,28 +591,6 @@ Example:
 * -> mtlsAuthn() ->  mtlsCN("My CA") -> "http://10.2.5.21:8080";
 ```
 
-### mtlsSAN
-
-This authz filter checks the SAN value of the provided certificate. You have
-to use `mtlsAuthn()` to verify validity.
-
-Parameters are one or more:
-
-* DNS hostnames (string)
-* CIDR (string)
-* IPv4 (string)
-* IPv6 (string)
-* URI (string)
-
-Example:
-
-```
-* -> mtlsAuthn() ->  mtlsSAN("my.host.example", "2a05:aec0::/29", "10.0.5.0/15", "1.2.3.4", "spiffe://my-service.example/app1") -> "http://10.2.5.21:8080";
-* -> mtlsAuthn() ->  mtlsSAN("my.host.example") -> "http://10.2.5.21:8080";
-* -> mtlsAuthn() ->  mtlsSAN("2a05:aec0::/29", "10.0.5.0/15", "1.2.3.4") -> "http://10.2.5.21:8080";
-* -> mtlsAuthn() ->  mtlsSAN("spiffe://my-service.example/app1") -> "http://10.2.5.21:8080";
-```
-
 ### mtlsSanCIDR
 
 This authz filter checks CIDRs of the SAN value of the provided certificate. You have
@@ -670,7 +648,7 @@ Parameters are one or more:
 Example:
 
 ```
-* -> mtlsAuthn() ->  mtlsSAN("spiffe://my-service.example/app1") -> "http://10.2.5.21:8080";
+* -> mtlsAuthn() ->  mtlsSanURI("spiffe://my-service.example/app1") -> "http://10.2.5.21:8080";
 ```
 
 
