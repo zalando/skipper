@@ -1422,7 +1422,7 @@ func (o *Options) filterRegistry() filters.Registry {
 	return registry
 }
 
-func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
+func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
 
 	if o.ProxyTLS != nil {
 		return o.ProxyTLS, nil
@@ -1456,7 +1456,7 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		return nil, fmt.Errorf("number of certificates does not match number of keys")
 	}
 
-	for i := 0; i < len(crts); i++ {
+	for i := range crts {
 		crt, key := crts[i], keys[i]
 		keypair, err := tls.LoadX509KeyPair(crt, key)
 		if err != nil {
@@ -1535,7 +1535,7 @@ func listenAndServeQuit(
 	mtr metrics.Metrics,
 	cr *certregistry.CertRegistry,
 ) error {
-	tlsConfig, err := o.tlsConfig(cr)
+	tlsConfig, err := o.TlsConfig(cr)
 	if err != nil {
 		return err
 	}

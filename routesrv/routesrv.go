@@ -11,9 +11,6 @@ import (
 	"time"
 
 	ot "github.com/opentracing/opentracing-go"
-	"github.com/zalando/skipper/filters"
-	sotel "github.com/zalando/skipper/otel"
-	"github.com/zalando/skipper/tracing"
 	"go.opentelemetry.io/otel"
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/trace"
@@ -23,9 +20,14 @@ import (
 
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
+	tlsfilters "github.com/zalando/skipper/filters/tls"
 	"github.com/zalando/skipper/metrics"
+	sotel "github.com/zalando/skipper/otel"
+	"github.com/zalando/skipper/secrets/certregistry"
+	"github.com/zalando/skipper/tracing"
 )
 
 // RouteServer is used to serve eskip-formatted routes,
@@ -146,11 +148,18 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		return nil, fmt.Errorf("failed to create filter chain: %w", err)
 	}
 
+	cr := certregistry.NewCertRegistry()
+	tlsConfig, err := opts.TlsConfig(cr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tls config: %w", err)
+	}
+
 	rs.server = &http.Server{
 		Addr:              opts.Address,
 		Handler:           withFilters(mux, filterChain),
 		ReadTimeout:       1 * time.Minute,
 		ReadHeaderTimeout: 1 * time.Minute,
+		TLSConfig:         tlsConfig,
 	}
 
 	rs.supportServer = &http.Server{
@@ -202,6 +211,9 @@ func createFilterChain(opts *skipper.Options) ([]filters.Filter, error) {
 }
 
 func addCustomerFilters(opts *skipper.Options) {
+	if opts.MtlsAuthnCA != nil {
+		opts.CustomFilters = append(opts.CustomFilters, tlsfilters.NewMtlsAuthn(opts.MtlsAuthnCA))
+	}
 	if opts.OAuthTokeninfoURL != "" {
 		tio := auth.TokeninfoOptions{
 			URL:                         opts.OAuthTokeninfoURL,
@@ -334,10 +346,18 @@ func run(rs *RouteServer, opts skipper.Options, sigs chan os.Signal) error {
 	rs.StartUpdates()
 
 	go rs.startSupportListener()
-	if err = rs.server.ListenAndServe(); err != http.ErrServerClosed {
-		go shutdown(0)
+	if tlsConfig := rs.server.TLSConfig; tlsConfig != nil {
+		if err = rs.server.ListenAndServeTLS("", ""); err != http.ErrServerClosed {
+			go shutdown(0)
+		} else {
+			err = nil
+		}
 	} else {
-		err = nil
+		if err = rs.server.ListenAndServe(); err != http.ErrServerClosed {
+			go shutdown(0)
+		} else {
+			err = nil
+		}
 	}
 
 	rs.wg.Wait()

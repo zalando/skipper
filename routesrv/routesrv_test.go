@@ -1504,10 +1504,15 @@ func TestRouteServerFilters_PassFilter_RoutesStillServed(t *testing.T) {
 	defer ks.Close()
 
 	rs := newRouteServerWithOptions(t, skipper.Options{
-		SourcePollTimeout:  pollInterval,
-		Kubernetes:         true,
-		KubernetesURL:      ks.URL,
-		RouteServerFilters: []filters.Filter{testPassFilter{}},
+		SourcePollTimeout: pollInterval,
+		Kubernetes:        true,
+		KubernetesURL:     ks.URL,
+		RouteServerFilters: []*eskip.Filter{
+			{
+				Name: filters.AnnotateName,
+				Args: []any{"test"},
+			},
+		},
 	})
 	rs.StartUpdates()
 	defer rs.StopUpdates()
@@ -1527,10 +1532,15 @@ func TestRouteServerFilters_RejectFilter_AllEndpointsBlocked(t *testing.T) {
 	defer ks.Close()
 
 	rs := newRouteServerWithOptions(t, skipper.Options{
-		SourcePollTimeout:  pollInterval,
-		Kubernetes:         true,
-		KubernetesURL:      ks.URL,
-		RouteServerFilters: []filters.Filter{testRejectFilter{code: http.StatusUnauthorized}},
+		SourcePollTimeout: pollInterval,
+		Kubernetes:        true,
+		KubernetesURL:     ks.URL,
+		RouteServerFilters: []*eskip.Filter{
+			{
+				Name: filters.StatusName,
+				Args: []any{http.StatusUnauthorized},
+			},
+		},
 	})
 	rs.StartUpdates()
 	defer rs.StopUpdates()
@@ -1553,9 +1563,15 @@ func TestRouteServerFilters_ChainFirstPassSecondReject(t *testing.T) {
 		SourcePollTimeout: pollInterval,
 		Kubernetes:        true,
 		KubernetesURL:     ks.URL,
-		RouteServerFilters: []filters.Filter{
-			testPassFilter{},
-			testRejectFilter{code: http.StatusForbidden},
+		RouteServerFilters: []*eskip.Filter{
+			{
+				Name: filters.AnnotateName,
+				Args: []any{"ok"},
+			},
+			{
+				Name: filters.StatusName,
+				Args: []any{http.StatusUnauthorized},
+			},
 		},
 	})
 
