@@ -1115,6 +1115,28 @@ Example:
 * -> decompress() -> "https://www.example.org"
 ```
 
+### decompressRequest
+
+The filter, when executed on the request path, checks if the request entity is
+compressed by a supported algorithm (`gzip`, `deflate`, `br`, `zstd`). To decide, it
+checks the `Content-Encoding` header of the incoming request.
+
+When decompressing the request, it removes the `Content-Encoding` and the
+`Content-Length` headers, and the request body is wrapped with a streaming decoder so
+the backend receives the decompressed payload.
+
+If the encoding is not supported, the filter does not modify the request, but sets the
+`filter::decompress::not-possible` key in the state bag. If decompression initialization
+fails, it additionally sets the `filter::decompress::error` key with the error.
+
+The decompression happens in a streaming way, using only a small internal buffer.
+
+Example:
+
+```
+* -> decompressRequest() -> "https://www.example.org"
+```
+
 ### static
 
 Serves static content from the filesystem.

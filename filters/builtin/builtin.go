@@ -163,6 +163,7 @@ func Filters() []filters.Spec {
 		NewStatus(),
 		NewCompress(),
 		NewDecompress(),
+		NewDecompressRequest(),
 		NewHeaderToQuery(),
 		NewQueryToHeader(),
 		NewBackendTimeout(),
