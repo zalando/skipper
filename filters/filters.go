@@ -330,6 +330,7 @@ const (
 	RateBreakerName                            = "rateBreaker"
 	DisableBreakerName                         = "disableBreaker"
 	AdmissionControlName                       = "admissionControl"
+	PhysicsShedderName                         = "physicsShedder"
 	ClientRatelimitName                        = "clientRatelimit"
 	RatelimitName                              = "ratelimit"
 	ClusterClientRatelimitName                 = "clusterClientRatelimit"
