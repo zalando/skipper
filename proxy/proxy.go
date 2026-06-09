@@ -1444,9 +1444,11 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 
 		backendStart := time.Now()
 		if d, ok := ctx.StateBag()[filters.ReadTimeout].(time.Duration); ok {
-			e := ctx.ResponseController().SetReadDeadline(backendStart.Add(d))
-			if e != nil {
-				ctx.Logger().Errorf("Failed to set read deadline: %v", e)
+			if ctx.Request().ContentLength > 0 {
+				e := ctx.ResponseController().SetReadDeadline(backendStart.Add(d))
+				if e != nil {
+					ctx.Logger().Errorf("Failed to set read deadline: %v", e)
+				}
 			}
 		}
 
@@ -2032,6 +2034,10 @@ func (p *Proxy) makeErrorResponse(ctx *context, perr *proxyError) {
 		code = http.StatusBadGateway
 	case perr.code != 0:
 		code = perr.code
+		if perr.code == 499 {
+			// https://github.com/golang/go/issues/70834
+			ctx.response.Header.Set("Connection", "close")
+		}
 	}
 
 	text := http.StatusText(code) + "\n"
