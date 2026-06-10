@@ -22,6 +22,7 @@ import (
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routesrv"
 	"github.com/zalando/skipper/routing"
@@ -1477,4 +1478,103 @@ func TestXCountShouldBeSameForZoneAwareAndZoneUnawareRoutes(t *testing.T) {
 
 	// X-Count for `/routes` and `/routes/{zone}` must match since both return the same full route set (zone-aware fallback to all routes when below threshold).
 	assert.Equal(t, plainRespAllRoutes.Header().Get(routing.RoutesCountName), plainRespZoneAwareRoutes.Header().Get(routing.RoutesCountName))
+}
+
+// ---- RouteServerFilters integration tests ----
+
+// testPassFilter is a filter that allows every request through unchanged.
+type testPassFilter struct{}
+
+func (testPassFilter) Request(filters.FilterContext)  {}
+func (testPassFilter) Response(filters.FilterContext) {}
+
+// testRejectFilter short-circuits every request with the configured status code.
+type testRejectFilter struct{ code int }
+
+func (f testRejectFilter) Request(ctx filters.FilterContext) {
+	ctx.Serve(&http.Response{StatusCode: f.code, Header: make(http.Header)})
+}
+func (testRejectFilter) Response(filters.FilterContext) {}
+
+// TestRouteServerFilters_PassFilter_RoutesStillServed verifies that a filter
+// which does nothing does not interfere with the /routes endpoint.
+func TestRouteServerFilters_PassFilter_RoutesStillServed(t *testing.T) {
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout: pollInterval,
+		Kubernetes:        true,
+		KubernetesURL:     ks.URL,
+		RouteServerFilters: []*eskip.Filter{
+			{
+				Name: filters.AnnotateName,
+				Args: []any{"test"},
+			},
+		},
+	})
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Fatalf("routes not initialized: %v", err)
+	}
+
+	resp := getRoutes(rs)
+	assert.Equal(t, http.StatusOK, resp.Code, "pass filter must not block /routes")
+}
+
+// TestRouteServerFilters_RejectFilter_AllEndpointsBlocked verifies that a
+// rejecting filter blocks /routes, /health and any other endpoint.
+func TestRouteServerFilters_RejectFilter_AllEndpointsBlocked(t *testing.T) {
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout: pollInterval,
+		Kubernetes:        true,
+		KubernetesURL:     ks.URL,
+		RouteServerFilters: []*eskip.Filter{
+			{
+				Name: filters.StatusName,
+				Args: []any{http.StatusUnauthorized},
+			},
+		},
+	})
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+
+	resp := getRoutes(rs)
+	assert.Equal(t, http.StatusUnauthorized, resp.Code, "reject filter must block /routes with 401")
+
+	respHealth := getHealth(rs)
+	assert.Equal(t, http.StatusUnauthorized, respHealth.Code, "reject filter must block /health with 401")
+}
+
+// TestRouteServerFilters_ChainFirstPassSecondReject verifies that a chain of
+// [pass, reject] blocks the request (the second filter stops the chain).
+func TestRouteServerFilters_ChainFirstPassSecondReject(t *testing.T) {
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout: pollInterval,
+		Kubernetes:        true,
+		KubernetesURL:     ks.URL,
+		RouteServerFilters: []*eskip.Filter{
+			{
+				Name: filters.AnnotateName,
+				Args: []any{"ok"},
+			},
+			{
+				Name: filters.StatusName,
+				Args: []any{http.StatusUnauthorized},
+			},
+		},
+	})
+
+	resp := getRoutes(rs)
+	assert.Equal(t, http.StatusForbidden, resp.Code, "second filter in chain must reject with 403")
 }

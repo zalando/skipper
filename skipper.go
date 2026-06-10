@@ -3,6 +3,7 @@ package skipper
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -47,6 +48,7 @@ import (
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/shedder"
 	teefilters "github.com/zalando/skipper/filters/tee"
+	tlsfilters "github.com/zalando/skipper/filters/tls"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
@@ -379,6 +381,14 @@ type Options struct {
 	// DefaultFilters will be applied to all routes automatically.
 	DefaultFilters *eskip.DefaultFilters
 
+	// RouteServerFilters is an optional filter chain applied to every
+	// inbound request handled by the routesrv (e.g. /routes, /health).
+	// Filters run in order; if any filter calls ctx.Serve(), the request is
+	// short-circuited and subsequent filters and the handler are not called.
+	// This is the primary hook for adding authn/authz (e.g. mtlsAuthn,
+	// mtlsCN) to the routesrv endpoints.
+	RouteServerFilters []*eskip.Filter
+
 	// DisabledFilters is a list of filters unavailable for use
 	DisabledFilters []string
 
@@ -697,10 +707,13 @@ type Options struct {
 
 	DebugListener string
 
-	// Path of certificate(s) when using TLS, multiple may be given comma separated
+	// CertPathTLS is the path of certificate(s) when using TLS,
+	// multiple may be given comma separated
 	CertPathTLS string
-	// Path of key(s) when using TLS, multiple may be given comma separated. For
-	// multiple keys, the order must match the one given in CertPathTLS
+
+	// KeyPathTLS is the path of key(s) when using TLS, multiple
+	// may be given comma separated. For multiple keys, the order
+	// must match the one given in CertPathTLS
 	KeyPathTLS string
 
 	// TLSClientAuth sets the policy that the server will follow for
@@ -724,6 +737,12 @@ type Options struct {
 	// ClientCertRefreshInterval is how often ClientCertFile/ClientKeyFile are re-read.
 	// Defaults to 5 minutes if zero.
 	ClientCertRefreshInterval time.Duration
+
+	// MtlsAuthnCA is a CA instance that is used by the
+	// mtlsAuthn() filter to validate the client presented
+	// certificate. If it is nil, it will be instantiated by
+	// x509.SystemCertPool() which loads the system provided CAs.
+	MtlsAuthnCA *x509.CertPool
 
 	// EnableMTLS enables mTLS support in the proxy with rotated client cert
 	EnableMTLS bool
@@ -1403,7 +1422,7 @@ func (o *Options) filterRegistry() filters.Registry {
 	return registry
 }
 
-func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
+func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
 
 	if o.ProxyTLS != nil {
 		return o.ProxyTLS, nil
@@ -1437,7 +1456,7 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		return nil, fmt.Errorf("number of certificates does not match number of keys")
 	}
 
-	for i := 0; i < len(crts); i++ {
+	for i := range crts {
 		crt, key := crts[i], keys[i]
 		keypair, err := tls.LoadX509KeyPair(crt, key)
 		if err != nil {
@@ -1516,7 +1535,7 @@ func listenAndServeQuit(
 	mtr metrics.Metrics,
 	cr *certregistry.CertRegistry,
 ) error {
-	tlsConfig, err := o.tlsConfig(cr)
+	tlsConfig, err := o.TlsConfig(cr)
 	if err != nil {
 		return err
 	}
@@ -2296,6 +2315,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 		o.CustomFilters = append(o.CustomFilters, lua)
 	}
+
+	if o.MtlsAuthnCA == nil {
+		o.MtlsAuthnCA, err = x509.SystemCertPool()
+		if err != nil {
+			log.Errorf("Failed to load system certs: %v", err)
+			return err
+		}
+	}
+	o.CustomFilters = append(o.CustomFilters, tlsfilters.NewMtlsAuthn(o.MtlsAuthnCA))
 
 	// create routing
 	// create the proxy instance

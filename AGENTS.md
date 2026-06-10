@@ -22,6 +22,7 @@ Backend is the thing to which skipper should proxy, for example:
 - Start example proxy with one route: `./bin/skipper -inline-routes='r: * -> latency("1ms") -> status(201) -> <shunt>' -address :9001`
   Call the proxy: curl http://localhost:9001/
 - Run tests by package for example proxy: `go test ./proxy`
+- Run linter: `make lint`
 - Run all tests: `make check`
 - Run all tests with race detector: `make check-race`
 
@@ -32,6 +33,7 @@ Backend is the thing to which skipper should proxy, for example:
 - package docs in doc.go
 - no comments in code if they are not critical
 - no kubernetes client-go dependencies
+- run linter `make lint` and fix all findings
 
 ## Testing instructions
 
