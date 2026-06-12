@@ -13,6 +13,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/io/iotest"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
@@ -179,20 +180,22 @@ func TestTimeoutsFilterReadTimeout(t *testing.T) {
 		args     string
 		workTime time.Duration
 		want     int
+		wantRsp  string
 		wantErr  bool
 	}{
 		{
 			name:     "ReadTimeout bigger than reading time should return 200",
 			args:     "1s",
-			workTime: 10 * time.Millisecond,
+			workTime: 0,
 			want:     http.StatusOK,
+			wantRsp:  "OK",
 			wantErr:  false,
 		}, {
 			name:     "ReadTimeout smaller than reading time should timeout",
 			args:     "15ms",
-			workTime: 5 * time.Millisecond,
+			workTime: 6 * time.Millisecond,
 			want:     499,
-			wantErr:  false,
+			wantErr:  true,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -210,7 +213,7 @@ func TestTimeoutsFilterReadTimeout(t *testing.T) {
 				select {
 				case <-ctx.Done():
 					if err := ctx.Err(); err != nil {
-						t.Fatalf("backend handler observes error form context: %v", err)
+						t.Fatalf("backend handler observes error from context: %v", err)
 					}
 				default:
 				}
@@ -224,7 +227,7 @@ func TestTimeoutsFilterReadTimeout(t *testing.T) {
 			filter := NewReadTimeout().(*timeout)
 
 			fr.Register(filter)
-			r := &eskip.Route{Filters: []*eskip.Filter{{Name: filter.Name(), Args: []interface{}{tt.args}}}, Backend: backend.URL}
+			r := &eskip.Route{Filters: []*eskip.Filter{{Name: filter.Name(), Args: []any{tt.args}}}, Backend: backend.URL}
 
 			proxy := proxytest.New(fr, r)
 			defer proxy.Close()
@@ -233,21 +236,15 @@ func TestTimeoutsFilterReadTimeout(t *testing.T) {
 				t.Fatalf("Failed to parse url %s: %v", proxy.URL, err)
 			}
 
-			client := net.NewClient(net.Options{})
-			defer client.Close()
-
 			var req *http.Request
 			dat := bytes.NewBufferString("abcdefghijklmn")
-			req, err = http.NewRequest("POST", reqURL.String(), &slowReader{
-				data: dat,
-				d:    tt.workTime,
-			})
+			req, err = http.NewRequest("POST", reqURL.String(), iotest.NewSlowReader(dat, tt.workTime))
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			rsp, err := client.Do(req)
-
+			req.ContentLength = int64(dat.Len())
+			rsp, err := proxy.Client().Do(req)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -257,10 +254,14 @@ func TestTimeoutsFilterReadTimeout(t *testing.T) {
 			if rsp.StatusCode != tt.want {
 				t.Fatalf("Failed to get %d, got %d", tt.want, rsp.StatusCode)
 			}
-			_, err = io.Copy(io.Discard, rsp.Body)
+			buf, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				t.Fatalf("Failed to read response body: %v", err)
-
+			}
+			if !tt.wantErr {
+				if string(buf) != tt.wantRsp {
+					t.Fatalf("Failed to get response, got: %q", string(buf))
+				}
 			}
 		})
 	}
@@ -299,7 +300,7 @@ func TestTimeoutsFilterWriteTimeout(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 
 				now := time.Now()
-				for i := 0; i < 5; i++ {
+				for range 5 {
 					n, err := w.Write([]byte(strings.Repeat("a", 8192)))
 					if err != nil {
 						t.Logf("Failed to write: %v", err)
@@ -367,16 +368,4 @@ func TestTimeoutsFilterWriteTimeout(t *testing.T) {
 		})
 	}
 
-}
-
-type slowReader struct {
-	data *bytes.Buffer
-	d    time.Duration
-}
-
-func (sr *slowReader) Read(b []byte) (int, error) {
-	r := io.LimitReader(sr.data, 2)
-	n, err := r.Read(b)
-	time.Sleep(sr.d)
-	return n, err
 }
