@@ -28,10 +28,15 @@ Backend is the thing to which skipper should proxy, for example:
 ## Code style
 
 - Use idiomatic Go
-- go doc on exposed things
-- package docs in doc.go
-- no comments in code if they are not critical
-- no kubernetes client-go dependencies
+- Go doc on exposed things
+- Package docs in doc.go
+- No comments in code if they are not critical
+- No kubernetes client-go dependencies
+
+## Communication Style
+
+- Use domain-specific nouns and verbs in all communication. The vocabulary is maintained in `ai-docs/ddd-vocab.md` and must be updated continuously as new domain concepts are identified.
+- Be concise. No sycophancy. Challenge ideas with rationale and citations when appropriate. Focus on substance over politeness.
 
 ## Testing instructions
 
