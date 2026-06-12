@@ -50,3 +50,10 @@ func (sr *SlowReader) Read(p []byte) (n int, err error) {
 
 	return n, nil
 }
+
+func (sr *SlowReader) Close() error {
+	if rc, ok := sr.r.(io.ReadCloser); ok {
+		return rc.Close()
+	}
+	return nil
+}
