@@ -84,17 +84,38 @@ func NewSwimSwarmRegistry(swarm Swarmer, settings ...Settings) *Registry {
 // the optional provided default settings.
 func NewRedisSwarmRegistry(ro *net.RedisOptions, settings ...Settings) *Registry {
 	if ro != nil && ro.MetricsPrefix == "" {
-		ro.MetricsPrefix = redisMetricsPrefix
+		ro.MetricsPrefix = RedisMetricsPrefix
 	}
 
+	return NewRatelimitRegistryRedis(net.NewRedisRingClient(ro), settings...)
+}
+
+// NewValkeySwarmRegistry initializes a registry with Valkey shards
+// and the optional provided default settings.
+func NewValkeySwarmRegistry(vo *net.ValkeyOptions, settings ...Settings) (*Registry, error) {
+	if vo != nil && vo.MetricsPrefix == "" {
+		vo.MetricsPrefix = ValkeyMetricsPrefix
+	}
+
+	ring, err := net.NewValkeyRingClient(vo)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewRatelimitRegistryValkey(ring, settings...), nil
+}
+
+// NewRatelimitRegistryRedis creates a registry for the given redis ring client.
+func NewRatelimitRegistryRedis(ring *net.RedisRingClient, settings ...Settings) *Registry {
 	r := &Registry{
 		once:      sync.Once{},
 		global:    getSwarmRegistryDefaultSettings(),
 		lookup:    make(map[Settings]*Ratelimit),
-		redisRing: net.NewRedisRingClient(ro),
+		redisRing: ring,
 	}
-	if ro != nil {
-		r.redisRing.StartMetricsCollection()
+
+	if ring != nil {
+		ring.StartMetricsCollection()
 	}
 
 	if len(settings) > 0 {
@@ -104,18 +125,8 @@ func NewRedisSwarmRegistry(ro *net.RedisOptions, settings ...Settings) *Registry
 	return r
 }
 
-// NewValkeySwarmRegistry initializes a registry with Valkey shards
-// and the optional provided default settings.
-func NewValkeySwarmRegistry(vo *net.ValkeyOptions, settings ...Settings) (*Registry, error) {
-	if vo != nil && vo.MetricsPrefix == "" {
-		vo.MetricsPrefix = valkeyMetricsPrefix
-	}
-
-	ring, err := net.NewValkeyRingClient(vo)
-	if err != nil {
-		return nil, err
-	}
-
+// NewRatelimitRegistryValkey creates a registry for the given valkey ring client.
+func NewRatelimitRegistryValkey(ring *net.ValkeyRingClient, settings ...Settings) *Registry {
 	r := &Registry{
 		once:       sync.Once{},
 		global:     getSwarmRegistryDefaultSettings(),
@@ -127,7 +138,7 @@ func NewValkeySwarmRegistry(vo *net.ValkeyOptions, settings ...Settings) (*Regis
 		r.global = settings[0]
 	}
 
-	return r, nil
+	return r
 }
 
 // Close teardown Registry and dependent resources

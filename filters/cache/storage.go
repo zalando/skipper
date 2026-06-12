@@ -43,10 +43,16 @@ type Entry struct {
 	StaleIfError time.Duration
 }
 
-// IsStale reports whether the entry is past its TTL but still within the
-// stale-while-revalidate window relative to now.
+// IsStale reports whether the entry is past its TTL but still within
+// the stale-while-revalidate window relative to now.
 func (e *Entry) IsStale(now time.Time) bool {
 	return now.After(e.CreatedAt.Add(e.TTL)) && now.Before(e.CreatedAt.Add(e.TTL+e.StaleWhileRevalidate))
+}
+
+// IsUsable reports whether the entry is fresh or within the stale-while-revalidate window.
+// Entries past TTL+SWR are retained only for stale-if-error and must not be served.
+func (e *Entry) IsUsable(now time.Time) bool {
+	return now.Before(e.CreatedAt.Add(e.TTL + e.StaleWhileRevalidate))
 }
 
 // Storage is the backing store abstraction for cached entries.

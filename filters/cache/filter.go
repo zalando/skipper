@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
@@ -63,17 +64,24 @@ const (
 // Combining force mode with stale-if-error:
 //
 //	-> cache("5m", "15s", "30s", "60s") -> "https://example.org"
-func NewCacheFilter(maxBytes int64, listenAddr string, netOpts skpnet.Options) filters.Spec {
-	var store *LRUStorage
-	store = NewLRUStorage(maxBytes, func() {
-		metrics.Default.IncCounter("lru_eviction")
-		metrics.Default.UpdateGauge("lru_bytes", float64(store.lru.Bytes()))
-	})
+func NewCacheFilter(maxBytes int64, listenAddr string, netOpts skpnet.Options, valkeyRing *skpnet.ValkeyRingClient) filters.Spec {
+	m := metrics.Default
+	lru := NewLRUStorage(maxBytes, func() {
+		m.IncCounter("lru_eviction")
+	}, m)
+
+	var store Storage = lru
+	if valkeyRing != nil {
+		store = NewValkeyStorage(valkeyRing, lru, m)
+	}
+
 	return &cacheSpec{
 		maxBytes:   maxBytes,
 		listenAddr: listenAddr,
 		client:     skpnet.NewClient(netOpts),
 		storage:    store,
+		lruStorage: lru,
+		metrics:    m,
 	}
 }
 
@@ -81,7 +89,9 @@ type cacheSpec struct {
 	maxBytes   int64
 	listenAddr string
 	client     *skpnet.Client
-	storage    Storage // shared across all filter instances
+	storage    Storage     // shared across all filter instances
+	lruStorage *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
+	metrics    metrics.Metrics
 }
 
 func (s *cacheSpec) Name() string { return filterName }
@@ -137,26 +147,30 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	cf := &cacheFilter{
 		storage:      s.storage,
+		lruStorage:   s.lruStorage,
 		listenAddr:   s.listenAddr,
 		ttl:          ttl,
 		errorTTL:     errorTTL,
 		swrWindow:    swr,
 		staleIfError: staleIfError,
 		rfcMode:      rfcMode,
-		metrics:      metrics.Default,
+		metrics:      s.metrics,
 		keyHeaders:   keyHeaders,
 		revalJobs:    make(chan revalJob, revalQueueSize),
+		lruBytesDone: make(chan struct{}),
 	}
 
 	cf.fetch = s.client.Do
 	go cf.revalidationWorker()
+	go cf.lruBytesScraper()
 	return cf, nil
 }
 
-// Close shuts down the background revalidation worker. Must be called when the
-// filter is no longer in use (e.g. in tests via t.Cleanup).
+// Close shuts down the background revalidation worker and the lru_bytes scraper.
+// Must be called when the filter is no longer in use (e.g. in tests via t.Cleanup).
 func (f *cacheFilter) Close() {
 	close(f.revalJobs)
+	close(f.lruBytesDone)
 }
 
 // revalidationWorker is the single background goroutine per filter that
@@ -168,6 +182,27 @@ func (f *cacheFilter) revalidationWorker() {
 	log.Debug("cache: revalidation worker stopped")
 }
 
+const lruBytesScrapeInterval = 10 * time.Second
+
+// lruBytesScraper periodically updates the lru_bytes gauge so it stays current
+// even when no evictions occur (large Sets without exceeding capacity never
+// trigger the onEvict callback). It exits when lruBytesDone is closed.
+func (f *cacheFilter) lruBytesScraper() {
+	if f.lruStorage == nil {
+		return
+	}
+	ticker := time.NewTicker(lruBytesScrapeInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			f.metrics.UpdateGauge("lru_bytes", float64(f.lruStorage.lru.Bytes()))
+		case <-f.lruBytesDone:
+			return
+		}
+	}
+}
+
 type revalJob struct {
 	key string
 	req *http.Request // pre-cloned, safe to use after the originating request ends
@@ -175,6 +210,7 @@ type revalJob struct {
 
 type cacheFilter struct {
 	storage      Storage
+	lruStorage   *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
 	listenAddr   string
 	ttl          time.Duration
 	errorTTL     time.Duration
@@ -184,12 +220,27 @@ type cacheFilter struct {
 
 	// rfcMode true: upstream Cache-Control is authoritative (cache()).
 	// false: operator ttl/errorTTL/swrWindow are authoritative (force mode).
-	rfcMode   bool
-	coldSF    singleflight.Group // cold-miss coalescing
-	revalSF   singleflight.Group // coalesces concurrent background revalidations per key
-	revalJobs chan revalJob      // background revalidation queue; worker drains this
-	fetch     func(*http.Request) (*http.Response, error)
-	metrics   metrics.Metrics
+	rfcMode      bool
+	coldSF       singleflight.Group // cold-miss coalescing
+	revalSF      singleflight.Group // coalesces concurrent background revalidations per key
+	revalJobs    chan revalJob      // background revalidation queue; worker drains this
+	lruBytesDone chan struct{}      // closed by Close() to stop the lruBytesScraper goroutine
+	fetch        func(*http.Request) (*http.Response, error)
+	metrics      metrics.Metrics
+}
+
+// tagSpan sets cache_status, cache_key, and (when >= 0) cache_ttl_remaining_ms
+// on the active OpenTracing span. No-op when no span is present.
+func tagSpan(ctx filters.FilterContext, status, key string, ttlRemainingMs int64) {
+	span := opentracing.SpanFromContext(ctx.Request().Context())
+	if span == nil {
+		return
+	}
+	span.SetTag("cache_status", status)
+	span.SetTag("cache_key", key)
+	if ttlRemainingMs >= 0 {
+		span.SetTag("cache_ttl_remaining_ms", ttlRemainingMs)
+	}
 }
 
 // Request checks the cache. On a hit it calls ctx.Serve() to short-circuit the
@@ -225,7 +276,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	var err error
 	if reqDir.onlyIfCached {
 		entry, err = f.storage.Get(ctx.Request().Context(), key)
-		if err != nil || entry == nil || entry.IsStale(time.Now()) {
+		if err != nil || entry == nil || !entry.IsUsable(time.Now()) {
 			ctx.Serve(&http.Response{
 				StatusCode: http.StatusGatewayTimeout,
 				Header:     http.Header{cacheStatusHeader: {cacheStatusMiss}},
@@ -272,6 +323,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 			}
 		}
 		rsp.Header.Set(cacheStatusHeader, cacheStatusStale)
+		tagSpan(ctx, cacheStatusStale, key, -1)
 		setAgeHeader(rsp, entry, now)
 		ctx.Metrics().IncCounter("stale")
 		method := ctx.Request().Method
@@ -309,6 +361,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	}
 
 	rsp.Header.Set(cacheStatusHeader, cacheStatusHit)
+	tagSpan(ctx, cacheStatusHit, key, max(0, entry.TTL-time.Since(entry.CreatedAt)).Milliseconds())
 	setAgeHeader(rsp, entry, time.Now())
 	ctx.Metrics().IncCounter("hit")
 	method := ctx.Request().Method
@@ -325,14 +378,34 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	ctx.Serve(headBodyOmitted(method, rsp))
 }
 
-// coalesce gates concurrent cold misses for the same key behind a single
-// upstream fetch. All waiters block until the leader's fetch completes, then
-// all are served the same response. This prevents the thundering herd on a
-// cache miss.
+// coalesceResult carries both the fetched entry and any SIE-eligible stored entry
+// snapshotted before the fetch. The snapshot is taken before f.fetch() so that a
+// 5xx result cannot overwrite it in storage before the stale-if-error check runs.
+type coalesceResult struct {
+	entry  *Entry
+	stored *Entry // snapshot before fetch; nil if no eligible SIE entry existed
+}
+
+// coalesce gates concurrent cold misses for the same key behind a single upstream
+// fetch, preventing thundering herd. All waiters receive the same response.
+// Stale-if-error (RFC 5861 §4) is also applied here: a pre-fetch snapshot of any
+// eligible stored entry is served on 5xx instead of propagating the error.
 func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 	req := ctx.Request().Clone(context.Background())
 
 	ch := f.coldSF.DoChan(key, func() (interface{}, error) {
+		// Capture any existing SIE-eligible entry before fetching, so that a
+		// subsequent 5xx response cannot overwrite it in storage before we read it.
+		var sieStored *Entry
+		if f.staleIfError > 0 {
+			if s, err := f.storage.Get(context.Background(), key); err == nil && s != nil {
+				staleAge := time.Since(s.CreatedAt) - s.TTL
+				if staleAge <= f.staleIfError {
+					sieStored = s
+				}
+			}
+		}
+
 		requestTime := time.Now()
 		resp, err := f.fetch(req)
 		if err != nil {
@@ -351,14 +424,17 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			cia := correctedInitialAge(requestTime, responseTime, resp.Header)
 			coalescedHeader := resp.Header.Clone()
 			stripHopByHop(coalescedHeader)
-			return &Entry{
-				StatusCode:          resp.StatusCode,
-				Header:              coalescedHeader,
-				Payload:             body,
-				CreatedAt:           responseTime,
-				TTL:                 0,
-				CorrectedInitialAge: cia,
-				ResponseTime:        responseTime,
+			return &coalesceResult{
+				entry: &Entry{
+					StatusCode:          resp.StatusCode,
+					Header:              coalescedHeader,
+					Payload:             body,
+					CreatedAt:           responseTime,
+					TTL:                 0,
+					CorrectedInitialAge: cia,
+					ResponseTime:        responseTime,
+				},
+				stored: sieStored,
 			}, nil
 		}
 		ttl, shouldStore := f.resolveTTL(resp.StatusCode, resp.Header, directives)
@@ -383,9 +459,11 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			ResponseTime:         responseTime,
 		}
 		if shouldStore {
-			_ = f.storage.Set(context.Background(), key, entry)
+			if err := f.storage.Set(context.Background(), key, entry); err != nil {
+				log.WithError(err).Warn("cache: Set failed (cold-miss store)")
+			}
 		}
-		return entry, nil
+		return &coalesceResult{entry: entry, stored: sieStored}, nil
 	})
 
 	select {
@@ -394,13 +472,32 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			ctx.Metrics().IncCounter("coalesce_error")
 			return
 		}
-		entry := res.Val.(*Entry)
+		cr := res.Val.(*coalesceResult)
+		entry := cr.entry
+
+		// RFC 5861 §4: on 5xx, serve a stale entry if within the stale-if-error window.
+		// This check lives here (not in Response()) because coalesce always calls
+		// ctx.Serve(), which sets ctx.Served()=true and causes Response() to return early.
+		if cr.stored != nil && entry.StatusCode >= 500 {
+			staleRsp := &http.Response{
+				StatusCode: cr.stored.StatusCode,
+				Header:     cr.stored.Header.Clone(),
+				Body:       io.NopCloser(bytes.NewReader(cr.stored.Payload)),
+			}
+			staleRsp.Header.Set(cacheStatusHeader, cacheStatusStale)
+			tagSpan(ctx, cacheStatusStale, key, -1)
+			setAgeHeader(staleRsp, cr.stored, time.Now())
+			ctx.Serve(headBodyOmitted(ctx.Request().Method, staleRsp))
+			return
+		}
+
 		rsp := &http.Response{
 			StatusCode: entry.StatusCode,
 			Header:     entry.Header.Clone(),
 			Body:       io.NopCloser(bytes.NewReader(entry.Payload)),
 		}
 		rsp.Header.Set(cacheStatusHeader, cacheStatusMiss)
+		tagSpan(ctx, cacheStatusMiss, key, -1)
 		ctx.Metrics().IncCounter("miss")
 		ctx.Serve(headBodyOmitted(ctx.Request().Method, rsp))
 	case <-ctx.Request().Context().Done():
@@ -409,10 +506,14 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 }
 
 // Response stores the upstream response in the cache, freshens HEAD entries,
-// invalidates on unsafe methods, and applies stale-if-error on 5xx.
+// and invalidates on unsafe methods. Stale-if-error is handled in coalesce,
+// not here, because coalesce calls ctx.Serve() which causes Response to return early.
 func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	rsp := ctx.Response()
-	key := ctx.StateBag()[stateBagKey].(string)
+	key, _ := ctx.StateBag()[stateBagKey].(string)
+	if key == "" {
+		return
+	}
 
 	// RFC 9111 §4.3.5: HEAD 200 freshens the stored GET entry's headers.
 	// This block runs before ctx.Served() so freshening happens even when
@@ -431,7 +532,9 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 			if lm := rsp.Header.Get("Last-Modified"); lm != "" {
 				stored.LastModified = lm
 			}
-			_ = f.storage.Set(ctx.Request().Context(), key, stored)
+			if err := f.storage.Set(ctx.Request().Context(), key, stored); err != nil {
+				log.WithError(err).Warn("cache: Set failed (HEAD freshen)")
+			}
 		}
 		return
 	}
@@ -444,43 +547,33 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	// RFC 9111 §4.4: invalidate cached entry on successful unsafe method.
 	// Also invalidate same-origin Location/Content-Location URIs.
 	if isUnsafeMethod(ctx.Request().Method) && rsp.StatusCode < 400 {
-		_ = f.storage.Delete(ctx.Request().Context(), key)
+		if err := f.storage.Delete(ctx.Request().Context(), key); err != nil {
+			log.WithError(err).Warn("cache: Delete failed (unsafe method invalidation)")
+		}
 		for _, hdrName := range []string{"Location", "Content-Location"} {
 			if loc := rsp.Header.Get(hdrName); loc != "" && sameOrigin(ctx.Request(), loc) {
 				if locKey := cacheKeyForURL(ctx.RouteId(), ctx.Request(), loc, f.keyHeaders); locKey != "" {
-					_ = f.storage.Delete(ctx.Request().Context(), locKey)
-					_ = f.storage.Delete(ctx.Request().Context(), "vary:"+locKey)
+					if err := f.storage.Delete(ctx.Request().Context(), locKey); err != nil {
+						log.WithError(err).Warn("cache: Delete failed (Location invalidation)")
+					}
+					if err := f.storage.Delete(ctx.Request().Context(), "vary:"+locKey); err != nil {
+						log.WithError(err).Warn("cache: Delete failed (vary sentinel for Location)")
+					}
 				}
 			}
 		}
 		return
 	}
 
-	// RFC 5861 §4.
-	if f.staleIfError > 0 && rsp.StatusCode >= 500 {
-		if stored, err := f.storage.Get(ctx.Request().Context(), key); err == nil && stored != nil {
-			staleAge := time.Since(stored.CreatedAt) - stored.TTL
-			if staleAge <= f.staleIfError {
-				staleRsp := &http.Response{
-					StatusCode: stored.StatusCode,
-					Header:     stored.Header.Clone(),
-					Body:       io.NopCloser(bytes.NewReader(stored.Payload)),
-				}
-				staleRsp.Header.Set(cacheStatusHeader, cacheStatusStale)
-				setAgeHeader(staleRsp, stored, time.Now())
-				ctx.Serve(headBodyOmitted(ctx.Request().Method, staleRsp))
-				return
-			}
-		}
-	}
-
 	if ctx.StateBag()[stateBagNoStore] == true {
 		rsp.Header.Set(cacheStatusHeader, cacheStatusMiss)
+		tagSpan(ctx, cacheStatusMiss, key, -1)
 		ctx.Metrics().IncCounter("miss")
 		return
 	}
 
 	rsp.Header.Set(cacheStatusHeader, cacheStatusMiss)
+	tagSpan(ctx, cacheStatusMiss, key, -1)
 	ctx.Metrics().IncCounter("miss")
 
 	// Vary: * means every response is unique — never cache.
@@ -529,7 +622,9 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 			StaleWhileRevalidate: f.swrWindow,
 			VaryHeaders:          varyNames,
 		}
-		_ = f.storage.Set(ctx.Request().Context(), "vary:"+baseKey, sentinel)
+		if err := f.storage.Set(ctx.Request().Context(), "vary:"+baseKey, sentinel); err != nil {
+			log.WithError(err).Warn("cache: Set failed (vary sentinel)")
+		}
 	}
 
 	swr := f.swrWindow
@@ -560,14 +655,14 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 		CorrectedInitialAge:  cia,
 		ResponseTime:         responseTime,
 	}
-	_ = f.storage.Set(ctx.Request().Context(), storeKey, entry)
+	if err := f.storage.Set(ctx.Request().Context(), storeKey, entry); err != nil {
+		log.WithError(err).Warn("cache: Set failed (response store)")
+	}
 }
 
-// enqueueRevalidation clones the request before sending a job to the background
-// revalidation worker so there is no data race: the clone happens in the calling
-// goroutine while orig is still live, and the worker receives a fully independent copy.
-// Non-blocking send: if the queue is full the revalidation is dropped rather than
-// blocking the request goroutine.
+// enqueueRevalidation sends a revalidation job to the background worker.
+// The request is cloned in the calling goroutine before orig is released.
+// If the queue is full the job is dropped and reval_dropped is incremented.
 func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 	cloned := orig.Clone(context.Background())
 	select {
@@ -577,7 +672,9 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 	}
 }
 
-// doRevalidate fetches the upstream resource and refreshes the cache entry.
+// doRevalidate revalidates key against the upstream. It sends a conditional
+// request (If-None-Match / If-Modified-Since) when the stored entry carries
+// validators; a 304 response reuses the stored payload and merges new headers.
 func (f *cacheFilter) doRevalidate(key string, req *http.Request) {
 	f.revalSF.Do(key, func() (interface{}, error) { //nolint:errcheck
 		req.Header.Set(revalidateHeader, "1")
@@ -664,7 +761,9 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request) {
 			CorrectedInitialAge:  cia,
 			ResponseTime:         responseTime,
 		}
-		_ = f.storage.Set(context.Background(), key, entry)
+		if err := f.storage.Set(context.Background(), key, entry); err != nil {
+			log.WithError(err).Warn("cache: Set failed (background revalidation)")
+		}
 		return nil, nil
 	})
 }
