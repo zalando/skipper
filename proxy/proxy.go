@@ -2035,7 +2035,10 @@ func (p *Proxy) makeErrorResponse(ctx *context, perr *proxyError) {
 	case perr.code != 0:
 		code = perr.code
 		if perr.code == 499 {
+			// https://github.com/zalando/skipper/issues/4060
+			// readTimeout() hit and because of
 			// https://github.com/golang/go/issues/70834
+			// we need to close the underlying connection
 			ctx.response.Header.Set("Connection", "close")
 		}
 	}
