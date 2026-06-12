@@ -4,7 +4,6 @@ require (
 	github.com/AlexanderYastrebov/noleak v0.0.0-20230711175737-345842f874fb
 	github.com/MicahParks/keyfunc v1.9.0
 	github.com/abbot/go-http-auth v0.4.0
-	github.com/andybalholm/brotli v1.2.1
 	github.com/aryszka/jobqueue v0.0.3
 	github.com/bombsimon/logrusr/v4 v4.1.0
 	github.com/cenkalti/backoff/v5 v5.0.3
@@ -28,6 +27,7 @@ require (
 	github.com/klauspost/compress v1.18.6
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.72
+	github.com/molecule-man/go-brrr v1.0.0
 	github.com/oklog/ulid v1.3.1
 	github.com/open-policy-agent/eopa v1.46.1-0.20260410145035-769c001a4008
 	github.com/open-policy-agent/opa v1.14.1

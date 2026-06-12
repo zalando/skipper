@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/andybalholm/brotli"
 	kpzstd "github.com/klauspost/compress/zstd"
+	brotli "github.com/molecule-man/go-brrr"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -96,7 +96,7 @@ func compressedBody(t *testing.T, content io.Reader, enc string) io.Reader {
 	case "gzip":
 		c = gzip.NewWriter(&b)
 	case "br":
-		c = brotli.NewWriter(&b)
+		c, err = brotli.NewWriter(&b, brotli.BestSpeed)
 	case "zstd":
 		c, err = kpzstd.NewWriter(&b)
 	default:

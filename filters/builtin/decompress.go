@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/andybalholm/brotli"
 	"github.com/klauspost/compress/zstd"
+	brotli "github.com/molecule-man/go-brrr"
 
 	"github.com/zalando/skipper/filters"
 )
@@ -101,7 +101,8 @@ func reset(decoder, original io.ReadCloser, enc string) error {
 	case "gzip":
 		return decoder.(*gzip.Reader).Reset(original)
 	case "br":
-		return decoder.(*brotliWrapper).Reset(original)
+		decoder.(*brotliWrapper).Reset(original)
+		return nil
 	case "zstd":
 		return decoder.(*zstdWrapper).Reset(original)
 	default:
