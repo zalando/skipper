@@ -170,9 +170,25 @@ func getRedisURLs(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	return w
 }
 
+func getRedisURLsForNamespace(rs *routesrv.RouteServer, namespace, name string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/swarm/redis/shards/"+namespace+"/"+name, nil)
+	rs.ServeHTTP(w, r)
+
+	return w
+}
+
 func getValkeyURLs(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/swarm/valkey/shards", nil)
+	rs.ServeHTTP(w, r)
+
+	return w
+}
+
+func getValkeyURLsForNamespace(rs *routesrv.RouteServer, namespace, name string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/swarm/valkey/shards/"+namespace+"/"+name, nil)
 	rs.ServeHTTP(w, r)
 
 	return w
@@ -1424,6 +1440,76 @@ func TestZoneAwareFallbackToAllRoutesWhenBelowThreshold(t *testing.T) {
 	fullCount := strconv.Itoa(len(expectedRoutes))
 	assert.Equal(t, fullCount, plainResp.Header().Get(routing.RoutesCountName))
 	assert.Equal(t, fullCount, gzipResp.Header().Get(routing.RoutesCountName))
+}
+
+func TestRedisEndpointsDynamicNamespace(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/redis-multi-namespace.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:               pollInterval,
+		Kubernetes:                      true,
+		KubernetesURL:                   ks.URL,
+		KubernetesRedisServiceNamespace: "namespace1",
+		KubernetesRedisServiceName:      "service1",
+		KubernetesRedisServicePort:      6379,
+	})
+
+	t.Run("static path returns default namespace endpoints", func(t *testing.T) {
+		w := getRedisURLs(rs)
+		wantHTTPCode(t, w, http.StatusOK)
+		want := parseIP(t, "testdata/redis-ip.json")
+		assert.JSONEq(t, string(want), w.Body.String())
+	})
+
+	t.Run("dynamic path returns endpoints for requested namespace", func(t *testing.T) {
+		w := getRedisURLsForNamespace(rs, "namespace2", "service2")
+		wantHTTPCode(t, w, http.StatusOK)
+		want := parseIP(t, "testdata/redis-ip-namespace2.json")
+		assert.JSONEq(t, string(want), w.Body.String())
+	})
+
+	t.Run("dynamic path with unknown namespace returns empty endpoints", func(t *testing.T) {
+		w := getRedisURLsForNamespace(rs, "does-not-exist", "service1")
+		wantHTTPCode(t, w, http.StatusOK)
+		assert.JSONEq(t, `{"endpoints":[]}`, w.Body.String())
+	})
+}
+
+func TestValkeyEndpointsDynamicNamespace(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/valkey-multi-namespace.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:                pollInterval,
+		Kubernetes:                       true,
+		KubernetesURL:                    ks.URL,
+		KubernetesValkeyServiceNamespace: "namespace1",
+		KubernetesValkeyServiceName:      "service1",
+		KubernetesValkeyServicePort:      6379,
+	})
+
+	t.Run("static path returns default namespace endpoints", func(t *testing.T) {
+		w := getValkeyURLs(rs)
+		wantHTTPCode(t, w, http.StatusOK)
+		want := parseIP(t, "testdata/valkey-ip.json")
+		assert.JSONEq(t, string(want), w.Body.String())
+	})
+
+	t.Run("dynamic path returns endpoints for requested namespace", func(t *testing.T) {
+		w := getValkeyURLsForNamespace(rs, "namespace2", "service2")
+		wantHTTPCode(t, w, http.StatusOK)
+		want := parseIP(t, "testdata/valkey-ip-namespace2.json")
+		assert.JSONEq(t, string(want), w.Body.String())
+	})
+
+	t.Run("dynamic path with unknown namespace returns empty endpoints", func(t *testing.T) {
+		w := getValkeyURLsForNamespace(rs, "does-not-exist", "service1")
+		wantHTTPCode(t, w, http.StatusOK)
+		assert.JSONEq(t, `{"endpoints":[]}`, w.Body.String())
+	})
 }
 
 func TestXCountShouldBeSameForZoneAwareAndZoneUnawareRoutes(t *testing.T) {

@@ -111,30 +111,40 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		oauthConfig.CallbackPath = opts.OAuth2CallbackPath
 	}
 
-	var rh *RedisHandler
 	// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
 	if opts.KubernetesRedisServiceNamespace != "" && opts.KubernetesRedisServiceName != "" {
 		log.Infof("Use endpoints %s/%s to fetch updated redis shards", opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
-		rh = &RedisHandler{}
 		_, err := dataclient.LoadAll()
 		if err != nil {
 			return nil, err
 		}
-		rh.AddrUpdater = getRedisAddresses(&opts, dataclient, m)
+		rh := &RedisHandler{
+			AddrUpdater:      getRedisAddresses(&opts, dataclient, m),
+			DefaultNamespace: opts.KubernetesRedisServiceNamespace,
+			DefaultName:      opts.KubernetesRedisServiceName,
+		}
+		// backwards-compatible static path
 		mux.Handle("/swarm/redis/shards", rh)
+		// dynamic path: any namespace/service reachable by this routesrv's service account
+		mux.Handle("/swarm/redis/shards/{namespace}/{name}", rh)
 	}
 
-	var vh *ValkeyHandler
 	// in case we have kubernetes dataclient and we can detect valkey instances, we patch valkeyOptions
 	if opts.KubernetesValkeyServiceNamespace != "" && opts.KubernetesValkeyServiceName != "" {
 		log.Infof("Use endpoints %s/%s to fetch updated valkey shards", opts.KubernetesValkeyServiceNamespace, opts.KubernetesValkeyServiceName)
-		vh = &ValkeyHandler{}
 		_, err := dataclient.LoadAll()
 		if err != nil {
 			return nil, err
 		}
-		vh.AddrUpdater = getValkeyAddresses(&opts, dataclient, m)
+		vh := &ValkeyHandler{
+			AddrUpdater:      getValkeyAddresses(&opts, dataclient, m),
+			DefaultNamespace: opts.KubernetesValkeyServiceNamespace,
+			DefaultName:      opts.KubernetesValkeyServiceName,
+		}
+		// backwards-compatible static path
 		mux.Handle("/swarm/valkey/shards", vh)
+		// dynamic path: any namespace/service reachable by this routesrv's service account
+		mux.Handle("/swarm/valkey/shards/{namespace}/{name}", vh)
 	}
 
 	rs.server = &http.Server{
