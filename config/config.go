@@ -1337,9 +1337,10 @@ func (c *Config) ToOptions() skipper.Options {
 }
 
 func (c *Config) getLetsencryptCache() autocert.Cache {
+	dir := "/data/skipper/certs" // TODO(sszuecs): pass dir value via config
 	switch c.LetsencryptCache {
 	case "directory":
-		return autocert.DirCache(os.TempDir())
+		return net.NewDirCache(dir)
 	case "remote":
 		// postpone to skipper.go and use net.(*Letsencrypt).SetCache()
 		return nil
