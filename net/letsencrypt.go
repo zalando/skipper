@@ -10,9 +10,39 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
+
+type DirCache struct {
+	dir   string
+	cache autocert.Cache
+}
+
+func NewDirCache(dir string) *DirCache {
+	return &DirCache{
+		cache: autocert.DirCache(dir),
+		dir:   dir,
+	}
+}
+
+func (d *DirCache) Get(ctx context.Context, key string) ([]byte, error) {
+	val, err := d.cache.Get(ctx, key)
+	if err != nil {
+		logrus.Errorf("Get %q -> %v", key, err)
+	}
+
+	return val, err
+}
+
+func (d *DirCache) Put(ctx context.Context, key string, val []byte) error {
+	return d.cache.Put(ctx, key, val)
+}
+
+func (d *DirCache) Delete(ctx context.Context, key string) error {
+	return d.cache.Delete(ctx, key)
+}
 
 type InmemoryCache struct {
 	m sync.Map
