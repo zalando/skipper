@@ -3,6 +3,7 @@ package host
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
@@ -10,7 +11,7 @@ import (
 
 type anySpec struct{}
 
-type anyPredicate struct {
+type AnyPredicate struct {
 	hosts []string
 }
 
@@ -29,7 +30,7 @@ func (*anySpec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) == 0 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
-	p := &anyPredicate{}
+	p := &AnyPredicate{}
 	for _, arg := range args {
 		if host, ok := arg.(string); ok {
 			p.hosts = append(p.hosts, host)
@@ -40,11 +41,6 @@ func (*anySpec) Create(args []interface{}) (routing.Predicate, error) {
 	return p, nil
 }
 
-func (ap *anyPredicate) Match(r *http.Request) bool {
-	for _, host := range ap.hosts {
-		if host == r.Host {
-			return true
-		}
-	}
-	return false
+func (ap *AnyPredicate) Match(r *http.Request) bool {
+	return slices.Contains(ap.hosts, r.Host)
 }

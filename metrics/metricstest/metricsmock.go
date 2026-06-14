@@ -5,6 +5,7 @@ package metricstest
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -187,7 +188,14 @@ func (m *MockMetrics) MeasureProxy(requestDuration, responseDuration time.Durati
 }
 
 func (m *MockMetrics) MeasureServe(routeID, host, method string, code int, start time.Time) {
-	// implement me
+	d := time.Since(start)
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		measures[routeID] = append(measures[routeID], d)
+		measures[host] = append(measures[host], d)
+		measures[method] = append(measures[method], d)
+		measures[strconv.Itoa(code)] = append(measures[strconv.Itoa(code)], d)
+	})
+
 }
 
 func (m *MockMetrics) IncRoutingFailures() {
