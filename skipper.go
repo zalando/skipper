@@ -814,6 +814,7 @@ type Options struct {
 
 	// Letsencrypt if not nil you can use a remote cache config.
 	Letsencrypt *skpnet.Letsencrypt
+
 	// LetsencryptCache
 	LetsencryptCache string
 
@@ -1473,6 +1474,11 @@ func (o *Options) filterRegistry() filters.Registry {
 }
 
 func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
+
+	// TODO(sszuecs): does it make sense or do we want to chain TLSConfigs?
+	if o.Letsencrypt != nil {
+		return o.Letsencrypt.TLSConfig(), nil
+	}
 
 	if o.ProxyTLS != nil {
 		return o.ProxyTLS, nil
@@ -2263,6 +2269,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	if o.Letsencrypt != nil {
+		println("running Letsencrypt")
 		switch o.LetsencryptCache {
 		case "remote":
 			var cache autocert.Cache
