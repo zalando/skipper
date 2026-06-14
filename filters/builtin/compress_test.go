@@ -20,8 +20,8 @@ import (
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/proxy/proxytest"
 
-	"github.com/andybalholm/brotli"
 	"github.com/klauspost/compress/zstd"
+	brotli "github.com/molecule-man/go-brrr"
 )
 
 const (
@@ -417,10 +417,10 @@ func TestCompress(t *testing.T) {
 			"Content-Encoding": []string{"br"},
 			"Vary":             []string{"Accept-Encoding"}},
 	}, {
-		"brotli, stdlib default",
+		"brotli, mid compression level",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(brotli.DefaultCompression)},
+		[]interface{}{float64(6)},
 		"x-custom,br",
 		http.Header{
 			"Content-Encoding": []string{"br"},

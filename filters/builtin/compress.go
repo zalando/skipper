@@ -12,10 +12,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/andybalholm/brotli"
 	kpflate "github.com/klauspost/compress/flate"
 	kpgzip "github.com/klauspost/compress/gzip"
 	kpzstd "github.com/klauspost/compress/zstd"
+	brotli "github.com/molecule-man/go-brrr"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
@@ -329,7 +329,7 @@ func unsupported() {
 func newEncoder(enc string, level int) (encoder, error) {
 	switch enc {
 	case "br":
-		return brotli.NewWriterLevel(nil, level), nil
+		return brotli.NewWriter(nil, level)
 	case "gzip":
 		if level > gzip.BestCompression {
 			level = gzip.BestCompression
