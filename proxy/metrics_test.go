@@ -285,7 +285,7 @@ func TestMeasureProxyWatch(t *testing.T) {
 
 			// wait until metrics are recorded
 			require.EventuallyWithT(t, func(c *assert.CollectT) {
-				m.WithMeasures(func(measures map[string][]time.Duration) { assert.Len(c, measures, 3) })
+				m.WithMeasures(func(measures map[string][]time.Duration) { assert.Len(c, measures, 7) })
 			}, 100*time.Millisecond, 1*time.Millisecond)
 
 			m.WithMeasures(func(measures map[string][]time.Duration) {
