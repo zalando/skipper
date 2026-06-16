@@ -66,18 +66,28 @@ func (s *ValkeyStorage) Set(ctx context.Context, key string, entry *Entry) error
 		return fmt.Errorf("cache: encode valkey entry: %w", err)
 	}
 
-	ttl := entry.TTL + max(entry.StaleIfError, entry.StaleWhileRevalidate)
-	if ttl <= 0 {
-		ttl = time.Minute
+	valkeyTTL := entry.TTL + max(entry.StaleIfError, entry.StaleWhileRevalidate)
+	if valkeyTTL <= 0 {
+		valkeyTTL = time.Minute
 	}
 
-	if err := s.ring.SetWithExpire(ctx, key, string(data), ttl); err != nil {
+	if err := s.ring.SetWithExpire(ctx, key, string(data), valkeyTTL); err != nil {
 		s.metrics.IncCounter("valkey_set_fallback")
 		log.WithError(err).Warn("cache: valkey Set failed, falling back to L1")
 		return s.l1.Set(ctx, key, entry)
 	}
-	// Write-around: L1 is not warmed on a successful Valkey Set. Subsequent
-	// Valkey hits skip L1 entirely; L1 is only populated on Valkey failures.
+
+	// Write-through: warm L1 with a bounded TTL so pods can serve subsequent
+	// requests from local memory without a Valkey round-trip.
+	// Skip warming for non-cacheable entries (TTL <= 0) to avoid polluting L1
+	// with entries that should not be served.
+	if s.l1TTL > 0 && entry.TTL > 0 {
+		warmTTL := min(s.l1TTL, entry.TTL)
+		warmed := *entry
+		warmed.TTL = warmTTL
+		warmed.CreatedAt = time.Now()
+		_ = s.l1.Set(ctx, key, &warmed)
+	}
 	return nil
 }
 

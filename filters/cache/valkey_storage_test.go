@@ -246,6 +246,40 @@ func TestValkeyStorage_RecordsValkeyMiss(t *testing.T) {
 	}
 }
 
+func TestValkeyStorage_WriteThroughWarmsL1(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &testMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := &ValkeyStorage{ring: stub, l1: lru, metrics: m, l1TTL: 60 * time.Second}
+
+	ctx := context.Background()
+	key := "wt-key"
+	entry := &Entry{
+		StatusCode: 200,
+		Payload:    []byte("warm"),
+		TTL:        time.Minute,
+		CreatedAt:  time.Now(),
+	}
+
+	if err := s.Set(ctx, key, entry); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	// Break Valkey so any Get must come from L1.
+	stub.broken = true
+
+	got, err := s.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("Get with broken Valkey: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected L1 warm hit, got nil — write-through did not warm L1")
+	}
+	if string(got.Payload) != "warm" {
+		t.Errorf("payload: got %q, want %q", string(got.Payload), "warm")
+	}
+}
+
 func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	// Uses a broken stub — no Docker or live Valkey needed.
 	// Set triggers valkey_set_fallback; Get triggers valkey_get_fallback.
