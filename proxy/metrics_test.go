@@ -219,13 +219,13 @@ func TestMeasureHostMetrics(t *testing.T) {
 	get(reqBar)
 
 	m.WithMeasures(func(measures map[string][]time.Duration) {
-		assert.Equal(t, len(measures["foo"]), 1)
-		assert.Equal(t, len(measures["bar"]), 1)
-		assert.Equal(t, len(measures["GET"]), 2)
-		assert.Equal(t, len(measures["200"]), 2)
-		assert.Equal(t, len(measures["proxy.request.duration"]), 2)
-		assert.Equal(t, len(measures["proxy.response.duration"]), 2)
-		assert.Equal(t, len(measures["proxy.total.duration"]), 2)
+		assert.Equal(t, 1, len(measures["foo"]))
+		assert.Equal(t, 1, len(measures["bar"]))
+		assert.Equal(t, 2, len(measures["GET"]))
+		assert.Equal(t, 2, len(measures["200"]))
+		assert.Equal(t, 2, len(measures["proxy.request.duration"]))
+		assert.Equal(t, 2, len(measures["proxy.response.duration"]))
+		assert.Equal(t, 2, len(measures["proxy.total.duration"]))
 		assert.Equal(t, measures["foo"], measures["foo.skipper.test"])
 	})
 }
