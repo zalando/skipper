@@ -33,6 +33,7 @@ type ValkeyStorage struct {
 // NewValkeyStorage creates a ValkeyStorage backed by ring (L2) with l1 as the
 // fallback in-memory cache. m is used to record per-operation counters:
 //
+//   - l1_hit               — L1 returned a warm entry; Valkey not consulted
 //   - valkey_miss          — clean cache miss (key not found in Valkey)
 //   - valkey_get_fallback  — Valkey error on Get; L1 was consulted instead
 //   - valkey_set_fallback  — Valkey error on Set; L1 was written instead
