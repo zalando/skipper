@@ -131,7 +131,7 @@ func TestValkeyStorage_GetSetDelete(t *testing.T) {
 	defer ring.Close()
 
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	s := NewValkeyStorage(ring, lru, &testMetrics{})
+	s := NewValkeyStorage(ring, lru, &testMetrics{}, 0)
 
 	ctx := context.Background()
 	key := "test-key"
@@ -184,7 +184,7 @@ func TestValkeyStorage_FallsBackToL1OnValkeyUnavailable(t *testing.T) {
 
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
 	m := &testMetrics{}
-	s := NewValkeyStorage(ring, lru, m)
+	s := NewValkeyStorage(ring, lru, m, 0)
 
 	// Stop valkey before exercising fallback paths.
 	done()
@@ -229,7 +229,7 @@ func TestValkeyStorage_RecordsValkeyMiss(t *testing.T) {
 	stub := newStubValkeyClient()
 	m := &testMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	s := &ValkeyStorage{ring: stub, l1: lru, metrics: m}
+	s := &ValkeyStorage{ring: stub, l1: lru, metrics: m, l1TTL: 0}
 
 	got, err := s.Get(context.Background(), "nonexistent-key")
 	if err != nil {
@@ -252,7 +252,7 @@ func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	stub := newBrokenStubValkeyClient()
 	m := &testMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	s := &ValkeyStorage{ring: stub, l1: lru, metrics: m}
+	s := &ValkeyStorage{ring: stub, l1: lru, metrics: m, l1TTL: 0}
 
 	ctx := context.Background()
 	entry := &Entry{StatusCode: 200, Payload: []byte("x"), TTL: time.Minute, CreatedAt: time.Now()}
