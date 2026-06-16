@@ -2,6 +2,7 @@ package proxy_test
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,7 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/net/dnstest"
+	"github.com/zalando/skipper/predicates/host"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -162,6 +164,73 @@ func TestMeasureBackendRequestHeader(t *testing.T) {
 	})
 }
 
+func TestMeasureHostMetrics(t *testing.T) {
+	dnstest.LoopbackNames(t, "foo.skipper.test", "bar.skipper.test")
+
+	m := &metricstest.MockMetrics{}
+	defer m.Close()
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	}))
+	defer backend.Close()
+
+	p := proxytest.Config{
+		Routes: eskip.MustParse(fmt.Sprintf(`
+			foo: HostAny("foo.skipper.test") -> "%s";
+			bar: Host("^bar[.]skipper[.]test") -> "%s";
+		`, backend.URL, backend.URL)),
+		RoutingOptions: routing.Options{
+			FilterRegistry: builtin.MakeRegistry(),
+			Predicates: []routing.PredicateSpec{
+				host.NewAny(),
+			},
+		},
+		ProxyParams: proxy.Params{Metrics: m},
+	}.Create()
+	defer p.Close()
+
+	client := p.Client()
+	get := func(req *http.Request) {
+		t.Helper()
+		rsp, err := client.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, 200, rsp.StatusCode, "called %s with host %s", req.URL.String(), req.Host)
+		io.Copy(io.Discard, rsp.Body)
+		rsp.Body.Close()
+	}
+
+	fooHost := net.JoinHostPort("foo.skipper.test", p.Port)
+	barHost := net.JoinHostPort("bar.skipper.test", p.Port)
+
+	reqFoo, err := http.NewRequest("GET", "http://"+fooHost, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	reqFoo.Host = "foo.skipper.test" // HostAny() does not ignore port
+
+	reqBar, err := http.NewRequest("GET", "http://"+barHost, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	get(reqFoo)
+	get(reqBar)
+
+	time.Sleep(100 * time.Millisecond) // We hope to get data populated
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		assert.Equal(t, 1, len(measures["foo"]))
+		assert.Equal(t, 1, len(measures["bar"]))
+		assert.Equal(t, 2, len(measures["GET"]))
+		assert.Equal(t, 2, len(measures["200"]))
+		assert.Equal(t, 2, len(measures["proxy.request.duration"]))
+		assert.Equal(t, 2, len(measures["proxy.response.duration"]))
+		assert.Equal(t, 2, len(measures["proxy.total.duration"]))
+		assert.Equal(t, measures["foo"], measures["foo.skipper.test"])
+	})
+}
+
 func TestMeasureProxyWatch(t *testing.T) {
 	backendLatency := 10 * time.Millisecond
 	filterLatency := 20 * time.Millisecond
@@ -217,7 +286,7 @@ func TestMeasureProxyWatch(t *testing.T) {
 
 			// wait until metrics are recorded
 			require.EventuallyWithT(t, func(c *assert.CollectT) {
-				m.WithMeasures(func(measures map[string][]time.Duration) { assert.Len(c, measures, 3) })
+				m.WithMeasures(func(measures map[string][]time.Duration) { assert.Len(c, measures, 7) })
 			}, 100*time.Millisecond, 1*time.Millisecond)
 
 			m.WithMeasures(func(measures map[string][]time.Duration) {

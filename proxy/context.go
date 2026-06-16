@@ -12,6 +12,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
+	hostPred "github.com/zalando/skipper/predicates/host"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
 
@@ -253,7 +254,16 @@ func (c *context) Serve(r *http.Response) {
 }
 
 func (c *context) metricsHost() string {
-	if c.route == nil || len(c.route.HostRegexps) == 0 {
+	if c.route == nil {
+		return unknownHost
+	}
+
+	if len(c.route.HostRegexps) == 0 {
+		for _, p := range c.route.Predicates {
+			if _, ok := p.(*hostPred.AnyPredicate); ok {
+				return c.request.Host
+			}
+		}
 		return unknownHost
 	}
 
