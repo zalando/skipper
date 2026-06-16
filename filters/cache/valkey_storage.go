@@ -27,6 +27,7 @@ type ValkeyStorage struct {
 	ring    valkeyClient
 	l1      *LRUStorage
 	metrics metrics.Metrics
+	l1TTL   time.Duration // max TTL for write-through L1 warming; 0 = write-around
 }
 
 // NewValkeyStorage creates a ValkeyStorage backed by ring (L2) with l1 as the
@@ -37,8 +38,8 @@ type ValkeyStorage struct {
 //   - valkey_set_fallback  — Valkey error on Set; L1 was written instead
 //
 // Pass metrics.Default when no test-scoped metrics collector is needed.
-func NewValkeyStorage(ring *skpnet.ValkeyRingClient, l1 *LRUStorage, m metrics.Metrics) *ValkeyStorage {
-	return &ValkeyStorage{ring: ring, l1: l1, metrics: m}
+func NewValkeyStorage(ring *skpnet.ValkeyRingClient, l1 *LRUStorage, m metrics.Metrics, l1TTL time.Duration) *ValkeyStorage {
+	return &ValkeyStorage{ring: ring, l1: l1, metrics: m, l1TTL: l1TTL}
 }
 
 func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {

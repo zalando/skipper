@@ -72,7 +72,7 @@ func NewCacheFilter(maxBytes int64, listenAddr string, netOpts skpnet.Options, v
 
 	var store Storage = lru
 	if valkeyRing != nil {
-		store = NewValkeyStorage(valkeyRing, lru, m)
+		store = NewValkeyStorage(valkeyRing, lru, m, 60*time.Second)
 	}
 
 	return &cacheSpec{
