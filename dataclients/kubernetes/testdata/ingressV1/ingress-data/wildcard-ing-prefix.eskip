@@ -1,0 +1,3 @@
+kube_foo__qux____example_org_____qux:
+	Host("^([a-z0-9]+((-[a-z0-9]+)?)*[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
