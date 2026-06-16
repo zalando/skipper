@@ -218,6 +218,7 @@ func TestMeasureHostMetrics(t *testing.T) {
 	get(reqFoo)
 	get(reqBar)
 
+	time.Sleep(100 * time.Millisecond) // We hope to get data populated
 	m.WithMeasures(func(measures map[string][]time.Duration) {
 		assert.Equal(t, 1, len(measures["foo"]))
 		assert.Equal(t, 1, len(measures["bar"]))
