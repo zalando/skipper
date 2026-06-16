@@ -209,8 +209,11 @@ func TestValkeyStorage_FallsBackToL1OnValkeyUnavailable(t *testing.T) {
 	if got == nil {
 		t.Fatal("expected L1 fallback hit, got nil")
 	}
-	if m.counter("valkey_get_fallback") == 0 {
-		t.Error("expected valkey_get_fallback to be incremented on Get fallback path")
+	if m.counter("l1_hit") == 0 {
+		t.Error("expected l1_hit to be incremented: Set fallback warmed L1, Get should serve from it")
+	}
+	if m.counter("valkey_get_fallback") != 0 {
+		t.Errorf("expected valkey_get_fallback=0 (L1 served before Valkey was contacted), got %d", m.counter("valkey_get_fallback"))
 	}
 
 	// Confirm the entry was physically written to L1 — not just returned via some
