@@ -278,11 +278,78 @@ func TestValkeyStorage_WriteThroughWarmsL1(t *testing.T) {
 	if string(got.Payload) != "warm" {
 		t.Errorf("payload: got %q, want %q", string(got.Payload), "warm")
 	}
+	if m.counter("l1_hit") != 1 {
+		t.Errorf("expected l1_hit=1, got %d", m.counter("l1_hit"))
+	}
+}
+
+func TestValkeyStorage_L1TTLBoundedToEntryTTL(t *testing.T) {
+	stub := newStubValkeyClient()
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := &ValkeyStorage{ring: stub, l1: lru, metrics: &testMetrics{}, l1TTL: 60 * time.Second}
+
+	ctx := context.Background()
+	key := "bounded-key"
+	entry := &Entry{
+		StatusCode: 200,
+		Payload:    []byte("short"),
+		TTL:        10 * time.Second, // shorter than l1TTL
+		CreatedAt:  time.Now(),
+	}
+
+	if err := s.Set(ctx, key, entry); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	// Read directly from L1 to inspect the stored TTL.
+	l1Entry, err := lru.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("L1 Get: %v", err)
+	}
+	if l1Entry == nil {
+		t.Fatal("expected L1 entry after write-through, got nil")
+	}
+	if l1Entry.TTL != 10*time.Second {
+		t.Errorf("L1 TTL: got %v, want %v (should be min(l1TTL, entry.TTL))", l1Entry.TTL, 10*time.Second)
+	}
+}
+
+func TestValkeyStorage_L1TTL_Zero_DisablesWarming(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &testMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := &ValkeyStorage{ring: stub, l1: lru, metrics: m, l1TTL: 0} // write-around
+
+	ctx := context.Background()
+	key := "no-warm-key"
+	entry := &Entry{
+		StatusCode: 200,
+		Payload:    []byte("bypass"),
+		TTL:        time.Minute,
+		CreatedAt:  time.Now(),
+	}
+
+	if err := s.Set(ctx, key, entry); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	// Break Valkey — if L1 were warmed, Get would still return the entry.
+	stub.broken = true
+
+	got, err := s.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("Get with broken Valkey: %v", err)
+	}
+	if got != nil {
+		t.Error("expected nil (write-around: L1 should not be warmed when l1TTL=0)")
+	}
 }
 
 func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	// Uses a broken stub — no Docker or live Valkey needed.
-	// Set triggers valkey_set_fallback; Get triggers valkey_get_fallback.
+	// Set triggers valkey_set_fallback, which writes the entry to L1.
+	// Get checks L1 first (L1-first reads) and finds the entry — incrementing l1_hit,
+	// not valkey_get_fallback.
 	stub := newBrokenStubValkeyClient()
 	m := &testMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
@@ -299,9 +366,14 @@ func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 		t.Errorf("expected valkey_get_fallback=0 after Set, got %d", m.counter("valkey_get_fallback"))
 	}
 
+	// L1-first: the entry was written to L1 by the Set fallback path, so Get returns
+	// it from L1 without ever touching (broken) Valkey.
 	_, _ = s.Get(ctx, "k")
-	if m.counter("valkey_get_fallback") != 1 {
-		t.Errorf("expected valkey_get_fallback=1, got %d", m.counter("valkey_get_fallback"))
+	if m.counter("l1_hit") != 1 {
+		t.Errorf("expected l1_hit=1, got %d", m.counter("l1_hit"))
+	}
+	if m.counter("valkey_get_fallback") != 0 {
+		t.Errorf("expected valkey_get_fallback=0 (L1 served before Valkey check), got %d", m.counter("valkey_get_fallback"))
 	}
 	if m.counter("valkey_set_fallback") != 1 {
 		t.Errorf("valkey_set_fallback should still be 1, got %d", m.counter("valkey_set_fallback"))

@@ -43,6 +43,13 @@ func NewValkeyStorage(ring *skpnet.ValkeyRingClient, l1 *LRUStorage, m metrics.M
 }
 
 func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
+	// L1-first: serve from local memory when the write-through warming populated it.
+	// LRUStorage.Get returns nil, nil for expired entries — a miss falls through.
+	if e, err := s.l1.Get(ctx, key); err == nil && e != nil {
+		s.metrics.IncCounter("l1_hit")
+		return e, nil
+	}
+
 	data, err := s.ring.Get(ctx, key)
 	if err != nil {
 		if valkey.IsValkeyNil(err) {
