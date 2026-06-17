@@ -1534,6 +1534,44 @@ func newCABundleForBench(cn string) *caBundle {
 	return &caBundle{pem: pemBytes, cert: cert, key: key}
 }
 
+func signIntermediateForBench(ca *caBundle, iaCN string, notBefore, notAfter time.Time) *caBundle {
+	iaKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(time.Now().UnixNano()),
+		Subject:               pkix.Name{CommonName: iaCN},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	der, _ := x509.CreateCertificate(rand.Reader, tmpl, ca.cert, &iaKey.PublicKey, ca.key)
+	iaCert, _ := x509.ParseCertificate(der)
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+
+	return &caBundle{pem: pemBytes, cert: iaCert, key: iaKey}
+}
+
+func signLeafByIntermediateForBench(ia *caBundle, leafCN string, notBefore, notAfter time.Time) (*tls.ConnectionState, *x509.Certificate) {
+	leafKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(time.Now().UnixNano()),
+		Subject:               pkix.Name{CommonName: leafCN},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		BasicConstraintsValid: true,
+	}
+	der, _ := x509.CreateCertificate(rand.Reader, tmpl, ia.cert, &leafKey.PublicKey, ia.key)
+	leafCert, _ := x509.ParseCertificate(der)
+
+	// Create the chain: [Leaf, Intermediate]
+	chain := []*x509.Certificate{leafCert, ia.cert}
+
+	return &tls.ConnectionState{PeerCertificates: chain}, leafCert
+}
+
 func signLeafForBench(ca *caBundle, leafCN string, notBefore, notAfter time.Time) (*tls.ConnectionState, *x509.Certificate) {
 	leafKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	tmpl := &x509.Certificate{
@@ -1676,7 +1714,7 @@ func BenchmarkMtlsSAN(b *testing.B) {
 	}
 }
 
-func BenchmarkMtlsAuthn(b *testing.B) {
+func BenchmarkMtlsAuthnCaLeaf(b *testing.B) {
 	now := time.Now()
 
 	trustedCA := newCABundleForBench("Trusted CA")
@@ -1709,5 +1747,64 @@ func BenchmarkMtlsAuthn(b *testing.B) {
 		if ctx.FServed {
 			b.Fatal("served but should not")
 		}
+	}
+}
+
+func BenchmarkMtlsAuthnCaIntermediateLeaf(b *testing.B) {
+	now := time.Now()
+
+	trustedCA := newCABundleForBench("Trusted CA")
+	trustedIA := signIntermediateForBench(trustedCA, "trusted-IA", now.Add(-time.Hour), now.Add(time.Hour))
+	validLeafTLS, _ := signLeafByIntermediateForBench(trustedIA, "my-service", now.Add(-time.Hour), now.Add(time.Hour))
+
+	intermediates := x509.NewCertPool()
+	intermediates.AddCert(trustedIA.cert)
+
+	pool, err := x509.SystemCertPool()
+	if err != nil {
+		b.Fatalf("Failed to get system cert pool: %v", err)
+	}
+	pool.AddCert(trustedCA.cert)
+
+	for _, st := range []struct {
+		name string
+		ia   *x509.CertPool
+	}{
+		{
+			name: "with intermediate",
+			ia:   intermediates,
+		},
+		{
+			name: "without intermediate",
+		},
+	} {
+		b.Run(st.name, func(b *testing.B) {
+
+			spec := NewMtlsAuthn(pool, st.ia)
+
+			f, err := spec.CreateFilter([]any{})
+			if err != nil {
+				b.Fatalf("Failed to create filter: %v", err)
+			}
+
+			req, err := http.NewRequest(http.MethodGet, "https://example.com/", nil)
+			if err != nil {
+				b.Fatalf("Failed to create request: %v", err)
+			}
+
+			req.TLS = validLeafTLS
+			ctx := &filtertest.Context{
+				FRequest: req,
+			}
+
+			b.ResetTimer()
+			b.ReportAllocs()
+			for b.Loop() {
+				f.Request(ctx)
+				if ctx.FServed {
+					b.Fatal("served but should not")
+				}
+			}
+		})
 	}
 }
