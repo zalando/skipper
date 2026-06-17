@@ -64,7 +64,7 @@ const (
 // Combining force mode with stale-if-error:
 //
 //	-> cache("5m", "15s", "30s", "60s") -> "https://example.org"
-func NewCacheFilter(maxBytes int64, listenAddr string, netOpts skpnet.Options, valkeyRing *skpnet.ValkeyRingClient) filters.Spec {
+func NewCacheFilter(maxBytes int64, listenAddr string, netOpts skpnet.Options, valkeyRing *skpnet.ValkeyRingClient, l1TTL time.Duration) filters.Spec {
 	m := metrics.Default
 	lru := NewLRUStorage(maxBytes, func() {
 		m.IncCounter("lru_eviction")
@@ -72,7 +72,7 @@ func NewCacheFilter(maxBytes int64, listenAddr string, netOpts skpnet.Options, v
 
 	var store Storage = lru
 	if valkeyRing != nil {
-		store = NewValkeyStorage(valkeyRing, lru, m, 60*time.Second)
+		store = NewValkeyStorage(valkeyRing, lru, m, l1TTL)
 	}
 
 	return &cacheSpec{
