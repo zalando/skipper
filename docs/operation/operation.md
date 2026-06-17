@@ -191,6 +191,63 @@ addresses.
 
 ## Authentication and Authorization
 
+### mTLS
+
+Skipper as a proxy supports mTLS as authentication and authorization
+method as client and as server and per route via filters to check the
+data in the validated X509 certificate.
+
+#### proxy client to backend
+
+To enable proxy client to backend authentication, skipper will create
+an mTLS connection sending its client certificate as its identity to
+the backend such that backends can verify the connection is ok to
+trust.
+
+To enable this you need to use `-enable-mtls`, `-client-tls-cert` and
+`-client-tls-key`.  Skipper supports only one identity, so only one
+cert+key in the mTLS case.  The provided file paths for cert and key
+can be used to rotate cert and key. Skipper will automatically detect
+new data in these files and will reload the TLS client configuration
+to use the new cert and key. Rotation will happen every
+`-client-tls-cert-refresh-interval`, which defaults to `5m`.
+
+This configuration will enable mTLS for all connections to all
+backends of the proxy. More advanced configurations are work in
+progress:
+
+- https://github.com/zalando/skipper/issues/4072
+- https://github.com/zalando/skipper/issues/4042
+
+#### client to proxy server
+
+For mTLS to be able to work you need to terminate TLS in skipper.  If
+you want to validate client certificates for mTLS connections in
+skipper, it is possible to do so per route.
+
+Global configuration is not needed if the system CAs are enough to
+validate all client certificates.  If you want to add your own CAs,
+you can use `-mtls-authn-ca="pem1,pem2"` to add your PEM encoded CA
+bundles. If you also want to add the system CAs, too, you can use
+`-mtls-authn-append-ca=true` to load also system bundles.
+
+How mTLS authentication and authorization works per route:
+
+The client presents the client certificate and Go passes it to the
+http.Request.TLS object that we can process in filters. For example in
+the [`mtlsAuthn()`](../reference/filters.md#mtlsauthn) filter to
+validate client certificates. In order to check more details for authorization, you can add the other mtls filters after the `mtlsAuthn()` filter, like:
+
+- [`mtlsIssuerDN()`](../reference/filters.md#mtlsissuerdn)
+- [`mtlsSanCIDR()`](../reference/filters.md#mtlssancidr)
+- [`mtlsSanDNS()`](../reference/filters.md#mtlssandns)
+- [`mtlsSanIP()`](../reference/filters.md#mtlssanip)
+- [`mtlsSanURI()`](../reference/filters.md#mtlssanuri)
+
+Features are also work in progress:
+
+- https://github.com/zalando/skipper/issues/4073
+
 ### OAuth2 Tokeninfo
 
 OAuth2 filters integrate with external services and have their own
