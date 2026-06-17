@@ -819,6 +819,13 @@ func TestMtlsIssuerCN_Request(t *testing.T) {
 	})
 	exactCN := certExact.Subject.CommonName
 
+	tlsEmptyCN, certEmptyCN := buildConnStateWithSubject(t, pkix.Name{
+		CommonName:   "",
+		Organization: []string{"Org"},
+		Country:      []string{"DE"},
+	})
+	emptyCN := certEmptyCN.Subject.CommonName
+
 	tlsWrongCN, _ := buildConnStateWithSubject(t, pkix.Name{
 		CommonName:   "Other CA",
 		Organization: []string{"Org"},
@@ -867,6 +874,13 @@ func TestMtlsIssuerCN_Request(t *testing.T) {
 			name:           "exact full CN match is allowed",
 			tlsState:       tlsExactMatch,
 			filterArgs:     []any{exactCN},
+			expectedStatus: 0,
+			expectServed:   false,
+		},
+		{
+			name:           "empty string CN match is allowed",
+			tlsState:       tlsEmptyCN,
+			filterArgs:     []any{emptyCN},
 			expectedStatus: 0,
 			expectServed:   false,
 		},
