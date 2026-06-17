@@ -15,8 +15,6 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-const defaultMaxIntermediateChain = 5
-
 type mtlsType uint
 
 const (
@@ -424,7 +422,6 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 				intermediates.AddCert(cert)
 			}
 			verifyOpt.Intermediates = intermediates
-			verifyOpt.MaxConstraintComparisions = defaultMaxIntermediateChain
 		}
 		if _, err := leafCert.Verify(verifyOpt); err == nil {
 			allowed = true
