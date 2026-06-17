@@ -948,7 +948,7 @@ func matchesETag(ifNoneMatch, etag string) bool {
 		return strings.TrimPrefix(strings.TrimSpace(e), "W/")
 	}
 	normEtag := normalise(etag)
-	for _, token := range strings.Split(ifNoneMatch, ",") {
+	for token := range strings.SplitSeq(ifNoneMatch, ",") {
 		if normalise(token) == normEtag {
 			return true
 		}
@@ -1063,9 +1063,8 @@ func parseVaryNames(varyHeader string) []string {
 	if varyHeader == "" {
 		return nil
 	}
-	parts := strings.Split(varyHeader, ",")
-	names := make([]string, 0, len(parts))
-	for _, p := range parts {
+	var names []string
+	for p := range strings.SplitSeq(varyHeader, ",") {
 		if name := strings.TrimSpace(p); name != "" {
 			names = append(names, http.CanonicalHeaderKey(name))
 		}
