@@ -181,7 +181,9 @@ func convertPathRuleV1(
 		r.LBEndpoints = eskip.NewLBEndpoints(eps)
 	}
 
-	r.DisableZoneAwareness = zoneAwarenessDisabled
+	if f := zoneAwarenessAnnotationFilter(metadata); f != nil {
+		r.Filters = append([]*eskip.Filter{f}, r.Filters...)
+	}
 
 	setPathV1(pathMode, r, prule.PathType, prule.Path)
 	traffic.apply(r)
@@ -460,7 +462,9 @@ func (ing *ingress) convertDefaultBackendV1(
 		r.LBEndpoints = eskip.NewLBEndpoints(eps)
 	}
 
-	r.DisableZoneAwareness = zoneAwarenessDisabled
+	if f := zoneAwarenessAnnotationFilter(i.Metadata); f != nil {
+		r.Filters = append([]*eskip.Filter{f}, r.Filters...)
+	}
 
 	return r, true, nil
 }

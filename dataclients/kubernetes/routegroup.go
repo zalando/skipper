@@ -179,7 +179,9 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 	}
 
 	zoneAwarenessDisabled := ctx.routeGroup.Metadata.Annotations[trafficZoneAwareAnnotationKey] == "false"
-	r.DisableZoneAwareness = zoneAwarenessDisabled
+	if f := zoneAwarenessAnnotationFilter(ctx.routeGroup.Metadata); f != nil {
+		r.Filters = append([]*eskip.Filter{f}, r.Filters...)
+	}
 
 	s, err := getBackendService(ctx, backend)
 	if err != nil {

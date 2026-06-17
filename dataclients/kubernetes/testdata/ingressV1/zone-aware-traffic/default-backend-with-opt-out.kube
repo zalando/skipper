@@ -1,2 +1,0 @@
-enable-kubernetes-endpointslices: true
-topology-zone: eu-central-1a
