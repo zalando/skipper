@@ -225,6 +225,7 @@ type Config struct {
 	Oauth2TokeninfoTimeout            time.Duration `yaml:"oauth2-tokeninfo-timeout"`
 	Oauth2TokeninfoCacheSize          int           `yaml:"oauth2-tokeninfo-cache-size"`
 	Oauth2TokeninfoCacheTTL           time.Duration `yaml:"oauth2-tokeninfo-cache-ttl"`
+	CacheL1TTL                        time.Duration `yaml:"cache-l1-ttl"`
 	Oauth2SecretFile                  string        `yaml:"oauth2-secret-file"`
 	Oauth2ClientID                    string        `yaml:"oauth2-client-id"`
 	Oauth2ClientSecret                string        `yaml:"oauth2-client-secret"`
@@ -599,6 +600,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.Oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", 2*time.Second, "sets the default tokeninfo request timeout duration to 2000ms")
 	flag.IntVar(&cfg.Oauth2TokeninfoCacheSize, "oauth2-tokeninfo-cache-size", 0, "non-zero value enables tokeninfo cache and sets the maximum number of cached tokens")
 	flag.DurationVar(&cfg.Oauth2TokeninfoCacheTTL, "oauth2-tokeninfo-cache-ttl", 0, "non-zero value limits the lifetime of a cached tokeninfo which otherwise equals the tokeninfo 'expires_in' field value")
+	flag.DurationVar(&cfg.CacheL1TTL, "cache-l1-ttl", 60*time.Second, "maximum TTL for write-through L1 warming in the cache() filter when Valkey is configured; set to 0 to disable (write-around)")
 	flag.DurationVar(&cfg.Oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", 2*time.Second, "sets the default tokenintrospection request timeout duration to 2000ms")
 	flag.Var(&cfg.Oauth2AuthURLParameters, "oauth2-auth-url-parameters", "sets additional parameters to send when calling the OAuth2 authorize or token endpoints as key-value pairs")
 	flag.StringVar(&cfg.Oauth2AccessTokenHeaderName, "oauth2-access-token-header-name", "", "sets the access token to a header on the request with this name")
@@ -1087,6 +1089,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OAuthTokeninfoTimeout:             c.Oauth2TokeninfoTimeout,
 		OAuthTokeninfoCacheSize:           c.Oauth2TokeninfoCacheSize,
 		OAuthTokeninfoCacheTTL:            c.Oauth2TokeninfoCacheTTL,
+		CacheL1TTL:                        c.CacheL1TTL,
 		OAuth2SecretFile:                  c.Oauth2SecretFile,
 		OAuth2ClientID:                    c.Oauth2ClientID,
 		OAuth2ClientSecret:                c.Oauth2ClientSecret,

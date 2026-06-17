@@ -148,6 +148,11 @@ type Options struct {
 	// using a fixed 25% fraction. Set explicitly to override that behaviour.
 	ResponseCacheMaxMemoryBytes int64
 
+	// CacheL1TTL sets the maximum TTL for write-through L1 warming in ValkeyStorage.
+	// On a successful Valkey Set, L1 is warmed with min(CacheL1TTL, entry.TTL).
+	// Set to 0 to disable write-through (write-around behaviour). Default: 60s.
+	CacheL1TTL time.Duration
+
 	// ReadMemoryLimit, when set, is called by the cache() filter initialiser
 	// to determine the container memory limit. Defaults to reading cgroup files.
 	// Override in tests or on non-standard platforms.
@@ -2250,6 +2255,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
 			},
 			valkeyRing,
+			o.CacheL1TTL,
 		))
 	}
 
