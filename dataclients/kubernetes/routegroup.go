@@ -43,6 +43,7 @@ type routeGroupContext struct {
 	forwardBackendURL            string
 	certificateRegistry          *certregistry.CertRegistry
 	zone                         string
+	disableZoneAwareness         bool
 }
 
 type routeContext struct {
@@ -178,7 +179,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 		protocol = p
 	}
 
-	zoneAwarenessDisabled := ctx.routeGroup.Metadata.Annotations[trafficZoneAwareAnnotationKey] == "false"
+	ctx.disableZoneAwareness = ctx.routeGroup.Metadata.Annotations[trafficZoneAwareAnnotationKey] == "false"
 	if f := zoneAwarenessAnnotationFilter(ctx.routeGroup.Metadata); f != nil {
 		r.Filters = append([]*eskip.Filter{f}, r.Filters...)
 	}
@@ -203,7 +204,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 			"TCP",
 			protocol,
 			targetPort,
-			zoneAwarenessDisabled)
+			ctx)
 		for _, epSlice := range epSlices {
 			eps = append(eps, epSlice.Address)
 		}

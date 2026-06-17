@@ -33,23 +33,24 @@ const (
 )
 
 type ingressContext struct {
-	state               *clusterState
-	ingressV1           *definitions.IngressV1Item
-	logger              *logger
-	annotationFilters   []*eskip.Filter
-	annotationPredicate string
-	annotationBackend   string
-	forwardBackendURL   string
-	enableExternalNames bool
-	extraRoutes         []*eskip.Route
-	backendWeights      map[string]float64
-	pathMode            PathMode
-	redirect            *redirectInfo
-	hostRoutes          map[string][]*eskip.Route
-	defaultFilters      defaultFilters
-	certificateRegistry *certregistry.CertRegistry
-	calculateTraffic    func([]*weightedIngressBackend) map[string]backendTraffic
-	zone                string
+	state                *clusterState
+	ingressV1            *definitions.IngressV1Item
+	logger               *logger
+	annotationFilters    []*eskip.Filter
+	annotationPredicate  string
+	annotationBackend    string
+	forwardBackendURL    string
+	enableExternalNames  bool
+	extraRoutes          []*eskip.Route
+	backendWeights       map[string]float64
+	pathMode             PathMode
+	redirect             *redirectInfo
+	hostRoutes           map[string][]*eskip.Route
+	defaultFilters       defaultFilters
+	certificateRegistry  *certregistry.CertRegistry
+	calculateTraffic     func([]*weightedIngressBackend) map[string]backendTraffic
+	zone                 string
+	disableZoneAwareness bool
 }
 
 type ingress struct {

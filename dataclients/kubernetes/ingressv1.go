@@ -103,7 +103,7 @@ func convertPathRuleV1(
 		return nil, err
 	}
 
-	zoneAwarenessDisabled := metadata.Annotations[trafficZoneAwareAnnotationKey] == "false"
+	ic.disableZoneAwareness = metadata.Annotations[trafficZoneAwareAnnotationKey] == "false"
 
 	servicePort, err := svc.getServicePortV1(svcPort)
 	if err != nil {
@@ -127,7 +127,7 @@ func convertPathRuleV1(
 		}
 
 		if state.enableEndpointSlices {
-			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort, zoneAwarenessDisabled)
+			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort, ic)
 			for _, ep := range epSlices {
 				eps = append(eps, ep.Address)
 			}
@@ -392,7 +392,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		return nil, false, err
 	}
 
-	zoneAwarenessDisabled := i.Metadata.Annotations[trafficZoneAwareAnnotationKey] == "false"
+	ic.disableZoneAwareness = i.Metadata.Annotations[trafficZoneAwareAnnotationKey] == "false"
 
 	servicePort, err := svc.getServicePortV1(svcPort)
 	if err != nil {
@@ -415,7 +415,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		}
 
 		if state.enableEndpointSlices {
-			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort, zoneAwarenessDisabled)
+			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort, ic)
 			for _, ep := range epSlices {
 				eps = append(eps, ep.Address)
 			}
