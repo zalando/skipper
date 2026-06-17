@@ -736,6 +736,12 @@ type Options struct {
 	// x509.SystemCertPool() which loads the system provided CAs.
 	MtlsAuthnCA *x509.CertPool
 
+	// MtlsAuthnInterMediateCA is a container for known
+	// intermediate CAs. It should be nil if skipper should load
+	// intermediates dynamically from the client
+	// http.Request.TLS.PeerCertificates.
+	MtlsAuthnInterMediateCA *x509.CertPool
+
 	// EnableMTLS enables mTLS support in the proxy with rotated client cert
 	EnableMTLS bool
 
@@ -2315,7 +2321,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			return err
 		}
 	}
-	o.CustomFilters = append(o.CustomFilters, tlsfilters.NewMtlsAuthn(o.MtlsAuthnCA))
+	o.CustomFilters = append(o.CustomFilters, tlsfilters.NewMtlsAuthn(o.MtlsAuthnCA, o.MtlsAuthnInterMediateCA))
 
 	// create routing
 	// create the proxy instance

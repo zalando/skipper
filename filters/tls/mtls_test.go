@@ -1142,6 +1142,28 @@ func newCABundle(t *testing.T, cn string) *caBundle {
 	return &caBundle{pem: pemBytes, cert: cert, key: key}
 }
 
+func signIntermediate(t *testing.T, ca *caBundle, iaCN string, notBefore, notAfter time.Time) *caBundle {
+	t.Helper()
+	iaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(time.Now().UnixNano()),
+		Subject:               pkix.Name{CommonName: iaCN},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, ca.cert, &iaKey.PublicKey, ca.key)
+	require.NoError(t, err)
+	iaCert, err := x509.ParseCertificate(der)
+	require.NoError(t, err)
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+
+	return &caBundle{pem: pemBytes, cert: iaCert, key: iaKey}
+}
+
 // signLeaf creates a leaf certificate signed by the given CA bundle.
 func signLeaf(t *testing.T, ca *caBundle, leafCN string, notBefore, notAfter time.Time) (*tls.ConnectionState, *x509.Certificate) {
 	t.Helper()
@@ -1163,10 +1185,35 @@ func signLeaf(t *testing.T, ca *caBundle, leafCN string, notBefore, notAfter tim
 	return &tls.ConnectionState{PeerCertificates: []*x509.Certificate{cert}}, cert
 }
 
+// signLeafByIntermediate creates a leaf certificate signed by the given intermediate CA bundle.
+func signLeafByIntermediate(t *testing.T, ia *caBundle, leafCN string, notBefore, notAfter time.Time) (*tls.ConnectionState, *x509.Certificate) {
+	t.Helper()
+	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(time.Now().UnixNano()),
+		Subject:               pkix.Name{CommonName: leafCN},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, ia.cert, &leafKey.PublicKey, ia.key)
+	require.NoError(t, err)
+	leafCert, err := x509.ParseCertificate(der)
+	require.NoError(t, err)
+
+	// Create the chain: [Leaf, Intermediate]
+	chain := []*x509.Certificate{leafCert, ia.cert}
+
+	return &tls.ConnectionState{PeerCertificates: chain}, leafCert
+}
+
 // TestNewMtlsAuthn_CreateFilter verifies argument validation in CreateFilter.
 func TestNewMtlsAuthn_CreateFilter(t *testing.T) {
 	ca, _ := x509.SystemCertPool()
-	spec := NewMtlsAuthn(ca)
+	spec := NewMtlsAuthn(ca, nil)
 	assert.Equal(t, "mtlsAuthn", spec.Name())
 
 	for _, tt := range []struct {
@@ -1230,7 +1277,7 @@ func TestMtlsAuthn_Request(t *testing.T) {
 	pool, err := x509.SystemCertPool()
 	require.NoError(t, err)
 	pool.AddCert(trustedCA.cert)
-	spec := NewMtlsAuthn(pool)
+	spec := NewMtlsAuthn(pool, nil)
 
 	for _, tt := range []struct {
 		name           string
@@ -1294,6 +1341,128 @@ func TestMtlsAuthn_Request(t *testing.T) {
 			if tt.expectServed {
 				require.NotNil(t, ctx.FResponse)
 				assert.Equal(t, tt.expectedStatus, ctx.FResponse.StatusCode)
+			}
+		})
+	}
+}
+
+func TestMtlsAuthn_Intermediate_Request(t *testing.T) {
+	now := time.Now()
+
+	// Trusted CA: signs the "positive" leaf and the expired/future leaves.
+	trustedCA := newCABundle(t, "Trusted CA")
+
+	// A separate CA — its leaves must be rejected by a filter loaded with trustedCA.
+	untrustedCA := newCABundle(t, "Untrusted CA")
+
+	trustedIA := signIntermediate(t, trustedCA, "trusted-IA",
+		now.Add(-time.Hour), now.Add(time.Hour))
+
+	untrustedIA := signIntermediate(t, untrustedCA, "untrusted-IA",
+		now.Add(-time.Hour), now.Add(time.Hour))
+
+	validLeafTLS, _ := signLeafByIntermediate(t, trustedIA, "my-service",
+		now.Add(-time.Hour), now.Add(time.Hour))
+
+	untrustedLeafTLS, _ := signLeafByIntermediate(t, untrustedIA, "attacker",
+		now.Add(-time.Hour), now.Add(time.Hour))
+
+	// Expired leaf signed by the trusted IA.
+	expiredLeafTLS, _ := signLeafByIntermediate(t, trustedIA, "expired-service",
+		now.Add(-2*time.Hour), now.Add(-time.Hour))
+
+	// Future leaf signed by the trusted CA.
+	futureLeafTLS, _ := signLeafByIntermediate(t, trustedIA, "future-service",
+		now.Add(time.Hour), now.Add(2*time.Hour))
+
+	pool, err := x509.SystemCertPool()
+	require.NoError(t, err)
+	pool.AddCert(trustedCA.cert)
+	specWithoutIntermediate := NewMtlsAuthn(pool, nil)
+
+	intermediates := x509.NewCertPool()
+	intermediates.AddCert(trustedIA.cert)
+	specWithIntermediate := NewMtlsAuthn(pool, intermediates)
+
+	for _, tt := range []struct {
+		name           string
+		tlsState       *tls.ConnectionState
+		expectedStatus int
+		expectServed   bool
+	}{
+		{
+			name:           "no TLS — req.TLS is nil — 401 Unauthorized",
+			tlsState:       nil,
+			expectedStatus: http.StatusUnauthorized,
+			expectServed:   true,
+		},
+		{
+			name:           "TLS but no peer certificates",
+			tlsState:       &tls.ConnectionState{},
+			expectedStatus: http.StatusUnauthorized,
+			expectServed:   true,
+		},
+		{
+			name:         "valid cert signed by trusted CA — allowed, stateBag populated",
+			tlsState:     validLeafTLS,
+			expectServed: false,
+		},
+		{
+			name:           "cert signed by untrusted CA — 403 Forbidden",
+			tlsState:       untrustedLeafTLS,
+			expectedStatus: http.StatusForbidden,
+			expectServed:   true,
+		},
+		{
+			name:           "expired cert — 403 Forbidden",
+			tlsState:       expiredLeafTLS,
+			expectedStatus: http.StatusForbidden,
+			expectServed:   true,
+		},
+		{
+			name:           "future cert (NotBefore in the future) — 403 Forbidden",
+			tlsState:       futureLeafTLS,
+			expectedStatus: http.StatusForbidden,
+			expectServed:   true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, st := range []struct {
+				name string
+				spec filters.Spec
+			}{
+				{
+					name: "with intermediate",
+					spec: specWithIntermediate,
+				},
+				{
+					name: "without intermediate",
+					spec: specWithoutIntermediate,
+				},
+			} {
+				t.Run(st.name, func(t *testing.T) {
+
+					t.Parallel()
+
+					f, err := st.spec.CreateFilter([]any{})
+					require.NoError(t, err)
+
+					req, err := http.NewRequest(http.MethodGet, "https://example.com/", nil)
+					require.NoError(t, err)
+					req.TLS = tt.tlsState
+
+					ctx := &filtertest.Context{
+						FRequest:  req,
+						FStateBag: map[string]any{},
+					}
+					f.Request(ctx)
+
+					assert.Equal(t, tt.expectServed, ctx.FServed)
+					if tt.expectServed {
+						require.NotNil(t, ctx.FResponse)
+						assert.Equal(t, tt.expectedStatus, ctx.FResponse.StatusCode)
+					}
+				})
 			}
 		})
 	}
@@ -1504,7 +1673,7 @@ func BenchmarkMtlsAuthn(b *testing.B) {
 		b.Fatalf("Failed to get system cert pool: %v", err)
 	}
 	pool.AddCert(trustedCA.cert)
-	spec := NewMtlsAuthn(pool)
+	spec := NewMtlsAuthn(pool, nil)
 
 	f, err := spec.CreateFilter([]any{})
 	if err != nil {

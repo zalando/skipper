@@ -15,6 +15,8 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
+const defaultMaxIntermediateChain = 5
+
 type mtlsType uint
 
 const (
@@ -77,6 +79,7 @@ type mtlsSpec struct {
 	typ            mtlsType
 	enableAuditLog bool
 	caPool         *x509.CertPool
+	intermediates  *x509.CertPool
 }
 
 type mtlsFilter struct {
@@ -109,11 +112,14 @@ func NewMtlsCN() filters.Spec {
 
 // NewMtlsAuthn returns a filter spec for the mtlsAuthn filter. You
 // need to pass the x509.CertPool that it will use to validate client
-// certificates for authentication.
-func NewMtlsAuthn(pool *x509.CertPool) filters.Spec {
+// certificates for authentication. The second parameter can be nil,
+// in case you have no intermediate or can not load intermediates
+// upfront.
+func NewMtlsAuthn(caPool, intermediates *x509.CertPool) filters.Spec {
 	return &mtlsSpec{
-		typ:    mtlsAuthn,
-		caPool: pool,
+		typ:           mtlsAuthn,
+		caPool:        caPool,
+		intermediates: intermediates,
 	}
 }
 
@@ -197,8 +203,9 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 		}
 
 		mf.verifyOpt = x509.VerifyOptions{
-			Roots:     ms.caPool,
-			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+			Roots:         ms.caPool,
+			Intermediates: ms.intermediates,
+			KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		}
 
 	default:
@@ -358,10 +365,10 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	cert := peerCerts[0]
+	leafCert := peerCerts[0]
 	switch mf.typ {
 	case mtlsIssuerDN:
-		issuerDN := cert.Issuer.String()
+		issuerDN := leafCert.Issuer.String()
 		if _, ok := mf.allowedDN[issuerDN]; ok {
 			allowed = true
 			auditCertData.WriteString("DN: ")
@@ -371,7 +378,7 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 	case mtlsSanCIDR, mtlsSanIP:
 		// Check CIDR/IP SANs via the pre-built IPSet.
 		if mf.allowedIPs != nil {
-			for _, ip := range cert.IPAddresses {
+			for _, ip := range leafCert.IPAddresses {
 				addr, ok := netip.AddrFromSlice(ip)
 				if ok && mf.allowedIPs.Contains(addr.Unmap()) {
 					allowed = true
@@ -383,7 +390,7 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 
 	case mtlsSanDNS:
 		// Check hostname SANs against the allowlist.
-		for _, dns := range cert.DNSNames {
+		for _, dns := range leafCert.DNSNames {
 			if _, ok := mf.allowedHostnames[strings.ToLower(dns)]; ok {
 				allowed = true
 				auditCertData.WriteString("SAN DNS: ")
@@ -393,7 +400,7 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 
 	case mtlsSanURI:
 		// Check URI SANs against the allowlist (exact string match).
-		for _, u := range cert.URIs {
+		for _, u := range leafCert.URIs {
 			if _, ok := mf.allowedURIs[u.String()]; ok {
 				allowed = true
 				auditCertData.WriteString("SAN URI: ")
@@ -402,17 +409,27 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 		}
 
 	case mtlsCN:
-		if _, ok := mf.allowedCN[cert.Subject.CommonName]; ok {
+		if _, ok := mf.allowedCN[leafCert.Subject.CommonName]; ok {
 			allowed = true
 			auditCertData.WriteString("CN: ")
-			auditCertData.WriteString(cert.Subject.CommonName)
+			auditCertData.WriteString(leafCert.Subject.CommonName)
 		}
 
 	case mtlsAuthn:
-		if _, err := cert.Verify(mf.verifyOpt); err == nil {
+		verifyOpt := mf.verifyOpt
+		// peerCerts -> chain: [Leaf, Intermediate]
+		if len(peerCerts) > 1 && verifyOpt.Intermediates == nil {
+			intermediates := x509.NewCertPool()
+			for _, cert := range peerCerts[1:] {
+				intermediates.AddCert(cert)
+			}
+			verifyOpt.Intermediates = intermediates
+			verifyOpt.MaxConstraintComparisions = defaultMaxIntermediateChain
+		}
+		if _, err := leafCert.Verify(verifyOpt); err == nil {
 			allowed = true
 			auditCertData.WriteString("authn: ")
-			auditCertData.WriteString(cert.Subject.String())
+			auditCertData.WriteString(leafCert.Subject.String())
 		}
 	}
 
