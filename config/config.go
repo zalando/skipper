@@ -225,7 +225,6 @@ type Config struct {
 	Oauth2TokeninfoTimeout            time.Duration `yaml:"oauth2-tokeninfo-timeout"`
 	Oauth2TokeninfoCacheSize          int           `yaml:"oauth2-tokeninfo-cache-size"`
 	Oauth2TokeninfoCacheTTL           time.Duration `yaml:"oauth2-tokeninfo-cache-ttl"`
-	CacheL1TTL                        time.Duration `yaml:"cache-l1-ttl"`
 	Oauth2SecretFile                  string        `yaml:"oauth2-secret-file"`
 	Oauth2ClientID                    string        `yaml:"oauth2-client-id"`
 	Oauth2ClientSecret                string        `yaml:"oauth2-client-secret"`
@@ -332,6 +331,8 @@ type Config struct {
 	SwarmValkeyDialTimeout        time.Duration `yaml:"swarm-valkey-dial-timeout"`
 	SwarmValkeyKeepAlive          time.Duration `yaml:"swarm-valkey-keepalive"`
 	SwarmValkeyUpdateInterval     time.Duration `yaml:"swarm-valkey-update-interval"`
+	// CacheL1TTL is the maximum TTL for write-through L1 warming (cache() filter).
+	CacheL1TTL time.Duration `yaml:"cache-l1-ttl"`
 	// swim based
 	SwarmKubernetesNamespace          string        `yaml:"swarm-namespace"`
 	SwarmKubernetesLabelSelectorKey   string        `yaml:"swarm-label-selector-key"`
@@ -600,7 +601,6 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.Oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", 2*time.Second, "sets the default tokeninfo request timeout duration to 2000ms")
 	flag.IntVar(&cfg.Oauth2TokeninfoCacheSize, "oauth2-tokeninfo-cache-size", 0, "non-zero value enables tokeninfo cache and sets the maximum number of cached tokens")
 	flag.DurationVar(&cfg.Oauth2TokeninfoCacheTTL, "oauth2-tokeninfo-cache-ttl", 0, "non-zero value limits the lifetime of a cached tokeninfo which otherwise equals the tokeninfo 'expires_in' field value")
-	flag.DurationVar(&cfg.CacheL1TTL, "cache-l1-ttl", 60*time.Second, "maximum TTL for write-through L1 warming in the cache() filter when Valkey is configured; set to 0 to disable (write-around)")
 	flag.DurationVar(&cfg.Oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", 2*time.Second, "sets the default tokenintrospection request timeout duration to 2000ms")
 	flag.Var(&cfg.Oauth2AuthURLParameters, "oauth2-auth-url-parameters", "sets additional parameters to send when calling the OAuth2 authorize or token endpoints as key-value pairs")
 	flag.StringVar(&cfg.Oauth2AccessTokenHeaderName, "oauth2-access-token-header-name", "", "sets the access token to a header on the request with this name")
@@ -716,6 +716,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.SwarmValkeyDialTimeout, "swarm-valkey-dial-timeout", net.DefaultDialTimeout, "set valkey client dial timeout")
 	flag.DurationVar(&cfg.SwarmValkeyKeepAlive, "swarm-valkey-keepalive", net.DefaultKeepAlive, "set valkey keepalive probes interval")
 	flag.DurationVar(&cfg.SwarmValkeyUpdateInterval, "swarm-valkey-update-interval", net.DefaultUpdateInterval, "set update interval to update valkey addresses")
+	flag.DurationVar(&cfg.CacheL1TTL, "cache-l1-ttl", 60*time.Second, "maximum TTL for write-through L1 warming in the cache() filter when Valkey is configured; set to 0 to disable (write-around)")
 	// swim
 	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
