@@ -7,7 +7,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-func makeRoute(id string, zoneEndpoints map[string]int) *eskip.Route {
+func makeRoute(id string, zoneEndpoints map[string]int, optOut ...bool) *eskip.Route {
 	var eps []*eskip.LBEndpoint
 	for zone, count := range zoneEndpoints {
 		for i := range count {
@@ -17,7 +17,14 @@ func makeRoute(id string, zoneEndpoints map[string]int) *eskip.Route {
 			})
 		}
 	}
-	return &eskip.Route{Id: id, LBEndpoints: eps}
+	r := &eskip.Route{Id: id, LBEndpoints: eps}
+	if len(optOut) > 0 && optOut[0] {
+		fs, err := eskip.ParseFilters(`annotate("zalando.org/traffic-zone-aware", "false")`)
+		if err == nil && len(fs) == 1 {
+			r.Filters = []*eskip.Filter{fs[0]}
+		}
+	}
+	return r
 }
 
 type routeExpect struct {
@@ -171,6 +178,27 @@ func TestFilterRoutesByZone(t *testing.T) {
 			routeA:    makeRoute("A", map[string]int{"zone1": 4, "zone2": 1}),
 			routeB:    &eskip.Route{Id: "B"},
 			wantZone1: []routeExpect{{id: "A", filtered: true}, {id: "B", filtered: false}},
+			wantZone2: []routeExpect{{id: "A", filtered: false}, {id: "B", filtered: false}},
+		},
+		{
+			name:      "A_z1=4_z2=4_opt_out / B_z1=4_z2=4_opt_out",
+			routeA:    makeRoute("A", map[string]int{"zone1": 4, "zone2": 4}, true),
+			routeB:    makeRoute("B", map[string]int{"zone1": 4, "zone2": 4}, true),
+			wantZone1: []routeExpect{{id: "A", filtered: false}, {id: "B", filtered: false}},
+			wantZone2: []routeExpect{{id: "A", filtered: false}, {id: "B", filtered: false}},
+		},
+		{
+			name:      "A_z1=4_z2=4_opt_out / B_z1=4_z2=4",
+			routeA:    makeRoute("A", map[string]int{"zone1": 4, "zone2": 4}, true),
+			routeB:    makeRoute("B", map[string]int{"zone1": 4, "zone2": 4}),
+			wantZone1: []routeExpect{{id: "A", filtered: false}, {id: "B", filtered: true}},
+			wantZone2: []routeExpect{{id: "A", filtered: false}, {id: "B", filtered: true}},
+		},
+		{
+			name:      "A_z1=2_z2=4_opt_out / B_z1=4_z2=1",
+			routeA:    makeRoute("A", map[string]int{"zone1": 2, "zone2": 4}, true),
+			routeB:    makeRoute("B", map[string]int{"zone1": 4, "zone2": 1}),
+			wantZone1: []routeExpect{{id: "A", filtered: false}, {id: "B", filtered: true}},
 			wantZone2: []routeExpect{{id: "A", filtered: false}, {id: "B", filtered: false}},
 		},
 	}

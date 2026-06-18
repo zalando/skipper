@@ -24,6 +24,7 @@ const (
 	skipperLoadBalancerAnnotationKey    = "zalando.org/skipper-loadbalancer"
 	skipperBackendProtocolAnnotationKey = "zalando.org/skipper-backend-protocol"
 	pathModeAnnotationKey               = "zalando.org/skipper-ingress-path-mode"
+	trafficZoneAwareAnnotationKey       = "zalando.org/traffic-zone-aware"
 	ingressOriginName                   = "ingress"
 	tlsSecretType                       = "kubernetes.io/tls"
 	tlsSecretDataCrt                    = "tls.crt"
@@ -31,23 +32,24 @@ const (
 )
 
 type ingressContext struct {
-	state               *clusterState
-	ingressV1           *definitions.IngressV1Item
-	logger              *logger
-	annotationFilters   []*eskip.Filter
-	annotationPredicate string
-	annotationBackend   string
-	forwardBackendURL   string
-	enableExternalNames bool
-	extraRoutes         []*eskip.Route
-	backendWeights      map[string]float64
-	pathMode            PathMode
-	redirect            *redirectInfo
-	hostRoutes          map[string][]*eskip.Route
-	defaultFilters      defaultFilters
-	certificateRegistry *certregistry.CertRegistry
-	calculateTraffic    func([]*weightedIngressBackend) map[string]backendTraffic
-	zone                string
+	state                *clusterState
+	ingressV1            *definitions.IngressV1Item
+	logger               *logger
+	annotationFilters    []*eskip.Filter
+	annotationPredicate  string
+	annotationBackend    string
+	forwardBackendURL    string
+	enableExternalNames  bool
+	extraRoutes          []*eskip.Route
+	backendWeights       map[string]float64
+	pathMode             PathMode
+	redirect             *redirectInfo
+	hostRoutes           map[string][]*eskip.Route
+	defaultFilters       defaultFilters
+	certificateRegistry  *certregistry.CertRegistry
+	calculateTraffic     func([]*weightedIngressBackend) map[string]backendTraffic
+	zone                 string
+	disableZoneAwareness bool
 }
 
 type ingress struct {
@@ -268,6 +270,16 @@ func countPathPredicates(r *eskip.Route) int {
 		i++
 	}
 	return i
+}
+
+func zoneAwarenessAnnotationFilter(m *definitions.Metadata) *eskip.Filter {
+	if m.Annotations[trafficZoneAwareAnnotationKey] == "false" {
+		fs, err := eskip.ParseFilters(`annotate("` + trafficZoneAwareAnnotationKey + `", "false")`)
+		if err == nil && len(fs) == 1 {
+			return fs[0]
+		}
+	}
+	return nil
 }
 
 // parse filter and ratelimit annotation

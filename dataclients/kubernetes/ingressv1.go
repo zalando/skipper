@@ -125,7 +125,7 @@ func convertPathRuleV1(
 		}
 
 		if state.enableEndpointSlices {
-			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort)
+			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort, ic)
 			for _, ep := range epSlices {
 				eps = append(eps, ep.Address)
 			}
@@ -177,6 +177,10 @@ func convertPathRuleV1(
 		r.LBEndpoints = lbeps
 	} else {
 		r.LBEndpoints = eskip.NewLBEndpoints(eps)
+	}
+
+	if f := zoneAwarenessAnnotationFilter(metadata); f != nil {
+		r.Filters = append([]*eskip.Filter{f}, r.Filters...)
 	}
 
 	setPathV1(pathMode, r, prule.PathType, prule.Path)
@@ -407,7 +411,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		}
 
 		if state.enableEndpointSlices {
-			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort)
+			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort, ic)
 			for _, ep := range epSlices {
 				eps = append(eps, ep.Address)
 			}
@@ -454,6 +458,10 @@ func (ing *ingress) convertDefaultBackendV1(
 		r.LBEndpoints = eskip.NewLBEndpoints(eps)
 	}
 
+	if f := zoneAwarenessAnnotationFilter(i.Metadata); f != nil {
+		r.Filters = append([]*eskip.Filter{f}, r.Filters...)
+	}
+
 	return r, true, nil
 }
 
@@ -482,23 +490,24 @@ func (ing *ingress) ingressV1Route(
 
 	redirect.initCurrent(i.Metadata)
 	ic := &ingressContext{
-		state:               state,
-		ingressV1:           i,
-		logger:              logger,
-		annotationFilters:   annotationFilter(i.Metadata, logger),
-		annotationPredicate: annotationPredicate(i.Metadata),
-		annotationBackend:   annotationBackendString(i.Metadata),
-		forwardBackendURL:   ing.forwardBackendURL,
-		enableExternalNames: ing.enableExternalNames,
-		extraRoutes:         extraRoutes(i.Metadata),
-		backendWeights:      backendWeights(i.Metadata, logger),
-		pathMode:            pathMode(i.Metadata, ing.pathMode, logger),
-		redirect:            redirect,
-		hostRoutes:          hostRoutes,
-		defaultFilters:      df,
-		certificateRegistry: r,
-		calculateTraffic:    getBackendTrafficCalculator[*weightedIngressBackend](ing.backendTrafficAlgorithm),
-		zone:                ing.zone,
+		state:                state,
+		ingressV1:            i,
+		logger:               logger,
+		annotationFilters:    annotationFilter(i.Metadata, logger),
+		annotationPredicate:  annotationPredicate(i.Metadata),
+		annotationBackend:    annotationBackendString(i.Metadata),
+		forwardBackendURL:    ing.forwardBackendURL,
+		enableExternalNames:  ing.enableExternalNames,
+		extraRoutes:          extraRoutes(i.Metadata),
+		backendWeights:       backendWeights(i.Metadata, logger),
+		pathMode:             pathMode(i.Metadata, ing.pathMode, logger),
+		redirect:             redirect,
+		hostRoutes:           hostRoutes,
+		defaultFilters:       df,
+		certificateRegistry:  r,
+		calculateTraffic:     getBackendTrafficCalculator[*weightedIngressBackend](ing.backendTrafficAlgorithm),
+		zone:                 ing.zone,
+		disableZoneAwareness: i.Metadata.Annotations[trafficZoneAwareAnnotationKey] == "false",
 	}
 
 	var route *eskip.Route

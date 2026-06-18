@@ -11,6 +11,7 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
@@ -139,8 +140,25 @@ func getZones(routes []*eskip.Route) map[string]struct{} {
 	return zones
 }
 
+func isZoneAwarenessDisabled(route *eskip.Route) bool {
+	for _, f := range route.Filters {
+		if f.Name == filters.AnnotateName &&
+			len(f.Args) == 2 &&
+			f.Args[0] == "zalando.org/traffic-zone-aware" &&
+			f.Args[1] == "false" {
+			return true
+		}
+	}
+	return false
+}
+
 func getRouteForZone(zone string, route *eskip.Route) *eskip.Route {
 	var zoneAwareEps []*eskip.LBEndpoint
+
+	if isZoneAwarenessDisabled(route) {
+		return route
+	}
+
 	for _, eps := range route.LBEndpoints {
 		if eps.Zone == zone {
 			zoneAwareEps = append(zoneAwareEps, eps)
