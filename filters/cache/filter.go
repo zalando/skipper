@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	opentracing "github.com/opentracing/opentracing-go"
@@ -161,21 +162,24 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	cf.fetch = s.client.Do
+	cf.bgWg.Add(2)
 	go cf.revalidationWorker()
 	go cf.lruBytesScraper()
 	return cf, nil
 }
 
-// Close shuts down the background revalidation worker and the lru_bytes scraper.
-// Must be called when the filter is no longer in use (e.g. in tests via t.Cleanup).
+// Close shuts down the background revalidation worker and the lru_bytes scraper,
+// blocking until both goroutines have exited.
 func (f *cacheFilter) Close() {
 	close(f.revalJobs)
 	close(f.lruBytesDone)
+	f.bgWg.Wait()
 }
 
 // revalidationWorker is the single background goroutine per filter that
 // processes revalidation jobs sequentially. It exits when revalJobs is closed.
 func (f *cacheFilter) revalidationWorker() {
+	defer f.bgWg.Done()
 	for job := range f.revalJobs {
 		f.doRevalidate(job.key, job.req)
 	}
@@ -188,6 +192,7 @@ const lruBytesScrapeInterval = 10 * time.Second
 // even when no evictions occur (large Sets without exceeding capacity never
 // trigger the onEvict callback). It exits when lruBytesDone is closed.
 func (f *cacheFilter) lruBytesScraper() {
+	defer f.bgWg.Done()
 	if f.lruStorage == nil {
 		return
 	}
@@ -225,6 +230,7 @@ type cacheFilter struct {
 	revalSF      singleflight.Group // coalesces concurrent background revalidations per key
 	revalJobs    chan revalJob      // background revalidation queue; worker drains this
 	lruBytesDone chan struct{}      // closed by Close() to stop the lruBytesScraper goroutine
+	bgWg         sync.WaitGroup    // tracks background goroutines; Wait()ed in Close()
 	fetch        func(*http.Request) (*http.Response, error)
 	metrics      metrics.Metrics
 }
