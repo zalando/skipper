@@ -230,7 +230,7 @@ type cacheFilter struct {
 	revalSF      singleflight.Group // coalesces concurrent background revalidations per key
 	revalJobs    chan revalJob      // background revalidation queue; worker drains this
 	lruBytesDone chan struct{}      // closed by Close() to stop the lruBytesScraper goroutine
-	bgWg         sync.WaitGroup    // tracks background goroutines; Wait()ed in Close()
+	bgWg         sync.WaitGroup     // tracks background goroutines; Wait()ed in Close()
 	fetch        func(*http.Request) (*http.Response, error)
 	metrics      metrics.Metrics
 }
