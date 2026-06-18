@@ -14,7 +14,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/secrets/certregistry"
 )
 
@@ -275,9 +274,9 @@ func countPathPredicates(r *eskip.Route) int {
 
 func zoneAwarenessAnnotationFilter(m *definitions.Metadata) *eskip.Filter {
 	if m.Annotations[trafficZoneAwareAnnotationKey] == "false" {
-		return &eskip.Filter{
-			Name: filters.AnnotateName,
-			Args: []interface{}{trafficZoneAwareAnnotationKey, "false"},
+		fs, err := eskip.ParseFilters(`annotate("` + trafficZoneAwareAnnotationKey + `", "false")`)
+		if err == nil && len(fs) == 1 {
+			return fs[0]
 		}
 	}
 	return nil

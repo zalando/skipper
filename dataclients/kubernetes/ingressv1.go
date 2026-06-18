@@ -103,8 +103,6 @@ func convertPathRuleV1(
 		return nil, err
 	}
 
-	ic.disableZoneAwareness = metadata.Annotations[trafficZoneAwareAnnotationKey] == "false"
-
 	servicePort, err := svc.getServicePortV1(svcPort)
 	if err != nil {
 		// service definition is wrong or no pods
@@ -392,8 +390,6 @@ func (ing *ingress) convertDefaultBackendV1(
 		return nil, false, err
 	}
 
-	ic.disableZoneAwareness = i.Metadata.Annotations[trafficZoneAwareAnnotationKey] == "false"
-
 	servicePort, err := svc.getServicePortV1(svcPort)
 	if err != nil {
 		ic.logger.Errorf("Failed to find target port %v, %s, for service %s add shuntroute: %v", svc.Spec.Ports, svcPort, svcName, err)
@@ -494,23 +490,24 @@ func (ing *ingress) ingressV1Route(
 
 	redirect.initCurrent(i.Metadata)
 	ic := &ingressContext{
-		state:               state,
-		ingressV1:           i,
-		logger:              logger,
-		annotationFilters:   annotationFilter(i.Metadata, logger),
-		annotationPredicate: annotationPredicate(i.Metadata),
-		annotationBackend:   annotationBackendString(i.Metadata),
-		forwardBackendURL:   ing.forwardBackendURL,
-		enableExternalNames: ing.enableExternalNames,
-		extraRoutes:         extraRoutes(i.Metadata),
-		backendWeights:      backendWeights(i.Metadata, logger),
-		pathMode:            pathMode(i.Metadata, ing.pathMode, logger),
-		redirect:            redirect,
-		hostRoutes:          hostRoutes,
-		defaultFilters:      df,
-		certificateRegistry: r,
-		calculateTraffic:    getBackendTrafficCalculator[*weightedIngressBackend](ing.backendTrafficAlgorithm),
-		zone:                ing.zone,
+		state:                state,
+		ingressV1:            i,
+		logger:               logger,
+		annotationFilters:    annotationFilter(i.Metadata, logger),
+		annotationPredicate:  annotationPredicate(i.Metadata),
+		annotationBackend:    annotationBackendString(i.Metadata),
+		forwardBackendURL:    ing.forwardBackendURL,
+		enableExternalNames:  ing.enableExternalNames,
+		extraRoutes:          extraRoutes(i.Metadata),
+		backendWeights:       backendWeights(i.Metadata, logger),
+		pathMode:             pathMode(i.Metadata, ing.pathMode, logger),
+		redirect:             redirect,
+		hostRoutes:           hostRoutes,
+		defaultFilters:       df,
+		certificateRegistry:  r,
+		calculateTraffic:     getBackendTrafficCalculator[*weightedIngressBackend](ing.backendTrafficAlgorithm),
+		zone:                 ing.zone,
+		disableZoneAwareness: i.Metadata.Annotations[trafficZoneAwareAnnotationKey] == "false",
 	}
 
 	var route *eskip.Route

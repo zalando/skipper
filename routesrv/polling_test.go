@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
 )
 
 func makeRoute(id string, zoneEndpoints map[string]int, optOut ...bool) *eskip.Route {
@@ -20,10 +19,10 @@ func makeRoute(id string, zoneEndpoints map[string]int, optOut ...bool) *eskip.R
 	}
 	r := &eskip.Route{Id: id, LBEndpoints: eps}
 	if len(optOut) > 0 && optOut[0] {
-		r.Filters = []*eskip.Filter{{
-			Name: filters.AnnotateName,
-			Args: []interface{}{"zalando.org/traffic-zone-aware", "false"},
-		}}
+		fs, err := eskip.ParseFilters(`annotate("zalando.org/traffic-zone-aware", "false")`)
+		if err == nil && len(fs) == 1 {
+			r.Filters = []*eskip.Filter{fs[0]}
+		}
 	}
 	return r
 }
