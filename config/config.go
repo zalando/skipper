@@ -337,8 +337,6 @@ type Config struct {
 	SwarmValkeyDialTimeout        time.Duration `yaml:"swarm-valkey-dial-timeout"`
 	SwarmValkeyKeepAlive          time.Duration `yaml:"swarm-valkey-keepalive"`
 	SwarmValkeyUpdateInterval     time.Duration `yaml:"swarm-valkey-update-interval"`
-	// CacheL1TTL is the maximum TTL for write-through L1 warming (cache() filter).
-	CacheL1TTL time.Duration `yaml:"cache-l1-ttl"`
 	// swim based
 	SwarmKubernetesNamespace          string        `yaml:"swarm-namespace"`
 	SwarmKubernetesLabelSelectorKey   string        `yaml:"swarm-label-selector-key"`
@@ -348,6 +346,9 @@ type Config struct {
 	SwarmLeaveTimeout                 time.Duration `yaml:"swarm-leave-timeout"`
 	SwarmStaticSelf                   string        `yaml:"swarm-static-self"`
 	SwarmStaticOther                  string        `yaml:"swarm-static-other"`
+
+	// cache
+	CacheL1TTL time.Duration `yaml:"cache-l1-ttl"`
 
 	ClusterRatelimitMaxGroupShards int `yaml:"cluster-ratelimit-max-group-shards"`
 
@@ -728,7 +729,6 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.SwarmValkeyDialTimeout, "swarm-valkey-dial-timeout", net.DefaultDialTimeout, "set valkey client dial timeout")
 	flag.DurationVar(&cfg.SwarmValkeyKeepAlive, "swarm-valkey-keepalive", net.DefaultKeepAlive, "set valkey keepalive probes interval")
 	flag.DurationVar(&cfg.SwarmValkeyUpdateInterval, "swarm-valkey-update-interval", net.DefaultUpdateInterval, "set update interval to update valkey addresses")
-	flag.DurationVar(&cfg.CacheL1TTL, "cache-l1-ttl", 60*time.Second, "maximum TTL for write-through L1 warming in the cache() filter when Valkey is configured; set to 0 to disable (write-around)")
 	// swim
 	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
@@ -738,6 +738,9 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.SwarmLeaveTimeout, "swarm-leave-timeout", swarm.DefaultLeaveTimeout, "swarm leave timeout to use for leaving the memberlist on timeout")
 	flag.StringVar(&cfg.SwarmStaticSelf, "swarm-static-self", "", "set static swarm self node, for example 127.0.0.1:9001")
 	flag.StringVar(&cfg.SwarmStaticOther, "swarm-static-other", "", "set static swarm all nodes, for example 127.0.0.1:9002,127.0.0.1:9003")
+
+	// cache
+	flag.DurationVar(&cfg.CacheL1TTL, "cache-l1-ttl", 60*time.Second, "maximum TTL for write-through L1 warming in the cache() filter when Valkey is configured; set to 0 to disable (write-around)")
 
 	flag.IntVar(&cfg.ClusterRatelimitMaxGroupShards, "cluster-ratelimit-max-group-shards", 1, "sets the maximum number of group shards for the clusterRatelimit filter")
 
@@ -1107,7 +1110,6 @@ func (c *Config) ToOptions() skipper.Options {
 		OAuthTokeninfoTimeout:             c.Oauth2TokeninfoTimeout,
 		OAuthTokeninfoCacheSize:           c.Oauth2TokeninfoCacheSize,
 		OAuthTokeninfoCacheTTL:            c.Oauth2TokeninfoCacheTTL,
-		CacheL1TTL:                        c.CacheL1TTL,
 		OAuth2SecretFile:                  c.Oauth2SecretFile,
 		OAuth2ClientID:                    c.Oauth2ClientID,
 		OAuth2ClientSecret:                c.Oauth2ClientSecret,
@@ -1197,6 +1199,9 @@ func (c *Config) ToOptions() skipper.Options {
 		// swim on localhost for testing
 		SwarmStaticSelf:  c.SwarmStaticSelf,
 		SwarmStaticOther: c.SwarmStaticOther,
+
+		// cache
+		CacheL1TTL: c.CacheL1TTL,
 
 		ClusterRatelimitMaxGroupShards: c.ClusterRatelimitMaxGroupShards,
 
