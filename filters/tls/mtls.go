@@ -1,0 +1,442 @@
+package tls
+
+import (
+	"crypto/x509"
+	"net/http"
+	"net/netip"
+	"net/url"
+	"strings"
+
+	"go4.org/netipx"
+
+	"github.com/sirupsen/logrus"
+	snet "github.com/zalando/skipper/net"
+
+	"github.com/zalando/skipper/filters"
+)
+
+type mtlsType uint
+
+const (
+	mtlsIssuerDN mtlsType = iota + 1
+	mtlsSanDNS
+	mtlsSanCIDR
+	mtlsSanIP
+	mtlsSanURI
+	mtlsCN
+	mtlsAuthn
+)
+
+func (mt mtlsType) String() string {
+	switch mt {
+	case mtlsIssuerDN:
+		return filters.MtlsIssuerDN
+	case mtlsSanCIDR:
+		return filters.MtlsSanCIDR
+	case mtlsSanDNS:
+		return filters.MtlsSanDNS
+	case mtlsSanIP:
+		return filters.MtlsSanIP
+	case mtlsSanURI:
+		return filters.MtlsSanURI
+	case mtlsCN:
+		return filters.MtlsCN
+	case mtlsAuthn:
+		return filters.MtlsAuthn
+	default:
+		return "unknown"
+	}
+}
+
+func (mt mtlsType) rejectReason() rejectReason {
+	switch mt {
+	case mtlsIssuerDN:
+		return wrongDN
+	case mtlsSanCIDR, mtlsSanDNS, mtlsSanIP, mtlsSanURI:
+		return wrongSAN
+	case mtlsCN:
+		return wrongCN
+	case mtlsAuthn:
+		return wrongAuth
+	default:
+		return unknown
+	}
+}
+
+type auditBuffer interface {
+	WriteString(string) (int, error)
+	String() string
+}
+
+type voidAuditBuffer struct{}
+
+func (voidAuditBuffer) WriteString(string) (int, error) { return 0, nil }
+func (voidAuditBuffer) String() string                  { return "" }
+
+type mtlsSpec struct {
+	typ            mtlsType
+	enableAuditLog bool
+	caPool         *x509.CertPool
+	intermediates  *x509.CertPool
+}
+
+type mtlsFilter struct {
+	typ mtlsType
+
+	enableAuditLog bool
+
+	// mtlsCN allow-list
+	allowedCN map[string]struct{}
+
+	// mtlsIssuerDN allow-list (RFC 2253 DN strings)
+	allowedDN map[string]struct{}
+
+	// mtlsSAN* allow-lists: hostnames, URIs, and IP/CIDR ranges are stored
+	// separately so the hot path can use a single IPSet.Contains call for IPs
+	// instead of re-parsing every pattern on each request.
+	allowedHostnames map[string]struct{} // lowercased
+	allowedURIs      map[string]struct{} // exact match
+	allowedIPs       *netipx.IPSet
+
+	// mtlsAuthn: verfiy options created at filter-creation time.
+	verifyOpt x509.VerifyOptions
+}
+
+func NewMtlsCN() filters.Spec {
+	return &mtlsSpec{
+		typ: mtlsCN,
+	}
+}
+
+// NewMtlsAuthn returns a filter spec for the mtlsAuthn filter. You
+// need to pass the x509.CertPool that it will use to validate client
+// certificates for authentication. The second parameter can be nil,
+// in case you have no intermediate or can not load intermediates
+// upfront.
+func NewMtlsAuthn(caPool, intermediates *x509.CertPool) filters.Spec {
+	return &mtlsSpec{
+		typ:           mtlsAuthn,
+		caPool:        caPool,
+		intermediates: intermediates,
+	}
+}
+
+// NewMtlsIssuerDN returns a filter spec for the mtlsIssuerDN filter. Each
+// argument must be a non-empty RFC 2253 Distinguished Name string. The filter
+// allows a request when the certificate's full issuer DN matches any of the
+// configured values exactly (e.g. "CN=My CA,O=My Org,C=DE").
+func NewMtlsIssuerDN() filters.Spec {
+	return &mtlsSpec{typ: mtlsIssuerDN}
+}
+
+// NewMtlsSanCIDR returns a filter spec for the mtlsSanCIDR
+// filter. Each argument must be a valid CIDR block. CIDRs are
+// combined into a single netipx.IPSet at filter-creation time so that
+// matching in the hot path is O(log n) rather than O(n).
+func NewMtlsSanCIDR() filters.Spec {
+	return &mtlsSpec{typ: mtlsSanCIDR}
+}
+
+// NewMtlsSanDNS returns a filter spec for the mtlsSanDNS filter. Each argument must
+// be a valid hostname.
+func NewMtlsSanDNS() filters.Spec {
+	return &mtlsSpec{typ: mtlsSanDNS}
+}
+
+// NewMtlsSanIP returns a filter spec for the mtlsSanIP filter. Each
+// argument must be a valid IP address. IP addresses are combined into
+// a single netipx.IPSet at filter-creation time so that matching in
+// the hot path is O(log n) rather than O(n).
+func NewMtlsSanIP() filters.Spec {
+	return &mtlsSpec{typ: mtlsSanIP}
+}
+
+// NewMtlsSanURI returns a filter spec for the mtlsSanURI filter. Each argument must
+// be a valid URI.
+func NewMtlsSanURI() filters.Spec {
+	return &mtlsSpec{typ: mtlsSanURI}
+}
+
+// isValidHostname accepts dot-separated labels of [a-zA-Z0-9-], allowing a
+// leading wildcard label ("*.example.com").
+func isValidHostname(s string) bool {
+	if s == "" {
+		return false
+	}
+	// valid IP would be detected as valid hostname.
+	if _, err := netip.ParseAddr(s); err == nil {
+		return false
+	}
+
+	for i, label := range strings.Split(s, ".") {
+		if label == "" {
+			return false
+		}
+		if i == 0 && label == "*" {
+			continue
+		}
+		for _, c := range label {
+			if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '-' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (ms *mtlsSpec) Name() string {
+	return ms.typ.String()
+}
+
+func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
+	mf := &mtlsFilter{
+		typ:            ms.typ,
+		enableAuditLog: ms.enableAuditLog,
+	}
+
+	switch ms.typ {
+	case mtlsAuthn:
+		if len(args) != 0 {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+
+		mf.verifyOpt = x509.VerifyOptions{
+			Roots:         ms.caPool,
+			Intermediates: ms.intermediates,
+			KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		}
+
+	default:
+		if len(args) == 0 {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+	}
+
+	switch ms.typ {
+	case mtlsIssuerDN:
+		mf.allowedDN = make(map[string]struct{})
+		for _, arg := range args {
+			s, ok := arg.(string)
+			if !ok || s == "" {
+				return nil, filters.ErrInvalidFilterParameters
+			}
+			mf.allowedDN[s] = struct{}{}
+		}
+
+	case mtlsCN:
+		mf.allowedCN = make(map[string]struct{})
+		for _, arg := range args {
+			if s, ok := arg.(string); !ok {
+				return nil, filters.ErrInvalidFilterParameters
+			} else {
+				mf.allowedCN[s] = struct{}{}
+			}
+		}
+
+	case mtlsSanCIDR:
+		var ipStrs []string
+		for _, arg := range args {
+			s, ok := arg.(string)
+			if !ok {
+				return nil, filters.ErrInvalidFilterParameters
+			}
+			if _, err := netip.ParsePrefix(s); err != nil {
+				return nil, filters.ErrInvalidFilterParameters
+			}
+			ipStrs = append(ipStrs, s)
+		}
+		if len(ipStrs) > 0 {
+			ipSet, err := snet.ParseIPCIDRs(ipStrs)
+			if err != nil {
+				return nil, filters.ErrInvalidFilterParameters
+			}
+			mf.allowedIPs = ipSet
+		}
+
+	case mtlsSanIP:
+		var ipStrs []string
+		for _, arg := range args {
+			s, ok := arg.(string)
+			if !ok {
+				return nil, filters.ErrInvalidFilterParameters
+			}
+			if _, err := netip.ParseAddr(s); err != nil {
+				return nil, filters.ErrInvalidFilterParameters
+			}
+			ipStrs = append(ipStrs, s)
+		}
+		if len(ipStrs) > 0 {
+			ipSet, err := snet.ParseIPCIDRs(ipStrs)
+			if err != nil {
+				return nil, filters.ErrInvalidFilterParameters
+			}
+			mf.allowedIPs = ipSet
+		}
+
+	case mtlsSanDNS:
+		mf.allowedHostnames = make(map[string]struct{})
+		for _, arg := range args {
+			s, ok := arg.(string)
+			if !ok {
+				return nil, filters.ErrInvalidFilterParameters
+			}
+			if !isValidHostname(s) {
+				return nil, filters.ErrInvalidFilterParameters
+			} else {
+				mf.allowedHostnames[strings.ToLower(s)] = struct{}{}
+			}
+		}
+
+	case mtlsSanURI:
+		mf.allowedURIs = make(map[string]struct{})
+		for _, arg := range args {
+			s, ok := arg.(string)
+			if !ok {
+				return nil, filters.ErrInvalidFilterParameters
+			}
+			if u, err := url.Parse(s); err != nil || u.Scheme == "" {
+				return nil, filters.ErrInvalidFilterParameters
+			} else {
+				mf.allowedURIs[s] = struct{}{}
+			}
+		}
+	}
+
+	return mf, nil
+}
+
+type rejectReason string
+
+const (
+	missingTLS rejectReason = "missing-tls"
+	wrongCN    rejectReason = "wrong-cn"
+	wrongSAN   rejectReason = "wrong-san"
+	wrongDN    rejectReason = "wrong-dn"
+	wrongAuth  rejectReason = "wrong-auth"
+	unknown    rejectReason = "unknown"
+)
+
+func reject(
+	ctx filters.FilterContext,
+	status int,
+	certInput string,
+	reason rejectReason,
+	hostname string,
+) {
+	ctx.Logger().Debugf(
+		"Rejected: status: %d, checked cert data: %s, reason: %s.",
+		status, certInput, reason,
+	)
+
+	rsp := &http.Response{
+		StatusCode: status,
+		Header:     make(map[string][]string),
+	}
+
+	if hostname != "" {
+		// https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html#sec10.4.2
+		rsp.Header.Add("WWW-Authenticate", hostname)
+	}
+
+	ctx.Serve(rsp)
+}
+
+func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
+	req := ctx.Request()
+	if req.TLS == nil {
+		reject(ctx, http.StatusUnauthorized, "no tls", missingTLS, req.Host)
+		return
+	}
+
+	var auditCertData auditBuffer
+	if mf.enableAuditLog {
+		auditCertData = &strings.Builder{}
+	} else {
+		auditCertData = voidAuditBuffer{}
+	}
+
+	peerCerts := req.TLS.PeerCertificates
+	allowed := false
+
+	if len(peerCerts) == 0 {
+		reject(ctx, http.StatusUnauthorized, "", mf.typ.rejectReason(), req.Host)
+		return
+	}
+
+	leafCert := peerCerts[0]
+	switch mf.typ {
+	case mtlsIssuerDN:
+		issuerDN := leafCert.Issuer.String()
+		if _, ok := mf.allowedDN[issuerDN]; ok {
+			allowed = true
+			auditCertData.WriteString("DN: ")
+			auditCertData.WriteString(issuerDN)
+		}
+
+	case mtlsSanCIDR, mtlsSanIP:
+		// Check CIDR/IP SANs via the pre-built IPSet.
+		if mf.allowedIPs != nil {
+			for _, ip := range leafCert.IPAddresses {
+				addr, ok := netip.AddrFromSlice(ip)
+				if ok && mf.allowedIPs.Contains(addr.Unmap()) {
+					allowed = true
+					auditCertData.WriteString("SAN IP: ")
+					auditCertData.WriteString(ip.String())
+				}
+			}
+		}
+
+	case mtlsSanDNS:
+		// Check hostname SANs against the allowlist.
+		for _, dns := range leafCert.DNSNames {
+			if _, ok := mf.allowedHostnames[strings.ToLower(dns)]; ok {
+				allowed = true
+				auditCertData.WriteString("SAN DNS: ")
+				auditCertData.WriteString(dns)
+			}
+		}
+
+	case mtlsSanURI:
+		// Check URI SANs against the allowlist (exact string match).
+		for _, u := range leafCert.URIs {
+			if _, ok := mf.allowedURIs[u.String()]; ok {
+				allowed = true
+				auditCertData.WriteString("SAN URI: ")
+				auditCertData.WriteString(u.String())
+			}
+		}
+
+	case mtlsCN:
+		if _, ok := mf.allowedCN[leafCert.Subject.CommonName]; ok {
+			allowed = true
+			auditCertData.WriteString("CN: ")
+			auditCertData.WriteString(leafCert.Subject.CommonName)
+		}
+
+	case mtlsAuthn:
+		verifyOpt := mf.verifyOpt
+		// peerCerts -> chain: [Leaf, Intermediate]
+		if len(peerCerts) > 1 && verifyOpt.Intermediates == nil {
+			intermediates := x509.NewCertPool()
+			for _, cert := range peerCerts[1:] {
+				intermediates.AddCert(cert)
+			}
+			verifyOpt.Intermediates = intermediates
+		}
+		if _, err := leafCert.Verify(verifyOpt); err == nil {
+			allowed = true
+			auditCertData.WriteString("authn: ")
+			auditCertData.WriteString(leafCert.Subject.String())
+		}
+	}
+
+	if !allowed {
+		reject(ctx, http.StatusForbidden, "", mf.typ.rejectReason(), req.Host)
+		return
+	}
+	if mf.enableAuditLog {
+		logrus.Infof("access allowed by %s: %s", mf.typ.String(), auditCertData.String())
+	}
+}
+
+func (*mtlsFilter) Response(filters.FilterContext) {}

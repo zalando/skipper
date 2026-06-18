@@ -3,6 +3,7 @@ package skipper
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -47,6 +48,7 @@ import (
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/shedder"
 	teefilters "github.com/zalando/skipper/filters/tee"
+	tlsfilters "github.com/zalando/skipper/filters/tls"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
@@ -697,10 +699,13 @@ type Options struct {
 
 	DebugListener string
 
-	// Path of certificate(s) when using TLS, multiple may be given comma separated
+	// CertPathTLS is the path of certificate(s) when using TLS,
+	// multiple may be given comma separated
 	CertPathTLS string
-	// Path of key(s) when using TLS, multiple may be given comma separated. For
-	// multiple keys, the order must match the one given in CertPathTLS
+
+	// KeyPathTLS is the path of key(s) when using TLS, multiple
+	// may be given comma separated. For multiple keys, the order
+	// must match the one given in CertPathTLS
 	KeyPathTLS string
 
 	// TLSClientAuth sets the policy that the server will follow for
@@ -724,6 +729,18 @@ type Options struct {
 	// ClientCertRefreshInterval is how often ClientCertFile/ClientKeyFile are re-read.
 	// Defaults to 5 minutes if zero.
 	ClientCertRefreshInterval time.Duration
+
+	// MtlsAuthnCA is a CA instance that is used by the
+	// mtlsAuthn() filter to validate the client presented
+	// certificate. If it is nil, it will be instantiated by
+	// x509.SystemCertPool() which loads the system provided CAs.
+	MtlsAuthnCA *x509.CertPool
+
+	// MtlsAuthnInterMediateCA is a container for known
+	// intermediate CAs. It should be nil if skipper should load
+	// intermediates dynamically from the client
+	// http.Request.TLS.PeerCertificates.
+	MtlsAuthnInterMediateCA *x509.CertPool
 
 	// EnableMTLS enables mTLS support in the proxy with rotated client cert
 	EnableMTLS bool
@@ -2296,6 +2313,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 		o.CustomFilters = append(o.CustomFilters, lua)
 	}
+
+	if o.MtlsAuthnCA == nil {
+		o.MtlsAuthnCA, err = x509.SystemCertPool()
+		if err != nil {
+			log.Errorf("Failed to load system certs: %v", err)
+			return err
+		}
+	}
+	o.CustomFilters = append(o.CustomFilters, tlsfilters.NewMtlsAuthn(o.MtlsAuthnCA, o.MtlsAuthnInterMediateCA))
 
 	// create routing
 	// create the proxy instance
