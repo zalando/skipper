@@ -18,7 +18,7 @@ jobs:
       # Run the rule checker using the fetched rules
       - run: semgrep ci -f semgrep-go
 
-  check-race:
+  check-race_rest:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
@@ -29,7 +29,56 @@ jobs:
           check-latest: true
       - run: go version
       - run: make deps
-      - run: make check-race
+      - run: make check-race_split1
+  check-race_skipper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
+          go-version: "^1.23"
+          check-latest: true
+      - run: go version
+      - run: make deps
+      - run: make check-race_split2
+  check-race_proxy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
+          go-version: "^1.23"
+          check-latest: true
+      - run: go version
+      - run: make deps
+      - run: make check-race_split3
+  check-race_ratelimits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
+          go-version: "^1.23"
+          check-latest: true
+      - run: go version
+      - run: make deps
+      - run: make check-race_split4
+  check-race_net:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
+          go-version: "^1.23"
+          check-latest: true
+      - run: go version
+      - run: make deps
+      - run: make check-race_split5
+
   tests_rest:
     runs-on: ubuntu-latest
     steps:
