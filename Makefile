@@ -1,5 +1,6 @@
 SOURCES             = $(shell find . -name '*.go' -and -not -path "./_test_plugins" -and -not -path "./_test_plugins_fail" )
 PACKAGES            = $(shell go list ./...)
+REST_PACKAGES       = $(shell go list ./... | grep -vE 'zalando/(skipper|skipper/proxy|skipper/ratelimit|skipper/net)$')
 CURRENT_VERSION     = $(shell git describe --tags --always --dirty)
 VERSION            ?= $(CURRENT_VERSION)
 COMMIT_HASH         = $(shell git rev-parse --short HEAD)
@@ -81,6 +82,24 @@ check: build check-plugins ## run all tests
 .PHONY: shortcheck
 shortcheck: build check-plugins fixlimits  ## run all short tests
 	go test -test.short ./...
+
+.PHONY: shortcheck_split1
+shortcheck_split1: build check-plugins fixlimits  ## run all short tests
+	for p in $(REST_PACKAGES); do go test -test.short -run ^Test $$p || break -1; done
+.PHONY: shortcheck_split2
+shortcheck_split2: fixlimits  ## run ./ short tests
+	go test -test.short .
+.PHONY: shortcheck_split3
+shortcheck_split3: fixlimits  ## run ./proxy short tests
+	go test -test.short ./proxy
+.PHONY: shortcheck_split4
+shortcheck_split4: fixlimits  ## run ./ratelimit short tests
+	go test -test.short ./ratelimit
+.PHONY: shortcheck_split5
+shortcheck_split5: fixlimits  ## run ./net short tests
+	go test -test.short ./net
+
+
 
 .PHONY: check-race
 check-race: build ## run all short tests with race checker
