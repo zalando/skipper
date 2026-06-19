@@ -193,9 +193,6 @@ const lruBytesScrapeInterval = 10 * time.Second
 // trigger the onEvict callback). It exits when lruBytesDone is closed.
 func (f *cacheFilter) lruBytesScraper() {
 	defer f.bgWg.Done()
-	if f.lruStorage == nil {
-		return
-	}
 	ticker := time.NewTicker(lruBytesScrapeInterval)
 	defer ticker.Stop()
 	for {
@@ -555,6 +552,9 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	if isUnsafeMethod(ctx.Request().Method) && rsp.StatusCode < 400 {
 		if err := f.storage.Delete(ctx.Request().Context(), key); err != nil {
 			log.WithError(err).Warn("cache: Delete failed (unsafe method invalidation)")
+		}
+		if err := f.storage.Delete(ctx.Request().Context(), "vary:"+key); err != nil {
+			log.WithError(err).Warn("cache: Delete failed (vary sentinel invalidation)")
 		}
 		for _, hdrName := range []string{"Location", "Content-Location"} {
 			if loc := rsp.Header.Get(hdrName); loc != "" && sameOrigin(ctx.Request(), loc) {

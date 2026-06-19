@@ -53,7 +53,7 @@ func (s *stubValkeyClient) SetWithExpire(_ context.Context, key, value string, _
 	return nil
 }
 
-func (s *stubValkeyClient) Expire(_ context.Context, key string, _ time.Duration) (int64, error) {
+func (s *stubValkeyClient) Expire(_ context.Context, key string, d time.Duration) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.broken {
@@ -63,7 +63,11 @@ func (s *stubValkeyClient) Expire(_ context.Context, key string, _ time.Duration
 	if !ok {
 		return 0, nil
 	}
-	delete(s.data, key)
+	if d < 0 {
+		// negative duration → immediate deletion (mirrors Valkey EXPIRE key -1 semantics)
+		delete(s.data, key)
+	}
+	// non-negative duration → TTL update; not modelled in stub (no expiry tracking)
 	return 1, nil
 }
 
@@ -380,5 +384,30 @@ func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	}
 	if m.counter("valkey_set_fallback") != 1 {
 		t.Errorf("valkey_set_fallback should still be 1, got %d", m.counter("valkey_set_fallback"))
+	}
+}
+
+func TestValkeyStorage_DeleteCleansL1EvenOnValkeyError(t *testing.T) {
+	// Valkey is broken, so Set falls back to L1. Delete must still clean L1
+	// regardless of the Expire error from Valkey.
+	stub := newBrokenStubValkeyClient()
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := &ValkeyStorage{ring: stub, l1: lru, metrics: &testMetrics{}, l1TTL: 0}
+
+	ctx := context.Background()
+	entry := &Entry{StatusCode: 200, Payload: []byte("body"), TTL: time.Minute, CreatedAt: time.Now()}
+
+	_ = s.Set(ctx, "k", entry) // falls back to L1 (Valkey broken)
+
+	got, err := lru.Get(ctx, "k")
+	if err != nil || got == nil {
+		t.Fatal("expected entry in L1 after Set fallback")
+	}
+
+	_ = s.Delete(ctx, "k") // Valkey Expire will error; L1 must still be cleaned
+
+	got, _ = lru.Get(ctx, "k")
+	if got != nil {
+		t.Error("expected L1 to be empty after Delete, but entry still present")
 	}
 }

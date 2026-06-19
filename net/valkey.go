@@ -540,7 +540,7 @@ func (vrc *ValkeyRingClient) SetWithExpire(ctx context.Context, key string, valu
 	if len(results) == 0 {
 		return fmt.Errorf("failed to SetWithExpire, no result")
 	}
-	return results[len(results)-1].Error()
+	return nil
 }
 
 func (vrc *ValkeyRingClient) ZAdd(ctx context.Context, key, val string, score float64) (int64, error) {
