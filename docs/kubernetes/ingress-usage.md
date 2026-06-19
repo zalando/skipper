@@ -1254,23 +1254,14 @@ spec:
 ## Zone-Aware Traffic Routing
 
 When zone-aware traffic routing is enabled, skipper routes traffic
-preferentially to endpoints in the same availability zone, helping reduce cross-zone network costs and latency.
+preferentially to endpoints in the same availability zone, helping
+reduce cross-zone network costs and latency.
 
-Zone-aware routing applies when there are at least 3 endpoints in the
-local zone. If there are fewer than 3 local-zone endpoints, all endpoints
-across all zones are used as a fallback to maintain availability.
+Individual Ingress resources can opt out by setting the
+`zalando.org/traffic-zone-aware` annotation to `"false"`.
 
-### Opting out
-
-Individual Ingress resources can opt out of zone-aware
-routing by setting the `zalando.org/traffic-zone-aware` annotation to
-`"false"`. When opted out, traffic is routed to all endpoints regardless
-of zone, even if enough local-zone endpoints are available.
-
-Annotations:
-
-- `zalando.org/traffic-zone-aware`: set to `"false"` to disable zone-aware routing for this resource
-
+See [Zone-Aware Routing](zone-aware-routing.md) for full details on
+enabling, configuring, and opting out of zone-aware routing.
 Example:
 
 ```yaml

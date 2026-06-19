@@ -651,11 +651,11 @@ Ingress (`pathType: ImplementationSpecific`): | RouteGroup:
 
 ### zalando.org/traffic-zone-aware
 
-When zone-aware traffic routing is enabled, skipper routes traffic
-preferentially to endpoints in the same availability zone. This annotation allows opting out individual RouteGroup resources from zone-aware routing. When set to `"false"`, all endpoints are used
+This annotation allows opting out individual RouteGroup resources from
+zone-aware routing. When set to `"false"`, all endpoints are used
 regardless of zone, even if the local zone has enough endpoints.
 
-The equivalent in a RouteGroup is the same annotation:
+Example RouteGroup:
 
 ```yaml
 apiVersion: zalando.org/v1
