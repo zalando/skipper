@@ -204,6 +204,14 @@ func TestMtlsRoutesrv(t *testing.T) {
 	})
 	defer client.Close()
 
+	// make sure routesrv started
+	for range 10 {
+		_, err := client.Get("https://localhost" + addr + "/health")
+		if err != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	rsp, err := client.Get("https://localhost" + addr + "/health")
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
