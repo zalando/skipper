@@ -553,6 +553,9 @@ func (vrc *ValkeyRingClient) SetWithExpire(ctx context.Context, key string, valu
 			return err
 		}
 	}
+	if len(results) == 0 {
+		return fmt.Errorf("failed to SetWithExpire, no result")
+	}
 	return nil
 }
 
