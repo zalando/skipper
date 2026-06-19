@@ -112,8 +112,8 @@ check-race_split2: fixlimits ## run ./ short tests with race checker
 check-race_split3: fixlimits ## run ./proxy short tests with race checker
 	go test -race -test.short ./proxy
 .PHONY: check-race_split4
-check-race_split4: fixlimits ## run ./ratelimits short tests with race checker
-	go test -race -test.short ./ratelimits
+check-race_split4: fixlimits ## run ./ratelimit short tests with race checker
+	go test -race -test.short ./ratelimit
 .PHONY: check-race_split5
 check-race_split5: fixlimits ## run ./net short tests with race checker
 	go test -race -test.short ./net
