@@ -649,6 +649,31 @@ Ingress (`pathType: ImplementationSpecific`): | RouteGroup:
 `path-prefix` and `/foo` | pathSubtree: `/foo`
 `kubernetes-ingress` and /foo$ | path: `/foo`
 
+### zalando.org/traffic-zone-aware
+
+When zone-aware traffic routing is enabled, skipper routes traffic
+preferentially to endpoints in the same availability zone. This annotation allows opting out individual RouteGroup resources from zone-aware routing. When set to `"false"`, all endpoints are used
+regardless of zone, even if the local zone has enough endpoints.
+
+The equivalent in a RouteGroup is the same annotation:
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-route-group
+  annotations:
+    zalando.org/traffic-zone-aware: "false"
+spec:
+  backends:
+  - name: my-backend
+    type: service
+    serviceName: my-service
+    servicePort: 80
+  defaultBackends:
+  - backendName: my-backend
+```
+
 ## Multiple skipper deployments
 
 If you want to split for example `internal` and `public` traffic, it
