@@ -117,3 +117,41 @@ on your computer:
 * Connection #0 to host localhost left intact
 
 ```
+
+#### Manipulating the redirect Location query string
+
+`redirectTo` reuses the request query string when the configured location has no
+query string. If the configured location contains a query string, that query
+string is used for the `Location` header instead.
+
+To remove the incoming query string from the redirect `Location`, run
+`stripQuery` before `redirectTo`:
+
+```
+strip_redirect_query:
+  * -> stripQuery() -> redirectTo(301, "https://example.com/new-path") -> <shunt>;
+```
+
+To replace the incoming query string, configure the redirect location with the
+query string to send:
+
+```
+replace_redirect_query:
+  * -> redirectTo(301, "https://example.com/new-path?key=value") -> <shunt>;
+```
+
+To rewrite the generated `Location` header, run `modResponseHeader` before
+`redirectTo` in the route. `redirectTo` creates the response on the request
+path, and only the filters reached before the request is shunted run on the
+response path:
+
+```
+rewrite_redirect_query:
+  * -> modResponseHeader("Location", "([?].*)?$", "?key=value")
+    -> redirectTo(301, "https://example.com/new-path")
+    -> <shunt>;
+```
+
+Request-side query filters, such as [stripQuery](../reference/filters.md#stripquery),
+[setQuery](../reference/filters.md#setquery), and [dropQuery](../reference/filters.md#dropquery),
+must be placed before `redirectTo` when they should affect the inherited redirect query string.
