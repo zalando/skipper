@@ -36,8 +36,8 @@ Backend is the thing to which skipper should proxy, for example:
 
 ## Communication Style
 
-- Use domain-specific nouns and verbs in all communication. The vocabulary is maintained in `ai-docs/ddd-vocab.md` and must be updated continuously as new domain concepts are identified.
-- Be concise. No sycophancy. Challenge ideas with rationale and citations when appropriate. Focus on substance over politeness.
+- Use domain-specific nouns and verbs in all communication. The vocabulary is maintained in `CONTEXT.md` and must be updated continuously as new domain concepts are identified.
+- Be concise. Challenge ideas with rationale and citations when appropriate.
 
 ## Testing instructions
 
