@@ -40,6 +40,23 @@ Backend is the thing to which skipper should proxy, for example:
 - Use domain-specific nouns and verbs in all communication. The vocabulary is maintained in `CONTEXT.md` and must be updated continuously as new domain concepts are identified.
 - Be concise. Challenge ideas with rationale and citations when appropriate.
 
+## Updating CONTEXT.md
+
+When a new domain term is identified (e.g., a new filter category, routing concept, or infrastructure component), add it to `CONTEXT.md` following this format:
+
+```md
+**Term**:
+One or two sentence definition of what it IS. No implementation details.
+_Avoid_: synonym1, synonym2
+```
+
+Rules:
+- Be opinionated — pick the best word, list others under `_Avoid_`.
+- Keep definitions tight (1-2 sentences). Define what it IS, not how it works internally.
+- No interface signatures, struct fields, function names, or step-by-step internals.
+- Only include terms specific to Skipper's domain. General programming concepts don't belong.
+- `_Avoid_` is optional — only add it when a synonym trap exists that would confuse communication.
+
 ## Testing instructions
 
 - Use table driven tests if it makes sense
