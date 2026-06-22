@@ -1,17 +1,17 @@
-# Zone-Aware Routing
+# Zone Aware Routing
 
-Zone-aware routing directs traffic preferentially to backend endpoints
+Zone aware routing directs traffic preferentially to service endpoints
 in the same availability zone as the skipper instance handling the
 request. This helps in reducing cross-zone network latency and data transfer
 costs in multi-AZ Kubernetes clusters.
 
 This page covers both operator setup (enabling and configuring
-zone-aware routing) and application-level usage (opting out for
+zone aware routing) and application-level usage (opting out for
 individual resources).
 
 ## Prerequisites
 
-Zone-aware routing requires:
+Zone aware routing requires:
 
 - **Kubernetes EndpointSlices**: Skipper reads the `zone` field from EndpointSlice endpoints,
   which Kubernetes populates from the node's
@@ -21,12 +21,12 @@ Zone-aware routing requires:
   `topology.kubernetes.io/zone` label set. 
 
 - **Skipper configured with `-kubernetes-topology-zone`**: tells
-  skipper which zone it is running in. See [Enabling Zone-Aware
+  skipper which zone it is running in. See [Enabling Zone Aware
   Routing](#enabling-zone-aware-routing) below.
 
-## Enabling Zone-Aware Routing
+## Enabling Zone Aware Routing
 
-How zone-aware routing is enabled depends on the deployment mode.
+How zone aware routing is enabled depends on the deployment mode.
 
 ### Dataclient mode (standalone skipper)
 
@@ -35,9 +35,9 @@ the skipper instance:
 
     -kubernetes-topology-zone string
         sets the topology zone to be used for zone aware routing
-        (default: empty, zone-aware routing disabled)
+        (default: empty, zone aware routing disabled)
 
-When this flag is empty (the default), zone-aware routing is disabled
+When this flag is empty (the default), zone aware routing is disabled
 and all endpoints are used regardless of zone.
 
 ### RouteSRV mode
@@ -82,7 +82,7 @@ Each endpoint in an EndpointSlice has a `zone` field (for example
 `eu-central-1a`) that Kubernetes sets based on the node where the
 pod runs.
 
-When zone-aware routing is enabled, skipper filters endpoints to
+When zone aware routing is enabled, skipper filters endpoints to
 prefer those in the same zone as the skipper instance. A minimum
 threshold of **3 endpoints** in the local zone is required for zone
 filtering to activate. If fewer than 3 local-zone endpoints exist, all
@@ -101,7 +101,7 @@ flowchart LR
 
 ## Architecture: Two Modes of Zone Filtering
 
-Zone-aware routing can operate in two distinct modes, depending on
+Zone aware routing can operate in two distinct modes, depending on
 the deployment model. Both modes apply the same threshold of 3
 endpoints per zone.
 
@@ -152,26 +152,21 @@ Each zone gets independent HTTP caching metadata:
 - **X-Count**: number of routes in the zone-filtered set
 - **Last-Modified**: timestamp of the last update for that zone
 
-If a requested zone has no data or fewer than 3 endpoints across all
-routes, RouteSRV falls back to serving the full unfiltered
+If a requested zone has no data or fewer than 3 endpoints in a
+route, RouteSRV falls back to serving the full unfiltered
 route set.
 
 ## Opting Out
 
-Individual Ingress or RouteGroup resources can opt out of zone-aware
+Individual Ingress or RouteGroup resources can opt out of zone aware
 routing by setting the `zalando.org/traffic-zone-aware` annotation to
 `"false"`. When opted out, traffic is routed to all endpoints
-regardless of zone, even if enough local-zone endpoints are available.
+regardless of zone, even if there are at least three local-zone endpoints are available.
 
 ### How opt-out works
 
-When the annotation is set, the Kubernetes dataclient:
-
-1. Skips zone filtering for that resource's endpoints (all endpoints
-   are included in the route).
-2. Prepends an `annotate("zalando.org/traffic-zone-aware", "false")`
-   filter to the route. This filter signals to RouteSRV that
-   the route should not be zone-filtered when serving `/routes/{zone}`.
+- When the annotation is set while using the DataClient mode, the DataClient skips zone filtering for that resource's endpoints (all endpoints are included in the route).
+- When the annotation is set while using the RouteSRV mode, the filter `annotate("zalando.org/traffic-zone-aware", "false")` is added to the route. This filter signals to RouteSRV that the route should not be zone-filtered when serving `/routes/{zone}`.
 
 ## Behavior Details
 

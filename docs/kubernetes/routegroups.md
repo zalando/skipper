@@ -652,7 +652,7 @@ Ingress (`pathType: ImplementationSpecific`): | RouteGroup:
 ### zalando.org/traffic-zone-aware
 
 This annotation allows opting out individual RouteGroup resources from
-zone-aware routing. When set to `"false"`, all endpoints are used
+zone aware routing. When set to `"false"`, all endpoints are used
 regardless of zone, even if the local zone has enough endpoints.
 
 Example RouteGroup:
@@ -664,14 +664,6 @@ metadata:
   name: my-route-group
   annotations:
     zalando.org/traffic-zone-aware: "false"
-spec:
-  backends:
-  - name: my-backend
-    type: service
-    serviceName: my-service
-    servicePort: 80
-  defaultBackends:
-  - backendName: my-backend
 ```
 
 ## Multiple skipper deployments
