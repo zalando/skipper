@@ -102,20 +102,20 @@ shortcheck_split5: fixlimits  ## run ./net short tests
 .PHONY: check-race
 check-race: build ## run all short tests with race checker
 	go test -race -test.short ./...
-.PHONY: check-race_split1
-check-race_split1: build ## run rest short tests with race checker
+.PHONY: check-race_rest
+check-race_rest: build ## run rest short tests with race checker
 	for p in $(REST_PACKAGES); do go test -race -test.short -run ^Test $$p || break -1; done
-.PHONY: check-race_split2
-check-race_split2: fixlimits ## run ./ short tests with race checker
+.PHONY: check-race_skipper
+check-race_skipper: fixlimits ## run ./ short tests with race checker
 	go test -race -test.short ./
-.PHONY: check-race_split3
-check-race_split3: fixlimits ## run ./proxy short tests with race checker
+.PHONY: check-race_proxy
+check-race_proxy: fixlimits ## run ./proxy short tests with race checker
 	go test -race -test.short ./proxy
-.PHONY: check-race_split4
-check-race_split4: fixlimits ## run ./ratelimit short tests with race checker
+.PHONY: check-race_ratelimit
+check-race_ratelimit: fixlimits ## run ./ratelimit short tests with race checker
 	go test -race -test.short ./ratelimit
-.PHONY: check-race_split5
-check-race_split5: fixlimits ## run ./net short tests with race checker
+.PHONY: check-race_net
+check-race_net: fixlimits ## run ./net short tests with race checker
 	go test -race -test.short ./net
 
 
