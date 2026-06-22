@@ -83,20 +83,20 @@ check: build check-plugins ## run all tests
 shortcheck: build check-plugins fixlimits  ## run all short tests
 	go test -test.short ./...
 
-.PHONY: shortcheck_split1
-shortcheck_split1: build check-plugins fixlimits  ## run all short tests
+.PHONY: shortcheck_rest
+shortcheck_rest: build check-plugins fixlimits  ## run all short tests
 	for p in $(REST_PACKAGES); do go test -test.short -run ^Test $$p || break -1; done
-.PHONY: shortcheck_split2
-shortcheck_split2: fixlimits  ## run ./ short tests
+.PHONY: shortcheck_skipper
+shortcheck_skipper: fixlimits  ## run ./ short tests
 	go test -test.short .
-.PHONY: shortcheck_split3
-shortcheck_split3: fixlimits  ## run ./proxy short tests
+.PHONY: shortcheck_proxy
+shortcheck_proxy: fixlimits  ## run ./proxy short tests
 	go test -test.short ./proxy
-.PHONY: shortcheck_split4
-shortcheck_split4: fixlimits  ## run ./ratelimit short tests
+.PHONY: shortcheck_ratelimit
+shortcheck_ratelimit: fixlimits  ## run ./ratelimit short tests
 	go test -test.short ./ratelimit
-.PHONY: shortcheck_split5
-shortcheck_split5: fixlimits  ## run ./net short tests
+.PHONY: shortcheck_net
+shortcheck_net: fixlimits  ## run ./net short tests
 	go test -test.short ./net
 
 .PHONY: check-race
