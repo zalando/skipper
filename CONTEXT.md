@@ -66,13 +66,13 @@ Factory interface that creates predicate instances from eskip arguments. Defines
 ### Key Named Predicates
 
 **Path**:
-Matches an exact URL path with optional named (`:param`) and free (`*param`) wildcards. Used in the radix tree for O(log n) lookup.
+Matches an exact URL path with optional named (`:param`) and free (`*param`) wildcards. Indexed in the radix tree for fast lookup.
 
 **PathSubtree**:
 Matches a path prefix and all sub-paths beneath it. Also tree-indexed.
 
 **PathRegexp**:
-Matches the URL path against a regular expression. Evaluated after tree lookup; O(n) over all routes using it.
+Matches the URL path against a regular expression. Evaluated after tree lookup; requires linear scan over all routes using it.
 
 **Host**:
 Matches the request `Host` header against a regular expression.
@@ -107,12 +107,8 @@ _Avoid_: context, ctx
 **Filter Chain**:
 Sequential filter execution: request-phase filters run in definition order before the backend call; response-phase filters run in reverse order after.
 
-**Filter Breaking**:
-Early termination of the filter chain by calling `Serve()` with a custom response.
-_Avoid_: short-circuit
-
 **State Bag**:
-A `map[string]interface{}` on the filter context for sharing data between filters in the same request.
+A `map[string]interface{}` on the filter context for sharing data between filters in the same request or response.
 
 Full catalog: `docs/reference/filters.md`
 
@@ -158,7 +154,7 @@ Picks N random endpoints (default 2), selects the one with fewest outstanding re
 A shared store of per-endpoint runtime metrics (detection time, inflight requests) used by load balancing and fade-in. Uses passive health checking only.
 
 **Fade-in**:
-Gradually ramps traffic to newly detected endpoints over a configured duration, so fresh instances are not overwhelmed at startup.
+Gradually ramps traffic to newly detected endpoints over a configured duration, so fresh instances are not overwhelmed at startup. Configured via the `fadeIn()` filter.
 _Avoid_: slow start, warm-up
 
 **LB Endpoint**:
@@ -191,6 +187,9 @@ Per-client limit (identified by a Lookuper) protecting against chatty or abusive
 **Cluster Rate Limit**:
 Distributed limit summed across all skipper instances (via Redis, Valkey, or peer state).
 
+**Cluster Client Rate Limit**:
+Distributed per-client limit across all skipper instances, with the client identified by a Lookuper.
+
 **Lookuper**:
 Client-identification strategy that returns the bucket key from a request. Types: `XForwardedForLookuper` (client IP from X-Forwarded-For), `HeaderLookuper` (named header value), `TupleLookuper` (combination of multiple fields), `SameBucketLookuper` (all requests share one bucket).
 _Avoid_: identifier, classifier
@@ -203,8 +202,7 @@ _Avoid_: admission control (overloaded with Kubernetes admission webhooks)
 A load shedder that probabilistically rejects requests when measured success rate drops below threshold.
 
 **Admission Control Modes**:
-- `inactive` — never rejects traffic.
-- `logInactive` — never rejects, but logs computed probabilities (shadow/tuning mode).
+- `inactive` — records metrics to understand filter behaviour but never rejects traffic
 - `active` — actively rejects traffic with 503.
 _Avoid_: passive (not a real mode)
 
@@ -241,7 +239,7 @@ Internal service-to-service routing within Kubernetes, bypassing the public ingr
 _Avoid_: internal routing
 
 **East-West Domain**:
-Internal domain suffix used to identify and match east-west traffic (default: `skipper.cluster.local`).
+Internal domain suffix used to identify and match east-west traffic (default: `skipper.cluster.local`). Ingress and RouteGroup resources can match internal hosts under this domain, e.g. `*.skipper.cluster.local`.
 
 ## Zone-Aware Routing
 
@@ -255,10 +253,10 @@ Kubernetes zone label on an endpoint (e.g., `"eu-central-1c"`), carried in `LBEn
 Minimum 3 zone-local endpoints required for zone filtering to apply. Below threshold, falls back to all endpoints across all zones.
 
 **Zone-Aware Opt-Out**:
-Annotation `zalando.org/traffic-zone-aware: "false"` on an Ingress or RouteGroup disables zone filtering for that resource. Propagated to RouteSRV via an injected `annotate(...)` marker filter.
+Annotation `zalando.org/traffic-zone-aware: "false"` on an Ingress or RouteGroup disables zone filtering for that resource. 
 
 **RouteSRV Mode**:
-Central route server precomputes per-zone route sets; each proxy fetches `/routes/{its-zone}`. The dataclient keeps all endpoints with zone metadata unfiltered.
+Central route server precomputes per-zone route sets; each proxy fetches `/routes/{zone}`. The dataclient keeps all endpoints with zone metadata unfiltered.
 
 **DataClient Mode**:
 Each proxy instance filters endpoints to its own zone at the dataclient layer during endpoint fetch.
