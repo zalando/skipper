@@ -33,6 +33,7 @@ Backend is the thing to which skipper should proxy, for example:
 - Package docs in doc.go
 - No comments in code if they are not critical
 - No kubernetes client-go dependencies
+- Run linter `make lint` and fix all findings
 
 ## Communication Style
 
