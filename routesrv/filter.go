@@ -60,9 +60,8 @@ func (fc *filterContext) Serve(rsp *http.Response) {
 			fc.w.Header().Add(k, v)
 		}
 	}
-	status := rsp.StatusCode
-	if status == 0 {
-		status = http.StatusOK
+	if rsp.StatusCode == 0 {
+		rsp.StatusCode = http.StatusOK
 	}
 	if rsp.Body == nil {
 		rsp.Body = http.NoBody
