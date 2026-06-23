@@ -66,13 +66,13 @@ Factory interface that creates predicate instances from eskip arguments. Defines
 ### Key Named Predicates
 
 **Path**:
-Matches an exact URL path with optional named (`:param`) and free (`*param`) wildcards. Indexed in the radix tree for fast lookup.
+Matches an exact URL path with optional named (`:param`) and free (`*param`) wildcards.
 
 **PathSubtree**:
-Matches a path prefix and all sub-paths beneath it. Also tree-indexed.
+Matches a path prefix and all sub-paths beneath it. 
 
 **PathRegexp**:
-Matches the URL path against a regular expression. Evaluated after tree lookup; requires linear scan over all routes using it.
+Matches the URL path against a regular expression.
 
 **Host**:
 Matches the request `Host` header against a regular expression.
