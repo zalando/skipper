@@ -19,7 +19,7 @@ jobs:
       - run: semgrep ci -f semgrep-go
 
   check-race_rest:
-    runs-on: ubuntu-latest
+    runs-on: [ubuntu-latest, large]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
@@ -31,7 +31,7 @@ jobs:
       - run: make deps
       - run: make check-race_rest
   check-race_skipper:
-    runs-on: ubuntu-latest
+    runs-on: large
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
