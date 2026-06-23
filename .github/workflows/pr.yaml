@@ -18,7 +18,7 @@ jobs:
       # Run the rule checker using the fetched rules
       - run: semgrep ci -f semgrep-go
 
-  check-race:
+  check-race_rest:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -29,8 +29,57 @@ jobs:
           check-latest: true
       - run: go version
       - run: make deps
-      - run: make check-race
-  tests:
+      - run: make check-race_rest
+  check-race_skipper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
+          go-version: "^1.23"
+          check-latest: true
+      - run: go version
+      - run: make deps
+      - run: make check-race_skipper
+  check-race_proxy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
+          go-version: "^1.23"
+          check-latest: true
+      - run: go version
+      - run: make deps
+      - run: make check-race_proxy
+  check-race_ratelimit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
+          go-version: "^1.23"
+          check-latest: true
+      - run: go version
+      - run: make deps
+      - run: make check-race_ratelimit
+  check-race_net:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
+          go-version: "^1.23"
+          check-latest: true
+      - run: go version
+      - run: make deps
+      - run: make check-race_net
+
+  tests_rest:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -47,4 +96,76 @@ jobs:
           git diff --exit-code
       - run: make vet
       - run: make staticcheck
-      - run: make shortcheck
+      - run: make shortcheck_rest
+  tests_skipper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
+          go-version: "^1.23"
+          check-latest: true
+      - run: go version
+      - run: make deps
+      - run: |
+          : Check format
+          make fmt
+          git diff --exit-code
+      - run: make vet
+      - run: make staticcheck
+      - run: make shortcheck_skipper
+  tests_proxy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
+          go-version: "^1.23"
+          check-latest: true
+      - run: go version
+      - run: make deps
+      - run: |
+          : Check format
+          make fmt
+          git diff --exit-code
+      - run: make vet
+      - run: make staticcheck
+      - run: make shortcheck_proxy
+  tests_ratelimit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
+          go-version: "^1.23"
+          check-latest: true
+      - run: go version
+      - run: make deps
+      - run: |
+          : Check format
+          make fmt
+          git diff --exit-code
+      - run: make vet
+      - run: make staticcheck
+      - run: make shortcheck_ratelimit
+  tests_net:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
+          go-version: "^1.23"
+          check-latest: true
+      - run: go version
+      - run: make deps
+      - run: |
+          : Check format
+          make fmt
+          git diff --exit-code
+      - run: make vet
+      - run: make staticcheck
+      - run: make shortcheck_net

@@ -1,5 +1,6 @@
 SOURCES             = $(shell find . -name '*.go' -and -not -path "./_test_plugins" -and -not -path "./_test_plugins_fail" )
 PACKAGES            = $(shell go list ./...)
+REST_PACKAGES       = $(shell go list ./... | grep -vE 'zalando/(skipper|skipper/proxy|skipper/ratelimit|skipper/net)$')
 CURRENT_VERSION     = $(shell git describe --tags --always --dirty)
 VERSION            ?= $(CURRENT_VERSION)
 COMMIT_HASH         = $(shell git rev-parse --short HEAD)
@@ -82,9 +83,41 @@ check: build check-plugins ## run all tests
 shortcheck: build check-plugins fixlimits  ## run all short tests
 	go test -test.short ./...
 
+.PHONY: shortcheck_rest
+shortcheck_rest: build check-plugins fixlimits  ## run all short tests
+	for p in $(REST_PACKAGES); do go test -test.short -run ^Test $$p || break -1; done
+.PHONY: shortcheck_skipper
+shortcheck_skipper: fixlimits  ## run ./ short tests
+	go test -test.short .
+.PHONY: shortcheck_proxy
+shortcheck_proxy: fixlimits  ## run ./proxy short tests
+	go test -test.short ./proxy
+.PHONY: shortcheck_ratelimit
+shortcheck_ratelimit: fixlimits  ## run ./ratelimit short tests
+	go test -test.short ./ratelimit
+.PHONY: shortcheck_net
+shortcheck_net: fixlimits  ## run ./net short tests
+	go test -test.short ./net
+
 .PHONY: check-race
 check-race: build ## run all short tests with race checker
 	go test -race -test.short ./...
+.PHONY: check-race_rest
+check-race_rest: build ## run rest short tests with race checker
+	for p in $(REST_PACKAGES); do go test -race -test.short -run ^Test $$p || break -1; done
+.PHONY: check-race_skipper
+check-race_skipper: fixlimits ## run ./ short tests with race checker
+	go test -race -test.short ./
+.PHONY: check-race_proxy
+check-race_proxy: fixlimits ## run ./proxy short tests with race checker
+	go test -race -test.short ./proxy
+.PHONY: check-race_ratelimit
+check-race_ratelimit: fixlimits ## run ./ratelimit short tests with race checker
+	go test -race -test.short ./ratelimit
+.PHONY: check-race_net
+check-race_net: fixlimits ## run ./net short tests with race checker
+	go test -race -test.short ./net
+
 
 .PHONY: check-plugins
 check-plugins: $(TEST_PLUGINS)
