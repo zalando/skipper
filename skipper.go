@@ -381,6 +381,14 @@ type Options struct {
 	// DefaultFilters will be applied to all routes automatically.
 	DefaultFilters *eskip.DefaultFilters
 
+	// RouteServerFilters is an optional filter chain applied to every
+	// inbound request handled by the routesrv (e.g. /routes).
+	// Filters run in order; if any filter calls ctx.Serve(), the request is
+	// short-circuited and subsequent filters and the handler are not called.
+	// This is the primary hook for adding authn/authz (e.g. mtlsAuthn,
+	// mtlsCN) to the routesrv endpoints.
+	RouteServerFilters []*eskip.Filter
+
 	// DisabledFilters is a list of filters unavailable for use
 	DisabledFilters []string
 
@@ -1420,7 +1428,7 @@ func (o *Options) filterRegistry() filters.Registry {
 	return registry
 }
 
-func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
+func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
 
 	if o.ProxyTLS != nil {
 		return o.ProxyTLS, nil
@@ -1454,7 +1462,7 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		return nil, fmt.Errorf("number of certificates does not match number of keys")
 	}
 
-	for i := 0; i < len(crts); i++ {
+	for i := range crts {
 		crt, key := crts[i], keys[i]
 		keypair, err := tls.LoadX509KeyPair(crt, key)
 		if err != nil {
@@ -1533,7 +1541,7 @@ func listenAndServeQuit(
 	mtr metrics.Metrics,
 	cr *certregistry.CertRegistry,
 ) error {
-	tlsConfig, err := o.tlsConfig(cr)
+	tlsConfig, err := o.TlsConfig(cr)
 	if err != nil {
 		return err
 	}

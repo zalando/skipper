@@ -210,6 +210,9 @@ type Config struct {
 	KubernetesForceService                               bool                               `yaml:"kubernetes-force-service"`
 	KubernetesStatusFromService                          string                             `yaml:"kubernetes-status-from-service"`
 
+	// RouteServer
+	RouteServerFilters *defaultFiltersFlags `yaml:"route-server-filters"`
+
 	// Default filters
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
 
@@ -390,6 +393,7 @@ func NewConfig() *Config {
 	cfg.SwarmValkeyURLs = commaListFlag()
 	cfg.AppendFilters = &defaultFiltersFlags{}
 	cfg.PrependFilters = &defaultFiltersFlags{}
+	cfg.RouteServerFilters = &defaultFiltersFlags{}
 	cfg.DisabledFilters = commaListFlag()
 	cfg.CloneRoute = routeChangerConfig{}
 	cfg.EditRoute = routeChangerConfig{}
@@ -656,6 +660,9 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.ApiUsageMonitoringClientKeys, "api-usage-monitoring-client-keys", "sub", "comma separated list of names of the properties in the JWT body that contains the client ID")
 	flag.StringVar(&cfg.ApiUsageMonitoringDefaultClientTrackingPattern, "api-usage-monitoring-default-client-tracking-pattern", "", "*Deprecated*: set `client_tracking_pattern` directly on filter")
 	flag.StringVar(&cfg.ApiUsageMonitoringRealmsTrackingPattern, "api-usage-monitoring-realms-tracking-pattern", "services", "regular expression used for matching monitored realms (defaults is 'services')")
+
+	// RouteServer filters
+	flag.Var(cfg.RouteServerFilters, "route-server-filters", "set of filters to apply to all routes of the main listener of routesrv")
 
 	// Default filters:
 	flag.StringVar(&cfg.DefaultFiltersDir, "default-filters-dir", "", "path to directory which contains default filter configurations per service and namespace (disabled if not set)")
@@ -1067,6 +1074,9 @@ func (c *Config) ToOptions() skipper.Options {
 
 		// Default filters:
 		DefaultFiltersDir: c.DefaultFiltersDir,
+
+		// RouteServer filters
+		RouteServerFilters: c.RouteServerFilters.filters,
 
 		// Auth:
 		EnableOAuth2GrantFlow:             c.EnableOAuth2GrantFlow,
