@@ -26,6 +26,7 @@ zalando.org/skipper-ingress-redirect-code | `301` | change the default HTTPS red
 zalando.org/skipper-loadbalancer | `consistentHash` | defaults to `roundRobin`, [see available choices](../reference/backends.md#load-balancer-backend)
 zalando.org/skipper-backend-protocol | `fastcgi` | (*experimental*) defaults to `http`, [see available choices](../reference/backends.md#backend-protocols)
 zalando.org/skipper-ingress-path-mode | `path-prefix` | (*deprecated*) please use [Ingress version 1 pathType option](https://kubernetes.io/docs/concepts/services-networking/ingress/#path-types), which defaults to ImplementationSpecific and does not change the behavior. Skipper's path-mode defaults to `kubernetes-ingress`, [see available choices](#ingress-path-handling), to change the default use `-kubernetes-path-mode`.
+zalando.org/traffic-zone-aware | `"false"` | opt out individual Ingress from zone aware traffic routing
 
 ## Supported Service types
 
@@ -1248,4 +1249,26 @@ spec:
             port:
               number: 80
         pathType: ImplementationSpecific
+```
+
+## Zone Aware Traffic Routing
+
+When zone aware traffic routing is enabled, skipper routes traffic
+preferentially to endpoints in the same availability zone, helping
+reduce cross-zone network costs and latency.
+
+Individual Ingress resources can opt out by setting the
+`zalando.org/traffic-zone-aware` annotation to `"false"`.
+
+See [Zone Aware Routing](zone-aware-routing.md) for full details on
+enabling, configuring, and opting out of zone aware routing.
+Example:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/traffic-zone-aware: "false"
+  name: app
 ```
