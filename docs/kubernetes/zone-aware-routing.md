@@ -52,7 +52,10 @@ path:
 
 In a typical deployment, each skipper pod runs on a different node and
 should use that node's zone. Use the Kubernetes downward API to inject
-the node's topology zone into the pod:
+the pod's topology zone label into an environment variable, which
+Kubernetes then expands inside the container `args`. 
+
+Inject the zone into the `-kubernetes-topology-zone` flag:
 
 ```yaml
 apiVersion: apps/v1
@@ -67,6 +70,7 @@ spec:
         args:
         - skipper
         - -kubernetes
+        - -enable-kubernetes-endpointslices=true
         - -kubernetes-topology-zone=$(TOPOLOGY_ZONE)
         env:
         - name: TOPOLOGY_ZONE
@@ -74,6 +78,8 @@ spec:
             fieldRef:
               fieldPath: metadata.labels['topology.kubernetes.io/zone']
 ```
+
+When using RouteSRV mode, inject the zone via the downward API to set `routes-urls=http://<routesrv-host>/routes/$(TOPOLOGY_ZONE)`
 
 ## How It Works
 
@@ -126,17 +132,15 @@ requesting `/routes/{zone}` instead of `/routes`.
 
 ```mermaid
 flowchart TB
-    subgraph routesrv ["RouteSRV"]
-        A[Poll routes from<br/>K8s dataclient] --> B[Build full<br/>route table]
-        B --> C[filterRoutesByZone]
-        C --> D["/routes — all endpoints"]
-        C --> E["/routes/{zone} — zone-filtered endpoints"]
-    end
-
-    subgraph skipper ["Skipper Instance (zone: eu-central-1a)"]
-        F["GET /routes/eu-central-1a"] --> E
-        E --> G[Route table with<br/>local-zone endpoints]
-    end
+    A[Poll routes from<br/>K8s dataclient] --> B[Build full<br/>route table]
+    B --> C[filterRoutesByZone]
+    C --> D{getRouteForZone:<br/>>= 3 endpoints<br/>in zone?}
+    D -->|Yes| E[Route with<br/>zone-filtered endpoints]
+    D -->|No| F[Route with<br/>all endpoints<br/>fallback]
+    E --> G["/routes/{zone}"]
+    F --> G
+    H["GET /routes/eu-central-1a"] --> G
+    G --> I[Route table with<br/>local-zone endpoints]
 ```
 
 ## RouteSRV Integration
