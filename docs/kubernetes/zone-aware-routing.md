@@ -53,7 +53,7 @@ path:
 In a typical deployment, each skipper pod runs on a different node and
 should use that node's zone. Use the Kubernetes downward API to inject
 the pod's topology zone label into an environment variable, which
-Kubernetes then expands inside the container `args`. 
+Kubernetes then expands. 
 
 Inject the zone into the `-kubernetes-topology-zone` flag:
 
