@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/otel"
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -783,6 +784,12 @@ type Options struct {
 	// BreakerSettings contain global and host specific settings for the circuit breakers.
 	BreakerSettings []circuit.BreakerSettings
 
+	// Letsencrypt if not nil you can use a remote cache config.
+	Letsencrypt *skpnet.Letsencrypt
+
+	// LetsencryptCache
+	LetsencryptCache string
+
 	// EnableRatelimiters enables the usage of the ratelimiter in the route definitions without initializing any
 	// by default. It is a shortcut for setting the RatelimitSettings to:
 	//
@@ -1430,6 +1437,11 @@ func (o *Options) filterRegistry() filters.Registry {
 
 func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
 
+	// TODO(sszuecs): does it make sense or do we want to chain TLSConfigs?
+	if o.Letsencrypt != nil {
+		return o.Letsencrypt.TLSConfig(), nil
+	}
+
 	if o.ProxyTLS != nil {
 		return o.ProxyTLS, nil
 	}
@@ -2034,6 +2046,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		swarmer       ratelimit.Swarmer
 		redisOptions  *skpnet.RedisOptions
 		valkeyOptions *skpnet.ValkeyOptions
+		valkeyClient  *skpnet.ValkeyRingClient
 	)
 	log.Infof("enable swarm: %v", o.EnableSwarm)
 	if o.EnableSwarm {
@@ -2186,6 +2199,32 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				log.Errorf("Failed to update redis addresses from URL: %v", err)
 				return err
 			}
+		}
+	}
+
+	if valkeyOptions != nil {
+		valkeyClient, err = skpnet.NewValkeyRingClient(valkeyOptions)
+		if err != nil {
+			return err
+		}
+	}
+
+	if o.Letsencrypt != nil {
+		println("running Letsencrypt")
+		switch o.LetsencryptCache {
+		case "remote":
+			var cache autocert.Cache
+			switch {
+			case valkeyClient != nil:
+				cache = &skpnet.RemoteCache{
+					Client: valkeyClient,
+				}
+			}
+			if cache != nil {
+				o.Letsencrypt.SetCache(cache)
+			}
+		default:
+			// nothing to do, see config/config.go
 		}
 	}
 
