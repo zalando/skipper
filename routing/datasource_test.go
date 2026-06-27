@@ -774,3 +774,57 @@ func (s slowCreateSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 
 func (s slowCreateFilter) Request(ctx filters.FilterContext) {}
 func (s slowCreateFilter) Response(filters.FilterContext)    {}
+
+func TestDataClientLoadMetrics(t *testing.T) {
+	m := &metricstest.MockMetrics{Now: time.Now()}
+
+	dc, err := testdataclient.NewDoc(`r0: * -> <shunt>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r := routing.New(routing.Options{
+		DataClients:     []routing.DataClient{dc},
+		Metrics:         m,
+		SignalFirstLoad: true,
+	})
+	defer func() {
+		r.Close()
+		dc.Close()
+	}()
+
+	<-r.FirstLoad()
+
+	// LoadAll ran during the first load.
+	waitForMeasure(t, m, "routes.load_all.unknown")
+
+	// Trigger an update to exercise the LoadUpdate path.
+	if err := dc.UpdateDoc(`r1: * -> <shunt>`, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	waitForMeasure(t, m, "routes.load_update.unknown")
+}
+
+func waitForMeasure(t *testing.T, m *metricstest.MockMetrics, key string) {
+	t.Helper()
+	timeout := time.After(time.Second)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		found := false
+		m.WithMeasures(func(measures map[string][]time.Duration) {
+			_, found = measures[key]
+		})
+		if found {
+			return
+		}
+
+		select {
+		case <-timeout:
+			t.Fatalf("timed out waiting for measure %q", key)
+		case <-ticker.C:
+		}
+	}
+}
