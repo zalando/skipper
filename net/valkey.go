@@ -532,13 +532,13 @@ func (vrc *ValkeyRingClient) Set(ctx context.Context, key, val string) (string, 
 
 func (vrc *ValkeyRingClient) SetWithExpire(ctx context.Context, key string, value string, expire time.Duration) error {
 	results := vrc.ring.SetWithExpire(ctx, key, value, expire)
+	if len(results) == 0 {
+		return fmt.Errorf("failed to SetWithExpire, no result")
+	}
 	for _, res := range results {
 		if err := res.Error(); err != nil {
 			return err
 		}
-	}
-	if len(results) == 0 {
-		return fmt.Errorf("failed to SetWithExpire, no result")
 	}
 	return nil
 }
