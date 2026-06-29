@@ -42,17 +42,23 @@ const (
 	cacheStatusMiss   = "MISS"
 	cacheStatusStale  = "STALE"
 
-	// revalQueueSize is the capacity of the per-filter revalidation job queue.
+	// revalQueueSize is the capacity of the shared revalidation job queue.
 	// Sized to absorb short bursts; jobs are dropped (with reval_dropped metric)
 	// if the worker cannot keep up.
 	revalQueueSize = 256
 )
 
-// NewCacheFilter returns a Spec for the cache() filter. maxBytes is the
-// in-memory storage budget for the shared LRU cache backing all filter
-// instances created from this Spec.
-// listenAddr is Skipper's own listener address (e.g. ":9090"); revalidation
-// requests are sent back through Skipper so the full filter chain runs.
+// Options configures the cache filter. All fields are required unless stated otherwise.
+type Options struct {
+	MaxBytes   int64                    // in-memory storage budget for the LRU
+	ListenAddr string                   // Skipper's own listener address (e.g., ":9090")
+	NetOpts    skpnet.Options           // network options for revalidation requests
+	ValkeyRing *skpnet.ValkeyRingClient // optional L2 cache backend; nil = LRU only
+	L1TTL      time.Duration            // max TTL to use when warming L1 from Valkey writes
+	Metrics    metrics.Metrics          // optional; defaults to metrics.Default if nil
+}
+
+// NewCacheFilter returns a Spec for the cache() filter.
 //
 // Route usage (RFC mode — upstream Cache-Control is fully authoritative):
 //
@@ -65,37 +71,66 @@ const (
 // Combining force mode with stale-if-error:
 //
 //	-> cache("5m", "15s", "30s", "60s") -> "https://example.org"
-func NewCacheFilter(maxBytes int64, listenAddr string, netOpts skpnet.Options, valkeyRing *skpnet.ValkeyRingClient, l1TTL time.Duration) filters.Spec {
-	m := metrics.Default
-	lru := NewLRUStorage(maxBytes, func() {
+func NewCacheFilter(opts Options) filters.Spec {
+	if opts.Metrics == nil {
+		opts.Metrics = metrics.Default
+	}
+
+	m := opts.Metrics
+	lru := NewLRUStorage(opts.MaxBytes, func() {
 		m.IncCounter("lru_eviction")
 	}, m)
 
 	var store Storage = lru
-	if valkeyRing != nil {
-		store = NewValkeyStorage(valkeyRing, lru, m, l1TTL)
+	if opts.ValkeyRing != nil {
+		store = NewValkeyStorage(opts.ValkeyRing, lru, m, opts.L1TTL)
 	}
 
-	return &cacheSpec{
-		maxBytes:   maxBytes,
-		listenAddr: listenAddr,
-		client:     skpnet.NewClient(netOpts),
-		storage:    store,
-		lruStorage: lru,
-		metrics:    m,
+	spec := &cacheSpec{
+		maxBytes:     opts.MaxBytes,
+		listenAddr:   opts.ListenAddr,
+		client:       skpnet.NewClient(opts.NetOpts),
+		storage:      store,
+		lruStorage:   lru,
+		metrics:      m,
+		revalJobs:    make(chan revalJob, revalQueueSize),
+		lruBytesDone: make(chan struct{}),
 	}
+
+	// Start shared background goroutines (one worker + one scraper for all filter instances)
+	spec.bgWg.Add(2)
+	go spec.revalidationWorker()
+	go spec.lruBytesScraper()
+
+	return spec
 }
 
 type cacheSpec struct {
-	maxBytes   int64
-	listenAddr string
-	client     *skpnet.Client
-	storage    Storage     // shared across all filter instances
-	lruStorage *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
-	metrics    metrics.Metrics
+	maxBytes     int64
+	listenAddr   string
+	client       *skpnet.Client
+	storage      Storage     // shared across all filter instances
+	lruStorage   *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
+	metrics      metrics.Metrics
+	revalJobs    chan revalJob  // shared queue; one spec-level worker drains this
+	lruBytesDone chan struct{}  // closed to signal lruBytesScraper to stop
+	bgWg         sync.WaitGroup // tracks spec-level background goroutines
 }
 
 func (s *cacheSpec) Name() string { return filterName }
+
+// Close shuts down the background revalidation worker and lru_bytes scraper.
+// Safe to call multiple times; idempotent via a guard.
+func (s *cacheSpec) Close() {
+	select {
+	case <-s.lruBytesDone:
+		// Already closed; prevent panic on double-close.
+	default:
+		close(s.revalJobs)
+		close(s.lruBytesDone)
+		s.bgWg.Wait()
+	}
+}
 
 func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 0 && (len(args) < 3 || len(args) > 5) {
@@ -157,31 +192,23 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		rfcMode:      rfcMode,
 		metrics:      s.metrics,
 		keyHeaders:   keyHeaders,
-		revalJobs:    make(chan revalJob, revalQueueSize),
-		lruBytesDone: make(chan struct{}),
+		revalJobs:    s.revalJobs,    // use spec-level shared channel
+		lruBytesDone: s.lruBytesDone, // use spec-level shared signal
 	}
 
 	cf.fetch = s.client.Do
-	cf.bgWg.Add(2)
-	go cf.revalidationWorker()
-	go cf.lruBytesScraper()
 	return cf, nil
 }
 
-// Close shuts down the background revalidation worker and the lru_bytes scraper,
-// blocking until both goroutines have exited.
-func (f *cacheFilter) Close() {
-	close(f.revalJobs)
-	close(f.lruBytesDone)
-	f.bgWg.Wait()
-}
-
-// revalidationWorker is the single background goroutine per filter that
-// processes revalidation jobs sequentially. It exits when revalJobs is closed.
-func (f *cacheFilter) revalidationWorker() {
-	defer f.bgWg.Done()
-	for job := range f.revalJobs {
-		f.doRevalidate(job.key, job.req)
+// revalidationWorker is the single background goroutine (spec-level, shared across
+// all filter instances) that processes revalidation jobs sequentially. It calls
+// the per-instance doRevalidateFn closure to respect each route's configuration.
+func (s *cacheSpec) revalidationWorker() {
+	defer s.bgWg.Done()
+	for job := range s.revalJobs {
+		if job.doRevalFn != nil {
+			job.doRevalFn()
+		}
 	}
 	log.Debug("cache: revalidation worker stopped")
 }
@@ -189,25 +216,26 @@ func (f *cacheFilter) revalidationWorker() {
 const lruBytesScrapeInterval = 10 * time.Second
 
 // lruBytesScraper periodically updates the lru_bytes gauge so it stays current
-// even when no evictions occur (large Sets without exceeding capacity never
-// trigger the onEvict callback). It exits when lruBytesDone is closed.
-func (f *cacheFilter) lruBytesScraper() {
-	defer f.bgWg.Done()
+// even when no evictions occur. It's spec-level and shared across all filter instances.
+// It exits when lruBytesDone is closed (via cacheSpec.Close).
+func (s *cacheSpec) lruBytesScraper() {
+	defer s.bgWg.Done()
 	ticker := time.NewTicker(lruBytesScrapeInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			f.metrics.UpdateGauge("lru_bytes", float64(f.lruStorage.lru.Bytes()))
-		case <-f.lruBytesDone:
+			s.metrics.UpdateGauge("lru_bytes", float64(s.lruStorage.lru.Bytes()))
+		case <-s.lruBytesDone:
 			return
 		}
 	}
 }
 
 type revalJob struct {
-	key string
-	req *http.Request // pre-cloned, safe to use after the originating request ends
+	key       string
+	req       *http.Request // pre-cloned, safe to use after the originating request ends
+	doRevalFn func()        // closure with access to per-instance doRevalidate
 }
 
 type cacheFilter struct {
@@ -225,12 +253,15 @@ type cacheFilter struct {
 	rfcMode      bool
 	coldSF       singleflight.Group // cold-miss coalescing
 	revalSF      singleflight.Group // coalesces concurrent background revalidations per key
-	revalJobs    chan revalJob      // background revalidation queue; worker drains this
-	lruBytesDone chan struct{}      // closed by Close() to stop the lruBytesScraper goroutine
-	bgWg         sync.WaitGroup     // tracks background goroutines; Wait()ed in Close()
+	revalJobs    chan revalJob      // shared background revalidation queue from cacheSpec
+	lruBytesDone chan struct{}      // shared channel from cacheSpec; closed to stop scraper
 	fetch        func(*http.Request) (*http.Response, error)
 	metrics      metrics.Metrics
 }
+
+// Close is a no-op on individual filter instances; the real Close is on cacheSpec.
+// This exists for test compatibility.
+func (f *cacheFilter) Close() {}
 
 // tagSpan sets cache_status, cache_key, and (when >= 0) cache_ttl_remaining_ms
 // on the active OpenTracing span. No-op when no span is present.
@@ -669,10 +700,18 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 // enqueueRevalidation sends a revalidation job to the background worker.
 // The request is cloned in the calling goroutine before orig is released.
 // If the queue is full the job is dropped and reval_dropped is incremented.
+// The closure captures f.doRevalidate so the spec-level worker respects this route's config.
 func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 	cloned := orig.Clone(context.Background())
+	job := revalJob{
+		key: key,
+		req: cloned,
+		doRevalFn: func() {
+			f.doRevalidate(key, cloned)
+		},
+	}
 	select {
-	case f.revalJobs <- revalJob{key: key, req: cloned}:
+	case f.revalJobs <- job:
 	default:
 		f.metrics.IncCounter("reval_dropped")
 	}
@@ -1091,16 +1130,22 @@ func varyKey(base string, r *http.Request, varyHeaders []string) string {
 }
 
 func toDuration(v interface{}) (time.Duration, error) {
-	s, ok := v.(string)
-	if !ok {
-		return 0, fmt.Errorf("expected string, got %T", v)
-	}
-	d, err := time.ParseDuration(s)
-	if err != nil {
-		return 0, err
+	var d time.Duration
+	if dv, ok := v.(time.Duration); ok {
+		d = dv
+	} else {
+		s, ok := v.(string)
+		if !ok {
+			return 0, fmt.Errorf("expected string, got %T", v)
+		}
+		var err error
+		d, err = time.ParseDuration(s)
+		if err != nil {
+			return 0, err
+		}
 	}
 	if d <= 0 {
-		return 0, fmt.Errorf("duration must be positive, got %s", s)
+		return 0, fmt.Errorf("duration must be positive, got %v", d)
 	}
 	return d, nil
 }

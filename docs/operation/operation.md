@@ -1839,3 +1839,37 @@ will be changed to
 ```
 r: SourceFromLast("9.0.0.0/24","2001:67c:20a0::/48") -> ...`
 ```
+
+## Cache
+
+By default entries are stored in an in-process LRU (L1) local to each Skipper process.
+When `--swarm-valkey-urls` is configured, Valkey becomes the primary shared
+store (L2) accessible by all Skipper instances via a client-side consistent hash ring. Every
+read checks L1 first; an L1 hit returns without contacting Valkey.
+
+On every successful Valkey write the entry is also written to L1
+(write-through) with a TTL of `min(--cache-l1-ttl, entry.TTL)`. The default is
+60 seconds, bounding how long Skipper serves a locally-cached entry before
+falling back to Valkey. Set `--cache-l1-ttl=0` to disable L1 warming and
+restore write-around behaviour (L1 used only when Valkey is unavailable).
+
+Explicit deletes (unsafe methods or operator-initiated invalidation) always
+remove the L1 entry unconditionally, regardless of `--cache-l1-ttl`.
+
+!!! note
+    The in-process LRU (L1) is shared across all `cache()` filter instances in the same process.
+    When Valkey is configured it acts as a shared store (L2). The L1 storage budget is divided evenly
+    across 256 internal shards; a single entry larger than one shard's budget is
+    dropped with a warning log.
+
+### Metrics
+
+- `lru_eviction`: Counter, incremented each time an L1 entry is evicted due to memory pressure
+- `lru_bytes`: Gauge, current L1 usage in bytes
+- `lru_oversized`: Counter, incremented when an entry is too large for any shard and silently dropped
+
+When Valkey is configured:
+
+- `l1_hit`: Counter, L1 hits that bypassed Valkey
+- `valkey_miss`: Counter, Valkey misses that proceeded to an upstream fetch
+- `valkey_get_fallback`, `valkey_set_fallback`: Counters, reads/writes that fell back to L1 due to Valkey errors

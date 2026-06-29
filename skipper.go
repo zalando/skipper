@@ -2244,18 +2244,20 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	if !slices.Contains(o.DisabledFilters, cache.Name) {
 		o.CustomFilters = append(o.CustomFilters, cache.NewCacheFilter(
-			o.cacheBudget(),
-			o.Address,
-			skpnet.Options{
-				IdleConnTimeout:         o.CloseIdleConnsPeriod,
-				MaxIdleConnsPerHost:     o.IdleConnectionsPerHost,
-				Tracer:                  tracer,
-				OpentracingComponentTag: "skipper",
-				OpentracingSpanName:     "cache_revalidation",
-				OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
+			cache.Options{
+				MaxBytes:   o.cacheBudget(),
+				ListenAddr: o.Address,
+				NetOpts: skpnet.Options{
+					IdleConnTimeout:         o.CloseIdleConnsPeriod,
+					MaxIdleConnsPerHost:     o.IdleConnectionsPerHost,
+					Tracer:                  tracer,
+					OpentracingComponentTag: "skipper",
+					OpentracingSpanName:     "cache_revalidation",
+					OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
+				},
+				ValkeyRing: valkeyRing,
+				L1TTL:      o.CacheL1TTL,
 			},
-			valkeyRing,
-			o.CacheL1TTL,
 		))
 	}
 

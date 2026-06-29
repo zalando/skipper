@@ -3893,38 +3893,6 @@ matching the same key. It has no awareness of other filters in the chain.
 * **`Cache-Control: private` is ignored in force mode.** Audit the upstream
   response before enabling force mode on any authenticated route.
 
-**Storage**
-
-By default entries are stored in an in-process LRU (L1) local to each pod.
-When `--swarm-valkey-urls` is configured, Valkey becomes the primary shared
-store (L2) accessible by all pods via a client-side consistent hash ring. Every
-read checks L1 first; an L1 hit returns without contacting Valkey.
-
-On every successful Valkey write the entry is also written to L1
-(write-through) with a TTL of `min(--cache-l1-ttl, entry.TTL)`. The default is
-60 seconds, bounding how long a pod serves a locally-cached entry before
-falling back to Valkey. Set `--cache-l1-ttl=0` to disable L1 warming and
-restore write-around behaviour (L1 used only when Valkey is unavailable).
-
-Explicit deletes (unsafe methods or operator-initiated invalidation) always
-remove the L1 entry unconditionally, regardless of `--cache-l1-ttl`.
-
-!!! note
-    The in-process LRU (L1) is shared across all `cache()` filter instances on
-    the same pod but is local to that pod. When Valkey is configured it acts as
-    the cross-pod shared store (L2). The L1 storage budget is divided evenly
-    across 256 internal shards; a single entry larger than one shard's budget is
-    dropped with a warning log.
-
-!!! note
-    Metrics: `lru_eviction` (counter, incremented each time an L1 entry is
-    evicted due to memory pressure), `lru_bytes` (gauge, current L1 usage in
-    bytes), `lru_oversized` (counter, entry too large for any shard and
-    silently dropped). When Valkey is configured: `l1_hit` (counter, L1 hit
-    that bypassed Valkey), `valkey_miss` (counter, Valkey miss that proceeded
-    to an upstream fetch), `valkey_get_fallback` and `valkey_set_fallback`
-    (counters, reads/writes that fell back to L1 due to a Valkey error).
-
 !!! note
     `s-maxage` implies `proxy-revalidate` per [RFC 9111 §5.2.2.10](https://www.rfc-editor.org/rfc/rfc9111#section-5.2.2.10): stale entries
     stored under `s-maxage` are never served without revalidation, regardless of
