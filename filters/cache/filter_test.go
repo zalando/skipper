@@ -15,12 +15,11 @@ import (
 
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/metrics/metricstest"
-	skpnet "github.com/zalando/skipper/net"
 )
 
 func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) *cacheFilter {
 	t.Helper()
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{}, nil, 60*time.Second)
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	args := []interface{}{
 		ttl.String(),
 		errorTTL.String(),
@@ -41,6 +40,7 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 	}
 	t.Cleanup(cf.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 	return cf
 }
 
@@ -51,7 +51,7 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 // but are ignored — pure RFC mode has no operator TTL.
 func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *cacheFilter {
 	t.Helper()
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{}, nil, 60*time.Second)
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatal(err)
@@ -62,6 +62,7 @@ func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *
 	}
 	t.Cleanup(cf.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 	return cf
 }
 
@@ -131,7 +132,7 @@ func TestCacheFilter_MissAndHit(t *testing.T) {
 }
 
 func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{}, nil, 60*time.Second)
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m", "0s", "Authorization"})
 	if err != nil {
 		t.Fatal(err)
@@ -261,7 +262,7 @@ func TestCacheFilter_Response_NoopIfStateBagKeyMissing(t *testing.T) {
 }
 
 func TestCreateFilter_InvalidArgs(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{}, nil, 60*time.Second)
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
 	cases := []struct {
 		name string
@@ -1316,7 +1317,7 @@ func TestCacheFilter_MustRevalidate_ForcesCoalesceWhenStale(t *testing.T) {
 }
 
 func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{}, nil, 60*time.Second)
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
 
 	makeFilter := func(t *testing.T) *cacheFilter {
@@ -2613,8 +2614,9 @@ func TestCacheFilter_SMaxAge_CapsRouteTTL(t *testing.T) {
 }
 
 func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
-	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{}, nil, 60*time.Second)
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 
 	cases := []struct {
 		name    string
@@ -2658,8 +2660,9 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 	// cache() with no args: pure RFC mode, upstream max-age is fully authoritative,
 	// no operator ceiling. TTL should equal upstream max-age exactly.
-	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{}, nil, 60*time.Second)
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -2693,14 +2696,23 @@ func TestCacheFilter_LRUBytesGaugeUpdatesWithoutEviction(t *testing.T) {
 	// f.fetch is replaced before any network I/O so the transport goroutine
 	// being inside the bubble is safe (it never actually dials out).
 	synctest.Test(t, func(t *testing.T) {
-		f := newTestFilter(t, 5*time.Minute, 15*time.Second, 5*time.Minute)
+		spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+		t.Cleanup(spec.(*cacheSpec).client.Close)
+		t.Cleanup(spec.(*cacheSpec).Close)
+		f, err := spec.CreateFilter([]interface{}{5 * time.Minute, 15 * time.Second, 5 * time.Minute})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cf := f.(*cacheFilter)
+
 		mockMetrics := &metricstest.MockMetrics{}
 		// synctest.Wait drains goroutine scheduling so the scraper is parked at the
-		// select before we swap f.metrics. No tick has fired yet (synthetic time is frozen).
+		// select before we swap metrics. No tick has fired yet (synthetic time is frozen).
 		synctest.Wait()
-		f.metrics = mockMetrics
+		spec.(*cacheSpec).metrics = mockMetrics
+		cf.metrics = mockMetrics
 
-		f.fetch = func(_ *http.Request) (*http.Response, error) {
+		cf.fetch = func(_ *http.Request) (*http.Response, error) {
 			return upstreamResponseCC(http.StatusOK, `{"data":"hello"}`, "max-age=300"), nil
 		}
 
@@ -2711,7 +2723,7 @@ func TestCacheFilter_LRUBytesGaugeUpdatesWithoutEviction(t *testing.T) {
 
 		// Store an entry large enough to be visible but not enough to evict.
 		ctx := newCtx("GET", "https://example.com/lru-bytes-scrape", "")
-		f.Request(ctx)
+		cf.Request(ctx)
 
 		// Advance time past one scrape interval (10 s).
 		time.Sleep(11 * time.Second)
@@ -2729,8 +2741,9 @@ func TestCacheFilter_LRUBytesGaugeUpdatesWithoutEviction(t *testing.T) {
 func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testing.T) {
 	// cache() with no args: when upstream sends no Cache-Control, no Expires,
 	// and no Last-Modified, nothing should be cached (no heuristic without Last-Modified).
-	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{}, nil, 60*time.Second)
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
