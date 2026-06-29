@@ -202,12 +202,12 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 // revalidationWorker is the single background goroutine (spec-level, shared across
 // all filter instances) that processes revalidation jobs sequentially. It calls
-// the per-instance doRevalidateFn closure to respect each route's configuration.
+// the per-instance doRevalidate method to respect each route's configuration.
 func (s *cacheSpec) revalidationWorker() {
 	defer s.bgWg.Done()
 	for job := range s.revalJobs {
-		if job.doRevalFn != nil {
-			job.doRevalFn()
+		if job.filter != nil {
+			job.filter.doRevalidate(job.key, job.req)
 		}
 	}
 	log.Debug("cache: revalidation worker stopped")
@@ -233,9 +233,9 @@ func (s *cacheSpec) lruBytesScraper() {
 }
 
 type revalJob struct {
-	key       string
-	req       *http.Request // pre-cloned, safe to use after the originating request ends
-	doRevalFn func()        // closure with access to per-instance doRevalidate
+	key    string
+	req    *http.Request // pre-cloned, safe to use after the originating request ends
+	filter *cacheFilter  // instance whose doRevalidate to call
 }
 
 type cacheFilter struct {
@@ -704,11 +704,9 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 	cloned := orig.Clone(context.Background())
 	job := revalJob{
-		key: key,
-		req: cloned,
-		doRevalFn: func() {
-			f.doRevalidate(key, cloned)
-		},
+		key:    key,
+		req:    cloned,
+		filter: f,
 	}
 	select {
 	case f.revalJobs <- job:

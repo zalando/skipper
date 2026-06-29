@@ -140,6 +140,7 @@ func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
 	f := fi.(*cacheFilter)
 	t.Cleanup(f.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 	f.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
 	}
@@ -264,6 +265,7 @@ func TestCacheFilter_Response_NoopIfStateBagKeyMissing(t *testing.T) {
 func TestCreateFilter_InvalidArgs(t *testing.T) {
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 	cases := []struct {
 		name string
 		args []interface{}
@@ -1319,6 +1321,7 @@ func TestCacheFilter_MustRevalidate_ForcesCoalesceWhenStale(t *testing.T) {
 func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 
 	makeFilter := func(t *testing.T) *cacheFilter {
 		t.Helper()
@@ -2804,9 +2807,9 @@ func TestCacheFilter_RevalDropped_WhenQueueFull(t *testing.T) {
 		return nil, errors.New("blocked fetch")
 	}
 
-	// Send one dummy job so the worker goroutine wakes and blocks inside fetch.
+	// Send one job so the worker goroutine wakes and blocks inside fetch.
 	dummyReq, _ := http.NewRequest(http.MethodGet, "http://example.com/dummy", nil)
-	f.revalJobs <- revalJob{key: "dummy-wake", req: dummyReq}
+	f.revalJobs <- revalJob{key: "dummy-wake", req: dummyReq, filter: f}
 
 	// Wait for the worker to confirm it is inside fetch — no timing guesswork.
 	<-workerIn
