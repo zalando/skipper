@@ -268,6 +268,10 @@ func New(o Options) *Routing {
 		o.Log = &logging.DefaultLog{}
 	}
 
+	if o.Metrics == nil {
+		o.Metrics = metrics.Void
+	}
+
 	uniqueClients := make(map[DataClient]struct{}, len(o.DataClients))
 	for i, c := range o.DataClients {
 		if _, ok := uniqueClients[c]; ok {

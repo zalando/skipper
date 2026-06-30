@@ -59,6 +59,16 @@ func (d *incomingData) log(l logging.Logger, suppress bool) {
 	}
 }
 
+// dataClientName returns a name for the data client suitable for use in metric
+// keys, using NamedDataClient.Name() when available.
+func dataClientName(c DataClient) string {
+	name := "unknown"
+	if nc, ok := c.(NamedDataClient); ok {
+		name = nc.Name()
+	}
+	return name
+}
+
 // continuously receives route definitions from a data client on the output channel.
 // The function does not return unless quit is closed. When started, it request for the
 // whole current set of routes, and continues polling for the subsequent updates. When a
@@ -67,6 +77,7 @@ func (d *incomingData) log(l logging.Logger, suppress bool) {
 // nondeterministic way, but this may change in the future.
 func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <-chan struct{}) {
 	initial := true
+	clientName := dataClientName(c)
 	var ticker *time.Ticker
 	if o.PollTimeout != 0 {
 		ticker = time.NewTicker(o.PollTimeout)
@@ -74,6 +85,8 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 		ticker = time.NewTicker(time.Millisecond)
 	}
 	defer ticker.Stop()
+	now := time.Now()
+
 	for {
 		var (
 			routes     []*eskip.Route
@@ -83,8 +96,10 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 
 		if initial {
 			routes, err = c.LoadAll()
+			o.Metrics.MeasureSince("routes.load_all."+clientName, now)
 		} else {
 			routes, deletedIDs, err = c.LoadUpdate()
+			o.Metrics.MeasureSince("routes.load_update."+clientName, now)
 		}
 
 		switch {
@@ -93,6 +108,7 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 		case err != nil:
 			o.Log.Error("error while receiving update;", err)
 			initial = true
+			now = time.Now()
 			continue
 		case initial || len(routes) > 0 || len(deletedIDs) > 0:
 			var incoming *incomingData
@@ -111,7 +127,8 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 		}
 
 		select {
-		case <-ticker.C:
+		case t := <-ticker.C:
+			now = t
 		case <-quit:
 			return
 		}
