@@ -42,6 +42,7 @@ type Metrics interface {
 	MeasureBackendRequestHeader(host string, size int)
 	MeasureBackend(routeId string, start time.Time)
 	MeasureBackendHost(routeBackendHost string, start time.Time)
+	MeasureBackendZone(zone string, start time.Time)
 	MeasureFilterResponse(filterName string, start time.Time)
 	MeasureAllFiltersResponse(routeId string, start time.Time)
 	MeasureResponse(code int, method string, routeId string, start time.Time)
@@ -132,6 +133,11 @@ type Options struct {
 	// If set, detailed response time metrics will be collected
 	// for each backend host
 	EnableBackendHostMetrics bool
+
+	// If set, backend response time metrics are collected per availability
+	// zone of the destination endpoint. Only routes with zone information
+	// (Kubernetes EndpointSlice backends) contribute; others are ignored.
+	EnableBackendZoneMetrics bool
 
 	// EnableAllFiltersMetrics enables collecting combined filter
 	// metrics per each route. Without the DisableCompatibilityDefaults,

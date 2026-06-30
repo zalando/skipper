@@ -193,7 +193,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "duration_seconds",
 		Help:      "Duration in seconds of a proxy backend.",
 		Buckets:   opts.HistogramBuckets,
-	}), []string{"route", "host"}))
+	}), []string{"route", "host", "zone"}))
 
 	p.backendCombinedM = register(p, prometheus.NewHistogramVec(p.histogramOpts(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -460,7 +460,7 @@ func (p *Prometheus) MeasureBackend(routeID string, start time.Time) {
 	t := p.sinceS(start)
 	p.backendCombinedM.WithLabelValues().Observe(t)
 	if p.opts.EnableRouteBackendMetrics {
-		p.backendM.WithLabelValues(routeID, "").Observe(t)
+		p.backendM.WithLabelValues(routeID, "", "").Observe(t)
 	}
 }
 
@@ -468,8 +468,16 @@ func (p *Prometheus) MeasureBackend(routeID string, start time.Time) {
 func (p *Prometheus) MeasureBackendHost(routeBackendHost string, start time.Time) {
 	t := p.sinceS(start)
 	if p.opts.EnableBackendHostMetrics {
-		p.backendM.WithLabelValues("", routeBackendHost).Observe(t)
+		p.backendM.WithLabelValues("", routeBackendHost, "").Observe(t)
 	}
+}
+
+// MeasureBackendZone satisfies the Metrics interface.
+func (p *Prometheus) MeasureBackendZone(zone string, start time.Time) {
+	if !p.opts.EnableBackendZoneMetrics || zone == "" {
+		return
+	}
+	p.backendM.WithLabelValues("", "", zone).Observe(p.sinceS(start))
 }
 
 // MeasureFilterResponse satisfies Metrics interface.

@@ -622,3 +622,30 @@ func TestCodaHaleProxyLatencyMetrics(t *testing.T) {
 		})
 	}
 }
+
+func TestCodaHaleMeasureBackendZone(t *testing.T) {
+	for _, ti := range []struct {
+		msg     string
+		enabled bool
+		zone    string
+		expKey  string
+		expSet  bool
+	}{
+		{msg: "disabled records nothing", enabled: false, zone: "eu-central-1a", expKey: "backendzone.eu-central-1a", expSet: false},
+		{msg: "empty zone records nothing", enabled: true, zone: "", expKey: "backendzone.", expSet: false},
+		{msg: "enabled records the zone", enabled: true, zone: "eu-central-1a", expKey: "backendzone.eu-central-1a", expSet: true},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			c := NewCodaHale(Options{EnableBackendZoneMetrics: ti.enabled})
+			c.MeasureBackendZone(ti.zone, time.Now().Add(-15*time.Millisecond))
+
+			v := c.reg.Get(ti.expKey)
+			if ti.expSet && v == nil {
+				t.Errorf("expected metric %q to be recorded", ti.expKey)
+			}
+			if !ti.expSet && v != nil {
+				t.Errorf("expected no metric for %q", ti.expKey)
+			}
+		})
+	}
+}

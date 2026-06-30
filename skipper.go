@@ -598,6 +598,11 @@ type Options struct {
 	// for each backend host
 	EnableBackendHostMetrics bool
 
+	// If set, backend response time metrics are collected per availability
+	// zone of the destination endpoint. Only routes with zone information
+	// (Kubernetes EndpointSlice backends) contribute.
+	EnableBackendZoneMetrics bool
+
 	// EnableAllFiltersMetrics enables collecting combined filter
 	// metrics per each route. Without the DisableMetricsCompatibilityDefaults,
 	// it is enabled by default.
@@ -1798,6 +1803,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		EnableProxyRequestMetrics:             o.EnableProxyRequestMetrics,
 		EnableProxyResponseMetrics:            o.EnableProxyResponseMetrics,
 		EnableBackendHostMetrics:              o.EnableBackendHostMetrics,
+		EnableBackendZoneMetrics:              o.EnableBackendZoneMetrics,
 		EnableProfile:                         o.EnableProfile,
 		BlockProfileRate:                      o.BlockProfileRate,
 		MutexProfileFraction:                  o.MutexProfileFraction,

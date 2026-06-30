@@ -322,6 +322,7 @@ func parseEndpoints(r *routing.Route) error {
 		r.LBEndpoints[i] = routing.LBEndpoint{
 			Scheme: scheme,
 			Host:   host,
+			Zone:   e.Zone,
 		}
 	}
 

@@ -101,6 +101,7 @@ type Config struct {
 	ServeMethodMetric                   bool      `yaml:"serve-method-metric"`
 	ServeStatusCodeMetric               bool      `yaml:"serve-status-code-metric"`
 	BackendHostMetrics                  bool      `yaml:"backend-host-metrics"`
+	BackendZoneMetrics                  bool      `yaml:"backend-zone-metrics"`
 	ProxyRequestMetrics                 bool      `yaml:"proxy-request-metrics"`
 	ProxyResponseMetrics                bool      `yaml:"proxy-response-metrics"`
 	AllFiltersMetrics                   bool      `yaml:"all-filters-metrics"`
@@ -484,6 +485,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.ServeMethodMetric, "serve-method-metric", true, "enables the HTTP method as a domain of the total serve time metric. It affects both route and host split metrics")
 	flag.BoolVar(&cfg.ServeStatusCodeMetric, "serve-status-code-metric", true, "enables the HTTP response status code as a domain of the total serve time metric. It affects both route and host split metrics")
 	flag.BoolVar(&cfg.BackendHostMetrics, "backend-host-metrics", false, "enables reporting total serve time metrics for each backend")
+	flag.BoolVar(&cfg.BackendZoneMetrics, "backend-zone-metrics", false, "enables reporting backend serve time metrics per availability zone of the destination endpoint")
 	flag.BoolVar(&cfg.ProxyRequestMetrics, "proxy-request-metrics", false, "enables reporting latency / time spent in handling the request part of the proxy operation i.e., the duration from entry till before the backend round trip")
 	flag.BoolVar(&cfg.ProxyResponseMetrics, "proxy-response-metrics", false, "enables reporting latency / time spent in handling the response part of the proxy operation i.e., the duration from after the backend round trip till the response is served")
 	flag.BoolVar(&cfg.AllFiltersMetrics, "all-filters-metrics", false, "enables reporting combined filter metrics for each route")
@@ -990,6 +992,7 @@ func (c *Config) ToOptions() skipper.Options {
 		EnableProxyRequestMetrics:           c.ProxyRequestMetrics,
 		EnableProxyResponseMetrics:          c.ProxyResponseMetrics,
 		EnableBackendHostMetrics:            c.BackendHostMetrics,
+		EnableBackendZoneMetrics:            c.BackendZoneMetrics,
 		EnableAllFiltersMetrics:             c.AllFiltersMetrics,
 		EnableCombinedResponseMetrics:       c.CombinedResponseMetrics,
 		EnableRouteResponseMetrics:          c.RouteResponseMetrics,

@@ -155,6 +155,13 @@ func (m *MockMetrics) MeasureBackendHost(routeBackendHost string, start time.Tim
 	// implement me
 }
 
+func (m *MockMetrics) MeasureBackendZone(zone string, start time.Time) {
+	key := fmt.Sprintf("%sbackendzone.%s", m.Prefix, zone)
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		measures[key] = append(measures[key], m.Now.Sub(start))
+	})
+}
+
 func (m *MockMetrics) MeasureFilterResponse(filterName string, start time.Time) {
 	// implement me
 }
