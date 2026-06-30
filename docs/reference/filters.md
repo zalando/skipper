@@ -338,6 +338,24 @@ PathSubtree("/") && Method("OPTIONS")
  -> <shunt>;
 ```
 
+### decodeBase64RequestHeader
+
+Decodes the value of a chosen request header by decoding base64.  It
+supports partial value decoding by the optional second argument.  One
+known use case is if client sends you a bearer token as user of a
+basic auth header, because of client limitations.
+
+Example:
+```
+decodeBase64RequestHeader("X-Foo")
+decodeBase64RequestHeader("X-Foo", 2)
+decodeBase64RequestHeader("Authorization", 1) //
+```
+
+### decodeBase64ResponseHeader
+
+Similar to [decodeBase64RequestHeader](#decodeBase64RequestHeader) on response headers.
+
 ### encodeRequestHeader
 
 The filter has 2 arguments, the header name and the encoding.
