@@ -239,6 +239,8 @@ const (
 	CopyResponseHeaderName                     = "copyResponseHeader"
 	EncodeRequestHeaderName                    = "encodeRequestHeader"
 	EncodeResponseHeaderName                   = "encodeResponseHeader"
+	DecodeBase64RequestHeaderName              = "decodeBase64RequestHeader"
+	DecodeBase64ResponseHeaderName             = "decodeBase64ResponseHeader"
 	DropRequestHeaderValueRegexpName           = "dropRequestHeaderRegexp"
 	DropResponseHeaderValueRegexpName          = "dropResponseHeaderRegexp"
 	ModPathName                                = "modPath"
