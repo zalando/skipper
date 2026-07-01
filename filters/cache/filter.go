@@ -205,7 +205,9 @@ func (s *cacheSpec) revalidationWorker() {
 	defer s.bgWg.Done()
 	for job := range s.revalJobs {
 		if job.filter != nil {
+			start := time.Now()
 			job.filter.doRevalidate(job.key, job.req)
+			s.metrics.MeasureSince("reval_duration", start)
 		}
 	}
 	log.Debug("cache: revalidation worker stopped")

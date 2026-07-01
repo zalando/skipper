@@ -1867,6 +1867,9 @@ remove the L1 entry unconditionally, regardless of `--cache-l1-ttl`.
 - `lru_eviction`: Counter, incremented each time an L1 entry is evicted due to memory pressure
 - `lru_bytes`: Gauge, current L1 usage in bytes
 - `lru_oversized`: Counter, incremented when an entry is too large for any shard and silently dropped
+- `reval_dropped`: Counter, revalidation jobs dropped because the queue was full
+- `reval_error`: Counter, background revalidation fetch failures
+- `reval_duration`: Histogram, end-to-end duration of each background revalidation job
 
 When Valkey is configured:
 
