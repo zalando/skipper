@@ -356,6 +356,22 @@ decodeBase64RequestHeader("Authorization", 1) //
 
 Similar to [decodeBase64RequestHeader](#decodeBase64RequestHeader) on response headers.
 
+### encodeBase64RequestHeader
+
+Encodes the value of a chosen request header by encoding to base64. It
+supports partial value encoding by the optional second argument.
+
+Example:
+```
+encodeBase64RequestHeader("X-Foo")
+encodeBase64RequestHeader("X-Foo", 2)
+encodeBase64RequestHeader("Authorization", 1)
+```
+
+### encodeBase64ResponseHeader
+
+Similar to [encodeBase64RequestHeader](#encodeBase64RequestHeader) on response headers.
+
 ### encodeRequestHeader
 
 The filter has 2 arguments, the header name and the encoding.
