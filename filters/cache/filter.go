@@ -48,14 +48,14 @@ const (
 	revalQueueSize = 256
 )
 
-// Options configures the cache filter. All fields are required unless stated otherwise.
+// Options configures the cache filter.
 type Options struct {
-	MaxBytes   int64                    // in-memory storage budget for the LRU
-	ListenAddr string                   // Skipper's own listener address (e.g., ":9090")
-	NetOpts    skpnet.Options           // network options for revalidation requests
-	ValkeyRing *skpnet.ValkeyRingClient // optional L2 cache backend; nil = LRU only
-	L1TTL      time.Duration            // max TTL to use when warming L1 from Valkey writes
-	Metrics    metrics.Metrics          // optional; defaults to metrics.Default if nil
+	MaxBytes   int64
+	ListenAddr string // Skipper's own address; revalidation requests loop back through it so the full filter chain runs
+	NetOpts    skpnet.Options
+	ValkeyRing *skpnet.ValkeyRingClient
+	L1TTL      time.Duration
+	Metrics    metrics.Metrics
 }
 
 // NewCacheFilter returns a Spec for the cache() filter.
