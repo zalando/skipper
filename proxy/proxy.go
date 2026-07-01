@@ -4,7 +4,6 @@ import (
 	"bytes"
 	stdlibcontext "context"
 	"crypto/tls"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -703,13 +702,6 @@ func (p *Proxy) mapRequest(ctx *context, requestContext stdlibcontext.Context) (
 		rr.Header["User-Agent"] = []string{""}
 	}
 	rr.Host = host
-
-	// If there is basic auth configured in the URL we add them as headers
-	if u.User != nil {
-		up := u.User.String()
-		upBase64 := base64.StdEncoding.EncodeToString([]byte(up))
-		rr.Header.Add("Authorization", fmt.Sprintf("Basic %s", upBase64))
-	}
 
 	ctxspan := ot.SpanFromContext(r.Context())
 	if ctxspan != nil {
