@@ -112,24 +112,22 @@ type cacheSpec struct {
 	storage      Storage     // shared across all filter instances
 	lruStorage   *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
 	metrics      metrics.Metrics
-	revalJobs    chan revalJob  // shared queue; one spec-level worker drains this
-	lruBytesDone chan struct{}  // closed to signal lruBytesScraper to stop
-	bgWg         sync.WaitGroup // tracks spec-level background goroutines
+	revalJobs    chan revalJob
+	lruBytesDone chan struct{}
+	bgWg         sync.WaitGroup
+	closeOnce    sync.Once
 }
 
 func (s *cacheSpec) Name() string { return filterName }
 
 // Close shuts down the background revalidation worker and lru_bytes scraper.
-// Safe to call multiple times; idempotent via a guard.
+// Safe to call multiple times.
 func (s *cacheSpec) Close() {
-	select {
-	case <-s.lruBytesDone:
-		// Already closed; prevent panic on double-close.
-	default:
+	s.closeOnce.Do(func() {
 		close(s.revalJobs)
 		close(s.lruBytesDone)
 		s.bgWg.Wait()
-	}
+	})
 }
 
 func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
