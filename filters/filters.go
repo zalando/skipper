@@ -237,6 +237,8 @@ const (
 	AppendContextResponseHeaderName            = "appendContextResponseHeader"
 	CopyRequestHeaderName                      = "copyRequestHeader"
 	CopyResponseHeaderName                     = "copyResponseHeader"
+	EncodeBase64RequestHeaderName              = "encodeBase64RequestHeader"
+	EncodeBase64ResponseHeaderName             = "encodeBase64ResponseHeader"
 	EncodeRequestHeaderName                    = "encodeRequestHeader"
 	EncodeResponseHeaderName                   = "encodeResponseHeader"
 	DecodeBase64RequestHeaderName              = "decodeBase64RequestHeader"
