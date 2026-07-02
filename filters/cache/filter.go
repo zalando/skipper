@@ -260,8 +260,10 @@ type cacheFilter struct {
 	metrics      metrics.Metrics
 }
 
-// Close is a no-op on individual filter instances; the real Close is on cacheSpec.
-// This exists for test compatibility.
+// Close is intentionally a no-op. The routing layer calls Close() on every
+// FilterCloser when a route is invalidated. Filter instances are reused across
+// route updates via the spec-level registry, so closing here would be destructive.
+// Lifecycle is managed by cacheSpec.Close().
 func (f *cacheFilter) Close() {}
 
 // tagSpan sets cache_status, cache_key, and (when >= 0) cache_ttl_remaining_ms
