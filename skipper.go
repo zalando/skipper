@@ -890,6 +890,14 @@ type Options struct {
 	// DisableMetricsCompression if enabled it will disable compression on the metrics handler, defaults to false
 	DisableMetricsCompression bool
 
+	// EnableNativeHistograms enables Prometheus native histograms
+	// in addition to the classic bucketed histograms
+	EnableNativeHistograms bool
+
+	// NativeHistogramBucketFactor controls the resolution of Prometheus
+	// native histograms, defaults to 1.1 if not set
+	NativeHistogramBucketFactor float64
+
 	// LoadBalancerHealthCheckInterval is *deprecated* and not in use anymore
 	LoadBalancerHealthCheckInterval time.Duration
 
@@ -1808,6 +1816,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		PrometheusRegistry:                 o.PrometheusRegistry,
 		EnablePrometheusStartLabel:         o.EnablePrometheusStartLabel,
 		DisableCompression:                 o.DisableMetricsCompression,
+		EnableNativeHistograms:             o.EnableNativeHistograms,
+		NativeHistogramBucketFactor:        o.NativeHistogramBucketFactor,
 	}
 
 	mtr := o.MetricsBackend

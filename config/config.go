@@ -67,6 +67,8 @@ type Config struct {
 	EnableRouteLIFOMetrics           bool           `yaml:"enable-route-lifo-metrics"`
 	MetricsFlavour                   *listFlag      `yaml:"metrics-flavour"`
 	DisableMetricsCompression        bool           `yaml:"disable-metrics-compression"`
+	EnableNativeHistograms           bool           `yaml:"enable-native-histograms"`
+	NativeHistogramBucketFactor      float64        `yaml:"native-histogram-bucket-factor"`
 	FilterPlugins                    *pluginFlag    `yaml:"filter-plugin"`
 	PredicatePlugins                 *pluginFlag    `yaml:"predicate-plugin"`
 	DataclientPlugins                *pluginFlag    `yaml:"dataclient-plugin"`
@@ -448,6 +450,8 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.EnableRouteLIFOMetrics, "enable-route-lifo-metrics", false, "enable metrics for the individual route LIFO queues")
 	flag.Var(cfg.MetricsFlavour, "metrics-flavour", "Metrics flavour is used to change the exposed metrics format. Supported metric formats: 'codahale', 'prometheus' and 'otel', you can select multiple or all of them by using one option with ',' separated values")
 	flag.BoolVar(&cfg.DisableMetricsCompression, "disable-metrics-compression", false, "disable metrics compression on /metrics handler endpoint.")
+	flag.BoolVar(&cfg.EnableNativeHistograms, "enable-native-histograms", false, "enables prometheus native histograms in addition to the classic bucketed histograms")
+	flag.Float64Var(&cfg.NativeHistogramBucketFactor, "native-histogram-bucket-factor", 0, "resolution of prometheus native histograms, must be greater than 1, defaults to 1.1 when native histograms are enabled")
 	flag.Var(cfg.FilterPlugins, "filter-plugin", "set a custom filter plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.PredicatePlugins, "predicate-plugin", "set a custom predicate plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.DataclientPlugins, "dataclient-plugin", "set a custom dataclient plugins to load, a comma separated list of name and arguments")
@@ -951,6 +955,8 @@ func (c *Config) ToOptions() skipper.Options {
 		EnableRouteLIFOMetrics:           c.EnableRouteLIFOMetrics,
 		MetricsFlavours:                  c.MetricsFlavour.values,
 		DisableMetricsCompression:        c.DisableMetricsCompression,
+		EnableNativeHistograms:           c.EnableNativeHistograms,
+		NativeHistogramBucketFactor:      c.NativeHistogramBucketFactor,
 		FilterPlugins:                    c.FilterPlugins.values,
 		PredicatePlugins:                 c.PredicatePlugins.values,
 		DataClientPlugins:                c.DataclientPlugins.values,

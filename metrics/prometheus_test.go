@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/metrics"
@@ -1338,4 +1339,34 @@ func TestScopedPrometheusRegistererPrefix(t *testing.T) {
 	if !found {
 		t.Errorf("expected metric with name 'customprefix_mysubsystem_mycounter' to be registered")
 	}
+}
+
+func TestPrometheusMetricsNativeHistograms(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	pm := metrics.NewPrometheus(metrics.Options{
+		PrometheusRegistry:     reg,
+		EnableNativeHistograms: true,
+	})
+
+	pm.MeasureBackend5xx(time.Now().Add(-15 * time.Millisecond))
+
+	metricFamilies, err := reg.Gather()
+	require.NoError(t, err)
+
+	var histogram *dto.Histogram
+	for _, mf := range metricFamilies {
+		if mf.GetName() == "skipper_backend_5xx_duration_seconds" {
+			require.Len(t, mf.Metric, 1)
+			histogram = mf.Metric[0].GetHistogram()
+			break
+		}
+	}
+	require.NotNil(t, histogram, "expected to find skipper_backend_5xx_duration_seconds histogram")
+
+	// classic buckets are kept for backward compatibility
+	assert.NotEmpty(t, histogram.GetBucket(), "expected classic histogram buckets")
+
+	// native histogram data is emitted in addition
+	assert.NotNil(t, histogram.Schema, "expected native histogram schema")
+	assert.NotEmpty(t, histogram.GetPositiveSpan(), "expected native histogram positive spans")
 }
