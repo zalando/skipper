@@ -82,8 +82,8 @@ type Prometheus struct {
 // NewPrometheus returns a new Prometheus metric backend.
 func NewPrometheus(opts Options) *Prometheus {
 	opts = applyCompatibilityDefaults(opts)
-	if opts.EnableNativeHistograms && opts.NativeHistogramBucketFactor <= 1 {
-		opts.NativeHistogramBucketFactor = 1.1
+	if opts.EnablePrometheusNativeHistograms && opts.PrometheusNativeHistogramBucketFactor <= 1 {
+		opts.PrometheusNativeHistogramBucketFactor = 1.1
 	}
 
 	p := &Prometheus{
@@ -346,13 +346,13 @@ func (p *Prometheus) sinceS(start time.Time) float64 {
 // histogramOpts enables native histograms on the given options when
 // configured, keeping the classic buckets for backward compatibility.
 func (p *Prometheus) histogramOpts(o prometheus.HistogramOpts) prometheus.HistogramOpts {
-	if p.opts.EnableNativeHistograms {
+	if p.opts.EnablePrometheusNativeHistograms {
 		// with a native histogram bucket factor set, empty buckets would
 		// disable the classic histogram instead of using the defaults
 		if len(o.Buckets) == 0 {
 			o.Buckets = prometheus.DefBuckets
 		}
-		o.NativeHistogramBucketFactor = p.opts.NativeHistogramBucketFactor
+		o.NativeHistogramBucketFactor = p.opts.PrometheusNativeHistogramBucketFactor
 		o.NativeHistogramMaxBucketNumber = 160
 		o.NativeHistogramMinResetDuration = time.Hour
 	}

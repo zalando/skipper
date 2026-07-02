@@ -1344,8 +1344,8 @@ func TestScopedPrometheusRegistererPrefix(t *testing.T) {
 func TestPrometheusMetricsNativeHistograms(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	pm := metrics.NewPrometheus(metrics.Options{
-		PrometheusRegistry:     reg,
-		EnableNativeHistograms: true,
+		PrometheusRegistry:               reg,
+		EnablePrometheusNativeHistograms: true,
 	})
 
 	pm.MeasureBackend5xx(time.Now().Add(-15 * time.Millisecond))

@@ -210,13 +210,13 @@ type Options struct {
 	// DisableCompression defaults to enable compression on the metrics endpoint, can be disabled if set to true
 	DisableCompression bool
 
-	// EnableNativeHistograms enables Prometheus native (sparse) histograms
+	// EnablePrometheusNativeHistograms enables Prometheus native (sparse) histograms
 	// in addition to classic bucketed histograms.
-	EnableNativeHistograms bool
+	EnablePrometheusNativeHistograms bool
 
-	// NativeHistogramBucketFactor controls the resolution of native
+	// PrometheusNativeHistogramBucketFactor controls the resolution of native
 	// histograms. Must be > 1. Defaults to 1.1 when native histograms are enabled.
-	NativeHistogramBucketFactor float64
+	PrometheusNativeHistogramBucketFactor float64
 }
 
 var (

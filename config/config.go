@@ -33,47 +33,47 @@ type Config struct {
 	Flags      *flag.FlagSet
 
 	// generic:
-	Address                          string         `yaml:"address"`
-	InsecureAddress                  string         `yaml:"insecure-address"`
-	EnableTCPQueue                   bool           `yaml:"enable-tcp-queue"`
-	ExpectedBytesPerRequest          int            `yaml:"expected-bytes-per-request"`
-	MaxTCPListenerConcurrency        int            `yaml:"max-tcp-listener-concurrency"`
-	MaxTCPListenerQueue              int            `yaml:"max-tcp-listener-queue"`
-	EnableCopyStreamPoolExperimental bool           `yaml:"enable-copy-stream-pool"`
-	IgnoreTrailingSlash              bool           `yaml:"ignore-trailing-slash"`
-	Insecure                         bool           `yaml:"insecure"`
-	ProxyPreserveHost                bool           `yaml:"proxy-preserve-host"`
-	DevMode                          bool           `yaml:"dev-mode"`
-	SupportListener                  string         `yaml:"support-listener"`
-	DebugListener                    string         `yaml:"debug-listener"`
-	CertPathTLS                      string         `yaml:"tls-cert"`
-	KeyPathTLS                       string         `yaml:"tls-key"`
-	StatusChecks                     *listFlag      `yaml:"status-checks"`
-	PrintVersion                     bool           `yaml:"version"`
-	MaxLoopbacks                     int            `yaml:"max-loopbacks"`
-	DefaultHTTPStatus                int            `yaml:"default-http-status"`
-	PluginDir                        string         `yaml:"plugindir"`
-	LoadBalancerHealthCheckInterval  time.Duration  `yaml:"lb-healthcheck-interval"`
-	ReverseSourcePredicate           bool           `yaml:"reverse-source-predicate"`
-	RemoveHopHeaders                 bool           `yaml:"remove-hop-headers"`
-	RfcPatchPath                     bool           `yaml:"rfc-patch-path"`
-	MaxAuditBody                     int            `yaml:"max-audit-body"`
-	MaxMatcherBufferSize             uint64         `yaml:"max-matcher-buffer-size"`
-	EnableBreakers                   bool           `yaml:"enable-breakers"`
-	Breakers                         breakerFlags   `yaml:"breaker"`
-	EnableRatelimiters               bool           `yaml:"enable-ratelimits"`
-	Ratelimits                       ratelimitFlags `yaml:"ratelimits"`
-	EnableRouteFIFOMetrics           bool           `yaml:"enable-route-fifo-metrics"`
-	EnableRouteLIFOMetrics           bool           `yaml:"enable-route-lifo-metrics"`
-	MetricsFlavour                   *listFlag      `yaml:"metrics-flavour"`
-	DisableMetricsCompression        bool           `yaml:"disable-metrics-compression"`
-	EnableNativeHistograms           bool           `yaml:"enable-native-histograms"`
-	NativeHistogramBucketFactor      float64        `yaml:"native-histogram-bucket-factor"`
-	FilterPlugins                    *pluginFlag    `yaml:"filter-plugin"`
-	PredicatePlugins                 *pluginFlag    `yaml:"predicate-plugin"`
-	DataclientPlugins                *pluginFlag    `yaml:"dataclient-plugin"`
-	MultiPlugins                     *pluginFlag    `yaml:"multi-plugin"`
-	CompressEncodings                *listFlag      `yaml:"compress-encodings"`
+	Address                               string         `yaml:"address"`
+	InsecureAddress                       string         `yaml:"insecure-address"`
+	EnableTCPQueue                        bool           `yaml:"enable-tcp-queue"`
+	ExpectedBytesPerRequest               int            `yaml:"expected-bytes-per-request"`
+	MaxTCPListenerConcurrency             int            `yaml:"max-tcp-listener-concurrency"`
+	MaxTCPListenerQueue                   int            `yaml:"max-tcp-listener-queue"`
+	EnableCopyStreamPoolExperimental      bool           `yaml:"enable-copy-stream-pool"`
+	IgnoreTrailingSlash                   bool           `yaml:"ignore-trailing-slash"`
+	Insecure                              bool           `yaml:"insecure"`
+	ProxyPreserveHost                     bool           `yaml:"proxy-preserve-host"`
+	DevMode                               bool           `yaml:"dev-mode"`
+	SupportListener                       string         `yaml:"support-listener"`
+	DebugListener                         string         `yaml:"debug-listener"`
+	CertPathTLS                           string         `yaml:"tls-cert"`
+	KeyPathTLS                            string         `yaml:"tls-key"`
+	StatusChecks                          *listFlag      `yaml:"status-checks"`
+	PrintVersion                          bool           `yaml:"version"`
+	MaxLoopbacks                          int            `yaml:"max-loopbacks"`
+	DefaultHTTPStatus                     int            `yaml:"default-http-status"`
+	PluginDir                             string         `yaml:"plugindir"`
+	LoadBalancerHealthCheckInterval       time.Duration  `yaml:"lb-healthcheck-interval"`
+	ReverseSourcePredicate                bool           `yaml:"reverse-source-predicate"`
+	RemoveHopHeaders                      bool           `yaml:"remove-hop-headers"`
+	RfcPatchPath                          bool           `yaml:"rfc-patch-path"`
+	MaxAuditBody                          int            `yaml:"max-audit-body"`
+	MaxMatcherBufferSize                  uint64         `yaml:"max-matcher-buffer-size"`
+	EnableBreakers                        bool           `yaml:"enable-breakers"`
+	Breakers                              breakerFlags   `yaml:"breaker"`
+	EnableRatelimiters                    bool           `yaml:"enable-ratelimits"`
+	Ratelimits                            ratelimitFlags `yaml:"ratelimits"`
+	EnableRouteFIFOMetrics                bool           `yaml:"enable-route-fifo-metrics"`
+	EnableRouteLIFOMetrics                bool           `yaml:"enable-route-lifo-metrics"`
+	MetricsFlavour                        *listFlag      `yaml:"metrics-flavour"`
+	DisableMetricsCompression             bool           `yaml:"disable-metrics-compression"`
+	EnablePrometheusNativeHistograms      bool           `yaml:"enable-prometheus-native-histograms"`
+	PrometheusNativeHistogramBucketFactor float64        `yaml:"prometheus-native-histogram-bucket-factor"`
+	FilterPlugins                         *pluginFlag    `yaml:"filter-plugin"`
+	PredicatePlugins                      *pluginFlag    `yaml:"predicate-plugin"`
+	DataclientPlugins                     *pluginFlag    `yaml:"dataclient-plugin"`
+	MultiPlugins                          *pluginFlag    `yaml:"multi-plugin"`
+	CompressEncodings                     *listFlag      `yaml:"compress-encodings"`
 
 	// logging, metrics, profiling, tracing:
 	EnablePrometheusMetrics             bool      `yaml:"enable-prometheus-metrics"`
@@ -450,8 +450,8 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.EnableRouteLIFOMetrics, "enable-route-lifo-metrics", false, "enable metrics for the individual route LIFO queues")
 	flag.Var(cfg.MetricsFlavour, "metrics-flavour", "Metrics flavour is used to change the exposed metrics format. Supported metric formats: 'codahale', 'prometheus' and 'otel', you can select multiple or all of them by using one option with ',' separated values")
 	flag.BoolVar(&cfg.DisableMetricsCompression, "disable-metrics-compression", false, "disable metrics compression on /metrics handler endpoint.")
-	flag.BoolVar(&cfg.EnableNativeHistograms, "enable-native-histograms", false, "enables prometheus native histograms in addition to the classic bucketed histograms")
-	flag.Float64Var(&cfg.NativeHistogramBucketFactor, "native-histogram-bucket-factor", 0, "resolution of prometheus native histograms, must be greater than 1, defaults to 1.1 when native histograms are enabled")
+	flag.BoolVar(&cfg.EnablePrometheusNativeHistograms, "enable-prometheus-native-histograms", false, "enables prometheus native histograms in addition to the classic bucketed histograms")
+	flag.Float64Var(&cfg.PrometheusNativeHistogramBucketFactor, "prometheus-native-histogram-bucket-factor", 0, "resolution of prometheus native histograms, must be greater than 1, defaults to 1.1 when native histograms are enabled")
 	flag.Var(cfg.FilterPlugins, "filter-plugin", "set a custom filter plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.PredicatePlugins, "predicate-plugin", "set a custom predicate plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.DataclientPlugins, "dataclient-plugin", "set a custom dataclient plugins to load, a comma separated list of name and arguments")
@@ -925,44 +925,44 @@ func (c *Config) ToOptions() skipper.Options {
 
 	options := skipper.Options{
 		// generic:
-		Address:                          c.Address,
-		InsecureAddress:                  c.InsecureAddress,
-		StatusChecks:                     c.StatusChecks.values,
-		EnableTCPQueue:                   c.EnableTCPQueue,
-		ExpectedBytesPerRequest:          c.ExpectedBytesPerRequest,
-		MaxTCPListenerConcurrency:        c.MaxTCPListenerConcurrency,
-		MaxTCPListenerQueue:              c.MaxTCPListenerQueue,
-		EnableCopyStreamPoolExperimental: c.EnableCopyStreamPoolExperimental,
-		IgnoreTrailingSlash:              c.IgnoreTrailingSlash,
-		DevMode:                          c.DevMode,
-		SupportListener:                  c.SupportListener,
-		DebugListener:                    c.DebugListener,
-		CertPathTLS:                      c.CertPathTLS,
-		KeyPathTLS:                       c.KeyPathTLS,
-		TLSClientAuth:                    c.TLSClientAuth,
-		TLSMinVersion:                    c.getMinTLSVersion(),
-		CipherSuites:                     c.filterCipherSuites(),
-		MaxLoopbacks:                     c.MaxLoopbacks,
-		DefaultHTTPStatus:                c.DefaultHTTPStatus,
-		ReverseSourcePredicate:           c.ReverseSourcePredicate,
-		MaxAuditBody:                     c.MaxAuditBody,
-		MaxMatcherBufferSize:             c.MaxMatcherBufferSize,
-		EnableBreakers:                   c.EnableBreakers,
-		BreakerSettings:                  c.Breakers,
-		EnableRatelimiters:               c.EnableRatelimiters,
-		RatelimitSettings:                c.Ratelimits,
-		EnableRouteFIFOMetrics:           c.EnableRouteFIFOMetrics,
-		EnableRouteLIFOMetrics:           c.EnableRouteLIFOMetrics,
-		MetricsFlavours:                  c.MetricsFlavour.values,
-		DisableMetricsCompression:        c.DisableMetricsCompression,
-		EnableNativeHistograms:           c.EnableNativeHistograms,
-		NativeHistogramBucketFactor:      c.NativeHistogramBucketFactor,
-		FilterPlugins:                    c.FilterPlugins.values,
-		PredicatePlugins:                 c.PredicatePlugins.values,
-		DataClientPlugins:                c.DataclientPlugins.values,
-		Plugins:                          c.MultiPlugins.values,
-		PluginDirs:                       []string{skipper.DefaultPluginDir},
-		CompressEncodings:                c.CompressEncodings.values,
+		Address:                               c.Address,
+		InsecureAddress:                       c.InsecureAddress,
+		StatusChecks:                          c.StatusChecks.values,
+		EnableTCPQueue:                        c.EnableTCPQueue,
+		ExpectedBytesPerRequest:               c.ExpectedBytesPerRequest,
+		MaxTCPListenerConcurrency:             c.MaxTCPListenerConcurrency,
+		MaxTCPListenerQueue:                   c.MaxTCPListenerQueue,
+		EnableCopyStreamPoolExperimental:      c.EnableCopyStreamPoolExperimental,
+		IgnoreTrailingSlash:                   c.IgnoreTrailingSlash,
+		DevMode:                               c.DevMode,
+		SupportListener:                       c.SupportListener,
+		DebugListener:                         c.DebugListener,
+		CertPathTLS:                           c.CertPathTLS,
+		KeyPathTLS:                            c.KeyPathTLS,
+		TLSClientAuth:                         c.TLSClientAuth,
+		TLSMinVersion:                         c.getMinTLSVersion(),
+		CipherSuites:                          c.filterCipherSuites(),
+		MaxLoopbacks:                          c.MaxLoopbacks,
+		DefaultHTTPStatus:                     c.DefaultHTTPStatus,
+		ReverseSourcePredicate:                c.ReverseSourcePredicate,
+		MaxAuditBody:                          c.MaxAuditBody,
+		MaxMatcherBufferSize:                  c.MaxMatcherBufferSize,
+		EnableBreakers:                        c.EnableBreakers,
+		BreakerSettings:                       c.Breakers,
+		EnableRatelimiters:                    c.EnableRatelimiters,
+		RatelimitSettings:                     c.Ratelimits,
+		EnableRouteFIFOMetrics:                c.EnableRouteFIFOMetrics,
+		EnableRouteLIFOMetrics:                c.EnableRouteLIFOMetrics,
+		MetricsFlavours:                       c.MetricsFlavour.values,
+		DisableMetricsCompression:             c.DisableMetricsCompression,
+		EnablePrometheusNativeHistograms:      c.EnablePrometheusNativeHistograms,
+		PrometheusNativeHistogramBucketFactor: c.PrometheusNativeHistogramBucketFactor,
+		FilterPlugins:                         c.FilterPlugins.values,
+		PredicatePlugins:                      c.PredicatePlugins.values,
+		DataClientPlugins:                     c.DataclientPlugins.values,
+		Plugins:                               c.MultiPlugins.values,
+		PluginDirs:                            []string{skipper.DefaultPluginDir},
+		CompressEncodings:                     c.CompressEncodings.values,
 
 		// logging, metrics, profiling, tracing:
 		EnablePrometheusMetrics:             c.EnablePrometheusMetrics,

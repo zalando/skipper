@@ -290,11 +290,11 @@ Skipper can additionally expose [Prometheus native
 histograms](https://prometheus.io/docs/specs/native_histograms/) for
 all histogram metrics:
 
-    -enable-native-histograms
+    -enable-prometheus-native-histograms
 
 Classic bucketed histograms are kept, so this is backwards compatible
 with existing dashboards and alerts. The resolution of native
-histograms can be tuned with `-native-histogram-bucket-factor`, which
+histograms can be tuned with `-prometheus-native-histogram-bucket-factor`, which
 must be greater than 1 and defaults to 1.1. Note that native
 histograms are only transmitted via the protobuf exposition format,
 so the scraping Prometheus needs `--enable-feature=native-histograms`.
