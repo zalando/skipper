@@ -353,7 +353,7 @@ func (p *Prometheus) histogramOpts(o prometheus.HistogramOpts) prometheus.Histog
 			o.Buckets = prometheus.DefBuckets
 		}
 		o.NativeHistogramBucketFactor = p.opts.NativeHistogramBucketFactor
-		o.NativeHistogramMaxBucketNumber = 100
+		o.NativeHistogramMaxBucketNumber = 160
 		o.NativeHistogramMinResetDuration = time.Hour
 	}
 	return o
