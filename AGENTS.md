@@ -69,6 +69,7 @@ Rules:
 - Human has to write PR description
 - If you create a new filter, predicate or dataclient a PR is fine, else a human has to write an issue.
 - Always run `make fmt`, `make lint` and `make shortcheck` before committing.
+- Use `git commit --signoff` to comply with [DCO](https://developercertificate.org/).
 
 ## Security
 
