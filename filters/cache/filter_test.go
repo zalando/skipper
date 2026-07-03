@@ -2860,3 +2860,54 @@ func TestCacheFilter_RevalDropped_WhenQueueFull(t *testing.T) {
 	// Release the blocked worker so the test can clean up without leaking goroutines.
 	close(fetchBlocked)
 }
+
+func TestCacheSpec_FilterRegistry(t *testing.T) {
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
+
+	// Same args — should return same *cacheFilter pointer (registry hit)
+	f1, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf1 := f1.(*cacheFilter)
+
+	f2, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf2 := f2.(*cacheFilter)
+
+	if cf1 != cf2 {
+		t.Fatal("expected same *cacheFilter pointer for identical args, got different instances")
+	}
+
+	// Different args — should return different *cacheFilter pointer
+	f3, err := spec.CreateFilter([]interface{}{"10m", "15s", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf3 := f3.(*cacheFilter)
+
+	if cf1 == cf3 {
+		t.Fatal("expected different *cacheFilter pointer for different args, got same instance")
+	}
+
+	// Different keyHeaders order should normalize to same instance
+	f4, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s", "60s", "X-Foo,X-Bar"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf4 := f4.(*cacheFilter)
+
+	f5, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s", "60s", "X-Bar,X-Foo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf5 := f5.(*cacheFilter)
+
+	if cf4 != cf5 {
+		t.Fatal("expected same instance for different keyHeaders order (should normalize), got different instances")
+	}
+}
