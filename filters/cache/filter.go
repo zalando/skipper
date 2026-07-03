@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -95,6 +96,7 @@ func NewCacheFilter(opts Options) filters.Spec {
 		metrics:      m,
 		revalJobs:    make(chan revalJob, revalQueueSize),
 		lruBytesDone: make(chan struct{}),
+		filters:      make(map[filterCacheKey]*cacheFilter),
 	}
 
 	// Start shared background goroutines (one worker + one scraper for all filter instances)
@@ -103,6 +105,17 @@ func NewCacheFilter(opts Options) filters.Spec {
 	go spec.lruBytesScraper()
 
 	return spec
+}
+
+// filterCacheKey identifies a unique cache filter configuration for registry lookup.
+// Routes with identical configuration share the same cacheFilter instance.
+type filterCacheKey struct {
+	ttl          time.Duration
+	errorTTL     time.Duration
+	swrWindow    time.Duration
+	staleIfError time.Duration
+	keyHeaders   string // canonical: sorted, comma-joined
+	rfcMode      bool
 }
 
 type cacheSpec struct {
@@ -116,6 +129,8 @@ type cacheSpec struct {
 	lruBytesDone chan struct{}
 	bgWg         sync.WaitGroup
 	closeOnce    sync.Once
+	muFilter     sync.Mutex
+	filters      map[filterCacheKey]*cacheFilter
 }
 
 func (s *cacheSpec) Name() string { return filterName }
@@ -179,6 +194,22 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		}
 	}
 
+	sort.Strings(keyHeaders) // canonical order for registry key
+	fk := filterCacheKey{
+		ttl:          ttl,
+		errorTTL:     errorTTL,
+		swrWindow:    swr,
+		staleIfError: staleIfError,
+		keyHeaders:   strings.Join(keyHeaders, ","),
+		rfcMode:      rfcMode,
+	}
+
+	s.muFilter.Lock()
+	defer s.muFilter.Unlock()
+	if cf, ok := s.filters[fk]; ok {
+		return cf, nil
+	}
+
 	cf := &cacheFilter{
 		storage:      s.storage,
 		lruStorage:   s.lruStorage,
@@ -195,6 +226,7 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	cf.fetch = s.client.Do
+	s.filters[fk] = cf
 	return cf, nil
 }
 
