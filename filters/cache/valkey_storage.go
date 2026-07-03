@@ -17,6 +17,7 @@ type valkeyClient interface {
 	Get(ctx context.Context, key string) (string, error)
 	SetWithExpire(ctx context.Context, key string, value string, expire time.Duration) error
 	Expire(ctx context.Context, key string, d time.Duration) (int64, error)
+	Del(ctx context.Context, key string) (int64, error)
 }
 
 var _ valkeyClient = (*skpnet.ValkeyRingClient)(nil)
@@ -100,10 +101,8 @@ func (s *ValkeyStorage) Set(ctx context.Context, key string, entry *Entry) error
 }
 
 func (s *ValkeyStorage) Delete(ctx context.Context, key string) error {
-	// ValkeyRingClient exposes no DEL; use EXPIRE key -1 (immediate deletion per Valkey docs).
-	// -1*time.Second is required: time.Duration(-1) is -1ns, which truncates to EXPIRE key 0.
 	// Valkey errors are best-effort — L1 delete always runs.
-	if _, err := s.ring.Expire(ctx, key, -1*time.Second); err != nil {
+	if _, err := s.ring.Del(ctx, key); err != nil {
 		log.WithError(err).Warn("cache: valkey Delete failed")
 	}
 	return s.l1.Delete(ctx, key)

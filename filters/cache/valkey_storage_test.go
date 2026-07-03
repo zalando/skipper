@@ -71,6 +71,20 @@ func (s *stubValkeyClient) Expire(_ context.Context, key string, d time.Duration
 	return 1, nil
 }
 
+func (s *stubValkeyClient) Del(_ context.Context, key string) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.broken {
+		return 0, errors.New("stub: broken")
+	}
+	_, ok := s.data[key]
+	if !ok {
+		return 0, nil
+	}
+	delete(s.data, key)
+	return 1, nil
+}
+
 // testMetrics is a minimal metrics.Metrics stub for testing.
 // Only IncCounter does real work; all other methods are no-ops.
 type testMetrics struct {
