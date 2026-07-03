@@ -59,6 +59,32 @@ type Options struct {
 	Metrics    metrics.Metrics
 }
 
+// filterCacheKey identifies a unique cache filter configuration for registry lookup.
+// Routes with identical configuration share the same cacheFilter instance.
+type filterCacheKey struct {
+	ttl          time.Duration
+	errorTTL     time.Duration
+	swrWindow    time.Duration
+	staleIfError time.Duration
+	keyHeaders   string // canonical: sorted, comma-joined
+	rfcMode      bool
+}
+
+type cacheSpec struct {
+	maxBytes     int64
+	listenAddr   string
+	client       *skpnet.Client
+	storage      Storage     // shared across all filter instances
+	lruStorage   *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
+	metrics      metrics.Metrics
+	revalJobs    chan revalJob
+	lruBytesDone chan struct{}
+	bgWg         sync.WaitGroup
+	closeOnce    sync.Once
+	muFilter     sync.Mutex
+	filters      map[filterCacheKey]*cacheFilter
+}
+
 // NewCacheFilter returns a Spec for the cache() filter.
 //
 // Route usage (RFC mode — upstream Cache-Control is fully authoritative):
@@ -105,32 +131,6 @@ func NewCacheFilter(opts Options) filters.Spec {
 	go spec.lruBytesScraper()
 
 	return spec
-}
-
-// filterCacheKey identifies a unique cache filter configuration for registry lookup.
-// Routes with identical configuration share the same cacheFilter instance.
-type filterCacheKey struct {
-	ttl          time.Duration
-	errorTTL     time.Duration
-	swrWindow    time.Duration
-	staleIfError time.Duration
-	keyHeaders   string // canonical: sorted, comma-joined
-	rfcMode      bool
-}
-
-type cacheSpec struct {
-	maxBytes     int64
-	listenAddr   string
-	client       *skpnet.Client
-	storage      Storage     // shared across all filter instances
-	lruStorage   *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
-	metrics      metrics.Metrics
-	revalJobs    chan revalJob
-	lruBytesDone chan struct{}
-	bgWg         sync.WaitGroup
-	closeOnce    sync.Once
-	muFilter     sync.Mutex
-	filters      map[filterCacheKey]*cacheFilter
 }
 
 func (s *cacheSpec) Name() string { return filterName }
