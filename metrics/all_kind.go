@@ -111,8 +111,6 @@ func (a *All) MeasureBackendHost(routeBackendHost string, start time.Time) {
 	}
 }
 
-// MeasureBackendZone satisfies the Metrics interface, forwarding to every
-// provider.
 func (a *All) MeasureBackendZone(zone string, start time.Time) {
 	for _, p := range a.providers {
 		p.MeasureBackendZone(zone, start)

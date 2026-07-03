@@ -474,10 +474,9 @@ func (p *Prometheus) MeasureBackendHost(routeBackendHost string, start time.Time
 
 // MeasureBackendZone satisfies the Metrics interface.
 func (p *Prometheus) MeasureBackendZone(zone string, start time.Time) {
-	if !p.opts.EnableBackendZoneMetrics || zone == "" {
-		return
+	if p.opts.EnableBackendZoneMetrics && zone != "" {
+		p.backendM.WithLabelValues("", "", zone).Observe(p.sinceS(start))
 	}
-	p.backendM.WithLabelValues("", "", zone).Observe(p.sinceS(start))
 }
 
 // MeasureFilterResponse satisfies Metrics interface.

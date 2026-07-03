@@ -1507,9 +1507,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		ctx.setResponse(rsp, p.flags.PreserveOriginal())
 		p.metrics.MeasureBackend(ctx.route.Id, backendStart)
 		p.metrics.MeasureBackendHost(ctx.route.Host, backendStart)
-		if ctx.backendZone != "" {
-			p.metrics.MeasureBackendZone(ctx.backendZone, backendStart)
-		}
+		p.metrics.MeasureBackendZone(ctx.backendZone, backendStart)
 	}
 
 	addBranding(ctx.response.Header)

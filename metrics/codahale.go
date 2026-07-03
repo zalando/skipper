@@ -171,10 +171,9 @@ func (c *CodaHale) MeasureBackendHost(routeBackendHost string, start time.Time) 
 
 // MeasureBackendZone satisfies the Metrics interface.
 func (c *CodaHale) MeasureBackendZone(zone string, start time.Time) {
-	if !c.options.EnableBackendZoneMetrics || zone == "" {
-		return
+	if c.options.EnableBackendZoneMetrics && zone != "" {
+		c.measureSince(fmt.Sprintf(KeyProxyBackendZone, hostForKey(zone)), start)
 	}
-	c.measureSince(fmt.Sprintf(KeyProxyBackendZone, hostForKey(zone)), start)
 }
 
 func (c *CodaHale) MeasureFilterResponse(filterName string, start time.Time) {

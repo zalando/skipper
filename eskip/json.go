@@ -24,7 +24,7 @@ type jsonRoute struct {
 	Filters    []*Filter    `json:"filters,omitempty"`
 }
 
-func newJSONRoute(r *Route) *jsonRoute {
+func newJSONRoute(r *Route) *jsonRoute { 
 	cr := Canonical(r)
 	jr := &jsonRoute{
 		ID:         cr.Id,
@@ -33,11 +33,15 @@ func newJSONRoute(r *Route) *jsonRoute {
 	}
 
 	if cr.BackendType != NetworkBackend || cr.Backend != "" {
+		eps := make([]string, len(cr.LBEndpoints))
+		for i, ep := range cr.LBEndpoints {
+			eps[i] = ep.StringWithZone()
+		}
 		jr.Backend = &jsonBackend{
 			Type:      cr.BackendType.String(),
 			Address:   cr.Backend,
 			Algorithm: cr.LBAlgorithm,
-			Endpoints: LBEndpointString(cr.LBEndpoints),
+			Endpoints: eps,
 		}
 	}
 

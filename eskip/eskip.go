@@ -361,9 +361,7 @@ func NewLBEndpoints(eps []string) []*LBEndpoint {
 	result := make([]*LBEndpoint, len(eps))
 
 	for i := range eps {
-		result[i] = &LBEndpoint{
-			Address: eps[i],
-		}
+		result[i] = newLBEndpoint(eps[i])
 	}
 
 	return result
@@ -389,6 +387,35 @@ type LBEndpoint struct {
 
 func (ep LBEndpoint) String() string {
 	return ep.Address
+}
+
+// StringWithZone returns the endpoint address with the availability zone encoded
+// as a "zone" query parameter.
+func (ep LBEndpoint) StringWithZone() string {
+	if ep.Zone == "" {
+		return ep.Address
+	}
+	return ep.Address + "?zone=" + url.QueryEscape(ep.Zone)
+}
+
+// newLBEndpoint builds an LBEndpoint from a endpoint string, extracting the
+// availability zone from the "zone" query parameter if present. Only the "zone"
+// key is stripped; the remaining address is kept clean.
+func newLBEndpoint(s string) *LBEndpoint {
+	u, err := url.Parse(s)
+	if err != nil {
+		return &LBEndpoint{Address: s}
+	}
+
+	q := u.Query()
+	zone := q.Get("zone")
+	if zone == "" {
+		return &LBEndpoint{Address: s}
+	}
+
+	q.Del("zone")
+	u.RawQuery = q.Encode()
+	return &LBEndpoint{Address: u.String(), Zone: zone}
 }
 
 type RoutePredicate func(*Route) bool

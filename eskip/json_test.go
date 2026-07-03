@@ -92,6 +92,22 @@ func TestMarshalUnmarshalJSON(t *testing.T) {
 			`[{"id":"beef","backend":{"type":"lb","algorithm":"yolo","endpoints":["localhost"]}}]`,
 		},
 		{
+			"lb backend with zone",
+			[]*Route{{Id: "beef", BackendType: LBBackend, LBAlgorithm: "roundRobin", LBEndpoints: []*LBEndpoint{
+				{Address: "http://10.0.0.1:8080", Zone: "eu-central-1a"},
+				{Address: "http://10.0.0.2:8080", Zone: "eu-central-1b"},
+			}}},
+			`[{"id":"beef","backend":{"type":"lb","algorithm":"roundRobin","endpoints":["http://10.0.0.1:8080?zone=eu-central-1a","http://10.0.0.2:8080?zone=eu-central-1b"]}}]`,
+		},
+		{
+			"lb backend without zone",
+			[]*Route{{Id: "beef", BackendType: LBBackend, LBAlgorithm: "roundRobin", LBEndpoints: []*LBEndpoint{
+				{Address: "http://10.0.0.1:8080"},
+				{Address: "http://10.0.0.2:8080"},
+			}}},
+			`[{"id":"beef","backend":{"type":"lb","algorithm":"roundRobin","endpoints":["http://10.0.0.1:8080","http://10.0.0.2:8080"]}}]`,
+		},
+		{
 			"shunt backend",
 			[]*Route{{Id: "shunty", BackendType: ShuntBackend}},
 			`[{"id":"shunty","backend":{"type":"shunt"}}]`,

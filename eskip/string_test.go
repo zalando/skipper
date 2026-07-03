@@ -124,6 +124,12 @@ func TestRouteString(t *testing.T) {
 		}},
 		`Method("GET") -> <random, "http://127.0.0.1:9997", "http://127.0.0.1:9998">`,
 	}, {
+		&Route{Method: "GET", LBAlgorithm: "random", BackendType: LBBackend, LBEndpoints: []*LBEndpoint{
+			{Address: "http://127.0.0.1:9997", Zone: "eu-central-1a"},
+			{Address: "http://127.0.0.1:9998", Zone: "eu-central-1b"},
+		}},
+		`Method("GET") -> <random, "http://127.0.0.1:9997?zone=eu-central-1a", "http://127.0.0.1:9998?zone=eu-central-1b">`,
+	}, {
 		// test slash escaping
 		&Route{Path: `/`, PathRegexps: []string{`/`}, Filters: []*Filter{{"afilter", []interface{}{`/`}}}, BackendType: ShuntBackend},
 		`Path("/") && PathRegexp(/\//) -> afilter("/") -> <shunt>`,
