@@ -117,9 +117,9 @@ func TestRoundtripRegexp(t *testing.T) {
 			out := outs[0]
 			t.Logf("%s", out)
 
-		require.Len(t, out.PathRegexps, 1)
-		assert.Equal(t, value, out.PathRegexps[0])
-	})
+			require.Len(t, out.PathRegexps, 1)
+			assert.Equal(t, value, out.PathRegexps[0])
+		})
 	}
 }
 

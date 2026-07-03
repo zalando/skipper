@@ -24,7 +24,7 @@ type jsonRoute struct {
 	Filters    []*Filter    `json:"filters,omitempty"`
 }
 
-func newJSONRoute(r *Route) *jsonRoute { 
+func newJSONRoute(r *Route) *jsonRoute {
 	cr := Canonical(r)
 	jr := &jsonRoute{
 		ID:         cr.Id,
