@@ -41,6 +41,11 @@ var DefaultRequestSizeBuckets = []float64{4 * KiB, 8 * KiB, 16 * KiB, 64 * KiB}
 // DefaultResponseSizeBuckets are chosen to cover 2^(10*n) sizes up to 1 GiB and halves of those.
 var DefaultResponseSizeBuckets = []float64{1, 512, 1 * KiB, 512 * KiB, 1 * MiB, 512 * MiB, 1 * GiB}
 
+// DefaultNativeHistogramFactor is the default bucket factor for Prometheus
+// native histograms, based on the OTEL recommendation, see
+// https://www.kubernetes.dev/resources/keps/5808/
+const DefaultNativeHistogramFactor = 1.1
+
 // Prometheus implements the prometheus metrics backend.
 type Prometheus struct {
 	// Metrics.
@@ -83,7 +88,7 @@ type Prometheus struct {
 func NewPrometheus(opts Options) *Prometheus {
 	opts = applyCompatibilityDefaults(opts)
 	if opts.EnablePrometheusNativeHistograms && opts.PrometheusNativeHistogramBucketFactor <= 1 {
-		opts.PrometheusNativeHistogramBucketFactor = 1.1
+		opts.PrometheusNativeHistogramBucketFactor = DefaultNativeHistogramFactor
 	}
 
 	p := &Prometheus{
@@ -353,6 +358,10 @@ func (p *Prometheus) histogramOpts(o prometheus.HistogramOpts) prometheus.Histog
 			o.Buckets = prometheus.DefBuckets
 		}
 		o.NativeHistogramBucketFactor = p.opts.PrometheusNativeHistogramBucketFactor
+		// A limit of 160 buckets and a reset duration of 1h bound the memory
+		// of native histograms, as recommended by the Prometheus docs
+		// https://prometheus.io/docs/specs/native_histograms/ and by OTEL,
+		// see https://www.kubernetes.dev/resources/keps/5808/
 		o.NativeHistogramMaxBucketNumber = 160
 		o.NativeHistogramMinResetDuration = time.Hour
 	}

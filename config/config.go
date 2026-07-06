@@ -451,7 +451,7 @@ func NewConfig() *Config {
 	flag.Var(cfg.MetricsFlavour, "metrics-flavour", "Metrics flavour is used to change the exposed metrics format. Supported metric formats: 'codahale', 'prometheus' and 'otel', you can select multiple or all of them by using one option with ',' separated values")
 	flag.BoolVar(&cfg.DisableMetricsCompression, "disable-metrics-compression", false, "disable metrics compression on /metrics handler endpoint.")
 	flag.BoolVar(&cfg.EnablePrometheusNativeHistograms, "enable-prometheus-native-histograms", false, "enables prometheus native histograms in addition to the classic bucketed histograms")
-	flag.Float64Var(&cfg.PrometheusNativeHistogramBucketFactor, "prometheus-native-histogram-bucket-factor", 0, "resolution of prometheus native histograms, must be greater than 1, defaults to 1.1 when native histograms are enabled")
+	flag.Float64Var(&cfg.PrometheusNativeHistogramBucketFactor, "prometheus-native-histogram-bucket-factor", metrics.DefaultNativeHistogramFactor, "resolution of prometheus native histograms, must be greater than 1, defaults to 1.1 when native histograms are enabled")
 	flag.Var(cfg.FilterPlugins, "filter-plugin", "set a custom filter plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.PredicatePlugins, "predicate-plugin", "set a custom predicate plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.DataclientPlugins, "dataclient-plugin", "set a custom dataclient plugins to load, a comma separated list of name and arguments")

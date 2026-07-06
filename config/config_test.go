@@ -82,6 +82,7 @@ func defaultConfig(with func(*Config)) *Config {
 		MaxAuditBody:                            1024,
 		MaxMatcherBufferSize:                    2097152,
 		MetricsFlavour:                          commaListFlag("codahale", "prometheus", "otel"),
+		PrometheusNativeHistogramBucketFactor:   metrics.DefaultNativeHistogramFactor,
 		FilterPlugins:                           newPluginFlag(),
 		PredicatePlugins:                        newPluginFlag(),
 		DataclientPlugins:                       newPluginFlag(),
