@@ -23,8 +23,8 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/memberlist v0.5.4
-	github.com/instana/go-sensor v1.73.2
-	github.com/klauspost/compress v1.18.6
+	github.com/instana/go-sensor v1.73.4
+	github.com/klauspost/compress v1.19.0
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.72
 	github.com/molecule-man/go-brrr v1.0.0
@@ -34,7 +34,7 @@ require (
 	github.com/open-policy-agent/opa-envoy-plugin v1.14.1-envoy
 	github.com/opentracing/basictracer-go v1.1.0
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/pires/go-proxyproto v0.12.0
+	github.com/pires/go-proxyproto v0.14.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9
