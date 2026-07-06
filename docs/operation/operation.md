@@ -302,6 +302,21 @@ To monitor skipper we recommend the following queries:
 
 You may add static metrics labels like `version` using Prometheus [relabeling feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config).
 
+### Prometheus native histograms
+
+Skipper can additionally expose [Prometheus native
+histograms](https://prometheus.io/docs/specs/native_histograms/) for
+all histogram metrics:
+
+    -enable-prometheus-native-histograms
+
+Classic bucketed histograms are kept, so this is backwards compatible
+with existing dashboards and alerts. The resolution of native
+histograms can be tuned with `-prometheus-native-histogram-bucket-factor`, which
+must be greater than 1 and defaults to 1.1. Note that native
+histograms are only transmitted via the protobuf exposition format,
+so the scraping Prometheus needs `--enable-feature=native-histograms`.
+
 ### OpenTelemetry (OTel)
 
 Skipper can push metrics to any [OpenTelemetry](https://opentelemetry.io/) compatible backend

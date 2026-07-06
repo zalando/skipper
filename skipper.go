@@ -890,6 +890,14 @@ type Options struct {
 	// DisableMetricsCompression if enabled it will disable compression on the metrics handler, defaults to false
 	DisableMetricsCompression bool
 
+	// EnablePrometheusNativeHistograms enables Prometheus native histograms
+	// in addition to the classic bucketed histograms
+	EnablePrometheusNativeHistograms bool
+
+	// PrometheusNativeHistogramBucketFactor controls the resolution of Prometheus
+	// native histograms, defaults to 1.1 if not set
+	PrometheusNativeHistogramBucketFactor float64
+
 	// LoadBalancerHealthCheckInterval is *deprecated* and not in use anymore
 	LoadBalancerHealthCheckInterval time.Duration
 
@@ -1777,37 +1785,39 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	mtrOpts := metrics.Options{
-		Format:                             metricsKind,
-		Prefix:                             o.MetricsPrefix,
-		EnableDebugGcMetrics:               o.EnableDebugGcMetrics,
-		EnableRuntimeMetrics:               o.EnableRuntimeMetrics,
-		EnableServeRouteMetrics:            o.EnableServeRouteMetrics,
-		EnableServeRouteCounter:            o.EnableServeRouteCounter,
-		EnableServeHostMetrics:             o.EnableServeHostMetrics,
-		EnableServeHostCounter:             o.EnableServeHostCounter,
-		EnableServeMethodMetric:            o.EnableServeMethodMetric,
-		EnableServeStatusCodeMetric:        o.EnableServeStatusCodeMetric,
-		EnableProxyRequestMetrics:          o.EnableProxyRequestMetrics,
-		EnableProxyResponseMetrics:         o.EnableProxyResponseMetrics,
-		EnableBackendHostMetrics:           o.EnableBackendHostMetrics,
-		EnableProfile:                      o.EnableProfile,
-		BlockProfileRate:                   o.BlockProfileRate,
-		MutexProfileFraction:               o.MutexProfileFraction,
-		MemProfileRate:                     o.MemProfileRate,
-		EnableAllFiltersMetrics:            o.EnableAllFiltersMetrics,
-		EnableCombinedResponseMetrics:      o.EnableCombinedResponseMetrics,
-		EnableRouteResponseMetrics:         o.EnableRouteResponseMetrics,
-		EnableRouteBackendErrorsCounters:   o.EnableRouteBackendErrorsCounters,
-		EnableRouteStreamingErrorsCounters: o.EnableRouteStreamingErrorsCounters,
-		EnableRouteBackendMetrics:          o.EnableRouteBackendMetrics,
-		UseExpDecaySample:                  o.MetricsUseExpDecaySample,
-		HistogramBuckets:                   o.HistogramMetricBuckets,
-		ResponseSizeBuckets:                o.ResponseSizeBuckets,
-		RequestSizeBuckets:                 o.RequestSizeBuckets,
-		DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
-		PrometheusRegistry:                 o.PrometheusRegistry,
-		EnablePrometheusStartLabel:         o.EnablePrometheusStartLabel,
-		DisableCompression:                 o.DisableMetricsCompression,
+		Format:                                metricsKind,
+		Prefix:                                o.MetricsPrefix,
+		EnableDebugGcMetrics:                  o.EnableDebugGcMetrics,
+		EnableRuntimeMetrics:                  o.EnableRuntimeMetrics,
+		EnableServeRouteMetrics:               o.EnableServeRouteMetrics,
+		EnableServeRouteCounter:               o.EnableServeRouteCounter,
+		EnableServeHostMetrics:                o.EnableServeHostMetrics,
+		EnableServeHostCounter:                o.EnableServeHostCounter,
+		EnableServeMethodMetric:               o.EnableServeMethodMetric,
+		EnableServeStatusCodeMetric:           o.EnableServeStatusCodeMetric,
+		EnableProxyRequestMetrics:             o.EnableProxyRequestMetrics,
+		EnableProxyResponseMetrics:            o.EnableProxyResponseMetrics,
+		EnableBackendHostMetrics:              o.EnableBackendHostMetrics,
+		EnableProfile:                         o.EnableProfile,
+		BlockProfileRate:                      o.BlockProfileRate,
+		MutexProfileFraction:                  o.MutexProfileFraction,
+		MemProfileRate:                        o.MemProfileRate,
+		EnableAllFiltersMetrics:               o.EnableAllFiltersMetrics,
+		EnableCombinedResponseMetrics:         o.EnableCombinedResponseMetrics,
+		EnableRouteResponseMetrics:            o.EnableRouteResponseMetrics,
+		EnableRouteBackendErrorsCounters:      o.EnableRouteBackendErrorsCounters,
+		EnableRouteStreamingErrorsCounters:    o.EnableRouteStreamingErrorsCounters,
+		EnableRouteBackendMetrics:             o.EnableRouteBackendMetrics,
+		UseExpDecaySample:                     o.MetricsUseExpDecaySample,
+		HistogramBuckets:                      o.HistogramMetricBuckets,
+		ResponseSizeBuckets:                   o.ResponseSizeBuckets,
+		RequestSizeBuckets:                    o.RequestSizeBuckets,
+		DisableCompatibilityDefaults:          o.DisableMetricsCompatibilityDefaults,
+		PrometheusRegistry:                    o.PrometheusRegistry,
+		EnablePrometheusStartLabel:            o.EnablePrometheusStartLabel,
+		DisableCompression:                    o.DisableMetricsCompression,
+		EnablePrometheusNativeHistograms:      o.EnablePrometheusNativeHistograms,
+		PrometheusNativeHistogramBucketFactor: o.PrometheusNativeHistogramBucketFactor,
 	}
 
 	mtr := o.MetricsBackend
