@@ -257,7 +257,7 @@ type Options struct {
 	BackendTrafficAlgorithm BackendTrafficAlgorithm
 
 	// DefaultLoadBalancerAlgorithm sets the default algorithm to be used for load balancing between backend endpoints,
-	// available options: roundRobin, consistentHash, random, powerOfRandomNChoices
+	// available options: roundRobin, consistentHash, random, powerOfRandomNChoices, weightedRoundRobin
 	DefaultLoadBalancerAlgorithm string
 
 	// ForwardBackendURL allows to use <forward> backend via kubernetes, for example routegroup backend `type: forward`.

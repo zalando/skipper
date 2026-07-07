@@ -47,6 +47,9 @@ func TestStats(t *testing.T) {
 	if p := mtr.HealthCheckDropProbability(); p > 0.0 {
 		t.Fatalf("Failed to get 0 drop probability at start got: %0.2f", p)
 	}
+	if w := mtr.Weight(); w != 1.0 {
+		t.Fatalf("Failed to get 1.0 weight at start got: %0.2f", w)
+	}
 
 	// populate values
 	go reg.updateStats()
@@ -55,6 +58,11 @@ func TestStats(t *testing.T) {
 	mtr = reg.GetMetrics(ep)
 	if p := mtr.HealthCheckDropProbability(); p < 0.5 || p > 0.9 {
 		t.Fatalf("Failed to get drop probability: %0.2f", p)
+	}
+	// 9 of 11 requests failed, weight is the success ratio,
+	// bounded below by 1 - maxHealthCheckDropProbability
+	if w := mtr.Weight(); w < 0.1 || w > 0.5 {
+		t.Fatalf("Failed to get weight: %0.2f", w)
 	}
 
 	// clear slots
@@ -66,5 +74,8 @@ func TestStats(t *testing.T) {
 	mtr = reg.GetMetrics(ep)
 	if p := mtr.HealthCheckDropProbability(); p > 0.0 {
 		t.Fatalf("Failed to reset drop probability got: %0.2f", p)
+	}
+	if w := mtr.Weight(); w != 1.0 {
+		t.Fatalf("Failed to reset weight got: %0.2f", w)
 	}
 }

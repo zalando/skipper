@@ -3,6 +3,7 @@ package loadbalancer
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"sort"
 	"sync"
@@ -34,6 +35,10 @@ const (
 
 	// PowerOfRandomNChoices selects N random endpoints and picks the one with least outstanding requests from them.
 	PowerOfRandomNChoices
+
+	// WeightedRoundRobin distributes requests proportionally to the dynamic
+	// endpoint weights derived from observed failed round trips.
+	WeightedRoundRobin
 )
 
 const powerOfRandomNChoicesDefaultN = 2
@@ -48,6 +53,7 @@ var (
 		Random:                newRandom,
 		ConsistentHash:        newConsistentHash,
 		PowerOfRandomNChoices: newPowerOfRandomNChoices,
+		WeightedRoundRobin:    newWeightedRoundRobin,
 	}
 	defaultAlgorithm = newRoundRobin
 )
@@ -264,6 +270,66 @@ func (p *powerOfRandomNChoices) getScore(e routing.LBEndpoint) int64 {
 	return -int64(e.Metrics.InflightRequests())
 }
 
+type weightedRoundRobin struct {
+	mu             sync.Mutex
+	currentWeights map[string]float64
+}
+
+// newWeightedRoundRobin creates a smooth weighted roundrobin algorithm
+// with weights based on the failed round trips observed by the endpoint
+// registry within the last stats reset period.
+func newWeightedRoundRobin([]string) routing.LBAlgorithm {
+	return &weightedRoundRobin{
+		currentWeights: make(map[string]float64),
+	}
+}
+
+// Apply implements routing.LBAlgorithm with a smooth weighted roundrobin
+// algorithm, see https://github.com/nginx/nginx/commit/52327e0627f49dbda1e8db695e63a4b0af4448b1.
+// Each endpoint accumulates its weight per round and the endpoint with the
+// highest accumulated weight is selected and reduced by the total weight of
+// the round. With equal weights it behaves like the roundrobin algorithm.
+func (w *weightedRoundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+	if len(ctx.LBEndpoints) == 1 {
+		return ctx.LBEndpoints[0]
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	total := 0.0
+	best := 0
+	bestWeight := math.Inf(-1)
+	for i := range ctx.LBEndpoints {
+		e := &ctx.LBEndpoints[i]
+		weight := e.Metrics.Weight()
+		total += weight
+
+		cw := w.currentWeights[e.Host] + weight
+		w.currentWeights[e.Host] = cw
+		if cw > bestWeight {
+			bestWeight = cw
+			best = i
+		}
+	}
+	w.currentWeights[ctx.LBEndpoints[best].Host] -= total
+
+	// forget endpoints that are no longer part of the route
+	if len(w.currentWeights) > 2*len(ctx.Route.LBEndpoints) {
+		known := make(map[string]struct{}, len(ctx.Route.LBEndpoints))
+		for i := range ctx.Route.LBEndpoints {
+			known[ctx.Route.LBEndpoints[i].Host] = struct{}{}
+		}
+		for host := range w.currentWeights {
+			if _, ok := known[host]; !ok {
+				delete(w.currentWeights, host)
+			}
+		}
+	}
+
+	return ctx.LBEndpoints[best]
+}
+
 type (
 	algorithmProvider   struct{}
 	initializeAlgorithm func(endpoints []string) routing.LBAlgorithm
@@ -290,6 +356,8 @@ func AlgorithmFromString(a string) (Algorithm, error) {
 		return ConsistentHash, nil
 	case "powerOfRandomNChoices":
 		return PowerOfRandomNChoices, nil
+	case "weightedRoundRobin":
+		return WeightedRoundRobin, nil
 	default:
 		return None, errors.New("unsupported algorithm")
 	}
@@ -306,6 +374,8 @@ func (a Algorithm) String() string {
 		return "consistentHash"
 	case PowerOfRandomNChoices:
 		return "powerOfRandomNChoices"
+	case WeightedRoundRobin:
+		return "weightedRoundRobin"
 	default:
 		return ""
 	}

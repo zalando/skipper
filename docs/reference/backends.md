@@ -297,6 +297,7 @@ Current implemented algorithms:
 - `random`: backend is chosen at random
 - `consistentHash`: backend is chosen by [consistent hashing](https://en.wikipedia.org/wiki/Consistent_hashing) algorithm based on the request key. The request key is derived from `X-Forwarded-For` header or request remote IP address as the fallback. Use [`consistentHashKey`](filters.md#consistenthashkey) filter to set the request key. Use [`consistentHashBalanceFactor`](filters.md#consistenthashbalancefactor) to prevent popular keys from overloading a single backend endpoint.
 - `powerOfRandomNChoices`: backend is chosen by powerOfRandomNChoices algorithm with selecting N random endpoints and picking the one with least outstanding requests from them. (http://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf)
+- `weightedRoundRobin`: backend is chosen by [smooth weighted round robin](https://github.com/nginx/nginx/commit/52327e0627f49dbda1e8db695e63a4b0af4448b1) with dynamic weights based on the ratio of successful round trips per endpoint. Weights are updated by the [passive health check](../operation/operation.md) stats loop, so they only change when the passive health check is enabled; with equal weights it behaves like `roundRobin`.
 - __TODO__: https://github.com/zalando/skipper/issues/557
 
 Route example with 2 backends and the `roundRobin` algorithm:
@@ -317,6 +318,11 @@ r0: * -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 Route example with 2 backends and the `powerOfRandomNChoices` algorithm:
 ```
 r0: * -> <powerOfRandomNChoices, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+```
+
+Route example with 2 backends and the `weightedRoundRobin` algorithm:
+```
+r0: * -> <weightedRoundRobin, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 ```
 
 Proxy with `roundRobin` loadbalancer and two backends:
