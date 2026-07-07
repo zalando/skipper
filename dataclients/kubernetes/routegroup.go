@@ -298,6 +298,7 @@ func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r
 	case eskip.ForwardBackend:
 		r.Backend = ctx.forwardBackendURL
 		r.BackendType = eskip.NetworkBackend
+		r.Filters = []*eskip.Filter{}
 	}
 
 	if ctx.backendNameTracingTag {
