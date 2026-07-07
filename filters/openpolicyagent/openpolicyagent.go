@@ -812,9 +812,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	}
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
-	manager.RegisterPluginStatusListener("instance-health-check", func(_ map[string]*plugins.Status) {
-		// Get fresh status to workaround OPA issue https://github.com/open-policy-agent/opa/issues/8009
-		status := opa.manager.PluginStatus()
+	manager.RegisterPluginStatusListener("instance-health-check", func(status map[string]*plugins.Status) {
 		opa.healthy.Store(allPluginsReady(status, bundle.Name, discovery.Name))
 		opa.Logger().Info("OPA instance health updated: healthy=%t status=%+v", opa.healthy.Load(), status)
 	})
@@ -1330,9 +1328,7 @@ func (opa *OpenPolicyAgentInstance) ExtractHttpBodyOptionally(req *http.Request)
 		expectedSize = opa.maxBodyBytes
 	}
 
-	if body != nil && !opa.EnvoyPluginConfig().SkipRequestBodyParse &&
-		expectedSize <= int64(opa.maxBodyBytes) {
-
+	if body != nil && !opa.EnvoyPluginConfig().SkipRequestBodyParse {
 		wrapper := newBufferedBodyReader(req.Body, opa.maxBodyBytes, opa.bodyReadBufferSize)
 
 		requestedBodyBytes := bodyUpperBound(expectedSize, opa.maxBodyBytes)
@@ -1341,6 +1337,11 @@ func (opa *OpenPolicyAgentInstance) ExtractHttpBodyOptionally(req *http.Request)
 		}
 
 		rawBody, err := wrapper.fillBuffer(expectedSize)
+		// Truncate to maxBodyBytes so OPA sees exactly how much was read vs. the full Content-Length.
+		// fillBuffer may overshoot maxBodyBytes by up to readBufferSize-1 bytes on the last chunk read.
+		if int64(len(rawBody)) > opa.maxBodyBytes {
+			rawBody = rawBody[:opa.maxBodyBytes]
+		}
 		return wrapper, rawBody, func() { opa.registry.maxMemoryBodyParsingSem.Release(requestedBodyBytes) }, err
 	}
 
