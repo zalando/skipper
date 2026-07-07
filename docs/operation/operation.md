@@ -471,9 +471,10 @@ destination endpoint. This is disabled by default and enabled with:
 
 When enabled, the existing `skipper_backend_duration_seconds` histogram gains a
 `zone` label. The zone is the availability zone of the selected load-balanced
-endpoint and is only available for routes whose endpoints carry zone information
-(Kubernetes EndpointSlice backends); other backends record an empty zone, which
-is skipped. The `zone` observation is recorded independently of the `route` and
+endpoint, sourced from the Kubernetes EndpointSlice `zone` field. It is
+available in both the in-process kubernetes dataclient mode and RouteSRV mode.
+Non-load-balanced backends (shunt, loopback, network) have no zone and produce
+no zone observation. The `zone` observation is recorded independently of the `route` and
 `host` labels, so per-zone series have empty `route` and `host`.
 
 Same-zone versus cross-zone traffic is a query-time concern: compare the `zone`

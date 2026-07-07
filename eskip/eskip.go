@@ -400,7 +400,8 @@ func (ep LBEndpoint) StringWithZone() string {
 
 // newLBEndpoint builds an LBEndpoint from a endpoint string, extracting the
 // availability zone from the "zone" query parameter if present. Only the "zone"
-// key is stripped; the remaining address is kept clean.
+// key is stripped; the remaining address is kept clean. Address must not carry
+// the zone param so that it can be used as it was originally defined
 func newLBEndpoint(s string) *LBEndpoint {
 	u, err := url.Parse(s)
 	if err != nil {

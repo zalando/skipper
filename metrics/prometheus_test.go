@@ -1345,11 +1345,6 @@ func TestPrometheusImplementsPrometheusMetrics(t *testing.T) {
 	var _ metrics.PrometheusMetrics = (*metrics.Prometheus)(nil)
 }
 
-// Compile-time check that Prometheus implements the Metrics interface
-func TestPrometheusImplementsMetrics(t *testing.T) {
-	var _ metrics.Metrics = (*metrics.Prometheus)(nil)
-}
-
 func TestScopedPrometheusRegistererPrefix(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	pm := metrics.NewPrometheus(metrics.Options{

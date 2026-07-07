@@ -135,8 +135,7 @@ type Options struct {
 	EnableBackendHostMetrics bool
 
 	// If set, backend response time metrics are collected per availability
-	// zone of the destination endpoint. Only routes with zone information
-	// (Kubernetes EndpointSlice backends) contribute; others are ignored.
+	// zone of the destination endpoint.
 	EnableBackendZoneMetrics bool
 
 	// EnableAllFiltersMetrics enables collecting combined filter
