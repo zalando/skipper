@@ -599,7 +599,7 @@ type Options struct {
 	EnableBackendHostMetrics bool
 
 	// If set, backend response time metrics are collected per availability
-	// zone of the destination endpoint. 
+	// zone of the destination endpoint.
 	EnableBackendZoneMetrics bool
 
 	// EnableAllFiltersMetrics enables collecting combined filter
