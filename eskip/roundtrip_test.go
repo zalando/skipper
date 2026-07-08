@@ -122,3 +122,63 @@ func TestRoundtripRegexp(t *testing.T) {
 		})
 	}
 }
+
+func TestRoundtripLBZone(t *testing.T) {
+	t.Run("endpoints have zone", func(t *testing.T) {
+		in := &Route{
+			Id:          "r1",
+			BackendType: LBBackend,
+			LBAlgorithm: "roundRobin",
+			LBEndpoints: []*LBEndpoint{
+				{Address: "http://10.0.0.1:8080", Zone: "eu-central-1a"},
+				{Address: "http://10.0.0.2:8080", Zone: "eu-central-1b"},
+			},
+		}
+
+		serialized := in.String()
+		t.Logf("serialized: %s", serialized)
+
+		outs, err := Parse(serialized)
+		require.NoError(t, err)
+		require.Len(t, outs, 1)
+
+		out := outs[0]
+		require.Len(t, out.LBEndpoints, 2)
+
+		assert.Equal(t, "http://10.0.0.1:8080", out.LBEndpoints[0].Address)
+		assert.Equal(t, "eu-central-1a", out.LBEndpoints[0].Zone)
+		assert.Equal(t, "http://10.0.0.2:8080", out.LBEndpoints[1].Address)
+		assert.Equal(t, "eu-central-1b", out.LBEndpoints[1].Zone)
+
+		assert.Equal(t, serialized, out.String(), "round-trip must be stable")
+	})
+
+	t.Run("endpoints do not have zone", func(t *testing.T) {
+		in := &Route{
+			Id:          "r2",
+			BackendType: LBBackend,
+			LBAlgorithm: "roundRobin",
+			LBEndpoints: []*LBEndpoint{
+				{Address: "http://10.0.0.1:8080"},
+				{Address: "http://10.0.0.2:8080"},
+			},
+		}
+
+		serialized := in.String()
+		t.Logf("serialized: %s", serialized)
+
+		outs, err := Parse(serialized)
+		require.NoError(t, err)
+		require.Len(t, outs, 1)
+
+		out := outs[0]
+		require.Len(t, out.LBEndpoints, 2)
+
+		assert.Equal(t, "http://10.0.0.1:8080", out.LBEndpoints[0].Address)
+		assert.Equal(t, "", out.LBEndpoints[0].Zone)
+		assert.Equal(t, "http://10.0.0.2:8080", out.LBEndpoints[1].Address)
+		assert.Equal(t, "", out.LBEndpoints[1].Zone)
+
+		assert.Equal(t, serialized, out.String(), "round-trip must be stable")
+	})
+}

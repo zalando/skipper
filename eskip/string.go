@@ -167,7 +167,7 @@ func lbBackendString(r *Route) string {
 			b.WriteString(", ")
 		}
 		b.WriteByte('"')
-		b.WriteString(ep.String())
+		b.WriteString(ep.StringWithZone())
 		b.WriteByte('"')
 	}
 	b.WriteByte('>')

@@ -671,6 +671,7 @@ func (p *Proxy) mapRequest(ctx *context, requestContext stdlibcontext.Context) (
 	case eskip.LBBackend:
 		endpoint := p.selectEndpoint(ctx)
 		endpointMetrics = endpoint.Metrics
+		ctx.backendZone = endpoint.Zone
 		u.Scheme = endpoint.Scheme
 		u.Host = endpoint.Host
 	case eskip.NetworkBackend:
@@ -1506,6 +1507,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		ctx.setResponse(rsp, p.flags.PreserveOriginal())
 		p.metrics.MeasureBackend(ctx.route.Id, backendStart)
 		p.metrics.MeasureBackendHost(ctx.route.Host, backendStart)
+		p.metrics.MeasureBackendZone(ctx.backendZone, backendStart)
 	}
 
 	addBranding(ctx.response.Header)

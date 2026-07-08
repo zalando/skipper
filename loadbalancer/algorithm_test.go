@@ -87,6 +87,28 @@ func TestSelectAlgorithm(t *testing.T) {
 		}
 	})
 
+	t.Run("LB route preserves endpoint zone", func(t *testing.T) {
+		p := NewAlgorithmProvider()
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
+		r := &routing.Route{
+			Route: eskip.Route{
+				BackendType: eskip.LBBackend,
+				LBEndpoints: []*eskip.LBEndpoint{{Address: "https://www.example.org", Zone: "eu-central-1a"}},
+			},
+		}
+
+		rr := p.Do([]*routing.Route{r})
+		endpointRegistry.Do([]*routing.Route{r})
+		if len(rr) != 1 || len(rr[0].LBEndpoints) != 1 {
+			t.Fatal("failed to process LB route")
+		}
+
+		if rr[0].LBEndpoints[0].Zone != "eu-central-1a" {
+			t.Fatalf("failed to preserve endpoint zone, got %q", rr[0].LBEndpoints[0].Zone)
+		}
+	})
+
 	t.Run("LB route with explicit consistentHash algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})

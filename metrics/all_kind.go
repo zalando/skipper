@@ -111,6 +111,12 @@ func (a *All) MeasureBackendHost(routeBackendHost string, start time.Time) {
 	}
 }
 
+func (a *All) MeasureBackendZone(zone string, start time.Time) {
+	for _, p := range a.providers {
+		p.MeasureBackendZone(zone, start)
+	}
+}
+
 func (a *All) MeasureFilterResponse(filterName string, start time.Time) {
 	for _, p := range a.providers {
 		p.MeasureFilterResponse(filterName, start)

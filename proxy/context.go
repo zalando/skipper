@@ -40,6 +40,7 @@ type context struct {
 	originalRequest      *http.Request
 	originalResponse     *http.Response
 	outgoingHost         string
+	backendZone          string
 	outgoingDebugRequest *http.Request
 	executionCounter     int
 	startServe           time.Time

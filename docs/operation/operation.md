@@ -461,6 +461,31 @@ If enabled these metrics are also exposed in /metrics, and the example json stru
 }
 ```
 
+### Backend zone metrics
+
+Skipper can label backend request latency by the availability zone of the
+destination endpoint. This is disabled by default and enabled with:
+
+    -backend-zone-metrics
+        enables reporting backend serve time metrics per availability zone of the destination endpoint
+
+When enabled, the existing `skipper_backend_duration_seconds` histogram gains a
+`zone` label. The zone is the availability zone of the selected load-balanced
+endpoint, sourced from the Kubernetes EndpointSlice `zone` field. It is
+available in both the in-process kubernetes dataclient mode and RouteSRV mode.
+Non-load-balanced backends (shunt, loopback, network) have no zone and produce
+no zone observation. The `zone` observation is recorded independently of the `route` and
+`host` labels, so per-zone series have empty `route` and `host`.
+
+Same-zone versus cross-zone traffic is a query-time concern: compare the `zone`
+label against the availability zone of the skipper instance. Example, plotting
+the p99 backend latency per zone:
+
+```promql
+histogram_quantile(0.99,
+  sum by (zone, le) (rate(skipper_backend_duration_seconds_bucket{zone!=""}[5m])))
+```
+
 ### Connection metrics
 
 This option will enable known loadbalancer connections metrics, like

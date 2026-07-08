@@ -462,6 +462,12 @@ func TestSchemeHost(t *testing.T) {
 			err:    "",
 		}),
 		testCase(TestSchemeHostItem{
+			input:  "http://10.0.0.1:8080?zone=eu-central-1a",
+			scheme: "http",
+			host:   "10.0.0.1:8080",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
 			input:  "http://example.com:80?foo=bar",
 			scheme: "http",
 			host:   "example.com:80",

@@ -306,3 +306,60 @@ func TestMeasureProxyWatch(t *testing.T) {
 		})
 	}
 }
+
+func TestMeasureBackendZone(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	for _, tt := range []struct {
+		name   string
+		zone   string
+		expKey string
+		expSet bool
+	}{
+		{name: "endpoint with zone records per-zone latency", zone: "eu-central-1a", expKey: "backendzone.eu-central-1a", expSet: true},
+		{name: "endpoint without zone records nothing", zone: "", expKey: "backendzone.", expSet: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &metricstest.MockMetrics{}
+			defer m.Close()
+
+			routes := []*eskip.Route{{
+				Id:          "lbzone",
+				BackendType: eskip.LBBackend,
+				LBAlgorithm: "roundRobin",
+				LBEndpoints: []*eskip.LBEndpoint{{Address: backend.URL, Zone: tt.zone}},
+			}}
+
+			tp := proxytest.Config{
+				Routes: routes,
+				RoutingOptions: routing.Options{
+					FilterRegistry: builtin.MakeRegistry(),
+				},
+				ProxyParams: proxy.Params{
+					Metrics: m,
+				},
+			}.Create()
+			defer tp.Close()
+
+			rsp, _, err := tp.Client().GetBody(tp.URL + "/")
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, rsp.StatusCode)
+
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				m.WithMeasures(func(measures map[string][]time.Duration) {
+					if tt.expSet {
+						assert.Len(c, measures[tt.expKey], 1)
+					}
+				})
+			}, 100*time.Millisecond, time.Millisecond)
+
+			m.WithMeasures(func(measures map[string][]time.Duration) {
+				_, ok := measures[tt.expKey]
+				assert.Equal(t, tt.expSet, ok)
+			})
+		})
+	}
+}

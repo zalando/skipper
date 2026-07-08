@@ -162,8 +162,8 @@ type RouteFilter struct {
 // LBEndpoint represents the scheme and the host of load balanced
 // backends.
 type LBEndpoint struct {
-	Scheme, Host string
-	Metrics      Metrics
+	Scheme, Host, Zone string
+	Metrics            Metrics
 }
 
 // LBAlgorithm implementations apply a load balancing algorithm

@@ -21,6 +21,7 @@ const (
 	KeyProxyBackend               = "backend.%s"
 	KeyProxyBackendCombined       = "all.backend"
 	KeyProxyBackendHost           = "backendhost.%s"
+	KeyProxyBackendZone           = "backendzone.%s"
 	KeyFilterResponse             = "filter.%s.response"
 	KeyFiltersResponse            = "allfilters.response.%s"
 	KeyAllFiltersResponseCombined = "allfilters.combined.response"
@@ -165,6 +166,13 @@ func (c *CodaHale) MeasureBackend(routeId string, start time.Time) {
 func (c *CodaHale) MeasureBackendHost(routeBackendHost string, start time.Time) {
 	if c.options.EnableBackendHostMetrics {
 		c.measureSince(fmt.Sprintf(KeyProxyBackendHost, hostForKey(routeBackendHost)), start)
+	}
+}
+
+// MeasureBackendZone satisfies the Metrics interface.
+func (c *CodaHale) MeasureBackendZone(zone string, start time.Time) {
+	if c.options.EnableBackendZoneMetrics && zone != "" {
+		c.measureSince(fmt.Sprintf(KeyProxyBackendZone, hostForKey(zone)), start)
 	}
 }
 

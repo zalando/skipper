@@ -456,7 +456,7 @@ func (o *OTel) MeasureBackend(routeId string, start time.Time) {
 	o.backendCombinedM.Record(context.Background(), t)
 	if o.opts.EnableRouteBackendMetrics {
 		o.backendM.Record(context.Background(), t,
-			metric.WithAttributes(attribute.String("route", routeId), attribute.String("host", "")))
+			metric.WithAttributes(attribute.String("route", routeId), attribute.String("host", ""), attribute.String("zone", "")))
 	}
 }
 
@@ -464,7 +464,15 @@ func (o *OTel) MeasureBackend(routeId string, start time.Time) {
 func (o *OTel) MeasureBackendHost(routeBackendHost string, start time.Time) {
 	if o.opts.EnableBackendHostMetrics {
 		o.backendM.Record(context.Background(), o.sinceS(start),
-			metric.WithAttributes(attribute.String("route", ""), attribute.String("host", routeBackendHost)))
+			metric.WithAttributes(attribute.String("route", ""), attribute.String("host", routeBackendHost), attribute.String("zone", "")))
+	}
+}
+
+// MeasureBackendZone satisfies the Metrics interface.
+func (o *OTel) MeasureBackendZone(zone string, start time.Time) {
+	if o.opts.EnableBackendZoneMetrics && zone != "" {
+		o.backendM.Record(context.Background(), o.sinceS(start),
+			metric.WithAttributes(attribute.String("route", ""), attribute.String("host", ""), attribute.String("zone", zone)))
 	}
 }
 

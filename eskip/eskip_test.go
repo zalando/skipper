@@ -896,3 +896,59 @@ func BenchmarkRouteStringNoRepeatedPredicates(b *testing.B) {
 	}
 	stringSink = s
 }
+
+func TestLBEndpointStringWithZone(t *testing.T) {
+	for _, ti := range []struct {
+		name string
+		ep   LBEndpoint
+		want string
+	}{{
+		name: "test lb endpoint without zone",
+		ep:   LBEndpoint{Address: "http://10.0.0.1:8080"},
+		want: "http://10.0.0.1:8080",
+	}, {
+		name: "test lb endpoint with zone",
+		ep:   LBEndpoint{Address: "http://10.0.0.1:8080", Zone: "eu-central-1a"},
+		want: "http://10.0.0.1:8080?zone=eu-central-1a",
+	}} {
+		t.Run(ti.name, func(t *testing.T) {
+			if got := ti.ep.StringWithZone(); got != ti.want {
+				t.Errorf("StringWithZone() = %q, want %q", got, ti.want)
+			}
+		})
+	}
+}
+
+func TestNewLBEndpoint(t *testing.T) {
+	for _, ti := range []struct {
+		name     string
+		in       string
+		wantAddr string
+		wantZone string
+	}{{
+		name:     "test lb endpoint with zone",
+		in:       "http://10.0.0.1:8080?zone=eu-central-1a",
+		wantAddr: "http://10.0.0.1:8080",
+		wantZone: "eu-central-1a",
+	}, {
+		name:     "test lb endpoint without zone",
+		in:       "http://10.0.0.1:8080",
+		wantAddr: "http://10.0.0.1:8080",
+		wantZone: "",
+	}, {
+		name:     "test non-URL string",
+		in:       "not a url",
+		wantAddr: "not a url",
+		wantZone: "",
+	}} {
+		t.Run(ti.name, func(t *testing.T) {
+			ep := newLBEndpoint(ti.in)
+			if ep.Address != ti.wantAddr {
+				t.Errorf("Address = %q, want %q", ep.Address, ti.wantAddr)
+			}
+			if ep.Zone != ti.wantZone {
+				t.Errorf("Zone = %q, want %q", ep.Zone, ti.wantZone)
+			}
+		})
+	}
+}

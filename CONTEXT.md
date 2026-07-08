@@ -261,6 +261,13 @@ Central route server precomputes per-zone route sets; each proxy fetches `/route
 **DataClient Mode**:
 Each proxy instance filters endpoints to its own zone at the dataclient layer during endpoint fetch.
 
+**Backend zone**:
+The availability zone of the selected destination endpoint, sourced from the
+Kubernetes EndpointSlice `zone` field (e.g. `eu-central-1c`). It is the zone the
+traffic is sent *to*. Recorded as the `zone` metric label whenever present, else
+empty.
+_Avoid_: AZ, endpoint zone, destination zone
+
 ## RouteSRV
 
 **RouteSRV**:
