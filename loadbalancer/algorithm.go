@@ -278,9 +278,9 @@ type weightedRoundRobin struct {
 // newWeightedRoundRobin creates a smooth weighted roundrobin algorithm
 // with weights based on the failed round trips observed by the endpoint
 // registry within the last stats reset period.
-func newWeightedRoundRobin([]string) routing.LBAlgorithm {
+func newWeightedRoundRobin(endpoints []string) routing.LBAlgorithm {
 	return &weightedRoundRobin{
-		currentWeights: make(map[string]float64),
+		currentWeights: make(map[string]float64, len(endpoints)),
 	}
 }
 
@@ -313,19 +313,6 @@ func (w *weightedRoundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		}
 	}
 	w.currentWeights[ctx.LBEndpoints[best].Host] -= total
-
-	// forget endpoints that are no longer part of the route
-	if len(w.currentWeights) > 2*len(ctx.Route.LBEndpoints) {
-		known := make(map[string]struct{}, len(ctx.Route.LBEndpoints))
-		for i := range ctx.Route.LBEndpoints {
-			known[ctx.Route.LBEndpoints[i].Host] = struct{}{}
-		}
-		for host := range w.currentWeights {
-			if _, ok := known[host]; !ok {
-				delete(w.currentWeights, host)
-			}
-		}
-	}
 
 	return ctx.LBEndpoints[best]
 }

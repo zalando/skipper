@@ -647,3 +647,36 @@ func TestWeightedRoundRobinEqualWeights(t *testing.T) {
 		assert.Equal(t, rounds/N, count, "host %s", host)
 	}
 }
+
+func BenchmarkWeightedRoundRobinAlgorithm(b *testing.B) {
+	const N = 10
+	eps := make([]string, N)
+	for i := range N {
+		eps[i] = fmt.Sprintf("10.0.0.%d:8080", i)
+	}
+
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer endpointRegistry.Close()
+
+	alg := newWeightedRoundRobin(eps)
+
+	lbeps := make([]routing.LBEndpoint, len(eps))
+	for i := range len(eps) {
+		lbeps[i] = routing.LBEndpoint{
+			Scheme:  "http",
+			Host:    eps[i],
+			Metrics: endpointRegistry.GetMetrics(eps[i]),
+		}
+	}
+
+	lbc := &routing.LBContext{
+		Route:       &routing.Route{},
+		LBEndpoints: lbeps,
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		alg.Apply(lbc)
+	}
+}
