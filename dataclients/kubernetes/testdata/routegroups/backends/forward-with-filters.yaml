@@ -1,0 +1,16 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: myapp
+spec:
+  hosts:
+    - example.org
+  backends:
+    - name: fwd
+      type: forward
+  routes:
+    - pathSubtree: /
+      filters:
+        - status(200)
+      backends:
+        - backendName: fwd
