@@ -16,6 +16,7 @@ import (
 )
 
 const duplicateHeaderPredicateErrorFmt = "duplicate header predicate: %s"
+const zoneQueryParam = "zone"
 
 var (
 	errDuplicatePathTreePredicate = errors.New("duplicate path tree predicate")
@@ -395,7 +396,7 @@ func (ep LBEndpoint) StringWithZone() string {
 	if ep.Zone == "" {
 		return ep.Address
 	}
-	return ep.Address + "?zone=" + url.QueryEscape(ep.Zone)
+	return ep.Address + "?" + zoneQueryParam + "=" + url.QueryEscape(ep.Zone)
 }
 
 // newLBEndpoint builds an LBEndpoint from a endpoint string, extracting the
@@ -409,12 +410,12 @@ func newLBEndpoint(s string) *LBEndpoint {
 	}
 
 	q := u.Query()
-	zone := q.Get("zone")
+	zone := q.Get(zoneQueryParam)
 	if zone == "" {
 		return &LBEndpoint{Address: s}
 	}
 
-	q.Del("zone")
+	q.Del(zoneQueryParam)
 	u.RawQuery = q.Encode()
 	return &LBEndpoint{Address: u.String(), Zone: zone}
 }
