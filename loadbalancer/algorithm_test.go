@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
@@ -649,34 +650,102 @@ func TestWeightedRoundRobinEqualWeights(t *testing.T) {
 }
 
 func BenchmarkWeightedRoundRobinAlgorithm(b *testing.B) {
-	const N = 10
-	eps := make([]string, N)
-	for i := range N {
-		eps[i] = fmt.Sprintf("10.0.0.%d:8080", i)
-	}
+	for _, n := range []int{10, 100, 1000, 10000} {
+		b.Run(fmt.Sprintf("%d_endpoints", n), func(b *testing.B) {
+			eps := make([]string, n)
+			for i := range n {
+				eps[i] = fmt.Sprintf("10.0.%d.%d:8080", i/256, i%256)
+			}
 
-	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+			endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+			defer endpointRegistry.Close()
+
+			alg := newWeightedRoundRobin(eps)
+
+			lbeps := make([]routing.LBEndpoint, len(eps))
+			for i := range len(eps) {
+				lbeps[i] = routing.LBEndpoint{
+					Scheme:  "http",
+					Host:    eps[i],
+					Metrics: endpointRegistry.GetMetrics(eps[i]),
+				}
+			}
+
+			lbc := &routing.LBContext{
+				Route:       &routing.Route{},
+				LBEndpoints: lbeps,
+			}
+
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				alg.Apply(lbc)
+			}
+		})
+	}
+}
+
+func TestWeightedRoundRobinFailingBackend(t *testing.T) {
+	eps := []string{"http://127.0.0.1:1231/foo", "http://127.0.0.1:1232/foo", "http://127.0.0.1:1233/foo"}
+
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
+		PassiveHealthCheckEnabled:     true,
+		StatsResetPeriod:              100 * time.Millisecond,
+		MinRequests:                   10,
+		MinHealthCheckDropProbability: 0.05,
+		MaxHealthCheckDropProbability: 0.95,
+	})
 	defer endpointRegistry.Close()
 
-	alg := newWeightedRoundRobin(eps)
+	p := NewAlgorithmProvider()
+	r := &routing.Route{
+		Route: eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: "weightedRoundRobin",
+			LBEndpoints: eskip.NewLBEndpoints(eps),
+		},
+	}
+	rt := p.Do([]*routing.Route{r})
+	endpointRegistry.Do([]*routing.Route{r})
 
-	lbeps := make([]routing.LBEndpoint, len(eps))
-	for i := range len(eps) {
-		lbeps[i] = routing.LBEndpoint{
-			Scheme:  "http",
-			Host:    eps[i],
-			Metrics: endpointRegistry.GetMetrics(eps[i]),
+	// simulate a failing backend: 80% of the round trips to the first
+	// endpoint fail, the other endpoints only see successful round trips
+	failing := rt[0].LBEndpoints[0].Metrics
+	for i := 0; i < 100; i++ {
+		failing.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: i%5 != 0})
+	}
+	for i := 1; i < 3; i++ {
+		for j := 0; j < 100; j++ {
+			rt[0].LBEndpoints[i].Metrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: false})
 		}
 	}
 
-	lbc := &routing.LBContext{
-		Route:       &routing.Route{},
-		LBEndpoints: lbeps,
+	// wait until the registry stats update assigns the reduced weight
+	for i := 0; i < 100 && failing.Weight() == 1.0; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if failing.Weight() == 1.0 {
+		t.Fatal("failing endpoint weight was not updated")
 	}
 
-	b.ResetTimer()
-
-	for n := 0; n < b.N; n++ {
-		alg.Apply(lbc)
+	req, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
+	lbctx := &routing.LBContext{
+		Request:     req,
+		Route:       rt[0],
+		LBEndpoints: rt[0].LBEndpoints,
 	}
+
+	const rounds = 1000
+	h := make(map[string]int)
+	for i := 0; i < rounds; i++ {
+		h[rt[0].LBAlgorithm.Apply(lbctx).Host]++
+	}
+
+	failingCount := h[rt[0].LBEndpoints[0].Host]
+	for i := 1; i < 3; i++ {
+		healthyCount := h[rt[0].LBEndpoints[i].Host]
+		assert.Greater(t, healthyCount, 2*failingCount,
+			"healthy endpoint %d should receive more than twice the traffic of the failing endpoint", i)
+	}
+	assert.Greater(t, failingCount, 0, "failing endpoint must keep receiving some traffic to detect recovery")
 }

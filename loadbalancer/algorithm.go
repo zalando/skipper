@@ -272,6 +272,7 @@ func (p *powerOfRandomNChoices) getScore(e routing.LBEndpoint) int64 {
 
 type weightedRoundRobin struct {
 	mu             sync.Mutex
+	rnd            *rand.Rand
 	currentWeights map[string]float64
 }
 
@@ -280,6 +281,7 @@ type weightedRoundRobin struct {
 // registry within the last stats reset period.
 func newWeightedRoundRobin(endpoints []string) routing.LBAlgorithm {
 	return &weightedRoundRobin{
+		rnd:            rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), // #nosec
 		currentWeights: make(map[string]float64, len(endpoints)),
 	}
 }
@@ -289,8 +291,11 @@ func newWeightedRoundRobin(endpoints []string) routing.LBAlgorithm {
 // Each endpoint accumulates its weight per round and the endpoint with the
 // highest accumulated weight is selected and reduced by the total weight of
 // the round. With equal weights it behaves like the roundrobin algorithm.
+// Iteration starts at a random offset so that ties are not biased towards
+// the first endpoint of the list.
 func (w *weightedRoundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
-	if len(ctx.LBEndpoints) == 1 {
+	ne := len(ctx.LBEndpoints)
+	if ne == 1 {
 		return ctx.LBEndpoints[0]
 	}
 
@@ -300,7 +305,9 @@ func (w *weightedRoundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	total := 0.0
 	best := 0
 	bestWeight := math.Inf(-1)
-	for i := range ctx.LBEndpoints {
+	offset := w.rnd.IntN(ne) // #nosec
+	for k := 0; k < ne; k++ {
+		i := (offset + k) % ne
 		e := &ctx.LBEndpoints[i]
 		weight := e.Metrics.Weight()
 		total += weight
