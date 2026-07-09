@@ -25,3 +25,5 @@ skptesting/lorem.html
 .vscode/*
 *.test
 
+skptesting/okserver
+skptesting/lb-algorithms.eskip
