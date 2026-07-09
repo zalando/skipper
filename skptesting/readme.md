@@ -48,6 +48,19 @@ skptesting/benchmark-compress.sh 12 128 3
 Benchmarks skipper as an HTTP compression proxy with a static file server behind it, running for 12s, over 128
 connections and with a preliminary warmup time of 3s.
 
+## Benchmark Load Balancer Algorithms
+
+```
+skptesting/benchmark-lb-algorithms.sh 1000 2m 128 "roundRobin weightedRoundRobin"
+```
+
+Benchmarks the load balancer algorithms end to end against a large number of local backend processes to
+measure the algorithm overhead and lock contention under sustained load, here 1000 backends, for 2 minutes,
+over 128 connections. The backends are instances of a minimal C HTTP server (okserver.c) that is compiled
+automatically. See the script header for the environment variables that control the ports and the number of
+backend ports served per one process, for systems with a low process limit. Requires a C compiler, and wrk
+or hey (https://github.com/rakyll/hey) as the load generator.
+
 ## Set CPU Frequency Scaling
 
 Set the system CPU scaling governor to best performance:
