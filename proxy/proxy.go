@@ -491,6 +491,7 @@ type Proxy struct {
 	upgradeAuditLogOut       io.Writer
 	upgradeAuditLogErr       io.Writer
 	auditLogHook             chan struct{}
+	upgradeDialTimeout       time.Duration
 	clientTLS                *tls.Config
 	hostname                 string
 	onPanicSometimes         rate.Sometimes
@@ -926,6 +927,7 @@ func WithParams(p Params) *Proxy {
 		flushInterval:            p.FlushInterval,
 		experimentalUpgrade:      p.ExperimentalUpgrade,
 		experimentalUpgradeAudit: p.ExperimentalUpgradeAudit,
+		upgradeDialTimeout:       p.Timeout,
 		maxLoops:                 p.MaxLoopbacks,
 		breakers:                 p.CircuitBreakers,
 		limiters:                 p.RateLimiters,
@@ -1037,6 +1039,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) {
 		auditLogOut:     p.upgradeAuditLogOut,
 		auditLogErr:     p.upgradeAuditLogErr,
 		auditLogHook:    p.auditLogHook,
+		dialTimeout:     p.upgradeDialTimeout,
 	}
 
 	upgradeProxy.serveHTTP(ctx.responseWriter, req)

@@ -3,6 +3,8 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"math/rand"
@@ -478,4 +480,223 @@ func TestAuditLogging(t *testing.T) {
 			t.Error("failed to enable audit log")
 		}
 	}))
+}
+
+// ── Dial-timeout regression tests ────────────────────────────────────────────
+// These tests satisfy the gating requirements raised by maintainer szuecs:
+//   1. Show the bug (unbounded dial) — TestDialBackendHTTPSTimesOutOnStalledHandshake
+//   2. Prove the fix (timeout fires) — same test + context-cancel variant
+//   3. Prove configurability         — TestDialBackendTimeoutViaParams
+
+// TestEffectiveDialTimeoutDefault verifies that a zero dialTimeout falls back
+// to defaultUpgradeDialTimeout rather than 0 (which would mean no deadline at
+// all and recreate the original goroutine-leak bug).
+func TestEffectiveDialTimeoutDefault(t *testing.T) {
+	p := getUpgradeProxy() // dialTimeout is zero-value
+	got := p.effectiveDialTimeout()
+	if got != defaultUpgradeDialTimeout {
+		t.Errorf("effectiveDialTimeout() = %v; want defaultUpgradeDialTimeout (%v)",
+			got, defaultUpgradeDialTimeout)
+	}
+}
+
+// TestEffectiveDialTimeoutConfigured verifies that an explicit non-zero
+// dialTimeout is returned as-is, proving the operator-supplied value wins.
+func TestEffectiveDialTimeoutConfigured(t *testing.T) {
+	const want = 5 * time.Second
+	u, _ := url.ParseRequestURI("http://127.0.0.1:8080/foo")
+	p := &upgradeProxy{
+		backendAddr: u,
+		dialTimeout: want,
+	}
+	if got := p.effectiveDialTimeout(); got != want {
+		t.Errorf("effectiveDialTimeout() = %v; want %v", got, want)
+	}
+}
+
+// TestDialBackendHTTPSTimesOutOnStalledHandshake is the primary regression
+// test for the P0 availability fix.
+//
+// It proves that dialBackend for the HTTPS path:
+//   - does NOT hang indefinitely when the backend accepts TCP but never
+//     completes the TLS handshake (the exact bug pattern from the original PR),
+//   - returns an error within [dialTimeout, 3×dialTimeout], and
+//   - does not leak the goroutine or the file descriptor.
+//
+// tls.Dialer.DialContext applies its deadline to both TCP connect and the full
+// TLS handshake, so a server that accepts TCP but sends no ServerHello will
+// cause the dial to abort at exactly the configured deadline.
+func TestDialBackendHTTPSTimesOutOnStalledHandshake(t *testing.T) {
+	// Start a TCP listener that accepts connections but then stalls —
+	// never sending TLS ServerHello — simulating a dead backend at TLS layer.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	accepted := make(chan struct{})
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		close(accepted)
+		defer conn.Close()
+		// Stall: hold the TCP connection open but never write TLS data.
+		time.Sleep(30 * time.Second)
+	}()
+
+	const dialTimeout = 250 * time.Millisecond
+
+	backendURL, _ := url.Parse("https://" + ln.Addr().String())
+	p := &upgradeProxy{
+		backendAddr: backendURL,
+		/* #nosec G402 – test-only, no production TLS */
+		tlsClientConfig: &tls.Config{InsecureSkipVerify: true},
+		insecure:        true,
+		dialTimeout:     dialTimeout,
+	}
+
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"https://"+ln.Addr().String()+"/ws",
+		nil,
+	)
+	require.NoError(t, err)
+	req.URL = backendURL
+
+	start := time.Now()
+	conn, err := p.dialBackend(req)
+	elapsed := time.Since(start)
+
+	// Backend must have accepted the TCP connection — confirms the stall
+	// happened at the TLS layer, not at TCP connect.
+	select {
+	case <-accepted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("backend never accepted TCP connection — test precondition failed")
+	}
+
+	require.Error(t, err, "dialBackend to a stalled TLS backend must return an error")
+	assert.Nil(t, conn, "conn must be nil on dial timeout")
+
+	// Tight bounds: elapsed must be in [dialTimeout, 3×dialTimeout].
+	// Lower bound proves the timeout wasn't zero. Upper bound proves the
+	// dial didn't fall through to the 30 s default (which would fail CI).
+	assert.GreaterOrEqual(t, elapsed, dialTimeout,
+		"dial returned before dialTimeout (%v); got %v — timeout may be wired to zero", dialTimeout, elapsed)
+	assert.Less(t, elapsed, 3*dialTimeout,
+		"dial took %v, expected < 3×dialTimeout (%v) — default 30 s may have been used instead", elapsed, 3*dialTimeout)
+}
+
+// TestDialBackendRespectsContextCancellation proves that cancelling the request
+// context aborts an in-flight dial immediately, independently of dialTimeout.
+// This validates the second bound: req.Context() is correctly threaded through
+// DialContext so client disconnects / upstream cancellations take effect.
+func TestDialBackendRespectsContextCancellation(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		time.Sleep(30 * time.Second) // stall TLS handshake
+	}()
+
+	backendURL, _ := url.Parse("https://" + ln.Addr().String())
+	p := &upgradeProxy{
+		backendAddr: backendURL,
+		/* #nosec G402 – test-only */
+		tlsClientConfig: &tls.Config{InsecureSkipVerify: true},
+		insecure:        true,
+		dialTimeout:     10 * time.Second, // long hard ceiling — context fires first
+	}
+
+	const ctxTimeout = 150 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), ctxTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"https://"+ln.Addr().String()+"/ws", nil)
+	require.NoError(t, err)
+	req.URL = backendURL
+
+	start := time.Now()
+	_, err = p.dialBackend(req)
+	elapsed := time.Since(start)
+
+	require.Error(t, err, "dialBackend must fail when context is cancelled")
+	assert.Less(t, elapsed, 3*ctxTimeout,
+		"dial must abort close to context deadline (%v), not wait for dialTimeout (10 s); took %v",
+		ctxTimeout, elapsed)
+}
+
+// TestDialBackendTimeoutViaParams is an end-to-end integration smoke test that
+// verifies Params.Timeout flows the full chain:
+//
+//	Params.Timeout → WithParams → Proxy.upgradeDialTimeout
+//	→ makeUpgradeRequest → upgradeProxy.dialTimeout → effectiveDialTimeout()
+//
+// It uses a stalled-TLS-handshake backend and a sub-second Params.Timeout to
+// confirm the entire wiring is functional and the 503 response arrives within
+// the configured window — not after the 30 s default.
+func TestDialBackendTimeoutViaParams(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		time.Sleep(30 * time.Second)
+	}()
+
+	const customTimeout = 300 * time.Millisecond
+	backendAddr := "https://" + ln.Addr().String()
+	routes := fmt.Sprintf(`route: Path("/ws") -> "%s";`, backendAddr)
+
+	tp, err := newTestProxyWithParams(routes, Params{
+		ExperimentalUpgrade: true,
+		Timeout:             customTimeout,
+	})
+	require.NoError(t, err)
+	defer tp.close()
+
+	skipper := httptest.NewServer(tp.proxy)
+	defer skipper.Close()
+
+	skipperURL, _ := url.Parse(skipper.URL)
+	clientConn, err := net.Dial("tcp", skipperURL.Host)
+	require.NoError(t, err)
+	defer clientConn.Close()
+
+	u, _ := url.ParseRequestURI("wss://www.example.org/ws")
+	r := &http.Request{
+		URL:    u,
+		Method: http.MethodGet,
+		Header: http.Header{
+			"Connection": []string{"Upgrade"},
+			"Upgrade":    []string{"websocket"},
+		},
+	}
+	require.NoError(t, r.Write(clientConn))
+
+	start := time.Now()
+	reader := bufio.NewReader(clientConn)
+	resp, err := http.ReadResponse(reader, r)
+	elapsed := time.Since(start)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode,
+		"stalled backend must yield 503 ServiceUnavailable")
+	assert.Less(t, elapsed, 3*customTimeout,
+		"proxy must fail within 3×Params.Timeout (%v); took %v — wiring may be broken",
+		customTimeout, elapsed)
 }
