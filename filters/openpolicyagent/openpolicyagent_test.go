@@ -1156,7 +1156,7 @@ func TestBodyExtraction(t *testing.T) {
 			body:           `{ "welcome": "world" }`,
 			maxBodySize:    5,
 			readBodyBuffer: 5,
-			bodyInPolicy:   ``,
+			bodyInPolicy:   `{ "we`,
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
