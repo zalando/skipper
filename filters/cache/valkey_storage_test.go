@@ -120,6 +120,7 @@ func (m *testMetrics) MeasureAllFiltersRequest(routeId string, start time.Time) 
 func (m *testMetrics) MeasureBackendRequestHeader(host string, size int)                        {}
 func (m *testMetrics) MeasureBackend(routeId string, start time.Time)                           {}
 func (m *testMetrics) MeasureBackendHost(routeBackendHost string, start time.Time)              {}
+func (m *testMetrics) MeasureBackendZone(zone string, start time.Time)                          {}
 func (m *testMetrics) MeasureFilterResponse(filterName string, start time.Time)                 {}
 func (m *testMetrics) MeasureAllFiltersResponse(routeId string, start time.Time)                {}
 func (m *testMetrics) MeasureResponse(code int, method string, routeId string, start time.Time) {}
