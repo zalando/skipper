@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -708,20 +709,40 @@ func TestWeightedRoundRobinFailingBackend(t *testing.T) {
 	rt := p.Do([]*routing.Route{r})
 	endpointRegistry.Do([]*routing.Route{r})
 
-	// simulate a failing backend: 80% of the round trips to the first
-	// endpoint fail, the other endpoints only see successful round trips
 	failing := rt[0].LBEndpoints[0].Metrics
-	for i := 0; i < 100; i++ {
-		failing.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: i%5 != 0})
-	}
-	for i := 1; i < 3; i++ {
-		for j := 0; j < 100; j++ {
-			rt[0].LBEndpoints[i].Metrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: false})
+
+	// Continuously feed the registry so that every stats reset period is
+	// populated: the first endpoint sees 80% failed round trips, the other
+	// endpoints only successful ones. This keeps the reduced weight stable
+	// regardless of when the background stats goroutine fires, avoiding a
+	// dependency on a single stats window.
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			for i := 0; i < 10; i++ {
+				failing.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: i%5 != 0})
+				for j := 1; j < 3; j++ {
+					rt[0].LBEndpoints[j].Metrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: false})
+				}
+			}
+			time.Sleep(time.Millisecond)
 		}
-	}
+	}()
+	defer func() {
+		close(done)
+		wg.Wait()
+	}()
 
 	// wait until the registry stats update assigns the reduced weight
-	for i := 0; i < 100 && failing.Weight() == 1.0; i++ {
+	for i := 0; i < 200 && failing.Weight() == 1.0; i++ {
 		time.Sleep(10 * time.Millisecond)
 	}
 	if failing.Weight() == 1.0 {
