@@ -2337,6 +2337,18 @@ so if requests on average have 100KB and the maximum memory is set to 100MB, on 
 
 The filter also honors the `skip-request-body-parse` of the corresponding [configuration](https://www.openpolicyagent.org/docs/latest/envoy-introduction/#configuration) that the OPA plugin uses.
 
+!!! warning "Oversized bodies appear empty to the policy"
+    When a request body exceeds the configured maximum size, it is not forwarded to the policy — `input.parsed_body` and `input.attributes.request.http.body` will be empty. If your policy uses the presence or content of the body as a condition for an authorization decision, an oversized body will silently evaluate as if no body were sent, which may grant unintended access.
+
+    Use `input.attributes.request.http.truncated_body` to distinguish between a genuinely empty body and one that was truncated:
+
+    ```rego
+    allow if {
+        input.attributes.request.http.truncated_body == false
+        # ... body-based conditions
+    }
+    ```
+
 #### opaServeResponse
 
 Always serves the response even if the policy allows the request and can customize the response completely. Can be used to re-implement legacy authorization services by already using data in Open Policy Agent but implementing an old REST API. This can also be useful to support Single Page Applications to return the calling users' permissions.
@@ -2393,6 +2405,18 @@ $$ n_{max-memory-body-parsing} \over min(avg(n_{request-content-length}), n_{max
 so if requests on average have 100KB and the maximum memory is set to 100MB, on average 1024 authorized requests can be processed concurrently.
 
 The filter also honors the `skip-request-body-parse` of the corresponding [configuration](https://www.openpolicyagent.org/docs/latest/envoy-introduction/#configuration) that the OPA plugin uses.
+
+!!! warning "Oversized bodies appear empty to the policy"
+    When a request body exceeds the configured maximum size, it is not forwarded to the policy — `input.parsed_body` and `input.attributes.request.http.body` will be empty. If your policy uses the presence or content of the body as a condition for an authorization decision, an oversized body will silently evaluate as if no body were sent, which may grant unintended access.
+
+    Use `input.attributes.request.http.truncated_body` to distinguish between a genuinely empty body and one that was truncated:
+
+    ```rego
+    allow if {
+        input.attributes.request.http.truncated_body == false
+        # ... body-based conditions
+    }
+    ```
 
 ### awsSigv4
 
