@@ -18,10 +18,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// defaultUpgradeDialTimeout is the hard ceiling applied by dialBackend when no
-// explicit value is configured via Params.Timeout. It bounds goroutine lifetime
-// even when the caller's context carries no deadline, preventing unbounded
-// goroutine accumulation and file-descriptor exhaustion on stalled backends.
 const defaultUpgradeDialTimeout = 30 * time.Second
 
 // isUpgradeRequest returns true if and only if there is a "Connection"
@@ -45,7 +41,6 @@ func getUpgradeRequest(req *http.Request) string {
 	return ""
 }
 
-// upgradeProxy stores everything needed to make the connection upgrade.
 type upgradeProxy struct {
 	backendAddr     *url.URL
 	reverseProxy    *httputil.ReverseProxy
@@ -55,17 +50,9 @@ type upgradeProxy struct {
 	auditLogOut     io.Writer
 	auditLogErr     io.Writer
 	auditLogHook    chan struct{}
-	// dialTimeout is the maximum duration allowed for dialBackend to establish
-	// a TCP (and TLS for HTTPS) connection to the upgrade backend.
-	// Zero falls back to defaultUpgradeDialTimeout (30 s).
-	// Configure via Params.Timeout, which flows through Proxy.upgradeDialTimeout.
 	dialTimeout time.Duration
 }
 
-// effectiveDialTimeout returns the configured dial timeout, or
-// defaultUpgradeDialTimeout when dialTimeout is zero or negative.
-// This guarantees a finite upper bound even when Params.Timeout was not
-// explicitly set by the caller.
 func (p *upgradeProxy) effectiveDialTimeout() time.Duration {
 	if p.dialTimeout <= 0 {
 		return defaultUpgradeDialTimeout
@@ -208,37 +195,14 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// dialBackend opens a TCP (or TCP+TLS) connection to the upgrade backend.
-//
-// Availability fix: the original net.Dial / tls.Dial calls had no timeout and
-// no context propagation, meaning a stalled or slow backend could keep the
-// goroutine (and its file descriptor) alive indefinitely. Under high
-// concurrency this causes unbounded goroutine accumulation and FD exhaustion.
-//
-// Two complementary bounds are now applied on every dial:
-//
-//  1. effectiveDialTimeout() — a hard ceiling derived from Params.Timeout (or
-//     defaultUpgradeDialTimeout when unset). Fires even when the caller's
-//     context carries no deadline.
-//  2. req.Context() — honours client-side cancellation / request deadlines so
-//     the dial aborts as soon as the upstream request is gone.
-//
-// Whichever fires first wins. The timeout is configurable via Params.Timeout
-// so operators can tune it for their infrastructure (e.g. 5 s for internal
-// services, 60 s for slow external backends).
 func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 	dialAddr := canonicalAddr(req.URL)
 
 	switch p.backendAddr.Scheme {
 	case "http":
-		// DialContext propagates the request context AND the hard ceiling,
-		// replacing the original unbounded net.Dial("tcp", dialAddr) call.
 		return (&net.Dialer{Timeout: p.effectiveDialTimeout()}).DialContext(req.Context(), "tcp", dialAddr)
 
 	case "https":
-		// tls.Dialer wraps a timed net.Dialer so both the TLS handshake and
-		// the underlying TCP connect are subject to effectiveDialTimeout and
-		// the request context, replacing the original unbounded tls.Dial call.
 		tlsDialer := &tls.Dialer{
 			NetDialer: &net.Dialer{Timeout: p.effectiveDialTimeout()},
 			Config:    p.tlsClientConfig,
@@ -254,8 +218,6 @@ func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 				conn.Close()
 				return nil, err
 			}
-			// tls.Dialer.DialContext returns net.Conn; assert to *tls.Conn
-			// for post-handshake hostname verification.
 			if err = conn.(*tls.Conn).VerifyHostname(hostToVerify); err != nil {
 				conn.Close()
 				return nil, err
