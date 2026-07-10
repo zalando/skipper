@@ -508,12 +508,10 @@ func splitHosts(hosts []string, domains []string) ([]string, []string) {
 	externalHosts := []string{}
 
 	for _, host := range hosts {
-		for _, d := range domains {
-			if strings.HasSuffix(host, d) {
-				internalHosts = append(internalHosts, host)
-			} else {
-				externalHosts = append(externalHosts, host)
-			}
+		if isEastWestHost(host, domains) {
+			internalHosts = append(internalHosts, host)
+		} else {
+			externalHosts = append(externalHosts, host)
 		}
 	}
 
