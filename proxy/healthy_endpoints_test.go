@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -343,4 +344,57 @@ func TestPHCMaxUnhealthyEndpointsRatioParam(t *testing.T) {
 		)
 		assert.InDelta(t, 0.0, float64(counters["passive-health-check.requests.passed"]), 0.3*float64(nRequests)) // allow 30% error
 	})
+}
+
+func TestWeightedRoundRobinWithFailingBackend(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	// two healthy backends and one that always exceeds the backend
+	// timeout, so that its round trips fail and the endpoint registry
+	// reduces its weight
+	var healthyBackendRequests [2]atomic.Int64
+	var failingBackendRequests atomic.Int64
+
+	backendURLs := []string{}
+	for i := range healthyBackendRequests {
+		counter := &healthyBackendRequests[i]
+		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			counter.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		backendURLs = append(backendURLs, backend.URL)
+		t.Cleanup(backend.Close)
+	}
+	failingBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		failingBackendRequests.Add(1)
+		time.Sleep(100 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	backendURLs = append(backendURLs, failingBackend.URL)
+	t.Cleanup(failingBackend.Close)
+
+	// the endpoint registry updates the weights from the failed round
+	// trips, while the passive health check filtering stays disabled so
+	// that the observed traffic distribution is the effect of the
+	// weightedRoundRobin algorithm alone
+	proxyParams := Params{
+		EndpointRegistry: defaultEndpointRegistry(),
+		Metrics:          &metricstest.MockMetrics{},
+	}
+	routeDoc := fmt.Sprintf(`* -> backendTimeout("20ms") -> <weightedRoundRobin, "%s">`,
+		strings.Join(backendURLs, `", "`))
+	proxyServer := setupProxyWithCustomProxyParams(t, routeDoc, proxyParams)
+
+	fireVegeta(t, proxyServer, 3000, 1*time.Second, 5*time.Second)
+
+	failingCount := failingBackendRequests.Load()
+	assert.Greater(t, failingCount, int64(0),
+		"failing backend must keep receiving some traffic to detect recovery")
+	for i := range healthyBackendRequests {
+		healthyCount := healthyBackendRequests[i].Load()
+		assert.Greater(t, healthyCount, 2*failingCount,
+			"healthy backend %d should receive more than twice the traffic of the failing backend", i)
+	}
 }

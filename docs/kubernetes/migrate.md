@@ -629,6 +629,7 @@ Available algorithms:
 - `random`
 - `consistentHash`
 - `powerOfRandomNChoices`
+- `weightedRoundRobin`
 
 Your JIT based runtime applications have to ramp up slowly to traffic.
 You can use the [fadeIn](../reference/filters.md#fadein) filter to

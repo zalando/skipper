@@ -352,7 +352,7 @@ type Options struct {
 	KubernetesBackendTrafficAlgorithm kubernetes.BackendTrafficAlgorithm
 
 	// KubernetesDefaultLoadBalancerAlgorithm sets the default algorithm to be used for load balancing between backend endpoints,
-	// available options: roundRobin, consistentHash, random, powerOfRandomNChoices
+	// available options: roundRobin, consistentHash, random, powerOfRandomNChoices, weightedRoundRobin
 	KubernetesDefaultLoadBalancerAlgorithm string
 
 	// File containing static route definitions. Multiple may be given comma separated.

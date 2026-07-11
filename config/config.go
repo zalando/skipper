@@ -584,7 +584,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesValkeyServiceName, "kubernetes-valkey-service-name", "", "Sets name for valkey to be used to lookup endpoints")
 	flag.IntVar(&cfg.KubernetesValkeyServicePort, "kubernetes-valkey-service-port", 6379, "Sets the port for valkey to be used to lookup endpoints")
 	flag.StringVar(&cfg.KubernetesBackendTrafficAlgorithmString, "kubernetes-backend-traffic-algorithm", kubernetes.TrafficPredicateAlgorithm.String(), "sets the algorithm to be used for traffic splitting between backends: traffic-predicate or traffic-segment-predicate")
-	flag.StringVar(&cfg.KubernetesDefaultLoadBalancerAlgorithm, "kubernetes-default-lb-algorithm", kubernetes.DefaultLoadBalancerAlgorithm, "sets the default algorithm to be used for load balancing between backend endpoints, available options: roundRobin, consistentHash, random, powerOfRandomNChoices")
+	flag.StringVar(&cfg.KubernetesDefaultLoadBalancerAlgorithm, "kubernetes-default-lb-algorithm", kubernetes.DefaultLoadBalancerAlgorithm, "sets the default algorithm to be used for load balancing between backend endpoints, available options: roundRobin, consistentHash, random, powerOfRandomNChoices, weightedRoundRobin")
 	flag.BoolVar(&cfg.KubernetesForceService, "kubernetes-force-service", false, "overrides default Skipper functionality and routes traffic using Kubernetes Services instead of Endpoints")
 	flag.StringVar(&cfg.KubernetesStatusFromService, "kubernetes-status-from-service", "", "when set to <namespace>/<name>, updates Ingress status.loadBalancer.ingress from the referenced service")
 

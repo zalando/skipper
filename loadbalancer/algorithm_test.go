@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
@@ -282,6 +283,11 @@ func TestApply(t *testing.T) {
 			expected:      N,
 			algorithm:     newPowerOfRandomNChoices(eps),
 			algorithmName: "powerOfRandomNChoices",
+		}, {
+			name:          "weightedRoundRobin algorithm",
+			expected:      N,
+			algorithm:     newWeightedRoundRobin(eps),
+			algorithmName: "weightedRoundRobin",
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
@@ -571,5 +577,127 @@ func BenchmarkRandomAlgorithm(b *testing.B) {
 
 	for n := 0; n < b.N; n++ {
 		alg.Apply(lbc)
+	}
+}
+
+type fixedWeightMetrics struct {
+	routing.Metrics
+	weight float64
+}
+
+func (m fixedWeightMetrics) Weight() float64 { return m.weight }
+
+func setupWeightedRoundRobinRoute(t *testing.T, registry *routing.EndpointRegistry, endpointAddresses []string) *routing.Route {
+	t.Helper()
+	provider := NewAlgorithmProvider()
+	route := &routing.Route{
+		Route: eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: "weightedRoundRobin",
+			LBEndpoints: eskip.NewLBEndpoints(endpointAddresses),
+		},
+	}
+	processedRoutes := provider.Do([]*routing.Route{route})
+	registry.Do([]*routing.Route{route})
+	require.Len(t, processedRoutes, 1)
+	return processedRoutes[0]
+}
+
+func applyAndCountSelections(t *testing.T, route *routing.Route, rounds int) map[string]int {
+	t.Helper()
+	request, err := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
+	require.NoError(t, err)
+	lbContext := &routing.LBContext{
+		Request:     request,
+		Route:       route,
+		LBEndpoints: route.LBEndpoints,
+	}
+
+	selectionCounts := make(map[string]int)
+	for i := 0; i < rounds; i++ {
+		selectionCounts[route.LBAlgorithm.Apply(lbContext).Host]++
+	}
+	return selectionCounts
+}
+
+func TestWeightedRoundRobinDistribution(t *testing.T) {
+	endpointAddresses := []string{"http://127.0.0.1:1231/foo", "http://127.0.0.1:1232/foo", "http://127.0.0.1:1233/foo"}
+	endpointWeights := []float64{0.2, 0.8, 1.0}
+
+	registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer registry.Close()
+	route := setupWeightedRoundRobinRoute(t, registry, endpointAddresses)
+	for i := range route.LBEndpoints {
+		route.LBEndpoints[i].Metrics = fixedWeightMetrics{Metrics: route.LBEndpoints[i].Metrics, weight: endpointWeights[i]}
+	}
+
+	const rounds = 1000
+	selectionCounts := applyAndCountSelections(t, route, rounds)
+
+	// smooth weighted roundrobin distributes proportionally to the weights
+	totalWeight := 0.0
+	for _, weight := range endpointWeights {
+		totalWeight += weight
+	}
+	for i, weight := range endpointWeights {
+		expectedSelections := rounds * weight / totalWeight
+		assert.InDelta(t, expectedSelections, selectionCounts[route.LBEndpoints[i].Host], 1.0, "endpoint %d", i)
+	}
+}
+
+func TestWeightedRoundRobinEqualWeights(t *testing.T) {
+	const numberOfEndpoints = 5
+	endpointAddresses := make([]string, 0, numberOfEndpoints)
+	for i := 0; i < numberOfEndpoints; i++ {
+		endpointAddresses = append(endpointAddresses, fmt.Sprintf("http://127.0.0.1:123%d/foo", i))
+	}
+
+	registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer registry.Close()
+	route := setupWeightedRoundRobinRoute(t, registry, endpointAddresses)
+
+	// with the default weight of 1.0 every endpoint receives an equal share
+	const rounds = 1000
+	selectionCounts := applyAndCountSelections(t, route, rounds)
+
+	assert.Len(t, selectionCounts, numberOfEndpoints)
+	for host, count := range selectionCounts {
+		assert.Equal(t, rounds/numberOfEndpoints, count, "host %s", host)
+	}
+}
+
+func BenchmarkWeightedRoundRobinAlgorithm(b *testing.B) {
+	for _, numberOfEndpoints := range []int{10, 100, 1000, 10000} {
+		b.Run(fmt.Sprintf("%d_endpoints", numberOfEndpoints), func(b *testing.B) {
+			endpointAddresses := make([]string, numberOfEndpoints)
+			for i := range numberOfEndpoints {
+				endpointAddresses[i] = fmt.Sprintf("10.0.%d.%d:8080", i/256, i%256)
+			}
+
+			registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+			defer registry.Close()
+
+			algorithm := newWeightedRoundRobin(endpointAddresses)
+
+			endpoints := make([]routing.LBEndpoint, len(endpointAddresses))
+			for i := range len(endpointAddresses) {
+				endpoints[i] = routing.LBEndpoint{
+					Scheme:  "http",
+					Host:    endpointAddresses[i],
+					Metrics: registry.GetMetrics(endpointAddresses[i]),
+				}
+			}
+
+			lbContext := &routing.LBContext{
+				Route:       &routing.Route{},
+				LBEndpoints: endpoints,
+			}
+
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				algorithm.Apply(lbContext)
+			}
+		})
 	}
 }

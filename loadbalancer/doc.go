@@ -25,6 +25,16 @@ powerOfRandomNChoices Algorithm
 	and picks the one with least outstanding requests from them.
 	Currently, N is 2.
 
+weightedRoundRobin Algorithm
+
+	The weightedRoundRobin algorithm distributes requests across the
+	backend endpoints proportionally to their dynamic weights using
+	smooth weighted round robin. The weight of an endpoint is the
+	ratio of its successful round trips within the last stats reset
+	period of the endpoint registry and requires the passive health
+	check to be enabled to be updated. With equal weights it behaves
+	like the roundRobin algorithm.
+
 The load balancing algorithms also provide fade-in behavior for LB endpoints of routes where the
 fade-in duration was configured. This feature can be used to gradually add traffic to new instances of
 applications that require a certain amount of warm-up time.
@@ -35,6 +45,7 @@ Eskip example:
 	r2: * -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 	r3: * -> <random, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 	r4: * -> <powerOfRandomNChoices, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+	r5: * -> <weightedRoundRobin, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 
 Package loadbalancer also implements health checking of pool members for
 a group of routes, if backend calls are reported to the loadbalancer.

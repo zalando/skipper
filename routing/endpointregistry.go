@@ -27,6 +27,7 @@ type Metrics interface {
 
 	IncRequests(o IncRequestsOptions)
 	HealthCheckDropProbability() float64
+	Weight() float64
 }
 
 type IncRequestsOptions struct {
@@ -42,6 +43,7 @@ type entry struct {
 	totalFailedRoundTrips      [2]atomic.Int64
 	curSlot                    atomic.Int64
 	healthCheckDropProbability atomic.Value // float64
+	weight                     atomic.Value // float64
 }
 
 var _ Metrics = &entry{}
@@ -86,9 +88,19 @@ func (e *entry) HealthCheckDropProbability() float64 {
 	return e.healthCheckDropProbability.Load().(float64)
 }
 
+// Weight returns the dynamic weight of the endpoint based on the ratio of
+// successful round trips in the last stats reset period. It is 1.0 for
+// endpoints without failures and never goes below the complement of the
+// maximum health check drop probability, so that failing endpoints keep
+// receiving a small share of requests to detect recovery.
+func (e *entry) Weight() float64 {
+	return e.weight.Load().(float64)
+}
+
 func newEntry() *entry {
 	result := &entry{}
 	result.healthCheckDropProbability.Store(0.0)
+	result.weight.Store(1.0)
 	result.SetDetected(time.Time{})
 	result.SetLastSeen(time.Time{})
 	return result
@@ -168,16 +180,19 @@ func (r *EndpointRegistry) updateStats() {
 			e.totalRequests[nextSlot].Store(0)
 
 			newDropProbability := 0.0
+			newWeight := 1.0
 			failed := e.totalFailedRoundTrips[curSlot].Load()
 			requests := e.totalRequests[curSlot].Load()
 			if requests > r.minRequests {
 				failedRoundTripsRatio := float64(failed) / float64(requests)
+				newWeight = max(1.0-failedRoundTripsRatio, 1.0-r.maxHealthCheckDropProbability)
 				if failedRoundTripsRatio > r.minHealthCheckDropProbability {
 					log.Infof("Passive health check: marking %q as unhealthy due to failed round trips ratio: %0.2f", key, failedRoundTripsRatio)
 					newDropProbability = min(failedRoundTripsRatio, r.maxHealthCheckDropProbability)
 				}
 			}
 			e.healthCheckDropProbability.Store(newDropProbability)
+			e.weight.Store(newWeight)
 			e.curSlot.Store(nextSlot)
 
 			return true
