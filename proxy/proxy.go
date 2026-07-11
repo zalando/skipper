@@ -342,6 +342,11 @@ type Params struct {
 	// Timeout sets the TCP client connection timeout for proxy http connections to the backend
 	Timeout time.Duration
 
+	// UpgradeDialTimeout sets the explicit connect-time ceiling for
+	// WebSocket/SPDY upgrade connections to the backend. Zero falls back
+	// to the built-in default; negative disables the ceiling entirely.
+	UpgradeDialTimeout time.Duration
+
 	// ResponseHeaderTimeout sets the HTTP response timeout for
 	// proxy http connections to the backend.
 	ResponseHeaderTimeout time.Duration
@@ -927,7 +932,7 @@ func WithParams(p Params) *Proxy {
 		flushInterval:            p.FlushInterval,
 		experimentalUpgrade:      p.ExperimentalUpgrade,
 		experimentalUpgradeAudit: p.ExperimentalUpgradeAudit,
-		upgradeDialTimeout:       p.Timeout,
+		upgradeDialTimeout:       p.UpgradeDialTimeout,
 		maxLoops:                 p.MaxLoopbacks,
 		breakers:                 p.CircuitBreakers,
 		limiters:                 p.RateLimiters,

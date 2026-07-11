@@ -50,14 +50,24 @@ type upgradeProxy struct {
 	auditLogOut     io.Writer
 	auditLogErr     io.Writer
 	auditLogHook    chan struct{}
-	dialTimeout time.Duration
+	dialTimeout     time.Duration
 }
 
-func (p *upgradeProxy) effectiveDialTimeout() time.Duration {
-	if p.dialTimeout <= 0 {
+// resolvedDialTimeout applies a strict 3-state backward-compatibility
+// contract for the configured dial timeout:
+//   - negative: the ceiling is disabled entirely (0), matching
+//     net.Dialer.Timeout == 0 semantics.
+//   - zero (unset): falls back to defaultUpgradeDialTimeout.
+//   - positive: used as configured.
+func (p *upgradeProxy) resolvedDialTimeout() time.Duration {
+	switch {
+	case p.dialTimeout < 0:
+		return 0
+	case p.dialTimeout == 0:
 		return defaultUpgradeDialTimeout
+	default:
+		return p.dialTimeout
 	}
-	return p.dialTimeout
 }
 
 // TODO: add user here
@@ -200,11 +210,11 @@ func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 
 	switch p.backendAddr.Scheme {
 	case "http":
-		return (&net.Dialer{Timeout: p.effectiveDialTimeout()}).DialContext(req.Context(), "tcp", dialAddr)
+		return (&net.Dialer{Timeout: p.resolvedDialTimeout()}).DialContext(req.Context(), "tcp", dialAddr)
 
 	case "https":
 		tlsDialer := &tls.Dialer{
-			NetDialer: &net.Dialer{Timeout: p.effectiveDialTimeout()},
+			NetDialer: &net.Dialer{Timeout: p.resolvedDialTimeout()},
 			Config:    p.tlsClientConfig,
 		}
 		conn, err := tlsDialer.DialContext(req.Context(), "tcp", dialAddr)

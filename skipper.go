@@ -450,6 +450,11 @@ type Options struct {
 	// proxy http connections to the backend.
 	TimeoutBackend time.Duration
 
+	// UpgradeDialTimeout sets the explicit connect-time ceiling for
+	// WebSocket/SPDY upgrade connections to the backend. Zero falls back
+	// to the built-in default; negative disables the ceiling entirely.
+	UpgradeDialTimeout time.Duration
+
 	// ResponseHeaderTimeout sets the HTTP response timeout for
 	// proxy http connections to the backend.
 	ResponseHeaderTimeoutBackend time.Duration
@@ -2513,6 +2518,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		MaxLoopbacks:                     o.MaxLoopbacks,
 		DefaultHTTPStatus:                o.DefaultHTTPStatus,
 		Timeout:                          o.TimeoutBackend,
+		UpgradeDialTimeout:               o.UpgradeDialTimeout,
 		ResponseHeaderTimeout:            o.ResponseHeaderTimeoutBackend,
 		ExpectContinueTimeout:            o.ExpectContinueTimeoutBackend,
 		KeepAlive:                        o.KeepAliveBackend,

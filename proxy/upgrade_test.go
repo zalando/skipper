@@ -482,24 +482,35 @@ func TestAuditLogging(t *testing.T) {
 	}))
 }
 
-func TestEffectiveDialTimeoutDefault(t *testing.T) {
+func TestResolvedDialTimeoutDefault(t *testing.T) {
 	p := getUpgradeProxy() // dialTimeout is zero-value
-	got := p.effectiveDialTimeout()
+	got := p.resolvedDialTimeout()
 	if got != defaultUpgradeDialTimeout {
-		t.Errorf("effectiveDialTimeout() = %v; want defaultUpgradeDialTimeout (%v)",
+		t.Errorf("resolvedDialTimeout() = %v; want defaultUpgradeDialTimeout (%v)",
 			got, defaultUpgradeDialTimeout)
 	}
 }
 
-func TestEffectiveDialTimeoutConfigured(t *testing.T) {
+func TestResolvedDialTimeoutConfigured(t *testing.T) {
 	const want = 5 * time.Second
 	u, _ := url.ParseRequestURI("http://127.0.0.1:8080/foo")
 	p := &upgradeProxy{
 		backendAddr: u,
 		dialTimeout: want,
 	}
-	if got := p.effectiveDialTimeout(); got != want {
-		t.Errorf("effectiveDialTimeout() = %v; want %v", got, want)
+	if got := p.resolvedDialTimeout(); got != want {
+		t.Errorf("resolvedDialTimeout() = %v; want %v", got, want)
+	}
+}
+
+func TestResolvedDialTimeoutNegativeDisablesTimeout(t *testing.T) {
+	u, _ := url.ParseRequestURI("http://127.0.0.1:8080/foo")
+	p := &upgradeProxy{
+		backendAddr: u,
+		dialTimeout: -1 * time.Second,
+	}
+	if got := p.resolvedDialTimeout(); got != 0 {
+		t.Errorf("resolvedDialTimeout() = %v; want 0 (ceiling disabled)", got)
 	}
 }
 
@@ -507,6 +518,9 @@ func TestDialBackendHTTPSTimesOutOnStalledHandshake(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer ln.Close()
+
+	done := make(chan struct{})
+	t.Cleanup(func() { close(done) })
 
 	accepted := make(chan struct{})
 	go func() {
@@ -516,8 +530,13 @@ func TestDialBackendHTTPSTimesOutOnStalledHandshake(t *testing.T) {
 		}
 		close(accepted)
 		defer conn.Close()
-		// Stall: hold the TCP connection open but never write TLS data.
-		time.Sleep(30 * time.Second)
+		// Stall: hold the TCP connection open but never write TLS data,
+		// bounded by the test's own lifetime via done.
+		select {
+		case <-done:
+			return
+		case <-time.After(30 * time.Second):
+		}
 	}()
 
 	const dialTimeout = 250 * time.Millisecond
@@ -564,13 +583,21 @@ func TestDialBackendRespectsContextCancellation(t *testing.T) {
 	require.NoError(t, err)
 	defer ln.Close()
 
+	done := make(chan struct{})
+	t.Cleanup(func() { close(done) })
+
 	go func() {
 		conn, err := ln.Accept()
 		if err != nil {
 			return
 		}
 		defer conn.Close()
-		time.Sleep(30 * time.Second) // stall TLS handshake
+		// stall TLS handshake, bounded by the test's own lifetime via done.
+		select {
+		case <-done:
+			return
+		case <-time.After(30 * time.Second):
+		}
 	}()
 
 	backendURL, _ := url.Parse("https://" + ln.Addr().String())
@@ -606,13 +633,20 @@ func TestDialBackendTimeoutViaParams(t *testing.T) {
 	require.NoError(t, err)
 	defer ln.Close()
 
+	done := make(chan struct{})
+	t.Cleanup(func() { close(done) })
+
 	go func() {
 		conn, err := ln.Accept()
 		if err != nil {
 			return
 		}
 		defer conn.Close()
-		time.Sleep(30 * time.Second)
+		select {
+		case <-done:
+			return
+		case <-time.After(30 * time.Second):
+		}
 	}()
 
 	const customTimeout = 300 * time.Millisecond
@@ -621,7 +655,7 @@ func TestDialBackendTimeoutViaParams(t *testing.T) {
 
 	tp, err := newTestProxyWithParams(routes, Params{
 		ExperimentalUpgrade: true,
-		Timeout:             customTimeout,
+		UpgradeDialTimeout:  customTimeout,
 	})
 	require.NoError(t, err)
 	defer tp.close()
