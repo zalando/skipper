@@ -3,7 +3,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
-	"context"
+	stdlibcontext "context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -551,7 +551,7 @@ func TestDialBackendHTTPSTimesOutOnStalledHandshake(t *testing.T) {
 	}
 
 	req, err := http.NewRequestWithContext(
-		context.Background(),
+		stdlibcontext.Background(),
 		http.MethodGet,
 		"https://"+ln.Addr().String()+"/ws",
 		nil,
@@ -610,7 +610,7 @@ func TestDialBackendRespectsContextCancellation(t *testing.T) {
 	}
 
 	const ctxTimeout = 150 * time.Millisecond
-	ctx, cancel := context.WithTimeout(context.Background(), ctxTimeout)
+	ctx, cancel := stdlibcontext.WithTimeout(stdlibcontext.Background(), ctxTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
