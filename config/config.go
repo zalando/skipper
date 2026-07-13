@@ -300,6 +300,7 @@ type Config struct {
 	MaxHeaderBytes               int           `yaml:"max-header-bytes"`
 	EnableConnMetricsServer      bool          `yaml:"enable-connection-metrics"`
 	TimeoutBackend               time.Duration `yaml:"timeout-backend"`
+	UpgradeDialTimeout           time.Duration `yaml:"upgrade-dial-timeout"`
 	KeepaliveBackend             time.Duration `yaml:"keepalive-backend"`
 	EnableDualstackBackend       bool          `yaml:"enable-dualstack-backend"`
 	TlsHandshakeTimeoutBackend   time.Duration `yaml:"tls-timeout-backend"`
@@ -689,6 +690,7 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.MaxHeaderBytes, "max-header-bytes", http.DefaultMaxHeaderBytes, "set MaxHeaderBytes for http server connections")
 	flag.BoolVar(&cfg.EnableConnMetricsServer, "enable-connection-metrics", false, "enables connection metrics for http server connections")
 	flag.DurationVar(&cfg.TimeoutBackend, "timeout-backend", 60*time.Second, "sets the TCP client connection timeout for backend connections")
+	flag.DurationVar(&cfg.UpgradeDialTimeout, "upgrade-dial-timeout", 0, "sets the explicit connect-time ceiling for websocket/spdy upgrade backend connections. Zero falls back to the built-in 30s default; negative disables the ceiling entirely")
 	flag.DurationVar(&cfg.KeepaliveBackend, "keepalive-backend", 30*time.Second, "sets the keepalive for backend connections")
 	flag.BoolVar(&cfg.EnableDualstackBackend, "enable-dualstack-backend", true, "enables DualStack for backend connections")
 	flag.DurationVar(&cfg.TlsHandshakeTimeoutBackend, "tls-timeout-backend", 60*time.Second, "sets the TLS handshake timeout for backend connections")
@@ -1139,6 +1141,7 @@ func (c *Config) ToOptions() skipper.Options {
 		MaxHeaderBytes:               c.MaxHeaderBytes,
 		EnableConnMetricsServer:      c.EnableConnMetricsServer,
 		TimeoutBackend:               c.TimeoutBackend,
+		UpgradeDialTimeout:           c.UpgradeDialTimeout,
 		KeepAliveBackend:             c.KeepaliveBackend,
 		DualStackBackend:             c.EnableDualstackBackend,
 		TLSHandshakeTimeoutBackend:   c.TlsHandshakeTimeoutBackend,

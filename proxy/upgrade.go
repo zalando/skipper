@@ -13,9 +13,12 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
+
+const defaultUpgradeDialTimeout = 30 * time.Second
 
 // isUpgradeRequest returns true if and only if there is a "Connection"
 // key with the value "Upgrade" in Headers of the given request.
@@ -38,7 +41,6 @@ func getUpgradeRequest(req *http.Request) string {
 	return ""
 }
 
-// UpgradeProxy stores everything needed to make the connection upgrade.
 type upgradeProxy struct {
 	backendAddr     *url.URL
 	reverseProxy    *httputil.ReverseProxy
@@ -48,6 +50,24 @@ type upgradeProxy struct {
 	auditLogOut     io.Writer
 	auditLogErr     io.Writer
 	auditLogHook    chan struct{}
+	dialTimeout     time.Duration
+}
+
+// resolvedDialTimeout applies a strict 3-state backward-compatibility
+// contract for the configured dial timeout:
+//   - negative: the ceiling is disabled entirely (0), matching
+//     net.Dialer.Timeout == 0 semantics.
+//   - zero (unset): falls back to defaultUpgradeDialTimeout.
+//   - positive: used as configured.
+func (p *upgradeProxy) resolvedDialTimeout() time.Duration {
+	switch {
+	case p.dialTimeout < 0:
+		return 0
+	case p.dialTimeout == 0:
+		return defaultUpgradeDialTimeout
+	default:
+		return p.dialTimeout
+	}
 }
 
 // TODO: add user here
@@ -190,9 +210,14 @@ func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 
 	switch p.backendAddr.Scheme {
 	case "http":
-		return net.Dial("tcp", dialAddr)
+		return (&net.Dialer{Timeout: p.resolvedDialTimeout()}).DialContext(req.Context(), "tcp", dialAddr)
+
 	case "https":
-		tlsConn, err := tls.Dial("tcp", dialAddr, p.tlsClientConfig)
+		tlsDialer := &tls.Dialer{
+			NetDialer: &net.Dialer{Timeout: p.resolvedDialTimeout()},
+			Config:    p.tlsClientConfig,
+		}
+		conn, err := tlsDialer.DialContext(req.Context(), "tcp", dialAddr)
 		if err != nil {
 			return nil, err
 		}
@@ -200,16 +225,17 @@ func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 		if !p.insecure {
 			hostToVerify, _, err := net.SplitHostPort(dialAddr)
 			if err != nil {
+				conn.Close()
 				return nil, err
 			}
-			err = tlsConn.VerifyHostname(hostToVerify)
-			if err != nil {
-				tlsConn.Close()
+			if err = conn.(*tls.Conn).VerifyHostname(hostToVerify); err != nil {
+				conn.Close()
 				return nil, err
 			}
 		}
 
-		return tlsConn, nil
+		return conn, nil
+
 	default:
 		return nil, fmt.Errorf("unknown scheme: %s", p.backendAddr.Scheme)
 	}

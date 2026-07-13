@@ -3,6 +3,8 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	stdlibcontext "context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"math/rand"
@@ -478,4 +480,214 @@ func TestAuditLogging(t *testing.T) {
 			t.Error("failed to enable audit log")
 		}
 	}))
+}
+
+func TestResolvedDialTimeoutDefault(t *testing.T) {
+	p := getUpgradeProxy() // dialTimeout is zero-value
+	got := p.resolvedDialTimeout()
+	if got != defaultUpgradeDialTimeout {
+		t.Errorf("resolvedDialTimeout() = %v; want defaultUpgradeDialTimeout (%v)",
+			got, defaultUpgradeDialTimeout)
+	}
+}
+
+func TestResolvedDialTimeoutConfigured(t *testing.T) {
+	const want = 5 * time.Second
+	u, _ := url.ParseRequestURI("http://127.0.0.1:8080/foo")
+	p := &upgradeProxy{
+		backendAddr: u,
+		dialTimeout: want,
+	}
+	if got := p.resolvedDialTimeout(); got != want {
+		t.Errorf("resolvedDialTimeout() = %v; want %v", got, want)
+	}
+}
+
+func TestResolvedDialTimeoutNegativeDisablesTimeout(t *testing.T) {
+	u, _ := url.ParseRequestURI("http://127.0.0.1:8080/foo")
+	p := &upgradeProxy{
+		backendAddr: u,
+		dialTimeout: -1 * time.Second,
+	}
+	if got := p.resolvedDialTimeout(); got != 0 {
+		t.Errorf("resolvedDialTimeout() = %v; want 0 (ceiling disabled)", got)
+	}
+}
+
+func TestDialBackendHTTPSTimesOutOnStalledHandshake(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	done := make(chan struct{})
+	t.Cleanup(func() { close(done) })
+
+	accepted := make(chan struct{})
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		close(accepted)
+		defer conn.Close()
+		// Stall: hold the TCP connection open but never write TLS data,
+		// bounded by the test's own lifetime via done.
+		select {
+		case <-done:
+			return
+		case <-time.After(30 * time.Second):
+		}
+	}()
+
+	const dialTimeout = 250 * time.Millisecond
+
+	backendURL, _ := url.Parse("https://" + ln.Addr().String())
+	p := &upgradeProxy{
+		backendAddr: backendURL,
+		/* #nosec G402 – test-only, no production TLS */
+		tlsClientConfig: &tls.Config{InsecureSkipVerify: true},
+		insecure:        true,
+		dialTimeout:     dialTimeout,
+	}
+
+	req, err := http.NewRequestWithContext(
+		stdlibcontext.Background(),
+		http.MethodGet,
+		"https://"+ln.Addr().String()+"/ws",
+		nil,
+	)
+	require.NoError(t, err)
+	req.URL = backendURL
+
+	start := time.Now()
+	conn, err := p.dialBackend(req)
+	elapsed := time.Since(start)
+
+	select {
+	case <-accepted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("backend never accepted TCP connection — test precondition failed")
+	}
+
+	require.Error(t, err, "dialBackend to a stalled TLS backend must return an error")
+	assert.Nil(t, conn, "conn must be nil on dial timeout")
+
+	assert.GreaterOrEqual(t, elapsed, dialTimeout,
+		"dial returned before dialTimeout (%v); got %v — timeout may be wired to zero", dialTimeout, elapsed)
+	assert.Less(t, elapsed, 3*dialTimeout,
+		"dial took %v, expected < 3×dialTimeout (%v) — default 30 s may have been used instead", elapsed, 3*dialTimeout)
+}
+
+func TestDialBackendRespectsContextCancellation(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	done := make(chan struct{})
+	t.Cleanup(func() { close(done) })
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		// stall TLS handshake, bounded by the test's own lifetime via done.
+		select {
+		case <-done:
+			return
+		case <-time.After(30 * time.Second):
+		}
+	}()
+
+	backendURL, _ := url.Parse("https://" + ln.Addr().String())
+	p := &upgradeProxy{
+		backendAddr: backendURL,
+		/* #nosec G402 – test-only */
+		tlsClientConfig: &tls.Config{InsecureSkipVerify: true},
+		insecure:        true,
+		dialTimeout:     10 * time.Second, // long hard ceiling — context fires first
+	}
+
+	const ctxTimeout = 150 * time.Millisecond
+	ctx, cancel := stdlibcontext.WithTimeout(stdlibcontext.Background(), ctxTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"https://"+ln.Addr().String()+"/ws", nil)
+	require.NoError(t, err)
+	req.URL = backendURL
+
+	start := time.Now()
+	_, err = p.dialBackend(req)
+	elapsed := time.Since(start)
+
+	require.Error(t, err, "dialBackend must fail when context is cancelled")
+	assert.Less(t, elapsed, 3*ctxTimeout,
+		"dial must abort close to context deadline (%v), not wait for dialTimeout (10 s); took %v",
+		ctxTimeout, elapsed)
+}
+
+func TestDialBackendTimeoutViaParams(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	done := make(chan struct{})
+	t.Cleanup(func() { close(done) })
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		select {
+		case <-done:
+			return
+		case <-time.After(30 * time.Second):
+		}
+	}()
+
+	const customTimeout = 300 * time.Millisecond
+	backendAddr := "https://" + ln.Addr().String()
+	routes := fmt.Sprintf(`route: Path("/ws") -> "%s";`, backendAddr)
+
+	tp, err := newTestProxyWithParams(routes, Params{
+		ExperimentalUpgrade: true,
+		UpgradeDialTimeout:  customTimeout,
+	})
+	require.NoError(t, err)
+	defer tp.close()
+
+	skipper := httptest.NewServer(tp.proxy)
+	defer skipper.Close()
+
+	skipperURL, _ := url.Parse(skipper.URL)
+	clientConn, err := net.Dial("tcp", skipperURL.Host)
+	require.NoError(t, err)
+	defer clientConn.Close()
+
+	u, _ := url.ParseRequestURI("wss://www.example.org/ws")
+	r := &http.Request{
+		URL:    u,
+		Method: http.MethodGet,
+		Header: http.Header{
+			"Connection": []string{"Upgrade"},
+			"Upgrade":    []string{"websocket"},
+		},
+	}
+	require.NoError(t, r.Write(clientConn))
+
+	start := time.Now()
+	reader := bufio.NewReader(clientConn)
+	resp, err := http.ReadResponse(reader, r)
+	elapsed := time.Since(start)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode,
+		"stalled backend must yield 503 ServiceUnavailable")
+	assert.Less(t, elapsed, 3*customTimeout,
+		"proxy must fail within 3×Params.Timeout (%v); took %v — wiring may be broken",
+		customTimeout, elapsed)
 }
