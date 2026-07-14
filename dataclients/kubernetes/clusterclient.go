@@ -571,12 +571,6 @@ func collectReadyEndpoints(endpointSlices *endpointSliceList) map[definitions.Re
 					// we should delete it, because of eventual consistency
 					// it is actually terminating
 					delete(resEps, address)
-				} else if ep.Conditions == nil {
-					// if conditions are nil then we need to treat is as ready
-					resEps[address] = &skipperEndpoint{
-						Address: address,
-						Zone:    ep.Zone,
-					}
 				} else if ep.isReady() {
 					resEps[address] = &skipperEndpoint{
 						Address: address,
