@@ -157,5 +157,5 @@ func (ep *EndpointSliceEndpoints) isReady() bool {
 	}
 	// defaults to ready, see also https://github.com/kubernetes/kubernetes/blob/91aca10d5984313c1c5858979d4946ff9446615f/pkg/proxy/endpointslicecache.go#L137C39-L139
 	// we ignore serving because of https://github.com/zalando/skipper/issues/2684
-	return ep.Conditions.Ready == nil || *ep.Conditions.Ready
+	return ep.Conditions == nil || ep.Conditions.Ready == nil || *ep.Conditions.Ready
 }
