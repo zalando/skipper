@@ -188,6 +188,7 @@ func (ch *consistentHash) boundedLoadSearch(key string, balanceFactor float64, c
 	for i := 0; i < ch.Len(); i++ {
 		endpointIndex := ch.hashRing[ringIndex].index
 		if skipEndpoint(ctx, endpointIndex) {
+			ringIndex = (ringIndex + 1) % ch.Len()
 			continue
 		}
 		load := ctx.Route.LBEndpoints[endpointIndex].Metrics.InflightRequests()
