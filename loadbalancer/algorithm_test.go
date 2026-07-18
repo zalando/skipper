@@ -701,3 +701,81 @@ func BenchmarkWeightedRoundRobinAlgorithm(b *testing.B) {
 		})
 	}
 }
+
+func TestConsistentHashBoundedLoadSearchSkipsFilteredEndpoints(t *testing.T) {
+	endpoints := []string{
+		"http://127.0.0.1:8080",
+		"http://127.0.0.2:8080",
+		"http://127.0.0.3:8080",
+	}
+	request, err := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
+	require.NoError(t, err)
+
+	route := NewAlgorithmProvider().Do([]*routing.Route{{
+		Route: eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: ConsistentHash.String(),
+			LBEndpoints: eskip.NewLBEndpoints(endpoints),
+		},
+	}})[0]
+
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer endpointRegistry.Close()
+	endpointRegistry.Do([]*routing.Route{route})
+
+	ch := route.LBAlgorithm.(*consistentHash)
+
+	var key string
+	var selectedIndex int
+	var skippedIndex int
+
+	for ringIndex, ringEntry := range ch.hashRing {
+		nextIndex := ch.hashRing[(ringIndex+1)%ch.Len()].index
+		if ringEntry.index == nextIndex {
+			continue
+		}
+
+		for vnode := 0; vnode < 100; vnode++ {
+			candidateKey := fmt.Sprintf("%s-%d", endpoints[ringEntry.index], vnode)
+			if hash(candidateKey) == ringEntry.hash {
+				key = candidateKey
+				selectedIndex = ringEntry.index
+				skippedIndex = nextIndex
+				break
+			}
+		}
+
+		if key != "" {
+			break
+		}
+	}
+
+	require.NotEmpty(t, key)
+
+	filteredEndpoints := make([]routing.LBEndpoint, 0, len(route.LBEndpoints)-1)
+
+	for i, endpoint := range route.LBEndpoints {
+		if i != skippedIndex {
+			filteredEndpoints = append(filteredEndpoints, endpoint)
+		}
+	}
+
+	addInflightRequests(endpointRegistry, route.LBEndpoints[selectedIndex], 20)
+
+	ctx := &routing.LBContext{
+		Request:     request,
+		Route:       route,
+		LBEndpoints: filteredEndpoints,
+		Params: map[string]interface{}{
+			ConsistentHashKey:           key,
+			ConsistentHashBalanceFactor: 1.25,
+		},
+	}
+
+	selected := ch.Apply(ctx)
+
+	if selected.Host == route.LBEndpoints[skippedIndex].Host {
+		t.Fatalf("selected filtered endpoint %q", selected.Host)
+	}
+
+}
