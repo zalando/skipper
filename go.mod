@@ -30,8 +30,8 @@ require (
 	github.com/molecule-man/go-brrr v1.0.1
 	github.com/oklog/ulid v1.3.1
 	github.com/open-policy-agent/eopa v1.46.1-0.20260410145035-769c001a4008
-	github.com/open-policy-agent/opa v1.14.1
-	github.com/open-policy-agent/opa-envoy-plugin v1.14.1-envoy
+	github.com/open-policy-agent/opa v1.15.2
+	github.com/open-policy-agent/opa-envoy-plugin v1.15.2-envoy
 	github.com/opentracing/basictracer-go v1.1.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pires/go-proxyproto v0.15.0
