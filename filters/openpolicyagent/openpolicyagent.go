@@ -1255,7 +1255,7 @@ func newBufferedBodyReader(input io.ReadCloser, maxBufferSize int64, readBufferS
 	}
 }
 
-func (m *bufferedBodyReader) fillBuffer(expectedSize int64) ([]byte, error) {
+func (m *bufferedBodyReader) fillBuffer(expectedSize int64) ([]byte, bool, error) {
 	var err error
 
 	for err == nil && int64(m.bodyBuffer.Len()) < m.maxBufferSize && int64(m.bodyBuffer.Len()) < expectedSize {
@@ -1266,10 +1266,15 @@ func (m *bufferedBodyReader) fillBuffer(expectedSize int64) ([]byte, error) {
 	}
 
 	if err == io.EOF {
-		err = nil
+		return m.bodyBuffer.Bytes(), false, nil
 	}
 
-	return m.bodyBuffer.Bytes(), err
+	// Buffer full before EOF: body was truncated.
+	if err == nil && int64(m.bodyBuffer.Len()) >= m.maxBufferSize {
+		return m.bodyBuffer.Bytes(), true, nil
+	}
+
+	return m.bodyBuffer.Bytes(), false, err
 }
 
 func (m *bufferedBodyReader) Read(p []byte) (int, error) {
@@ -1314,7 +1319,7 @@ func bodyUpperBound(contentLength, maxBodyBytes int64) int64 {
 	return maxBodyBytes
 }
 
-func (opa *OpenPolicyAgentInstance) ExtractHttpBodyOptionally(req *http.Request) (io.ReadCloser, []byte, func(), error) {
+func (opa *OpenPolicyAgentInstance) ExtractHttpBodyOptionally(req *http.Request) (io.ReadCloser, []byte, bool, func(), error) {
 	body := req.Body
 
 	// `req.ContentLength == -1` is set by net/http when the client uses
@@ -1333,19 +1338,20 @@ func (opa *OpenPolicyAgentInstance) ExtractHttpBodyOptionally(req *http.Request)
 
 		requestedBodyBytes := bodyUpperBound(expectedSize, opa.maxBodyBytes)
 		if !opa.registry.maxMemoryBodyParsingSem.TryAcquire(requestedBodyBytes) {
-			return req.Body, nil, func() {}, ErrTotalBodyBytesExceeded
+			return req.Body, nil, false, func() {}, ErrTotalBodyBytesExceeded
 		}
 
-		rawBody, err := wrapper.fillBuffer(expectedSize)
+		rawBody, truncated, err := wrapper.fillBuffer(expectedSize)
 		// Truncate to maxBodyBytes so OPA sees exactly how much was read vs. the full Content-Length.
 		// fillBuffer may overshoot maxBodyBytes by up to readBufferSize-1 bytes on the last chunk read.
 		if int64(len(rawBody)) > opa.maxBodyBytes {
 			rawBody = rawBody[:opa.maxBodyBytes]
+			truncated = true
 		}
-		return wrapper, rawBody, func() { opa.registry.maxMemoryBodyParsingSem.Release(requestedBodyBytes) }, err
+		return wrapper, rawBody, truncated, func() { opa.registry.maxMemoryBodyParsingSem.Release(requestedBodyBytes) }, err
 	}
 
-	return req.Body, nil, func() {}, nil
+	return req.Body, nil, false, func() {}, nil
 }
 
 type evalContext struct {

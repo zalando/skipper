@@ -171,3 +171,105 @@ allow if {
 	}
 
 }
+
+func TestTruncatedBodyChunkedBypass(t *testing.T) {
+	const maxBody = 32
+	payload := "a=" + strings.Repeat("A", 64) // 66 bytes > 32
+
+	bundleName := "test-bundle-bypass"
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/"+bundleName, map[string]string{
+			"main.rego": `
+package envoy.authz
+
+import rego.v1
+
+default allow := false
+
+allow if {
+    input.truncated_body == false
+}
+`,
+		}),
+	)
+	defer opaControlPlane.Stop()
+
+	config := fmt.Appendf(nil, `{
+		"services": {"test": {"url": %q}},
+		"bundles": {"test": {"resource": "/bundles/{{ .bundlename }}"}},
+		"labels": {"environment": "test"},
+		"plugins": {"envoy_ext_authz_grpc": {"path": "envoy/authz/allow", "dry-run": false}}
+	}`, opaControlPlane.URL())
+
+	opaRegistry, err := openpolicyagent.NewOpenPolicyAgentRegistry(
+		openpolicyagent.WithPreloadingEnabled(true),
+		openpolicyagent.WithEnableDataPreProcessingOptimization(true),
+		openpolicyagent.WithInstanceStartupTimeout(5*time.Second),
+		openpolicyagent.WithMaxRequestBodyBytes(maxBody),
+		openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate(config)),
+	)
+	if err != nil {
+		t.Fatalf("opaRegistry: %v", err)
+	}
+	defer opaRegistry.Close()
+
+	fr := make(filters.Registry)
+	fr.Register(opaauthorizerequest.NewOpaAuthorizeRequestWithBodySpec(opaRegistry))
+
+	r := eskip.MustParse(fmt.Sprintf(`r1: * -> opaAuthorizeRequestWithBody("%s") -> "%s";`, bundleName, "http://127.0.0.1:0"))
+	dc := testdataclient.New(r)
+	defer dc.Close()
+
+	rt := routing.New(routing.Options{
+		FilterRegistry:  fr,
+		DataClients:     []routing.DataClient{dc},
+		PreProcessors:   []routing.PreProcessor{opaRegistry.NewPreProcessor()},
+		PostProcessors:  []routing.PostProcessor{opaRegistry},
+		PollTimeout:     time.Second,
+		SignalFirstLoad: true,
+	})
+	defer rt.Close()
+	<-rt.FirstLoad()
+
+	pr := proxy.WithParams(proxy.Params{Routing: rt})
+	defer pr.Close()
+	ts := httptest.NewServer(pr)
+	defer ts.Close()
+
+	for _, tt := range []struct {
+		name       string
+		chunked    bool
+		wantStatus int
+	}{
+		{
+			name:       "oversized body with Content-Length denied",
+			wantStatus: 403,
+		},
+		{
+			name:       "oversized chunked body denied",
+			chunked:    true,
+			wantStatus: 403,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest("POST", ts.URL, strings.NewReader(payload))
+			if err != nil {
+				t.Fatalf("new request: %v", err)
+			}
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if tt.chunked {
+				req.ContentLength = -1
+				req.TransferEncoding = []string{"chunked"}
+			}
+
+			rsp, err := ts.Client().Do(req)
+			if err != nil {
+				t.Fatalf("do: %v", err)
+			}
+
+			if rsp.StatusCode != tt.wantStatus {
+				t.Fatalf("[%s] status = %d, want %d", tt.name, rsp.StatusCode, tt.wantStatus)
+			}
+		})
+	}
+}

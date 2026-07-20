@@ -1179,7 +1179,7 @@ func TestBodyExtraction(t *testing.T) {
 				Body:          io.NopCloser(bytes.NewReader([]byte(ti.body))),
 			}
 
-			body, peekBody, finalizer, err := inst.ExtractHttpBodyOptionally(&req)
+			body, peekBody, _, finalizer, err := inst.ExtractHttpBodyOptionally(&req)
 			defer finalizer()
 			assert.NoError(t, err)
 			defer body.Close()
@@ -1210,7 +1210,7 @@ func TestBodyExtractionExhaustingTotalBytes(t *testing.T) {
 		Body:          io.NopCloser(bytes.NewReader([]byte(`{ "welcome": "world" }`))),
 	}
 
-	_, _, f1, err := inst.ExtractHttpBodyOptionally(&req1)
+	_, _, _, f1, err := inst.ExtractHttpBodyOptionally(&req1)
 	assert.NoError(t, err)
 
 	req2 := http.Request{
@@ -1218,7 +1218,7 @@ func TestBodyExtractionExhaustingTotalBytes(t *testing.T) {
 		Body:          io.NopCloser(bytes.NewReader([]byte(`{ "welcome": "world" }`))),
 	}
 
-	_, _, f2, err := inst.ExtractHttpBodyOptionally(&req2)
+	_, _, _, f2, err := inst.ExtractHttpBodyOptionally(&req2)
 	if assert.Error(t, err) {
 		assert.Equal(t, ErrTotalBodyBytesExceeded, err)
 	}
@@ -1231,7 +1231,7 @@ func TestBodyExtractionExhaustingTotalBytes(t *testing.T) {
 		Body:          io.NopCloser(bytes.NewReader([]byte(`{ "welcome": "world" }`))),
 	}
 
-	_, _, f3, err := inst.ExtractHttpBodyOptionally(&req3)
+	_, _, _, f3, err := inst.ExtractHttpBodyOptionally(&req3)
 	f3()
 	assert.NoError(t, err)
 }
@@ -1253,7 +1253,7 @@ func TestBodyExtractionEmptyBody(t *testing.T) {
 		Body:          nil,
 	}
 
-	body, bodybytes, f1, err := inst.ExtractHttpBodyOptionally(&req1)
+	body, bodybytes, _, f1, err := inst.ExtractHttpBodyOptionally(&req1)
 	assert.NoError(t, err)
 	assert.Nil(t, body)
 	assert.Nil(t, bodybytes)
@@ -1278,7 +1278,7 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 		Body:          io.NopCloser(bytes.NewReader([]byte(`{ "welcome": "world" }`))),
 	}
 
-	_, _, f1, err := inst.ExtractHttpBodyOptionally(&req1)
+	_, _, _, f1, err := inst.ExtractHttpBodyOptionally(&req1)
 	assert.NoError(t, err)
 
 	req2 := http.Request{
@@ -1286,7 +1286,7 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 		Body:          io.NopCloser(bytes.NewReader([]byte(`{ }`))),
 	}
 
-	_, _, f2, err := inst.ExtractHttpBodyOptionally(&req2)
+	_, _, _, f2, err := inst.ExtractHttpBodyOptionally(&req2)
 	if assert.Error(t, err) {
 		assert.Equal(t, ErrTotalBodyBytesExceeded, err)
 	}

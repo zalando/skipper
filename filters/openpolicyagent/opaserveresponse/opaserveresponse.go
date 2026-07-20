@@ -109,11 +109,12 @@ func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 	}
 
 	var rawBodyBytes []byte
+	var bodyTruncated bool
 	if f.bodyParsing {
 		var body io.ReadCloser
 		var err error
 		var finalizer func()
-		body, rawBodyBytes, finalizer, err = f.opa.ExtractHttpBodyOptionally(req)
+		body, rawBodyBytes, bodyTruncated, finalizer, err = f.opa.ExtractHttpBodyOptionally(req)
 		defer finalizer()
 		if err != nil {
 			f.opa.ServeInvalidDecisionError(fc, span, nil, err)
@@ -122,7 +123,7 @@ func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 		req.Body = body
 	}
 
-	authzreq, err := envoy.AdaptToExtAuthRequest(req, f.opa.InstanceConfig().GetEnvoyMetadata(), f.envoyContextExtensions, rawBodyBytes)
+	authzreq, err := envoy.AdaptToExtAuthRequest(req, f.opa.InstanceConfig().GetEnvoyMetadata(), f.envoyContextExtensions, rawBodyBytes, bodyTruncated)
 	if err != nil {
 		f.opa.HandleEvaluationError(fc, span, nil, err, !f.opa.EnvoyPluginConfig().DryRun, http.StatusBadRequest)
 		return
