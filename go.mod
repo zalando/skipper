@@ -23,7 +23,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/memberlist v0.6.0
-	github.com/instana/go-sensor v1.73.4
+	github.com/instana/go-sensor v1.73.5
 	github.com/klauspost/compress v1.19.0
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.72

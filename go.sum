@@ -372,8 +372,8 @@ github.com/influxdata/go-syslog/v3 v3.0.0 h1:jichmjSZlYK0VMmlz+k4WeOQd7z745YLsvG
 github.com/influxdata/go-syslog/v3 v3.0.0/go.mod h1:tulsOp+CecTAYC27u9miMgq21GqXRW6VdKbOG+QSP4Q=
 github.com/influxdata/tdigest v0.0.1 h1:XpFptwYmnEKUqmkcDjrzffswZ3nvNeevbUSLPP/ZzIY=
 github.com/influxdata/tdigest v0.0.1/go.mod h1:Z0kXnxzbTC2qrx4NaIzYkE1k66+6oEDQTvL95hQFh5Y=
-github.com/instana/go-sensor v1.73.4 h1:CPm6DRA7VBsHULJI/7VMJPtmHATEAPJU1JfD8v+PT/I=
-github.com/instana/go-sensor v1.73.4/go.mod h1:wWLB5TQn5zd+XxZPLkaScMzRr74ymtptaDTPhrueDyM=
+github.com/instana/go-sensor v1.73.5 h1:6J1pbzDheEqKkHXJuLgVZGBSWT8uhDcLwPSaJMois94=
+github.com/instana/go-sensor v1.73.5/go.mod h1:wWLB5TQn5zd+XxZPLkaScMzRr74ymtptaDTPhrueDyM=
 github.com/itchyny/gojq v0.12.18 h1:gFGHyt/MLbG9n6dqnvlliiya2TaMMh6FFaR2b1H6Drc=
 github.com/itchyny/gojq v0.12.18/go.mod h1:4hPoZ/3lN9fDL1D+aK7DY1f39XZpY9+1Xpjz8atrEkg=
 github.com/itchyny/timefmt-go v0.1.7 h1:xyftit9Tbw+Dc/huSSPJaEmX1TVL8lw5vxjJLK4GMMA=
