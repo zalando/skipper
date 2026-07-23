@@ -544,6 +544,64 @@ When queried, it will return metrics like:
 }
 ```
 
+### Data client metrics
+
+Skipper continuously loads and updates its routing table from one or more
+data clients (for example the Kubernetes data client or inline routes). The
+time spent loading routes from each data client is reported as timers, so you
+can monitor how long the initial full load and the subsequent incremental
+updates take. These metrics are always enabled.
+
+The following timers are reported per data client:
+
+- `routes.load_all.<client>`: time spent on the initial, full load of all
+  routes (`LoadAll`).
+- `routes.load_update.<client>`: time spent on each incremental update that
+  polls for changed and deleted routes (`LoadUpdate`).
+
+The `<client>` part is the name of the data client, for example `kubernetes`
+for the Kubernetes data client or `inline` for inline routes. Data clients
+that do not provide a name are reported as `unknown`.
+
+When queried, it will return metrics like:
+
+```json
+"timers": {
+  "skipper.routes.load_all.kubernetes": {
+    "15m.rate": 0.0,
+    "1m.rate": 0.0,
+    "5m.rate": 0.0,
+    "75%": 12345678,
+    "95%": 12345678,
+    "99%": 12345678,
+    "99.9%": 12345678,
+    "count": 1,
+    "max": 12345678,
+    "mean": 12345678,
+    "mean.rate": 0.0033,
+    "median": 12345678,
+    "min": 12345678,
+    "stddev": 0.0
+  },
+  "skipper.routes.load_update.kubernetes": {
+    "15m.rate": 0.0497,
+    "1m.rate": 0.0166,
+    "5m.rate": 0.0392,
+    "75%": 2345678,
+    "95%": 3456789,
+    "99%": 3456789,
+    "99.9%": 3456789,
+    "count": 42,
+    "max": 3456789,
+    "mean": 1987654,
+    "mean.rate": 0.0331,
+    "median": 1876543,
+    "min": 987654,
+    "stddev": 654321
+  }
+}
+```
+
 ### Application metrics
 
 Application metrics for your proxied applications you can enable with the option:
