@@ -1,0 +1,40 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: checkout
+  labels:
+    application: checkout
+spec:
+  hosts:
+  - checkout.example.org
+  backends:
+  - name: checkout
+    type: service
+    serviceName: checkout
+    servicePort: 8080
+  defaultBackends:
+  - backendName: checkout
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: checkout
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    application: checkout
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: checkout
+subsets:
+- addresses:
+  - ip: 10.2.9.103
+  ports:
+  - port: 8080
+    protocol: TCP

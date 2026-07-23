@@ -372,7 +372,7 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 				ctx.logger.Errorf("Failed to retrieve default filters: %v", err)
 			}
 		}
-
+		prependApplicationAnnotation(rg.Metadata.Labels, ri)
 		storeHostRoute(ctx, ri)
 		routes = append(routes, ri)
 		routes = appendEastWest(ctx, routes, ri)
@@ -481,6 +481,7 @@ nextRoute:
 				}
 
 				backendTraffic[bref.BackendName].apply(r)
+				prependApplicationAnnotation(rg.Metadata.Labels, r)
 				storeHostRoute(ctx, r)
 				routes = append(routes, r)
 				routes = appendEastWest(ctx, routes, r)

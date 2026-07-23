@@ -1,0 +1,5 @@
+kube_default__checkout__checkout_example_org_____checkout:
+	Host("^(checkout[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/")
+	-> annotate("Application", "checkout")
+	-> "http://10.2.9.103:8080";
+

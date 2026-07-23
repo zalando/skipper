@@ -1,0 +1,5 @@
+kube_rg__default__checkout__all__0_0:
+	Host("^(checkout[.]example[.]org[.]?(:[0-9]+)?)$")
+	-> annotate("Application", "checkout")
+	-> "http://10.2.9.103:8080";
+
