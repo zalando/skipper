@@ -14,7 +14,9 @@ import (
 )
 
 type RedisHandler struct {
-	AddrUpdater func() ([]byte, error)
+	AddrUpdater      func(namespace, name string) ([]byte, error)
+	DefaultNamespace string
+	DefaultName      string
 }
 
 type RedisEndpoint struct {
@@ -30,8 +32,25 @@ func (rh *RedisHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+
+	ns := r.PathValue("namespace")
+	name := r.PathValue("name")
+
+	// fall back to operator-configured defaults (backwards-compatible path)
+	if ns == "" {
+		ns = rh.DefaultNamespace
+	}
+	if name == "" {
+		name = rh.DefaultName
+	}
+
+	if ns == "" || name == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	w.Header().Add("Content-Type", "application/json")
-	address, err := rh.AddrUpdater()
+	address, err := rh.AddrUpdater(ns, name)
 	if err != nil {
 		log.Errorf("Failed to update address for redis handler %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -40,10 +59,10 @@ func (rh *RedisHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(address)
 }
 
-func getRedisAddresses(opts *skipper.Options, kdc *kubernetes.Client, m metrics.Metrics) func() ([]byte, error) {
-	return func() ([]byte, error) {
-		a := kdc.GetEndpointAddresses("", opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
-		log.Debugf("Redis updater called and found %d redis endpoints: %v", len(a), a)
+func getRedisAddresses(opts *skipper.Options, kdc *kubernetes.Client, m metrics.Metrics) func(namespace, name string) ([]byte, error) {
+	return func(namespace, name string) ([]byte, error) {
+		a := kdc.GetEndpointAddresses("", namespace, name)
+		log.Debugf("Redis updater called for %s/%s and found %d redis endpoints: %v", namespace, name, len(a), a)
 		m.UpdateGauge("redis_endpoints", float64(len(a)))
 
 		result := RedisEndpoints{
