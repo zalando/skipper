@@ -76,6 +76,7 @@ func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
 			warmed.TTL = min(s.l1TTL, remaining)
 			warmed.CreatedAt = time.Now()
 			_ = s.l1.Set(ctx, key, &warmed)
+			s.metrics.IncCounter("l1_warm_from_valkey")
 		}
 	}
 	return &e, nil
