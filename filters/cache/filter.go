@@ -128,7 +128,7 @@ func NewCacheFilter(opts Options) filters.Spec {
 	// Start shared background goroutines (one worker + one scraper for all filter instances)
 	spec.bgWg.Add(2)
 	go spec.revalidationWorker()
-	go spec.lruBytesScraper()
+	go spec.metricsScraper()
 
 	return spec
 }
@@ -238,6 +238,7 @@ func (s *cacheSpec) revalidationWorker() {
 	defer s.bgWg.Done()
 	for job := range s.revalJobs {
 		if job.filter != nil {
+			s.metrics.MeasureSince("reval_wait_duration", job.enqueuedAt)
 			start := time.Now()
 			job.filter.doRevalidate(job.key, job.req, job.body)
 			s.metrics.MeasureSince("reval_duration", start)
@@ -248,10 +249,10 @@ func (s *cacheSpec) revalidationWorker() {
 
 const lruBytesScrapeInterval = 10 * time.Second
 
-// lruBytesScraper periodically updates the lru_bytes gauge so it stays current
+// metricsScraper periodically updates the lru_bytes gauge so it stays current
 // even when no evictions occur. It's spec-level and shared across all filter instances.
 // It exits when lruBytesDone is closed (via cacheSpec.Close).
-func (s *cacheSpec) lruBytesScraper() {
+func (s *cacheSpec) metricsScraper() {
 	defer s.bgWg.Done()
 	ticker := time.NewTicker(lruBytesScrapeInterval)
 	defer ticker.Stop()
@@ -259,6 +260,7 @@ func (s *cacheSpec) lruBytesScraper() {
 		select {
 		case <-ticker.C:
 			s.metrics.UpdateGauge("lru_bytes", float64(s.lruStorage.lru.Bytes()))
+			s.metrics.UpdateGauge("reval_queue_depth", float64(len(s.revalJobs)))
 		case <-s.lruBytesDone:
 			return
 		}
@@ -266,10 +268,11 @@ func (s *cacheSpec) lruBytesScraper() {
 }
 
 type revalJob struct {
-	key    string
-	req    *http.Request // cloned via Request.Clone; Body is nil for GET/HEAD
-	body   []byte        // non-nil for QUERY: snapshot of the request body for revalidation
-	filter *cacheFilter  // instance whose doRevalidate to call
+	key        string
+	req        *http.Request // cloned via Request.Clone; Body is nil for GET/HEAD
+	body       []byte        // non-nil for QUERY: snapshot of the request body for revalidation
+	filter     *cacheFilter  // instance whose doRevalidate to call
+	enqueuedAt time.Time     // wall-clock time the job entered the queue; used to measure wait time
 }
 
 type cacheFilter struct {
@@ -746,10 +749,11 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 		orig.Body = io.NopCloser(bytes.NewReader(bodySnapshot))
 	}
 	job := revalJob{
-		key:    key,
-		req:    cloned,
-		body:   bodySnapshot,
-		filter: f,
+		key:        key,
+		req:        cloned,
+		body:       bodySnapshot,
+		filter:     f,
+		enqueuedAt: time.Now(),
 	}
 	// recover guards against a send on a closed channel during the shutdown window
 	// between cacheSpec.Close() closing revalJobs and this goroutine observing it.
