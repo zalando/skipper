@@ -542,11 +542,13 @@ func (t *Transport) CloseIdleConnections() {
 // traces are added as logs into the created span.
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	var span opentracing.Span
+	var roundTripStart time.Time
 	if t.spanName != "" {
 		req, span = t.injectSpan(req)
 		defer span.Finish()
 		if t.clientTraceByTag {
-			ctx := context.WithValue(req.Context(), clientTraceTime, time.Now())
+			roundTripStart = time.Now()
+			ctx := context.WithValue(req.Context(), clientTraceTime, roundTripStart)
 			req = injectClientTraceByTag(ctx, req, span)
 		} else {
 			req = injectClientTraceByEvent(req, span)
@@ -564,7 +566,11 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		t.afterResponse(rsp, err)
 	}
 	if span != nil {
-		span.LogKV("http_do", "stop")
+		if t.clientTraceByTag {
+			span.SetTag("http_do", time.Since(roundTripStart).Microseconds())
+		} else {
+			span.LogKV("http_do", "stop")
+		}
 		if rsp != nil {
 			ext.HTTPStatusCode.Set(span, uint16(rsp.StatusCode))
 		}

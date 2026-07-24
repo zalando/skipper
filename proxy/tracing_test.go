@@ -701,6 +701,44 @@ func spanLogs(span *tracingtest.MockSpan) string {
 	return strings.Join(logs, ", ")
 }
 
+func TestLogFilterEventsByTag(t *testing.T) {
+	tracer := tracingtest.NewTracer()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer:           tracer,
+		LogFilterEvents:  true,
+		ClientTraceByTag: true,
+	})
+
+	ctx := &context{request: &http.Request{}}
+
+	ft := tracing.startFilterTracing("request_filters", ctx)
+	for _, f := range []string{"f1", "f2"} {
+		ft.logStart(f)
+		ft.logEnd(f)
+	}
+	ft.finish()
+
+	spans := tracer.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+
+	if len(span.Logs()) != 0 {
+		t.Errorf("expected no log events when clientTraceByTag is enabled, got: %d", len(span.Logs()))
+	}
+
+	tags := span.Tags()
+	for _, key := range []string{"f1" + FilterStartTagSuffix, "f1" + FilterEndTagSuffix, "f2" + FilterStartTagSuffix, "f2" + FilterEndTagSuffix} {
+		ts, ok := tags[key]
+		if !ok {
+			t.Errorf("expected tag %q to be set", key)
+			continue
+		}
+		if v, ok := ts.(int64); !ok || v <= 0 {
+			t.Errorf("expected tag %q to hold a positive timestamp, got: %v", key, ts)
+		}
+	}
+}
+
 func TestEnabledLogStreamEvents(t *testing.T) {
 	tracer := tracingtest.NewTracer()
 	tracing := newProxyTracing(&OpenTracingParams{
@@ -804,6 +842,58 @@ func TestLogEventWithEmptySpan(t *testing.T) {
 	// should not panic
 	tracing.logEvent(nil, "test", StartEvent)
 	tracing.logEvent(nil, "test", EndEvent)
+}
+
+func TestLogErrorByTag(t *testing.T) {
+	tracer := tracingtest.NewTracer()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer:           tracer,
+		ClientTraceByTag: true,
+	})
+	span := tracer.StartSpan("test")
+
+	tracing.logError(span, BackendErrorTag, "backend down")
+	span.Finish()
+
+	mockSpan := span.(*tracingtest.MockSpan)
+
+	if got := mockSpan.Tags()[BackendErrorTag]; got != "backend down" {
+		t.Errorf("expected error message as tag %q, got: %v", BackendErrorTag, got)
+	}
+	if len(mockSpan.Logs()) != 0 {
+		t.Errorf("expected no log events when clientTraceByTag is enabled, got: %d", len(mockSpan.Logs()))
+	}
+}
+
+func TestLogErrorByEvent(t *testing.T) {
+	tracer := tracingtest.NewTracer()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer: tracer,
+	})
+	span := tracer.StartSpan("test")
+
+	tracing.logError(span, BackendErrorTag, "backend down")
+	span.Finish()
+
+	mockSpan := span.(*tracingtest.MockSpan)
+
+	if _, ok := mockSpan.Tags()[BackendErrorTag]; ok {
+		t.Errorf("expected no error tag when clientTraceByTag is disabled")
+	}
+	if len(mockSpan.Logs()) != 1 {
+		t.Fatalf("expected one error log event, got: %d", len(mockSpan.Logs()))
+	}
+}
+
+func TestLogErrorWithEmptySpan(t *testing.T) {
+	tracer := tracingtest.NewTracer()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer:           tracer,
+		ClientTraceByTag: true,
+	})
+
+	// should not panic
+	tracing.logError(nil, BackendErrorTag, "backend down")
 }
 
 func TestSetTagWithEmptySpan(t *testing.T) {
