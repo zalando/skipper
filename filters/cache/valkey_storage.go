@@ -60,6 +60,8 @@ func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
 		}
 		s.metrics.IncCounter("valkey_get_fallback")
 		log.WithError(err).Warn("cache: valkey Get failed, falling back to L1")
+		// Second L1 lookup: a concurrent request may have written to L1 via the
+		// valkey_set_fallback path between our miss above and this Valkey error.
 		return s.l1.Get(ctx, key)
 	}
 	var e Entry
