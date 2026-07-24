@@ -1879,3 +1879,43 @@ will be changed to
 ```
 r: SourceFromLast("9.0.0.0/24","2001:67c:20a0::/48") -> ...`
 ```
+
+## Cache
+
+By default entries are stored in an in-process LRU (L1) local to each Skipper process.
+When `--swarm-valkey-urls` is configured, Valkey serves as a shared backing
+store (L2) accessible by all Skipper instances via a client-side consistent hash ring. Every
+read checks L1 first; an L1 hit returns without contacting Valkey.
+
+On every successful Valkey write the entry is also written to L1
+(write-through) with a TTL of `min(--cache-l1-ttl, entry.TTL)`. The default is
+60 seconds, bounding how long Skipper serves a locally-cached entry before
+re-consulting Valkey. Set `--cache-l1-ttl=0` to disable L1 warming and
+restore write-around behaviour (L1 used only when Valkey is unavailable; this
+applies to both read errors (`valkey_get_fallback`) and write errors (`valkey_set_fallback`)).
+
+Explicit deletes (unsafe methods or operator-initiated invalidation) always
+remove the L1 entry unconditionally, regardless of `--cache-l1-ttl`.
+
+!!! note
+    An in-process LRU (L1) is shared across all `cache()` filter instances in the same process.
+    The L1 storage budget is divided evenly across 256 internal shards; a single entry larger
+    than one shard's budget is dropped with a warning log.
+
+### Metrics
+
+- `lru_eviction`: Counter, incremented each time an L1 entry is evicted due to memory pressure
+- `lru_bytes`: Gauge, current L1 usage in bytes
+- `lru_oversized`: Counter, incremented when an entry is too large for any shard and silently dropped
+- `reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
+- `reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
+- `reval_dropped`: Counter, revalidation jobs dropped because the queue was full
+- `reval_error`: Counter, background revalidation fetch failures
+- `reval_duration`: Histogram, end-to-end duration of each background revalidation job
+
+When Valkey is configured:
+
+- `l1_hit`: Counter, L1 hits that bypassed Valkey
+- `valkey_miss`: Counter, Valkey misses that proceeded to an upstream fetch
+- `valkey_get_fallback`, `valkey_set_fallback`: Counters, reads/writes that fell back to L1 due to Valkey errors
+- `l1_warm_from_valkey`: Counter, entries written into L1 after a successful Valkey Get (write-through on read path)

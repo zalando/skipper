@@ -3952,18 +3952,6 @@ matching the same key. It has no awareness of other filters in the chain.
   response before enabling force mode on any authenticated route.
 
 !!! note
-    The LRU store is shared across all `cache()` filter instances. The storage
-    budget is divided evenly across 256 internal shards; a single entry larger
-    than one shard's budget is dropped with a warning log.
-
-!!! note
-    Three metrics track LRU behaviour: `lru_eviction` (counter, incremented each
-    time an entry is evicted due to memory pressure), `lru_bytes` (gauge,
-    updated on every eviction to reflect current storage usage in bytes), and
-    `lru_oversized` (counter, incremented when an entry is too large to fit in
-    any shard and is silently dropped).
-
-!!! note
     `s-maxage` implies `proxy-revalidate` per [RFC 9111 §5.2.2.10](https://www.rfc-editor.org/rfc/rfc9111#section-5.2.2.10): stale entries
     stored under `s-maxage` are never served without revalidation, regardless of
     the SWR window.

@@ -28,11 +28,11 @@ type clusterLimitValkey struct {
 }
 
 const (
-	valkeyMetricsPrefix                    = "swarm.valkey."
-	valkeyAllowMetricsFormat               = valkeyMetricsPrefix + "query.allow.%s"
-	valkeyRetryAfterMetricsFormat          = valkeyMetricsPrefix + "query.retryafter.%s"
-	valkeyAllowMetricsFormatWithGroup      = valkeyMetricsPrefix + "query.allow.%s.%s"
-	valkeyRetryAfterMetricsFormatWithGroup = valkeyMetricsPrefix + "query.retryafter.%s.%s"
+	ValkeyMetricsPrefix                    = "swarm.valkey."
+	valkeyAllowMetricsFormat               = ValkeyMetricsPrefix + "query.allow.%s"
+	valkeyRetryAfterMetricsFormat          = ValkeyMetricsPrefix + "query.retryafter.%s"
+	valkeyAllowMetricsFormatWithGroup      = ValkeyMetricsPrefix + "query.allow.%s.%s"
+	valkeyRetryAfterMetricsFormatWithGroup = ValkeyMetricsPrefix + "query.retryafter.%s.%s"
 
 	valkeyAllowSpanName       = "valkey_allow"
 	valkeyOldestScoreSpanName = "valkey_oldest_score"
@@ -111,7 +111,7 @@ func (c *clusterLimitValkey) commonTags() opentracing.Tags {
 //
 // Uses provided context for creating an OpenTracing span.
 func (c *clusterLimitValkey) Allow(ctx context.Context, clearText string) bool {
-	c.metrics.IncCounter(valkeyMetricsPrefix + "total")
+	c.metrics.IncCounter(ValkeyMetricsPrefix + "total")
 	now := time.Now()
 
 	var span opentracing.Span
@@ -135,9 +135,9 @@ func (c *clusterLimitValkey) Allow(ctx context.Context, clearText string) bool {
 	c.measureQuery(valkeyAllowMetricsFormat, valkeyAllowMetricsFormatWithGroup, &failed, now)
 
 	if allow {
-		c.metrics.IncCounter(valkeyMetricsPrefix + "allows")
+		c.metrics.IncCounter(ValkeyMetricsPrefix + "allows")
 	} else {
-		c.metrics.IncCounter(valkeyMetricsPrefix + "forbids") // TODO(sszuecs) forbids or better deny?
+		c.metrics.IncCounter(ValkeyMetricsPrefix + "forbids") // TODO(sszuecs) forbids or better deny?
 	}
 	return allow
 }

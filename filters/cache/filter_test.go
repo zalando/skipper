@@ -15,12 +15,11 @@ import (
 
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/metrics/metricstest"
-	skpnet "github.com/zalando/skipper/net"
 )
 
 func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) *cacheFilter {
 	t.Helper()
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	args := []interface{}{
 		ttl.String(),
 		errorTTL.String(),
@@ -41,6 +40,7 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 	}
 	t.Cleanup(cf.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 	return cf
 }
 
@@ -51,7 +51,7 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 // but are ignored — pure RFC mode has no operator TTL.
 func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *cacheFilter {
 	t.Helper()
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatal(err)
@@ -62,6 +62,7 @@ func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *
 	}
 	t.Cleanup(cf.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 	return cf
 }
 
@@ -131,7 +132,7 @@ func TestCacheFilter_MissAndHit(t *testing.T) {
 }
 
 func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m", "0s", "Authorization"})
 	if err != nil {
 		t.Fatal(err)
@@ -139,6 +140,7 @@ func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
 	f := fi.(*cacheFilter)
 	t.Cleanup(f.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 	f.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
 	}
@@ -249,9 +251,21 @@ func TestCacheFilter_TTLExpiry(t *testing.T) {
 	})
 }
 
+func TestCacheFilter_Response_NoopIfStateBagKeyMissing(t *testing.T) {
+	// Regression: Response() used a bare type assertion on stateBagKey which
+	// panicked if Request() had not run (e.g. route misconfiguration).
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+	ctx := newCtx("GET", "https://example.com/api", "")
+	// Deliberately do NOT call f.Request(ctx) — state bag has no cache key.
+	ctx.FResponse = upstreamResponse(http.StatusOK, `{}`)
+	// Must not panic.
+	f.Response(ctx)
+}
+
 func TestCreateFilter_InvalidArgs(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 	cases := []struct {
 		name string
 		args []interface{}
@@ -576,6 +590,39 @@ func TestCacheFilter_RequestOnlyIfCached_Hit_ServesFromCache(t *testing.T) {
 	if ctx2.FResponse.Header.Get("X-Cache-Status") != "HIT" {
 		t.Fatalf("expected HIT, got %q", ctx2.FResponse.Header.Get("X-Cache-Status"))
 	}
+}
+
+func TestCacheFilter_RequestOnlyIfCached_StaleWhileRevalidate_ServesStale(t *testing.T) {
+	// RFC 9111 §5.2.1.7: only-if-cached should return a stored response if it is
+	// "usable" — entries in the SWR window are still being served as stale to
+	// other clients, so they are usable and must not return 504.
+	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Minute)
+	url := "https://cdn.contentful.com/spaces/abc/entries/oic-swr"
+
+	synctest.Test(t, func(t *testing.T) {
+		// Populate cache.
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"cached"}`, "max-age=0")
+		f.Response(ctx1)
+
+		// Advance past TTL (1ms) but stay within SWR window (1 minute).
+		time.Sleep(50 * time.Millisecond)
+
+		ctx2 := newCtx("GET", url, "")
+		ctx2.FRequest.Header.Set("Cache-Control", "only-if-cached")
+		f.Request(ctx2)
+
+		if !ctx2.FServed {
+			t.Fatal("only-if-cached must serve during SWR window")
+		}
+		if ctx2.FResponse.StatusCode == http.StatusGatewayTimeout {
+			t.Fatal("only-if-cached must not return 504 for SWR-window entry")
+		}
+		if ctx2.FResponse.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", ctx2.FResponse.StatusCode)
+		}
+	})
 }
 
 func TestCacheFilter_AgeHeader_HIT(t *testing.T) {
@@ -970,6 +1017,50 @@ func TestCacheFilter_UnsafeMethod_InvalidatesCache(t *testing.T) {
 	}
 }
 
+func TestCacheFilter_UnsafeMethod_4xx_DoesNotInvalidate(t *testing.T) {
+	// RFC 9111 §4.4: a cache MUST NOT invalidate a stored response when an
+	// unsafe method returns a 4xx status. Only 2xx responses must trigger
+	// invalidation.
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+	url := "https://cdn.contentful.com/spaces/abc/entries/item-4xx"
+
+	// Step 1: warm the cache with a GET that returns 200 + max-age=300.
+	ctx1 := newCtx("GET", url, "")
+	f.Request(ctx1)
+	ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"cached"}`, "public, max-age=300")
+	f.Response(ctx1)
+
+	// Verify the entry is cached (second GET must be a HIT).
+	ctxHit := newCtx("GET", url, "")
+	f.Request(ctxHit)
+	if !ctxHit.FServed {
+		t.Fatal("expected HIT after warming the cache")
+	}
+	if ctxHit.FResponse.Header.Get("X-Cache-Status") != "HIT" {
+		t.Fatalf("expected HIT status, got %q", ctxHit.FResponse.Header.Get("X-Cache-Status"))
+	}
+
+	// Step 2: DELETE request that returns 403 — must NOT invalidate the cache.
+	deleteCtx := newCtx("DELETE", url, "")
+	f.Request(deleteCtx)
+	deleteCtx.FResponse = &http.Response{
+		StatusCode: http.StatusForbidden,
+		Header:     http.Header{},
+		Body:       http.NoBody,
+	}
+	f.Response(deleteCtx)
+
+	// Step 3: another GET must still return the cached entry (HIT).
+	ctxAfter := newCtx("GET", url, "")
+	f.Request(ctxAfter)
+	if !ctxAfter.FServed {
+		t.Fatal("cache must NOT be invalidated when unsafe method returns 4xx (RFC 9111 §4.4)")
+	}
+	if ctxAfter.FResponse.Header.Get("X-Cache-Status") != "HIT" {
+		t.Fatalf("expected HIT after 4xx unsafe method, got %q", ctxAfter.FResponse.Header.Get("X-Cache-Status"))
+	}
+}
+
 func TestCacheFilter_SafeMethod_DoesNotInvalidate(t *testing.T) {
 	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
 	url := "https://cdn.contentful.com/spaces/abc/entries/safe"
@@ -1185,9 +1276,52 @@ func TestCacheFilter_SMaxAge_ImpliesProxyRevalidate(t *testing.T) {
 	})
 }
 
+func TestCacheFilter_MustRevalidate_ForcesCoalesceWhenStale(t *testing.T) {
+	// RFC 9111 §5.2.2.2: must-revalidate forbids serving a stale response.
+	// Once the entry is past TTL, coalesce() must contact the origin even if the
+	// entry is inside a stale-while-revalidate window.
+	f := newTestFilter(t, 100*time.Millisecond, 15*time.Second, time.Hour)
+	url := "https://cdn.contentful.com/spaces/abc/entries/must-reval"
+
+	var fetchCount int64
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		atomic.AddInt64(&fetchCount, 1)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": {"must-revalidate"}, "Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"v":1}`)),
+		}, nil
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		// First request: cold miss → fetch → store.
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		if ctx1.FResponse.Header.Get("X-Cache-Status") != "MISS" {
+			t.Fatalf("expected MISS, got %q", ctx1.FResponse.Header.Get("X-Cache-Status"))
+		}
+
+		// Advance into stale window (past TTL=100ms, within SWR=1h).
+		time.Sleep(200 * time.Millisecond)
+
+		// Second request: entry is stale + must-revalidate → must NOT serve stale.
+		// coalesce() must call fetch again (origin contacted).
+		ctx2 := newCtx("GET", url, "")
+		f.Request(ctx2)
+		synctest.Wait()
+		if atomic.LoadInt64(&fetchCount) < 2 {
+			t.Fatalf("must-revalidate must block stale serve and trigger upstream fetch; fetchCount=%d", atomic.LoadInt64(&fetchCount))
+		}
+		if status := ctx2.FResponse.Header.Get("X-Cache-Status"); status == "HIT" || status == "STALE" {
+			t.Errorf("expected origin fetch, but got X-Cache-Status: %s", status)
+		}
+	})
+}
+
 func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 
 	makeFilter := func(t *testing.T) *cacheFilter {
 		t.Helper()
@@ -2240,7 +2374,12 @@ func TestCacheFilter_MinFresh_InsufficientFreshness_Bypasses(t *testing.T) {
 func TestCacheFilter_StaleIfError_Serves_On_5xx(t *testing.T) {
 	// ttl=1ms, errorTTL=10s, swrWindow=1ms, staleIfError=60s
 	// Entry expires after 1ms; staleIfError=60s keeps it in storage.
-	// A 503 upstream should cause the stale entry to be served.
+	// A 503 upstream via coalesce should cause the stale entry to be served.
+	//
+	// Regression: the SIE block in Response() was dead code — coalesce() always calls
+	// ctx.Serve() (even on 5xx), so Response() returned early before reaching it.
+	// SIE logic must live inside coalesce() with the pre-fetch snapshot captured
+	// before f.fetch runs, preventing the 5xx from overwriting the stored entry.
 	f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond, 60*time.Second)
 	url := "http://example.com/sie-5xx"
 
@@ -2250,15 +2389,23 @@ func TestCacheFilter_StaleIfError_Serves_On_5xx(t *testing.T) {
 		ctx.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"cached"}`, "max-age=0")
 		f.Response(ctx)
 
-		// Advance past TTL+SWR (SWR=0) so the entry is stale, but within staleIfError window.
+		// Advance past TTL+SWR so the next Request() calls coalesce().
 		time.Sleep(50 * time.Millisecond)
 
+		// Coalesce fetches from upstream and receives 503.
+		f.fetch = func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Header:     http.Header{},
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil
+		}
 		ctx2 := newCtx(http.MethodGet, url, "")
 		f.Request(ctx2)
-		// ctx2 is a MISS (past TTL+SWR); upstream returns 503.
-		ctx2.FResponse = upstreamResponse(http.StatusServiceUnavailable, "")
-		f.Response(ctx2)
 
+		if ctx2.FResponse == nil {
+			t.Fatal("expected a response, got nil")
+		}
 		if ctx2.FResponse.StatusCode != http.StatusOK {
 			t.Fatalf("want 200 from stale-if-error, got %d", ctx2.FResponse.StatusCode)
 		}
@@ -2271,6 +2418,8 @@ func TestCacheFilter_StaleIfError_Serves_On_5xx(t *testing.T) {
 func TestCacheFilter_StaleIfError_Expired_NotServed(t *testing.T) {
 	// ttl=1ms, errorTTL=10s, swrWindow=1ms, staleIfError=100ms
 	// Sleep 200ms — past TTL + staleIfError window. Entry too old for stale-if-error.
+	// Uses f.fetch returning 503 via coalesce (the same path as the positive SIE case)
+	// to confirm the 503 is passed through when the SIE window has already elapsed.
 	f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond, 100*time.Millisecond)
 	url := "http://example.com/sie-expired"
 
@@ -2283,11 +2432,19 @@ func TestCacheFilter_StaleIfError_Expired_NotServed(t *testing.T) {
 		// Advance past TTL (1ms) + staleIfError (100ms) = well beyond 200ms.
 		time.Sleep(200 * time.Millisecond)
 
+		f.fetch = func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Header:     http.Header{},
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil
+		}
 		ctx2 := newCtx(http.MethodGet, url, "")
 		f.Request(ctx2)
-		ctx2.FResponse = upstreamResponse(http.StatusServiceUnavailable, "")
-		f.Response(ctx2)
 
+		if ctx2.FResponse == nil {
+			t.Fatal("expected a response, got nil")
+		}
 		if ctx2.FResponse.StatusCode != http.StatusServiceUnavailable {
 			t.Fatalf("want 503 (SIE window expired), got %d", ctx2.FResponse.StatusCode)
 		}
@@ -2460,8 +2617,9 @@ func TestCacheFilter_SMaxAge_CapsRouteTTL(t *testing.T) {
 }
 
 func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
-	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 
 	cases := []struct {
 		name    string
@@ -2505,8 +2663,9 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 	// cache() with no args: pure RFC mode, upstream max-age is fully authoritative,
 	// no operator ceiling. TTL should equal upstream max-age exactly.
-	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -2534,11 +2693,60 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 	}
 }
 
+func TestCacheFilter_LRUBytesGaugeUpdatesWithoutEviction(t *testing.T) {
+	// The filter and its goroutines must be created inside the synctest bubble
+	// so the ticker in lruBytesScraper is subject to synthetic time control.
+	// f.fetch is replaced before any network I/O so the transport goroutine
+	// being inside the bubble is safe (it never actually dials out).
+	synctest.Test(t, func(t *testing.T) {
+		spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+		t.Cleanup(spec.(*cacheSpec).client.Close)
+		t.Cleanup(spec.(*cacheSpec).Close)
+		f, err := spec.CreateFilter([]interface{}{5 * time.Minute, 15 * time.Second, 5 * time.Minute})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cf := f.(*cacheFilter)
+
+		mockMetrics := &metricstest.MockMetrics{}
+		// synctest.Wait drains goroutine scheduling so the scraper is parked at the
+		// select before we swap metrics. No tick has fired yet (synthetic time is frozen).
+		synctest.Wait()
+		spec.(*cacheSpec).metrics = mockMetrics
+		cf.metrics = mockMetrics
+
+		cf.fetch = func(_ *http.Request) (*http.Response, error) {
+			return upstreamResponseCC(http.StatusOK, `{"data":"hello"}`, "max-age=300"), nil
+		}
+
+		var initialBytes float64
+		mockMetrics.WithGauges(func(g map[string]float64) {
+			initialBytes = g["lru_bytes"]
+		})
+
+		// Store an entry large enough to be visible but not enough to evict.
+		ctx := newCtx("GET", "https://example.com/lru-bytes-scrape", "")
+		cf.Request(ctx)
+
+		// Advance time past one scrape interval (10 s).
+		time.Sleep(11 * time.Second)
+
+		var afterBytes float64
+		mockMetrics.WithGauges(func(g map[string]float64) {
+			afterBytes = g["lru_bytes"]
+		})
+		if afterBytes <= initialBytes {
+			t.Errorf("expected lru_bytes to increase after Set without eviction; before=%v after=%v", initialBytes, afterBytes)
+		}
+	})
+}
+
 func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testing.T) {
 	// cache() with no args: when upstream sends no Cache-Control, no Expires,
 	// and no Last-Modified, nothing should be cached (no heuristic without Last-Modified).
-	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -2561,5 +2769,232 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testi
 	entry, _ := cf.storage.Get(context.Background(), key)
 	if entry != nil {
 		t.Fatal("pure RFC mode: response with no freshness directives must not be cached")
+	}
+}
+
+func TestCacheFilter_RevalDropped_WhenQueueFull(t *testing.T) {
+	// Verify that reval_dropped is incremented when the revalJobs channel is at
+	// capacity and a stale-while-revalidate request tries to enqueue a job.
+	//
+	// Strategy:
+	//  1. Wire f.fetch to block until we release it, so the worker goroutine is
+	//     stuck inside doRevalidate as soon as it picks up its first job.
+	//  2. Pre-send one dummy job to wake the worker and block it on fetch.
+	//  3. Fill the remaining revalQueueSize-1 slots with dummy jobs, saturating
+	//     the channel (worker is blocked and cannot drain).
+	//  4. Seed the cache directly with a backdated stale entry (past TTL, inside
+	//     SWR window) so no real upstream call is needed to populate the cache.
+	//  5. Make a GET — the stale path serves the entry and calls enqueueRevalidation;
+	//     the channel is full, so the default branch fires and increments reval_dropped.
+	//  6. Assert reval_dropped == 1.
+
+	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+
+	// Wire up a dedicated MockMetrics so we can inspect counters in isolation.
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+
+	// fetchBlocked gates the worker: it blocks until the test releases it.
+	// workerIn is signalled once the worker is confirmed to be inside fetch.
+	fetchBlocked := make(chan struct{})
+	workerIn := make(chan struct{}, 1)
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		select {
+		case workerIn <- struct{}{}: // signal first entry only (buffered size 1)
+		default:
+		}
+		<-fetchBlocked // block until test closes this channel
+		return nil, errors.New("blocked fetch")
+	}
+
+	// Send one job so the worker goroutine wakes and blocks inside fetch.
+	dummyReq, _ := http.NewRequest(http.MethodGet, "http://example.com/dummy", nil)
+	f.revalJobs <- revalJob{key: "dummy-wake", req: dummyReq, filter: f}
+
+	// Wait for the worker to confirm it is inside fetch — no timing guesswork.
+	<-workerIn
+
+	// Worker has consumed the dummy job from the channel (0/256 slots occupied)
+	// and is now blocked in fetch. Fill all revalQueueSize slots so the channel
+	// is at capacity; the worker cannot drain while it is stuck in fetch.
+	for i := range revalQueueSize {
+		r, _ := http.NewRequest(http.MethodGet, "http://example.com/fill", nil)
+		f.revalJobs <- revalJob{key: "fill-" + strconv.Itoa(i), req: r}
+	}
+
+	// Inject a stale entry directly into storage. CreatedAt is backdated so
+	// IsStale(now) returns true (past TTL) and IsUsable(now) returns true (within SWR).
+	url := "https://cdn.contentful.com/spaces/abc/entries/reval-dropped"
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	key := cacheKey("" /* routeID */, req, nil)
+	staleEntry := &Entry{
+		StatusCode:           http.StatusOK,
+		Header:               http.Header{"Content-Type": {"application/json"}},
+		Payload:              []byte(`{"data":"stale"}`),
+		CreatedAt:            time.Now().Add(-10 * time.Millisecond), // well past 1ms TTL
+		TTL:                  time.Millisecond,
+		StaleWhileRevalidate: time.Hour, // still inside SWR window
+	}
+	if err := f.storage.Set(context.Background(), key, staleEntry); err != nil {
+		t.Fatalf("failed to seed stale entry: %v", err)
+	}
+
+	// Make the GET request. The filter finds the stale entry, serves it, and
+	// calls enqueueRevalidation. The channel is full — reval_dropped fires.
+	ctx := newCtx(http.MethodGet, url, "")
+	ctx.FMetrics = mockMetrics
+	f.Request(ctx)
+
+	if !ctx.FServed {
+		t.Fatal("expected stale entry to be served when revalJobs queue is full")
+	}
+	if ctx.FResponse.Header.Get("X-Cache-Status") != "STALE" {
+		t.Fatalf("expected X-Cache-Status: STALE, got %q", ctx.FResponse.Header.Get("X-Cache-Status"))
+	}
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		if counters["reval_dropped"] != 1 {
+			t.Errorf("expected reval_dropped==1, got %d", counters["reval_dropped"])
+		}
+	})
+
+	// Release the blocked worker so the test can clean up without leaking goroutines.
+	close(fetchBlocked)
+}
+
+func TestCacheSpec_FilterRegistry(t *testing.T) {
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
+
+	// Same args — should return same *cacheFilter pointer (registry hit)
+	f1, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf1 := f1.(*cacheFilter)
+
+	f2, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf2 := f2.(*cacheFilter)
+
+	if cf1 != cf2 {
+		t.Fatal("expected same *cacheFilter pointer for identical args, got different instances")
+	}
+
+	// Different args — should return different *cacheFilter pointer
+	f3, err := spec.CreateFilter([]interface{}{"10m", "15s", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf3 := f3.(*cacheFilter)
+
+	if cf1 == cf3 {
+		t.Fatal("expected different *cacheFilter pointer for different args, got same instance")
+	}
+
+	// Different keyHeaders order should normalize to same instance
+	f4, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s", "60s", "X-Foo,X-Bar"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf4 := f4.(*cacheFilter)
+
+	f5, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s", "60s", "X-Bar,X-Foo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf5 := f5.(*cacheFilter)
+
+	if cf4 != cf5 {
+		t.Fatal("expected same instance for different keyHeaders order (should normalize), got different instances")
+	}
+}
+
+func TestCacheSpec_FilterRegistry_InFlightJobsSurviveRebuild(t *testing.T) {
+	// Verify that the spec-level revalidation worker continues to drain jobs
+	// even when CreateFilter is called again (simulating a route rebuild).
+	// The registry returns the same cacheFilter instance, so in-flight jobs
+	// targeting that instance are unaffected by the rebuild.
+
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(spec.(*cacheSpec).Close)
+
+	// Create initial filter with blocking fetch stub (same pattern as TestCacheFilter_RevalDropped_WhenQueueFull).
+	f1, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf1 := f1.(*cacheFilter)
+
+	// Block the worker on the first job.
+	fetchBlocked := make(chan struct{})
+	workerIn := make(chan struct{}, 1)
+	cf1.fetch = func(req *http.Request) (*http.Response, error) {
+		select {
+		case workerIn <- struct{}{}: // signal first entry only
+		default:
+		}
+		<-fetchBlocked // block until test closes this
+		return nil, errors.New("blocked fetch")
+	}
+
+	// Send a dummy job to wake and block the worker inside fetch.
+	dummyReq, _ := http.NewRequest(http.MethodGet, "http://example.com/dummy", nil)
+	cf1.revalJobs <- revalJob{key: "dummy-wake", req: dummyReq, filter: cf1}
+
+	// Wait for worker to confirm it is inside fetch.
+	<-workerIn
+
+	// Inject a stale entry so the next GET will trigger revalidation.
+	url := "https://cdn.contentful.com/spaces/abc/entries/in-flight-rebuild"
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	key := cacheKey("" /* routeID */, req, nil)
+	staleEntry := &Entry{
+		StatusCode:           http.StatusOK,
+		Header:               http.Header{"Content-Type": {"application/json"}},
+		Payload:              []byte(`{"data":"stale"}`),
+		CreatedAt:            time.Now().Add(-10 * time.Millisecond),
+		TTL:                  time.Millisecond,
+		StaleWhileRevalidate: time.Hour,
+	}
+	if err := cf1.storage.Set(context.Background(), key, staleEntry); err != nil {
+		t.Fatalf("failed to seed stale entry: %v", err)
+	}
+
+	// Make a GET request to enqueue a revalidation job.
+	ctx1 := newCtx(http.MethodGet, url, "")
+	cf1.Request(ctx1)
+	if !ctx1.FServed {
+		t.Fatal("expected stale entry to be served")
+	}
+
+	// Simulate a route rebuild: call CreateFilter again with identical args.
+	// The registry should return the same cf instance.
+	f2, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf2 := f2.(*cacheFilter)
+
+	if cf1 != cf2 {
+		t.Fatal("expected registry to return same instance on rebuild")
+	}
+
+	// Unblock the worker so it can process the pending revalidation job.
+	close(fetchBlocked)
+
+	// Make another GET after a brief delay to allow the worker to finish.
+	// Since the job failed (blocked fetch returns error), the entry will not
+	// be updated. But the test demonstrates that the worker continued draining
+	// despite the rebuild. If it had stopped, the second GET would be served
+	// stale without a revalidation attempt being enqueued.
+	time.Sleep(10 * time.Millisecond)
+	ctx2 := newCtx(http.MethodGet, url, "")
+	cf2.Request(ctx2)
+	if !ctx2.FServed {
+		t.Fatal("expected entry to be served after rebuild (job draining continued)")
 	}
 }

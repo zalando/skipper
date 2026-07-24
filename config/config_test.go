@@ -167,6 +167,7 @@ func defaultConfig(with func(*Config)) *Config {
 		SwarmValkeyDialTimeout:                  25 * time.Millisecond,
 		SwarmValkeyKeepAlive:                    time.Second,
 		SwarmValkeyUpdateInterval:               10 * time.Second,
+		CacheL1TTL:                              60 * time.Second,
 		SwarmKubernetesNamespace:                "kube-system",
 		SwarmKubernetesLabelSelectorKey:         "application",
 		SwarmKubernetesLabelSelectorValue:       "skipper-ingress",

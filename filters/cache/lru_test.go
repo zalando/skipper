@@ -3,9 +3,12 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/metrics"
 )
 
 func makeEntry(payload string, ttl time.Duration) *Entry {
@@ -19,7 +22,7 @@ func makeEntry(payload string, ttl time.Duration) *Entry {
 }
 
 func TestLRUStorage_HitAndMiss(t *testing.T) {
-	s := NewLRUStorage(1<<20, nil) // 1 MB
+	s := NewLRUStorage(1<<20, nil, metrics.Default)
 	ctx := context.Background()
 
 	got, err := s.Get(ctx, "missing")
@@ -48,7 +51,7 @@ func TestLRUStorage_HitAndMiss(t *testing.T) {
 }
 
 func TestLRUStorage_HardExpiry(t *testing.T) {
-	s := NewLRUStorage(1<<20, nil)
+	s := NewLRUStorage(1<<20, nil, metrics.Default)
 	ctx := context.Background()
 
 	entry := makeEntry("stale", time.Millisecond)
@@ -75,7 +78,7 @@ func TestLRUStorage_HardExpiry(t *testing.T) {
 }
 
 func TestLRUStorage_Delete(t *testing.T) {
-	s := NewLRUStorage(1<<20, nil)
+	s := NewLRUStorage(1<<20, nil, metrics.Default)
 	ctx := context.Background()
 
 	if err := s.Set(ctx, "del", makeEntry("x", time.Minute)); err != nil {
@@ -94,7 +97,7 @@ func TestLRUStorage_Delete(t *testing.T) {
 func TestLRUStorage_InPlaceUpdate(t *testing.T) {
 	sample, _ := json.Marshal(makeEntry("v1", time.Minute))
 	entrySize := int64(len(sample)) + 20
-	s := NewLRUStorage(entrySize*shardCount, nil)
+	s := NewLRUStorage(entrySize*shardCount, nil, metrics.Default)
 	ctx := context.Background()
 
 	// Overwrite an existing key — Get must return the new payload.
@@ -115,7 +118,7 @@ func TestLRUStorage_InPlaceUpdate(t *testing.T) {
 }
 
 func TestLRUStorage_ImmutabilityAfterSet(t *testing.T) {
-	s := NewLRUStorage(1<<20, nil)
+	s := NewLRUStorage(1<<20, nil, metrics.Default)
 	ctx := context.Background()
 
 	entry := makeEntry("original", time.Minute)
@@ -132,6 +135,73 @@ func TestLRUStorage_ImmutabilityAfterSet(t *testing.T) {
 	}
 	if string(got.Payload) != "original" {
 		t.Fatalf("cache was mutated: got %q", got.Payload)
+	}
+}
+
+func TestLRUStorage_EvictionCallbackDoesNotDeadlock(t *testing.T) {
+	// Regression: onEvict called Bytes() which re-acquired the shard mutex
+	// already held by set(), deadlocking the goroutine.
+	var lru *LRUStorage
+	lru = NewLRUStorage(1<<20, func() {
+		// This mirrors the onEvict in NewCacheFilter.
+		_ = lru.lru.Bytes()
+	}, metrics.Default)
+	ctx := context.Background()
+
+	// Fill one shard past capacity to force eviction. Each entry is ~100 bytes;
+	// writing shardCount+1 unique keys guarantees at least one shard overflows.
+	sample, _ := json.Marshal(makeEntry("x", time.Minute))
+	entrySize := int64(len(sample)) + 20
+	// Use a tiny budget so the first two writes to the same shard evict.
+	lru = NewLRUStorage(entrySize*int64(shardCount), func() {
+		_ = lru.lru.Bytes()
+	}, metrics.Default)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		// Write shardCount+1 distinct keys — guarantees eviction on at least one shard.
+		for i := range shardCount + 1 {
+			key := fmt.Sprintf("key-%d", i)
+			_ = lru.Set(ctx, key, makeEntry("payload", time.Minute))
+		}
+	}()
+
+	select {
+	case <-done:
+		// passed
+	case <-time.After(5 * time.Second):
+		t.Fatal("deadlock: Set() did not return within 5 seconds")
+	}
+}
+
+func TestLRUStorage_OversizedEntry(t *testing.T) {
+	// With 256 shards and 1 KB total capacity, each shard holds 4 bytes.
+	// A payload larger than 4 bytes exceeds every shard's maxBytes.
+	const totalBytes = 1024 // 1 KB → 4 bytes per shard
+	m := &testMetrics{}
+	s := NewLRUStorage(totalBytes, nil, m)
+
+	ctx := context.Background()
+	entry := makeEntry(string(make([]byte, 1000)), time.Minute) // 1000-byte payload ≫ 4-byte shard
+
+	// Set must succeed (nil error) even though the entry is too large to store.
+	if err := s.Set(ctx, "oversized", entry); err != nil {
+		t.Fatalf("Set returned unexpected error: %v", err)
+	}
+
+	// The lru_oversized counter must have been incremented exactly once.
+	if got := m.counter("lru_oversized"); got != 1 {
+		t.Errorf("lru_oversized counter: got %d, want 1", got)
+	}
+
+	// The entry must not have been stored — Get must return nil.
+	got, err := s.Get(ctx, "oversized")
+	if err != nil {
+		t.Fatalf("Get returned unexpected error: %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected Get to return nil for oversized entry, got %+v", got)
 	}
 }
 
