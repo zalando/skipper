@@ -244,6 +244,8 @@ func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *d
 		ic.logger.Errorf("Failed to apply annotation predicates: %v", err)
 	}
 
+	prependApplicationAnnotation(meta.Labels, endpointsRoute)
+
 	ic.addHostRoute(host, endpointsRoute)
 
 	redirect := ic.redirect
@@ -514,6 +516,7 @@ func (ing *ingress) ingressV1Route(
 	if r, ok, err := ing.convertDefaultBackendV1(ic, ing.forceKubernetesService); ok {
 		route = r
 		ic.applyBackend(route)
+		prependApplicationAnnotation(i.Metadata.Labels, r)
 	} else if err != nil {
 		ic.logger.Errorf("Failed to convert default backend: %v", err)
 	}
