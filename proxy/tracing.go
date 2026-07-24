@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"time"
+
 	ot "github.com/opentracing/opentracing-go"
 
 	"github.com/zalando/skipper/net"
@@ -33,6 +35,14 @@ const (
 	StreamHeadersEvent = "stream_Headers"
 	StreamBodyEvent    = "streamBody.byte"
 	StreamBodyError    = "streamBody error"
+
+	BackendContextErrorTag = "backend.context.error"
+	BackendErrorTag        = "backend.error"
+	RouteLookupErrorTag    = "route_lookup.error"
+	CircuitBreakerTag      = "circuit_breaker"
+
+	FilterStartTagSuffix = ".start"
+	FilterEndTagSuffix   = ".end"
 
 	ClientTraceDNS            = net.ClientTraceDNS
 	ClientTraceConnect        = net.ClientTraceConnect
@@ -90,6 +100,17 @@ func (pt *proxyTracing) logEvent(span ot.Span, eventName, eventValue string) {
 		pt.setTag(span, eventName, eventValue)
 	} else {
 		pt.logKV(span, eventName, eventValue)
+	}
+}
+
+func (pt *proxyTracing) logError(span ot.Span, tag, message string) {
+	if span == nil {
+		return
+	}
+	if pt.clientTraceByTag {
+		pt.setTag(span, tag, message)
+	} else {
+		span.LogKV("event", "error", "message", ensureUTF8(message))
 	}
 }
 
@@ -156,12 +177,20 @@ func (ft *filterTracing) finish() {
 
 func (ft *filterTracing) logStart(filterName string) {
 	if ft != nil && ft.logEvents {
-		ft.span.LogKV(filterName, StartEvent)
+		if ft.clientTraceByTag {
+			ft.span.SetTag(filterName+FilterStartTagSuffix, time.Now().UnixMicro())
+		} else {
+			ft.span.LogKV(filterName, StartEvent)
+		}
 	}
 }
 
 func (ft *filterTracing) logEnd(filterName string) {
 	if ft != nil && ft.logEvents {
-		ft.span.LogKV(filterName, EndEvent)
+		if ft.clientTraceByTag {
+			ft.span.SetTag(filterName+FilterEndTagSuffix, time.Now().UnixMicro())
+		} else {
+			ft.span.LogKV(filterName, EndEvent)
+		}
 	}
 }

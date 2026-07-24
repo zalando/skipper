@@ -59,10 +59,7 @@ func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []rout
 	if len(filtered) < len(endpoints) {
 		if span != nil {
 			span.SetTag("phc.endpoints.dropped", true)
-			span.LogKV(
-				"event", "phc",
-				"dropped_endpoints", unhealthyEndpointsCount,
-			)
+			span.SetTag("phc.endpoints.dropped.count", unhealthyEndpointsCount)
 		}
 		metrics.IncCounter("passive-health-check.requests.passed")
 	}

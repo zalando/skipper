@@ -415,6 +415,75 @@ func TestTransport(t *testing.T) {
 	}
 }
 
+func TestTransportRoundTripHTTPDoByTag(t *testing.T) {
+	tracer := tracingtest.NewTracer()
+
+	s := startTestServer(func(*http.Request) {})
+	defer s.Close()
+
+	rt := NewTransport(Options{Tracer: tracer, OpentracingEventsByTag: true})
+	defer rt.Close()
+	rt = WithSpanName(rt, "myspan")
+
+	req := httptest.NewRequest("GET", "http://"+s.Listener.Addr().String()+"/", nil)
+	_, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("Transport.RoundTrip() error = %v", err)
+	}
+
+	span := tracer.FindSpan("myspan")
+	if span == nil {
+		t.Fatal("span not found")
+	}
+
+	if _, ok := span.Tags()["http_do"]; !ok {
+		t.Errorf("expected http_do to be recorded as a span tag, tags: %v", span.Tags())
+	}
+	if hasLogField(span, "http_do") {
+		t.Errorf("expected no http_do log event when clientTraceByTag is enabled, logs: %v", span.Logs())
+	}
+}
+
+func TestTransportRoundTripHTTPDoByEvent(t *testing.T) {
+	tracer := tracingtest.NewTracer()
+
+	s := startTestServer(func(*http.Request) {})
+	defer s.Close()
+
+	rt := NewTransport(Options{Tracer: tracer})
+	defer rt.Close()
+	rt = WithSpanName(rt, "myspan")
+
+	req := httptest.NewRequest("GET", "http://"+s.Listener.Addr().String()+"/", nil)
+	_, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("Transport.RoundTrip() error = %v", err)
+	}
+
+	span := tracer.FindSpan("myspan")
+	if span == nil {
+		t.Fatal("span not found")
+	}
+
+	if _, ok := span.Tags()["http_do"]; ok {
+		t.Errorf("expected no http_do span tag when clientTraceByTag is disabled, tags: %v", span.Tags())
+	}
+	if !hasLogField(span, "http_do") {
+		t.Errorf("expected http_do log events when clientTraceByTag is disabled, logs: %v", span.Logs())
+	}
+}
+
+func hasLogField(span *tracingtest.MockSpan, key string) bool {
+	for _, record := range span.Logs() {
+		for _, field := range record.Fields {
+			if field.Key == key {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 type requestCheck func(*http.Request)
 
 func startTestServer(check requestCheck) *httptest.Server {

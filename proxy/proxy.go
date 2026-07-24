@@ -1159,7 +1159,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		// - for `Canceled` it could be either the same `context canceled` or `unexpected EOF` (net.OpError)
 		// - for `DeadlineExceeded` it is net.Error(timeout=true, temporary=true) wrapping this `context deadline exceeded`
 		if cerr := req.Context().Err(); cerr != nil {
-			ctx.proxySpan.LogKV("event", "error", "message", ensureUTF8(cerr.Error()))
+			p.tracing.logError(ctx.proxySpan, BackendContextErrorTag, cerr.Error())
 			switch cerr {
 			case stdlibcontext.Canceled:
 				return nil, &proxyError{err: cerr, code: 499}
@@ -1169,7 +1169,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		}
 
 		errMessage := err.Error()
-		ctx.proxySpan.LogKV("event", "error", "message", ensureUTF8(errMessage))
+		p.tracing.logError(ctx.proxySpan, BackendErrorTag, errMessage)
 
 		if perr, ok := err.(*proxyError); ok {
 			perr.err = fmt.Errorf("failed to do backend roundtrip to %s: %w", req.URL.Host, perr.err)
@@ -1432,7 +1432,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 
 		done, allow := p.checkBreaker(ctx)
 		if !allow {
-			tracing.LogKV("circuit_breaker", "open", ctx.request.Context())
+			p.tracing.logEvent(parentSpan, CircuitBreakerTag, "open")
 			p.makeErrorResponse(ctx, errCircuitBreakerOpen)
 			p.applyFiltersOnError(ctx, processedFilters)
 			return errCircuitBreakerOpen
@@ -1632,7 +1632,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	}
 
 	if err == errRouteLookupFailed {
-		ctx.initialSpan.LogKV("event", "error", "message", errRouteLookup.Error())
+		p.tracing.logError(ctx.initialSpan, RouteLookupErrorTag, errRouteLookup.Error())
 	}
 
 	p.tracing.setTag(ctx.initialSpan, ErrorTag, true)
