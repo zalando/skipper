@@ -2243,7 +2243,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	if !slices.Contains(o.DisabledFilters, cache.Name) {
-		o.CustomFilters = append(o.CustomFilters, cache.NewCacheFilter(
+		cacheSpec := cache.NewCacheFilter(
 			cache.Options{
 				MaxBytes:   o.cacheBudget(),
 				ListenAddr: o.Address,
@@ -2258,7 +2258,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				ValkeyRing: valkeyRing,
 				L1TTL:      o.CacheL1TTL,
 			},
-		))
+		)
+		defer cacheSpec.(io.Closer).Close()
+		o.CustomFilters = append(o.CustomFilters, cacheSpec)
 	}
 
 	if o.TLSMinVersion == 0 {

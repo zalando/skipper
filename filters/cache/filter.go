@@ -139,9 +139,10 @@ func (s *cacheSpec) Name() string { return filterName }
 // Safe to call multiple times.
 func (s *cacheSpec) Close() {
 	s.closeOnce.Do(func() {
-		close(s.revalJobs)
-		close(s.lruBytesDone)
+		close(s.lruBytesDone) // stop scraper; must close before revalJobs so enqueueRevalidation's recover() fires first
+		close(s.revalJobs)    // unblocks revalidationWorker range loop
 		s.bgWg.Wait()
+		s.client.Close() // tear down transport after all in-flight revalidation fetches complete
 	})
 }
 
@@ -750,6 +751,14 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 		body:   bodySnapshot,
 		filter: f,
 	}
+	// recover guards against a send on a closed channel during the shutdown window
+	// between cacheSpec.Close() closing revalJobs and this goroutine observing it.
+	// The job is dropped, which is safe — the same outcome as the default (full buffer) path.
+	defer func() {
+		if recover() != nil {
+			f.metrics.IncCounter("reval_dropped")
+		}
+	}()
 	select {
 	case f.revalJobs <- job:
 	default:
