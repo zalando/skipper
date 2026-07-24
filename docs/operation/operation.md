@@ -1876,3 +1876,4 @@ When Valkey is configured:
 - `l1_hit`: Counter, L1 hits that bypassed Valkey
 - `valkey_miss`: Counter, Valkey misses that proceeded to an upstream fetch
 - `valkey_get_fallback`, `valkey_set_fallback`: Counters, reads/writes that fell back to L1 due to Valkey errors
+- `l1_warm_from_valkey`: Counter, entries written into L1 after a successful Valkey Get (write-through on read path)
