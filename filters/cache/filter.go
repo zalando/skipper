@@ -745,7 +745,13 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 	cloned := orig.Clone(context.Background())
 	var bodySnapshot []byte
 	if orig.Method == "QUERY" && orig.Body != nil && orig.Body != http.NoBody {
-		bodySnapshot, _ = io.ReadAll(orig.Body)
+		var err error
+		bodySnapshot, err = io.ReadAll(orig.Body)
+		if err != nil {
+			log.WithError(err).Warn("cache: failed to read QUERY body for revalidation; dropping job")
+			f.metrics.IncCounter("reval_dropped")
+			return
+		}
 		orig.Body = io.NopCloser(bytes.NewReader(bodySnapshot))
 	}
 	job := revalJob{
