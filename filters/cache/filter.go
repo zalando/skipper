@@ -455,7 +455,9 @@ type coalesceResult struct {
 }
 
 // coalesce gates concurrent cold misses for the same key behind a single upstream
-// fetch, preventing thundering herd. All waiters receive the same response.
+// fetch, preventing thundering herd within this process. All waiters receive the same response.
+// Note: coalescing is process-local — a fleet of N Skipper instances may still issue
+// up to N simultaneous origin requests for the same cold miss.
 // Stale-if-error (RFC 5861 §4) is also applied here: a pre-fetch snapshot of any
 // eligible stored entry is served on 5xx instead of propagating the error.
 func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
