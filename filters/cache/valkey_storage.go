@@ -68,6 +68,16 @@ func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
 	if err := json.Unmarshal([]byte(data), &e); err != nil {
 		return nil, fmt.Errorf("cache: decode valkey entry: %w", err)
 	}
+	// Write-through: warm L1 so subsequent requests on this process avoid Valkey round-trips.
+	// Use remaining freshness to avoid extending L1 beyond Valkey's actual expiry.
+	if s.l1TTL > 0 && e.TTL > 0 {
+		if remaining := e.TTL - time.Since(e.CreatedAt); remaining > 0 {
+			warmed := e
+			warmed.TTL = min(s.l1TTL, remaining)
+			warmed.CreatedAt = time.Now()
+			_ = s.l1.Set(ctx, key, &warmed)
+		}
+	}
 	return &e, nil
 }
 
