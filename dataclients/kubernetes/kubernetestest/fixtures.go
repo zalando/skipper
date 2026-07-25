@@ -58,6 +58,8 @@ type kubeOptionsParser struct {
 	TopologyZone                                   string                            `yaml:"topology-zone"`
 	KubernetesAnnotationPredicates                 []kubernetes.AnnotationPredicates `yaml:"kubernetesAnnotationPredicates"`
 	KubernetesAnnotationFiltersAppend              []kubernetes.AnnotationFilters    `yaml:"kubernetesAnnotationFiltersAppend"`
+	KubernetesEnableApplicationAnnotation          bool                              `yaml:"kubernetes-enable-application-annotation"`
+	KubernetesApplicationAnnotationLabel           string                            `yaml:"kubernetes-application-annotation-label"`
 	KubernetesEastWestRangeAnnotationPredicates    []kubernetes.AnnotationPredicates `yaml:"kubernetesEastWestRangeAnnotationPredicates"`
 	KubernetesEastWestRangeAnnotationFiltersAppend []kubernetes.AnnotationFilters    `yaml:"kubernetesEastWestRangeAnnotationFiltersAppend"`
 }
@@ -238,6 +240,9 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.KubernetesEastWestRangePredicates = kop.EastWestRangePredicates
 		o.KubernetesAnnotationPredicates = kop.KubernetesAnnotationPredicates
 		o.KubernetesAnnotationFiltersAppend = kop.KubernetesAnnotationFiltersAppend
+		if kop.KubernetesEnableApplicationAnnotation {
+			o.KubernetesApplicationAnnotationLabel = kop.KubernetesApplicationAnnotationLabel
+		}
 		o.KubernetesEastWestRangeAnnotationPredicates = kop.KubernetesEastWestRangeAnnotationPredicates
 		o.KubernetesEastWestRangeAnnotationFiltersAppend = kop.KubernetesEastWestRangeAnnotationFiltersAppend
 		o.ProvideHTTPSRedirect = kop.HTTPSRedirect
@@ -253,6 +258,10 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.DefaultLoadBalancerAlgorithm = kop.DefaultLoadBalancerAlgorithm
 		o.ForwardBackendURL = kop.ForwardBackendURL
 		o.TopologyZone = kop.TopologyZone
+
+		if kop.KubernetesEnableApplicationAnnotation {
+			o.KubernetesApplicationAnnotationLabel = kop.KubernetesApplicationAnnotationLabel
+		}
 
 		if kop.BackendTrafficAlgorithm != "" {
 			o.BackendTrafficAlgorithm, err = kubernetes.ParseBackendTrafficAlgorithm(kop.BackendTrafficAlgorithm)

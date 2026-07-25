@@ -17,10 +17,7 @@ type AnnotationFilters struct {
 	Filters []*eskip.Filter
 }
 
-const (
-	applicationLabelKey      = "application"
-	applicationAnnotationKey = "Application"
-)
+const applicationAnnotationKey = "Application"
 
 func appendAnnotationPredicates(annotationPredicates []AnnotationPredicates, annotations map[string]string, r *eskip.Route) {
 	for _, ap := range annotationPredicates {
@@ -40,8 +37,12 @@ func appendAnnotationFilters(annotationFilters []AnnotationFilters, annotations 
 	}
 }
 
-func applicationAnnotationFilter(labels map[string]string) *eskip.Filter {
-	application, ok := labels[applicationLabelKey]
+func applicationAnnotationFilter(labels map[string]string, labelKey string) *eskip.Filter {
+	if labelKey == "" {
+		return nil
+	}
+
+	application, ok := labels[labelKey]
 	if !ok || application == "" {
 		return nil
 	}
@@ -52,8 +53,8 @@ func applicationAnnotationFilter(labels map[string]string) *eskip.Filter {
 	}
 }
 
-func prependApplicationAnnotation(labels map[string]string, r *eskip.Route) {
-	if f := applicationAnnotationFilter(labels); f != nil {
+func prependApplicationAnnotation(labels map[string]string, labelKey string, r *eskip.Route) {
+	if f := applicationAnnotationFilter(labels, labelKey); f != nil {
 		r.Filters = append([]*eskip.Filter{f}, r.Filters...)
 	}
 }

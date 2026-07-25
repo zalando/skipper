@@ -44,6 +44,7 @@ type routeGroupContext struct {
 	certificateRegistry          *certregistry.CertRegistry
 	zone                         string
 	disableZoneAwareness         bool
+	applicationAnnotationLabel   string
 }
 
 type routeContext struct {
@@ -372,7 +373,7 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 				ctx.logger.Errorf("Failed to retrieve default filters: %v", err)
 			}
 		}
-		prependApplicationAnnotation(rg.Metadata.Labels, ri)
+		prependApplicationAnnotation(rg.Metadata.Labels, ctx.applicationAnnotationLabel, ri)
 		storeHostRoute(ctx, ri)
 		routes = append(routes, ri)
 		routes = appendEastWest(ctx, routes, ri)
@@ -481,7 +482,7 @@ nextRoute:
 				}
 
 				backendTraffic[bref.BackendName].apply(r)
-				prependApplicationAnnotation(rg.Metadata.Labels, r)
+				prependApplicationAnnotation(rg.Metadata.Labels, ctx.applicationAnnotationLabel, r)
 				storeHostRoute(ctx, r)
 				routes = append(routes, r)
 				routes = appendEastWest(ctx, routes, r)
@@ -604,6 +605,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				certificateRegistry:          cr,
 				zone:                         r.options.TopologyZone,
 				disableZoneAwareness:         rg.Metadata.Annotations[trafficZoneAwareAnnotationKey] == "false",
+				applicationAnnotationLabel:   r.options.KubernetesApplicationAnnotationLabel,
 			}
 
 			ri, err := transformRouteGroup(ctx)
@@ -652,6 +654,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				defaultLoadBalancerAlgorithm: r.options.DefaultLoadBalancerAlgorithm,
 				forwardBackendURL:            r.options.ForwardBackendURL,
 				certificateRegistry:          cr,
+				applicationAnnotationLabel:   r.options.KubernetesApplicationAnnotationLabel,
 			}
 
 			internalRi, err := transformRouteGroup(internalCtx)
