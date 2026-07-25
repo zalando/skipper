@@ -1,0 +1,4 @@
+kube_default__checkout_disabled__checkout_disabled_example_org_____checkout_disabled:
+	Host("^(checkout-disabled[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/")
+	-> "http://10.2.9.103:8080";
+
