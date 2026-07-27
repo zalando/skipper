@@ -115,6 +115,8 @@ func (s *ValkeyStorage) Set(ctx context.Context, key string, entry *Entry) error
 
 func (s *ValkeyStorage) Delete(ctx context.Context, key string) error {
 	// Valkey errors are best-effort — L1 delete always runs.
+	// Note: only the local process's L1 is cleared. Other Skipper processes in the
+	// fleet retain their own L1 copies until --cache-l1-ttl expires naturally.
 	if _, err := s.ring.Del(ctx, key); err != nil {
 		log.WithError(err).Warn("cache: valkey Delete failed")
 	}

@@ -1938,7 +1938,10 @@ restore write-around behaviour (L1 used only when Valkey is unavailable; this
 applies to both read errors (`valkey_get_fallback`) and write errors (`valkey_set_fallback`)).
 
 Explicit deletes (unsafe methods or operator-initiated invalidation) always
-remove the L1 entry unconditionally, regardless of `--cache-l1-ttl`.
+remove the L1 entry unconditionally, regardless of `--cache-l1-ttl`. However,
+only the local process's L1 is cleared — other Skipper processes in the fleet
+retain their own L1 copies until `--cache-l1-ttl` expires. Set `--cache-l1-ttl`
+accordingly to bound the stale window after an invalidation.
 
 !!! note
     An in-process LRU (L1) is shared across all `cache()` filter instances in the same process.
