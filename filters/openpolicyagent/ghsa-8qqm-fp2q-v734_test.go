@@ -273,3 +273,107 @@ allow if {
 		})
 	}
 }
+
+// TestAdvisoryDenyOnPresencePolicyNotBypassed reproduces the PoC from
+// GHSA-8qqm-fp2q-v734 / CVE-2026-65838: a deny-on-presence Rego policy must
+// not fail open when the request body exceeds maxBodyBytes.
+func TestAdvisoryDenyOnPresencePolicyNotBypassed(t *testing.T) {
+	const maxBody = 32
+	smallPayload := `{"action":"delete"}`
+	largePayload := `{"action":"delete","pad":"` + strings.Repeat("X", 64) + `"}`
+
+	bundleName := "test-bundle-deny-on-presence"
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/"+bundleName, map[string]string{
+			"main.rego": `
+package envoy.authz
+
+import rego.v1
+
+default allow := true
+
+allow := false if {
+    input.parsed_body.action == "delete"
+}
+`,
+		}),
+	)
+	defer opaControlPlane.Stop()
+
+	config := fmt.Appendf(nil, `{
+		"services": {"test": {"url": %q}},
+		"bundles": {"test": {"resource": "/bundles/{{ .bundlename }}"}},
+		"labels": {"environment": "test"},
+		"plugins": {"envoy_ext_authz_grpc": {"path": "envoy/authz/allow", "dry-run": false}}
+	}`, opaControlPlane.URL())
+
+	opaRegistry, err := openpolicyagent.NewOpenPolicyAgentRegistry(
+		openpolicyagent.WithPreloadingEnabled(true),
+		openpolicyagent.WithEnableDataPreProcessingOptimization(true),
+		openpolicyagent.WithInstanceStartupTimeout(5*time.Second),
+		openpolicyagent.WithMaxRequestBodyBytes(maxBody),
+		openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate(config)),
+	)
+	if err != nil {
+		t.Fatalf("opaRegistry: %v", err)
+	}
+	defer opaRegistry.Close()
+
+	fr := make(filters.Registry)
+	fr.Register(opaauthorizerequest.NewOpaAuthorizeRequestWithBodySpec(opaRegistry))
+
+	r := eskip.MustParse(fmt.Sprintf(`r1: * -> opaAuthorizeRequestWithBody("%s") -> "%s";`, bundleName, "http://127.0.0.1:0"))
+	dc := testdataclient.New(r)
+	defer dc.Close()
+
+	rt := routing.New(routing.Options{
+		FilterRegistry:  fr,
+		DataClients:     []routing.DataClient{dc},
+		PreProcessors:   []routing.PreProcessor{opaRegistry.NewPreProcessor()},
+		PostProcessors:  []routing.PostProcessor{opaRegistry},
+		PollTimeout:     time.Second,
+		SignalFirstLoad: true,
+	})
+	defer rt.Close()
+	<-rt.FirstLoad()
+
+	pr := proxy.WithParams(proxy.Params{Routing: rt})
+	defer pr.Close()
+	ts := httptest.NewServer(pr)
+	defer ts.Close()
+
+	for _, tt := range []struct {
+		name       string
+		payload    string
+		wantStatus int
+	}{
+		{
+			name:       "small body with forbidden action denied",
+			payload:    smallPayload,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "oversized body with forbidden action still denied",
+			payload:    largePayload,
+			wantStatus: http.StatusForbidden,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest("POST", ts.URL, strings.NewReader(tt.payload))
+			if err != nil {
+				t.Fatalf("new request: %v", err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+
+			rsp, err := ts.Client().Do(req)
+			if err != nil {
+				t.Fatalf("do: %v", err)
+			}
+			defer rsp.Body.Close()
+
+			if rsp.StatusCode != tt.wantStatus {
+				t.Fatalf("[%s] status = %d, want %d", tt.name, rsp.StatusCode, tt.wantStatus)
+			}
+		})
+	}
+}

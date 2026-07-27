@@ -1127,7 +1127,8 @@ func TestBodyExtraction(t *testing.T) {
 		maxBodySize    int64
 		readBodyBuffer int64
 
-		bodyInPolicy string
+		bodyInPolicy  string
+		wantTruncated bool
 	}{
 		{
 			msg:            "Read body ",
@@ -1157,6 +1158,16 @@ func TestBodyExtraction(t *testing.T) {
 			maxBodySize:    5,
 			readBodyBuffer: 5,
 			bodyInPolicy:   `{ "we`,
+			wantTruncated:  true,
+		},
+		{
+			msg:            "Read body when Content-Length exceeds maxBodyBytes (GHSA-8qqm-fp2q-v734)",
+			body:           `{ "welcome": "world" }`,
+			contentLength:  1024,
+			maxBodySize:    5,
+			readBodyBuffer: 5,
+			bodyInPolicy:   `{ "we`,
+			wantTruncated:  true,
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
@@ -1179,7 +1190,7 @@ func TestBodyExtraction(t *testing.T) {
 				Body:          io.NopCloser(bytes.NewReader([]byte(ti.body))),
 			}
 
-			body, peekBody, _, finalizer, err := inst.ExtractHttpBodyOptionally(&req)
+			body, peekBody, truncated, finalizer, err := inst.ExtractHttpBodyOptionally(&req)
 			defer finalizer()
 			assert.NoError(t, err)
 			defer body.Close()
@@ -1189,6 +1200,7 @@ func TestBodyExtraction(t *testing.T) {
 			assert.Equal(t, ti.body, string(fullBody), "Full body must be readable")
 
 			assert.Equal(t, ti.bodyInPolicy, string(peekBody), "Body has been read up till maximum")
+			assert.Equal(t, ti.wantTruncated, truncated, "truncated_body flag")
 		})
 	}
 }
