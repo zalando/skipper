@@ -2280,21 +2280,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 	}
 
-	if !slices.Contains(o.DisabledFilters, cache.Name) && valkeyRing != nil {
-		o.CustomFilters = append(o.CustomFilters, cache.NewCacheFilter(
-			o.cacheBudget(),
-			o.Address,
-			skpnet.Options{
-				IdleConnTimeout:         o.CloseIdleConnsPeriod,
-				MaxIdleConnsPerHost:     o.IdleConnectionsPerHost,
-				Tracer:                  tracer,
-				OpentracingComponentTag: "skipper",
-				OpentracingSpanName:     "cache_revalidation",
-				OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
-			},
-		))
-	}
-
 	if o.TLSMinVersion == 0 {
 		o.TLSMinVersion = tls.VersionTLS12
 	}
