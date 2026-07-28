@@ -948,10 +948,13 @@ func cacheKey(routeID string, r *http.Request, keyHeaders []string) string {
 	// queries to the same URL produce distinct cache entries.
 	if r.Method == "QUERY" && r.Body != nil && r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)
-		if err == nil {
-			r.Body = io.NopCloser(bytes.NewReader(body))
-			h.Write(body)
+		if err != nil {
+			// Body unreadable: key would omit the body and collide with other QUERY
+			// requests. Return "" so Request() bypasses the cache and Response() skips storing.
+			return ""
 		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		h.Write(body)
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
