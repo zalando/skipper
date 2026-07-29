@@ -7,12 +7,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/net/redistest"
+	"github.com/zalando/skipper/tracing/tracingtest"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_clusterLimitRedis_WithPass(t *testing.T) {
@@ -190,6 +193,51 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 				got = append(got, c.Allow(context.Background(), tt.args))
 			}
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_clusterLimitRedis_AllowCanceledContext(t *testing.T) {
+	for _, failClosed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("fail closed %t", failClosed), func(t *testing.T) {
+			tracer := tracingtest.NewTracer()
+			ringClient := net.NewRedisRingClient(&net.RedisOptions{
+				Addrs:  []string{"127.0.0.1:1"},
+				Tracer: tracer,
+			})
+			defer ringClient.Close()
+
+			m := &metricstest.MockMetrics{}
+			c := newClusterRateLimiterRedis(Settings{
+				Type:       ClusterServiceRatelimit,
+				MaxHits:    10,
+				TimeWindow: time.Second,
+				FailClosed: failClosed,
+			}, ringClient, "group")
+			c.metrics = m
+
+			parent := tracer.StartSpan("ingress")
+			ctx, cancel := context.WithCancel(opentracing.ContextWithSpan(context.Background(), parent))
+			cancel()
+
+			assert.Equal(t, !failClosed, c.Allow(ctx, "key"))
+			parent.Finish()
+
+			span := tracer.FindSpan(redisAllowSpanName)
+			require.NotNil(t, span)
+			assert.NotContains(t, span.Tags(), "error")
+			assert.NotContains(t, span.Tags(), redisErrorTag)
+			assert.NotContains(t, span.Tags(), "allowed")
+			assert.Empty(t, span.Logs())
+
+			m.WithCounters(func(counters map[string]int64) {
+				assert.Equal(t, int64(1), counters[redisMetricsPrefix+"total"])
+				assert.NotContains(t, counters, redisMetricsPrefix+"allows")
+				assert.NotContains(t, counters, redisMetricsPrefix+"forbids")
+			})
+			m.WithMeasures(func(measures map[string][]time.Duration) {
+				assert.Empty(t, measures)
+			})
 		})
 	}
 }

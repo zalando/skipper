@@ -121,6 +121,10 @@ func (c *clusterLimitValkey) Allow(ctx context.Context, clearText string) bool {
 	}
 
 	allow, err := c.allow(ctx, clearText)
+	if errors.Is(err, context.Canceled) {
+		return !c.failClosed
+	}
+
 	failed := err != nil
 	if failed {
 		allow = !c.failClosed
