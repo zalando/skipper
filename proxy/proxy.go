@@ -1171,10 +1171,10 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		errMessage := err.Error()
 		p.tracing.logError(ctx.proxySpan, BackendErrorTag, errMessage)
 
-		if perr, ok := err.(*proxyError); ok {
+		if perr, ok := errors.AsType[*proxyError](err); ok {
 			perr.err = fmt.Errorf("failed to do backend roundtrip to %s: %w", req.URL.Host, perr.err)
 			return nil, perr
-		} else if nerr, ok := err.(net.Error); ok {
+		} else if nerr, ok := errors.AsType[net.Error](err); ok {
 			var status int
 			if nerr.Timeout() {
 				status = http.StatusGatewayTimeout
