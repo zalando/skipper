@@ -16,7 +16,7 @@ require (
 	github.com/dgryski/go-mpchash v0.0.0-20200819201138-7382f34c4cd1
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598
-	github.com/docker/go-connections v0.8.0
+	github.com/docker/go-connections v0.8.1
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/golang-jwt/jwt/v4 v4.5.2
