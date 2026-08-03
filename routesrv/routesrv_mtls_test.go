@@ -204,23 +204,27 @@ func TestMtlsRoutesrv(t *testing.T) {
 	})
 	defer client.Close()
 
-	// make sure routesrv started
-	for range 10 {
-		_, err := client.Get("https://localhost" + addr + "/health")
-		if err != nil {
-			break
+	healthURL := "https://localhost" + addr + "/health"
+	deadline := time.Now().Add(waitTimeout)
+	for {
+		rsp, err := client.Get(healthURL)
+		if err == nil {
+			statusCode := rsp.StatusCode
+			rsp.Body.Close()
+			if statusCode == http.StatusNoContent {
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			if err != nil {
+				t.Fatalf("routesrv did not become ready: %v", err)
+			}
+			t.Fatalf("routesrv did not become ready, status code: %d", rsp.StatusCode)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	rsp, err := client.Get("https://localhost" + addr + "/health")
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
-	if rsp.StatusCode != http.StatusNoContent {
-		t.Fatalf("request failed with status code: %d", rsp.StatusCode)
-	}
 
-	rsp, err = client.Get("https://localhost" + addr + "/routes")
+	rsp, err := client.Get("https://localhost" + addr + "/routes")
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}

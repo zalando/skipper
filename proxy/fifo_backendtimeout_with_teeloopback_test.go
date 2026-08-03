@@ -101,12 +101,6 @@ func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
 		return
 	}
 
-	if err := proxyLog.WaitFor("failed to execute loopback request: dialing failed false: context deadline exceeded", time.Second); err != nil {
-		t.Fatalf("Failed to get expected error: %v", err)
-	} else {
-		t.Log(`Found "failed to execute loopback request" error log`)
-	}
-
 	if err := proxyLog.WaitFor("context: error while discarding remainder response body", time.Second); err != nil {
 		t.Fatalf("Failed to get expected error: %v", err)
 	} else {

@@ -293,6 +293,10 @@ import rego.v1
 default allow := true
 
 allow := false if {
+    input.truncated_body
+}
+
+allow := false if {
     input.parsed_body.action == "delete"
 }
 `,
