@@ -383,6 +383,10 @@ type Params struct {
 	// the provided files.
 	EnableMTLS bool
 
+	// EnableH2cBackends enables h2c (HTTP/2 cleartext) for outgoing connections
+	// to http:// backends. Backends must speak h2c.
+	EnableH2cBackends bool
+
 	// OpenTracing contains parameters related to OpenTracing instrumentation. For default values
 	// check OpenTracingParams
 	OpenTracing *OpenTracingParams
@@ -881,6 +885,13 @@ func WithParams(p Params) *Proxy {
 			}
 			tr.TLSClientConfig.GetClientCertificate = cr.GetClientCertificate
 		}
+	}
+
+	if p.EnableH2cBackends {
+		if tr.Protocols == nil {
+			tr.Protocols = new(http.Protocols)
+		}
+		tr.Protocols.SetUnencryptedHTTP2(true)
 	}
 
 	m := p.Metrics

@@ -794,6 +794,14 @@ type Options struct {
 	// and the response messages during web socket upgrades.
 	ExperimentalUpgradeAudit bool
 
+	// EnableH2cServer enables h2c (HTTP/2 cleartext) on the incoming listener.
+	// No effect when TLS is configured (use TLS ALPN HTTP/2 instead).
+	EnableH2cServer bool
+
+	// EnableH2cBackends enables h2c (HTTP/2 cleartext) for outgoing backend connections.
+	// Backends must speak h2c.
+	EnableH2cBackends bool
+
 	// MaxLoopbacks defines the maximum number of loops that the proxy can execute when the routing table
 	// contains loop backends (<loopback>).
 	MaxLoopbacks int
@@ -1603,6 +1611,15 @@ func listenAndServeQuit(
 		IdleTimeout:       o.IdleTimeoutServer,
 		MaxHeaderBytes:    o.MaxHeaderBytes,
 		ErrorLog:          newServerErrorLog(),
+	}
+
+	if o.EnableH2cServer && !serveTLS {
+		if srv.Protocols == nil {
+			srv.Protocols = new(http.Protocols)
+		}
+		srv.Protocols.SetHTTP1(true)
+		srv.Protocols.SetUnencryptedHTTP2(true)
+		log.Info("h2c (HTTP/2 cleartext) enabled on listener")
 	}
 
 	cm := &skpnet.ConnManager{
@@ -2586,6 +2603,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ClientKeyFile:                    o.ClientKeyFile,
 		ClientCertRefreshInterval:        o.ClientCertRefreshInterval,
 		EnableMTLS:                       o.EnableMTLS,
+		EnableH2cBackends:                o.EnableH2cBackends,
 		CustomHttpRoundTripperWrap:       o.CustomHttpRoundTripperWrap,
 		RateLimiters:                     ratelimitRegistry,
 		EndpointRegistry:                 endpointRegistry,

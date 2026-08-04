@@ -304,6 +304,9 @@ type Options struct {
 	DisableCompression bool
 	// ForceAttemptHTTP2 see https://golang.org/pkg/net/http/#Transport.ForceAttemptHTTP2
 	ForceAttemptHTTP2 bool
+	// EnableH2c enables h2c (HTTP/2 cleartext). When set, http:// connections
+	// use HTTP/2 without TLS. Distinct from ForceAttemptHTTP2 (TLS-only).
+	EnableH2c bool
 	// MaxIdleConns see https://golang.org/pkg/net/http/#Transport.MaxIdleConns
 	MaxIdleConns int
 	// MaxIdleConnsPerHost see https://golang.org/pkg/net/http/#Transport.MaxIdleConnsPerHost
@@ -448,6 +451,13 @@ func NewTransport(options Options) *Transport {
 			IdleConnTimeout:        options.IdleConnTimeout,
 			ExpectContinueTimeout:  options.ExpectContinueTimeout,
 		}
+	}
+
+	if options.EnableH2c {
+		if htransport.Protocols == nil {
+			htransport.Protocols = new(http.Protocols)
+		}
+		htransport.Protocols.SetUnencryptedHTTP2(true)
 	}
 
 	t := &Transport{
