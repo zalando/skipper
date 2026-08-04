@@ -487,6 +487,7 @@ type Proxy struct {
 	fadein                   *fadeIn
 	healthyEndpoints         *healthyEndpoints
 	roundTripper             http.RoundTripper
+	h2cRoundTripper          http.RoundTripper
 	priorityRoutes           []PriorityRoute
 	flags                    Flags
 	metrics                  metrics.Metrics
@@ -894,6 +895,24 @@ func WithParams(p Params) *Proxy {
 		tr.Protocols.SetUnencryptedHTTP2(true)
 	}
 
+	h2cTr := &http.Transport{
+		DialContext: newSkipperDialer(net.Dialer{
+			Timeout:   p.Timeout,
+			KeepAlive: p.KeepAlive,
+			DualStack: p.DualStack,
+		}).DialContext,
+		TLSHandshakeTimeout:   p.TLSHandshakeTimeout,
+		ResponseHeaderTimeout: p.ResponseHeaderTimeout,
+		ExpectContinueTimeout: p.ExpectContinueTimeout,
+		MaxIdleConns:          p.MaxIdleConns,
+		MaxIdleConnsPerHost:   p.IdleConnectionsPerHost,
+		IdleConnTimeout:       p.CloseIdleConnsPeriod,
+		DisableKeepAlives:     p.DisableHTTPKeepalives,
+		Proxy:                 proxyFromContext,
+	}
+	h2cTr.Protocols = new(http.Protocols)
+	h2cTr.Protocols.SetUnencryptedHTTP2(true)
+
 	m := p.Metrics
 	if m == nil {
 		m = metrics.Default
@@ -936,6 +955,7 @@ func WithParams(p Params) *Proxy {
 		},
 		healthyEndpoints:         healthyEndpointsChooser,
 		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
+		h2cRoundTripper:          p.CustomHttpRoundTripperWrap(h2cTr),
 		priorityRoutes:           p.PriorityRoutes,
 		flags:                    p.Flags,
 		metrics:                  m,
@@ -1219,6 +1239,9 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 func (p *Proxy) getRoundTripper(ctx *context, req *http.Request) (http.RoundTripper, error) {
 	switch req.URL.Scheme {
+	case "h2c":
+		req.URL.Scheme = "http"
+		return p.h2cRoundTripper, nil
 	case "fastcgi":
 		f := "index.php"
 		if sf, ok := ctx.StateBag()["fastCgiFilename"]; ok {

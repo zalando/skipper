@@ -190,6 +190,8 @@ func SchemeHost(input string) (string, string, error) {
 				p = "80"
 			case "https":
 				p = "443"
+			case "h2c":
+				p = "80"
 			default:
 				p = ""
 			}

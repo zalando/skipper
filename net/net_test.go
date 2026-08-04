@@ -544,6 +544,31 @@ func TestSchemeHost(t *testing.T) {
 		}),
 
 		testCase(TestSchemeHostItem{
+			input:  "h2c://example.com",
+			scheme: "h2c",
+			host:   "example.com:80",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "h2c://example.com:80",
+			scheme: "h2c",
+			host:   "example.com:80",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "h2c://example.com:8080",
+			scheme: "h2c",
+			host:   "example.com:8080",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "h2c://192.168.0.1",
+			scheme: "h2c",
+			host:   "192.168.0.1:80",
+			err:    "",
+		}),
+
+		testCase(TestSchemeHostItem{
 			input:  "/foo",
 			scheme: "",
 			host:   "",
