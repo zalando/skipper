@@ -795,12 +795,7 @@ type Options struct {
 	ExperimentalUpgradeAudit bool
 
 	// EnableH2cServer enables h2c (HTTP/2 cleartext) on the incoming listener.
-	// No effect when TLS is configured (use TLS ALPN HTTP/2 instead).
 	EnableH2cServer bool
-
-	// EnableH2cBackends enables h2c (HTTP/2 cleartext) for outgoing backend connections.
-	// Backends must speak h2c.
-	EnableH2cBackends bool
 
 	// MaxLoopbacks defines the maximum number of loops that the proxy can execute when the routing table
 	// contains loop backends (<loopback>).
@@ -1613,7 +1608,7 @@ func listenAndServeQuit(
 		ErrorLog:          newServerErrorLog(),
 	}
 
-	if o.EnableH2cServer && !serveTLS {
+	if o.EnableH2cServer {
 		if srv.Protocols == nil {
 			srv.Protocols = new(http.Protocols)
 		}
@@ -2603,7 +2598,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ClientKeyFile:                    o.ClientKeyFile,
 		ClientCertRefreshInterval:        o.ClientCertRefreshInterval,
 		EnableMTLS:                       o.EnableMTLS,
-		EnableH2cBackends:                o.EnableH2cBackends,
 		CustomHttpRoundTripperWrap:       o.CustomHttpRoundTripperWrap,
 		RateLimiters:                     ratelimitRegistry,
 		EndpointRegistry:                 endpointRegistry,

@@ -147,6 +147,7 @@ Build and test all packages:
 
     make deps
     make install
+    make fmt
     make lint
     make shortcheck
 

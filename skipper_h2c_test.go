@@ -107,10 +107,9 @@ func TestH2cEndToEnd_BackendsAndClient(t *testing.T) {
 	defer rt.Close()
 
 	p := proxy.WithParams(proxy.Params{
-		Routing:           rt,
-		Flags:             proxy.Flags(proxy.OptionsNone),
-		Metrics:           &metricstest.MockMetrics{},
-		EnableH2cBackends: true,
+		Routing: rt,
+		Flags:   proxy.Flags(proxy.OptionsNone),
+		Metrics: &metricstest.MockMetrics{},
 	})
 	defer p.Close() //nolint:errcheck
 

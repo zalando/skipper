@@ -845,34 +845,19 @@ func TestParseAnnotationConfig(t *testing.T) {
 
 func TestH2cFlags_ParseAndToOptions(t *testing.T) {
 	for _, tt := range []struct {
-		name            string
-		args            []string
-		wantH2cServer   bool
-		wantH2cBackends bool
+		name          string
+		args          []string
+		wantH2cServer bool
 	}{
 		{
-			name:            "defaults are false",
-			args:            []string{"skipper"},
-			wantH2cServer:   false,
-			wantH2cBackends: false,
+			name:          "defaults are false",
+			args:          []string{"skipper"},
+			wantH2cServer: false,
 		},
 		{
-			name:            "enable-h2c-server only",
-			args:            []string{"skipper", "-enable-h2c-server"},
-			wantH2cServer:   true,
-			wantH2cBackends: false,
-		},
-		{
-			name:            "enable-h2c-backends only",
-			args:            []string{"skipper", "-enable-h2c-backends"},
-			wantH2cServer:   false,
-			wantH2cBackends: true,
-		},
-		{
-			name:            "both h2c flags",
-			args:            []string{"skipper", "-enable-h2c-server", "-enable-h2c-backends"},
-			wantH2cServer:   true,
-			wantH2cBackends: true,
+			name:          "enable-h2c-server only",
+			args:          []string{"skipper", "-enable-h2c-server"},
+			wantH2cServer: true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -884,16 +869,10 @@ func TestH2cFlags_ParseAndToOptions(t *testing.T) {
 			if cfg.EnableH2cServer != tt.wantH2cServer {
 				t.Errorf("EnableH2cServer: got %v, want %v", cfg.EnableH2cServer, tt.wantH2cServer)
 			}
-			if cfg.EnableH2cBackends != tt.wantH2cBackends {
-				t.Errorf("EnableH2cBackends: got %v, want %v", cfg.EnableH2cBackends, tt.wantH2cBackends)
-			}
 
 			opts := cfg.ToOptions()
 			if opts.EnableH2cServer != tt.wantH2cServer {
 				t.Errorf("ToOptions EnableH2cServer: got %v, want %v", opts.EnableH2cServer, tt.wantH2cServer)
-			}
-			if opts.EnableH2cBackends != tt.wantH2cBackends {
-				t.Errorf("ToOptions EnableH2cBackends: got %v, want %v", opts.EnableH2cBackends, tt.wantH2cBackends)
 			}
 		})
 	}

@@ -33,7 +33,7 @@ func TestH2cBackend_ProxyConnectsUsingH2c(t *testing.T) {
 
 	tp, err := newTestProxyWithParams(
 		fmt.Sprintf(`* -> "%s"`, backend.URL),
-		Params{EnableH2cBackends: true},
+		Params{},
 	)
 	if err != nil {
 		t.Fatalf("failed to create test proxy: %v", err)
@@ -65,7 +65,7 @@ func TestH2cBackend_DisabledFallsBackToHTTP1(t *testing.T) {
 
 	tp, err := newTestProxyWithParams(
 		fmt.Sprintf(`* -> "%s"`, backend.URL),
-		Params{EnableH2cBackends: false},
+		Params{},
 	)
 	if err != nil {
 		t.Fatalf("failed to create test proxy: %v", err)
@@ -200,7 +200,7 @@ func TestH2cServer_TransportProtocolSet(t *testing.T) {
 
 	tp, err := newTestProxyWithParams(
 		fmt.Sprintf(`* -> "%s"`, backend.URL),
-		Params{EnableH2cBackends: true},
+		Params{},
 	)
 	if err != nil {
 		t.Fatalf("failed to create test proxy: %v", err)
