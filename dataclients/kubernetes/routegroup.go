@@ -176,8 +176,10 @@ func getBackendService(ctx *routeGroupContext, backend *definitions.SkipperBacke
 
 func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r *eskip.Route) error {
 	protocol := "http"
+	annotationSet := false
 	if p, ok := ctx.routeGroup.Metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
 		protocol = p
+		annotationSet = true
 	}
 
 	if f := zoneAwarenessAnnotationFilter(ctx.routeGroup.Metadata); f != nil {
@@ -203,6 +205,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 			s.Meta.Name,
 			"TCP",
 			protocol,
+			annotationSet,
 			targetPort,
 			ctx)
 		for _, epSlice := range epSlices {

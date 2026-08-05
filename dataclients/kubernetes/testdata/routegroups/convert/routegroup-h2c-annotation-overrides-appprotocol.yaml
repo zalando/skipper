@@ -1,0 +1,51 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: myapp
+  namespace: default
+  annotations:
+    zalando.org/skipper-backend-protocol: http
+spec:
+  hosts:
+  - example.org
+  backends:
+  - name: myapp
+    type: service
+    serviceName: myapp
+    servicePort: 80
+  defaultBackends:
+  - backendName: myapp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp
+  namespace: default
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    application: myapp
+  type: ClusterIP
+---
+apiVersion: v1
+kind: EndpointSlice
+metadata:
+  labels:
+    application: myapp
+    kubernetes.io/service-name: myapp
+  name: myapp-foo
+  namespace: default
+endpoints:
+  - addresses:
+    - 10.2.4.8
+    zone: my-zone-1
+  - addresses:
+    - 10.2.4.16
+    zone: my-zone-2
+ports:
+  - port: 80
+    protocol: TCP
+    appProtocol: kubernetes.io/h2c
