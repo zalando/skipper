@@ -231,9 +231,9 @@ func Test_clusterLimitRedis_AllowCanceledContext(t *testing.T) {
 			assert.Empty(t, span.Logs())
 
 			m.WithCounters(func(counters map[string]int64) {
-				assert.Equal(t, int64(1), counters[redisMetricsPrefix+"total"])
-				assert.NotContains(t, counters, redisMetricsPrefix+"allows")
-				assert.NotContains(t, counters, redisMetricsPrefix+"forbids")
+				assert.Equal(t, int64(1), counters[RedisMetricsPrefix+"total"])
+				assert.NotContains(t, counters, RedisMetricsPrefix+"allows")
+				assert.NotContains(t, counters, RedisMetricsPrefix+"forbids")
 			})
 			m.WithMeasures(func(measures map[string][]time.Duration) {
 				assert.Empty(t, measures)

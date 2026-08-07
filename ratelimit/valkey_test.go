@@ -240,9 +240,9 @@ func Test_clusterLimitValkey_AllowCanceledContext(t *testing.T) {
 			assert.Empty(t, span.Logs())
 
 			m.WithCounters(func(counters map[string]int64) {
-				assert.Equal(t, int64(1), counters[valkeyMetricsPrefix+"total"])
-				assert.NotContains(t, counters, valkeyMetricsPrefix+"allows")
-				assert.NotContains(t, counters, valkeyMetricsPrefix+"forbids")
+				assert.Equal(t, int64(1), counters[ValkeyMetricsPrefix+"total"])
+				assert.NotContains(t, counters, ValkeyMetricsPrefix+"allows")
+				assert.NotContains(t, counters, ValkeyMetricsPrefix+"forbids")
 			})
 			m.WithMeasures(func(measures map[string][]time.Duration) {
 				assert.Empty(t, measures)
