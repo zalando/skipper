@@ -1547,7 +1547,7 @@ func BenchmarkShardForKey(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		r.ring.shardForKey("A") // 9ns
+		r.ring.shardForKey("A") //nolint:errcheck // 9ns
 	}
 }
 

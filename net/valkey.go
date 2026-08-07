@@ -22,6 +22,8 @@ import (
 	"github.com/zalando/skipper/metrics"
 )
 
+var errShardNotFound = fmt.Errorf("valkey shard not initialized")
+
 const (
 	ringSize = 10000
 
@@ -245,8 +247,12 @@ func (vr *valkeyRing) SetAddr(addr []string) error {
 }
 
 // shardForKey does the lookup for valkey most operations to find the valkey ring shard
-func (vr *valkeyRing) shardForKey(key string) valkey.Client {
-	return *vr.shards[xxhash.Sum64String(key)%ringSize].Load()
+func (vr *valkeyRing) shardForKey(key string) (valkey.Client, error) {
+	p := vr.shards[xxhash.Sum64String(key)%ringSize].Load()
+	if p == nil {
+		return nil, errShardNotFound
+	}
+	return *p, nil
 }
 
 // PingAll pings all known shards
@@ -272,56 +278,87 @@ func (vr *valkeyRing) Ping(ctx context.Context, s string) error {
 	return res.Error()
 }
 
-func (vr *valkeyRing) Expire(ctx context.Context, key string, expire time.Duration) valkey.ValkeyResult {
-	shard := vr.shardForKey(key)
-	return shard.Do(ctx, shard.B().Expire().Key(key).Seconds(int64(expire.Seconds())).Build())
+func (vr *valkeyRing) Expire(ctx context.Context, key string, expire time.Duration) (valkey.ValkeyResult, error) {
+	shard, err := vr.shardForKey(key)
+	if err != nil {
+		return valkey.ValkeyResult{}, err
+	}
+	return shard.Do(ctx, shard.B().Expire().Key(key).Seconds(int64(expire.Seconds())).Build()), nil
 }
 
-func (vr *valkeyRing) Get(ctx context.Context, key string) valkey.ValkeyResult {
-	shard := vr.shardForKey(key)
-	return shard.Do(ctx, shard.B().Get().Key(key).Build())
+func (vr *valkeyRing) Get(ctx context.Context, key string) (valkey.ValkeyResult, error) {
+	shard, err := vr.shardForKey(key)
+	if err != nil {
+		return valkey.ValkeyResult{}, err
+	}
+	return shard.Do(ctx, shard.B().Get().Key(key).Build()), nil
 }
 
-func (vr *valkeyRing) Set(ctx context.Context, key, val string) valkey.ValkeyResult {
-	shard := vr.shardForKey(key)
-	return shard.Do(ctx, shard.B().Set().Key(key).Value(val).Build())
+func (vr *valkeyRing) Set(ctx context.Context, key, val string) (valkey.ValkeyResult, error) {
+	shard, err := vr.shardForKey(key)
+	if err != nil {
+		return valkey.ValkeyResult{}, err
+	}
+	return shard.Do(ctx, shard.B().Set().Key(key).Value(val).Build()), nil
 }
-func (vr *valkeyRing) SetWithExpire(ctx context.Context, key, val string, expire time.Duration) []valkey.ValkeyResult {
-	shard := vr.shardForKey(key)
+
+func (vr *valkeyRing) SetWithExpire(ctx context.Context, key, val string, expire time.Duration) ([]valkey.ValkeyResult, error) {
+	shard, err := vr.shardForKey(key)
+	if err != nil {
+		return nil, err
+	}
 	return shard.DoMulti(ctx,
 		shard.B().Set().Key(key).Value(val).Build(),
 		shard.B().Expire().Key(key).Seconds(int64(expire.Seconds())).Build(),
-	)
+	), nil
 }
 
-func (vr *valkeyRing) ZAdd(ctx context.Context, key, val string, score float64) valkey.ValkeyResult {
-	shard := vr.shardForKey(key)
-	return shard.Do(ctx, shard.B().Zadd().Key(key).ScoreMember().ScoreMember(score, val).Build())
+func (vr *valkeyRing) ZAdd(ctx context.Context, key, val string, score float64) (valkey.ValkeyResult, error) {
+	shard, err := vr.shardForKey(key)
+	if err != nil {
+		return valkey.ValkeyResult{}, err
+	}
+	return shard.Do(ctx, shard.B().Zadd().Key(key).ScoreMember().ScoreMember(score, val).Build()), nil
 }
 
-func (vr *valkeyRing) ZCard(ctx context.Context, key string) valkey.ValkeyResult {
-	shard := vr.shardForKey(key)
-	return shard.Do(ctx, shard.B().Zcard().Key(key).Build())
+func (vr *valkeyRing) ZCard(ctx context.Context, key string) (valkey.ValkeyResult, error) {
+	shard, err := vr.shardForKey(key)
+	if err != nil {
+		return valkey.ValkeyResult{}, err
+	}
+	return shard.Do(ctx, shard.B().Zcard().Key(key).Build()), nil
 }
 
-func (vr *valkeyRing) ZRem(ctx context.Context, key string, members ...string) valkey.ValkeyResult {
-	shard := vr.shardForKey(key)
-	return shard.Do(ctx, shard.B().Zrem().Key(key).Member(members...).Build())
+func (vr *valkeyRing) ZRem(ctx context.Context, key string, members ...string) (valkey.ValkeyResult, error) {
+	shard, err := vr.shardForKey(key)
+	if err != nil {
+		return valkey.ValkeyResult{}, err
+	}
+	return shard.Do(ctx, shard.B().Zrem().Key(key).Member(members...).Build()), nil
 }
 
-func (vr *valkeyRing) ZRemRangeByScore(ctx context.Context, key, min, max string) valkey.ValkeyResult {
-	shard := vr.shardForKey(key)
-	return shard.Do(ctx, shard.B().Zremrangebyscore().Key(key).Min(min).Max(max).Build())
+func (vr *valkeyRing) ZRemRangeByScore(ctx context.Context, key, min, max string) (valkey.ValkeyResult, error) {
+	shard, err := vr.shardForKey(key)
+	if err != nil {
+		return valkey.ValkeyResult{}, err
+	}
+	return shard.Do(ctx, shard.B().Zremrangebyscore().Key(key).Min(min).Max(max).Build()), nil
 }
 
-func (vr *valkeyRing) ZRangeByScoreWithScoresFirst(ctx context.Context, key, min, max string, offset, count int64) valkey.ValkeyResult {
-	shard := vr.shardForKey(key)
-	return shard.Do(ctx, shard.B().Zrangebyscore().Key(key).Min(min).Max(max).Withscores().Limit(offset, count).Build())
+func (vr *valkeyRing) ZRangeByScoreWithScoresFirst(ctx context.Context, key, min, max string, offset, count int64) (valkey.ValkeyResult, error) {
+	shard, err := vr.shardForKey(key)
+	if err != nil {
+		return valkey.ValkeyResult{}, err
+	}
+	return shard.Do(ctx, shard.B().Zrangebyscore().Key(key).Min(min).Max(max).Withscores().Limit(offset, count).Build()), nil
 }
 
-func (vr *valkeyRing) RunScript(ctx context.Context, script *valkey.Lua, keys []string, args ...string) valkey.ValkeyResult {
-	shard := vr.shardForKey(strings.Join(keys, ""))
-	return script.Exec(ctx, shard, keys, args)
+func (vr *valkeyRing) RunScript(ctx context.Context, script *valkey.Lua, keys []string, args ...string) (valkey.ValkeyResult, error) {
+	shard, err := vr.shardForKey(strings.Join(keys, ""))
+	if err != nil {
+		return valkey.ValkeyResult{}, err
+	}
+	return script.Exec(ctx, shard, keys, args), nil
 }
 
 // ValkeyRingClient is a wrapper around valkey.Client that does access valkey shard by
@@ -516,22 +553,34 @@ func (vrc *ValkeyRingClient) Ping(ctx context.Context, shard string) error {
 }
 
 func (vrc *ValkeyRingClient) Expire(ctx context.Context, key string, d time.Duration) (int64, error) {
-	res := vrc.ring.Expire(ctx, key, d)
+	res, err := vrc.ring.Expire(ctx, key, d)
+	if err != nil {
+		return 0, err
+	}
 	return res.ToInt64()
 }
 
 func (vrc *ValkeyRingClient) Get(ctx context.Context, key string) (string, error) {
-	res := vrc.ring.Get(ctx, key)
+	res, err := vrc.ring.Get(ctx, key)
+	if err != nil {
+		return "", err
+	}
 	return res.ToString()
 }
 
 func (vrc *ValkeyRingClient) Set(ctx context.Context, key, val string) (string, error) {
-	res := vrc.ring.Set(ctx, key, val)
+	res, err := vrc.ring.Set(ctx, key, val)
+	if err != nil {
+		return "", err
+	}
 	return res.ToString()
 }
 
 func (vrc *ValkeyRingClient) SetWithExpire(ctx context.Context, key string, value string, expire time.Duration) error {
-	results := vrc.ring.SetWithExpire(ctx, key, value, expire)
+	results, err := vrc.ring.SetWithExpire(ctx, key, value, expire)
+	if err != nil {
+		return err
+	}
 	for _, res := range results {
 		if err := res.Error(); err != nil {
 			return err
@@ -544,28 +593,43 @@ func (vrc *ValkeyRingClient) SetWithExpire(ctx context.Context, key string, valu
 }
 
 func (vrc *ValkeyRingClient) ZAdd(ctx context.Context, key, val string, score float64) (int64, error) {
-	res := vrc.ring.ZAdd(ctx, key, val, score)
+	res, err := vrc.ring.ZAdd(ctx, key, val, score)
+	if err != nil {
+		return 0, err
+	}
 	return res.ToInt64()
 }
 
 func (vrc *ValkeyRingClient) ZCard(ctx context.Context, key string) (int64, error) {
-	res := vrc.ring.ZCard(ctx, key)
+	res, err := vrc.ring.ZCard(ctx, key)
+	if err != nil {
+		return 0, err
+	}
 	return res.ToInt64()
 }
 
 func (vrc *ValkeyRingClient) ZRem(ctx context.Context, key string, members ...string) (int64, error) {
-	res := vrc.ring.ZRem(ctx, key, members...)
+	res, err := vrc.ring.ZRem(ctx, key, members...)
+	if err != nil {
+		return 0, err
+	}
 	return res.ToInt64()
 }
 
 func (vrc *ValkeyRingClient) ZRemRangeByScore(ctx context.Context, key, min, max string) (int64, error) {
-	res := vrc.ring.ZRemRangeByScore(ctx, key, min, max)
+	res, err := vrc.ring.ZRemRangeByScore(ctx, key, min, max)
+	if err != nil {
+		return 0, err
+	}
 	return res.ToInt64()
 }
 
 // ZRangeByScoreWithScoresFirst returns the first value as string, count should be set to 1
 func (vrc *ValkeyRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, key, min, max string, offset, count int64) (string, error) {
-	res := vrc.ring.ZRangeByScoreWithScoresFirst(ctx, key, min, max, offset, count)
+	res, err := vrc.ring.ZRangeByScoreWithScoresFirst(ctx, key, min, max, offset, count)
+	if err != nil {
+		return "", err
+	}
 	a, err := res.ToArray()
 	if err != nil {
 		return "", err
@@ -584,7 +648,10 @@ func (vrc *ValkeyRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, k
 }
 
 func (vrc *ValkeyRingClient) RunScript(ctx context.Context, script *valkey.Lua, keys []string, args ...string) (valkey.ValkeyMessage, error) {
-	res := vrc.ring.RunScript(ctx, script, keys, args...)
+	res, err := vrc.ring.RunScript(ctx, script, keys, args...)
+	if err != nil {
+		return valkey.ValkeyMessage{}, err
+	}
 	return res.ToMessage()
 }
 
