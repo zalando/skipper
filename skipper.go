@@ -308,8 +308,8 @@ type Options struct {
 	// KubernetesAnnotationFiltersAppend sets filters to append for each annotation key and value
 	KubernetesAnnotationFiltersAppend []kubernetes.AnnotationFilters
 
-	// KubernetesEnableApplicationAnnotation enables adding annotate("Application", <label value>) to routes generated from kubernetes routing objects.
-	KubernetesEnableApplicationAnnotation bool
+// EnableKubernetesApplicationAnnotation enables adding annotate("Application", <label value>) to routes generated from kubernetes routing objects.
+EnableKubernetesApplicationAnnotation bool
 
 	// KubernetesApplicationAnnotationLabel is the kubernetes routing object label used for annotations.
 	KubernetesApplicationAnnotationLabel string
@@ -1157,7 +1157,7 @@ type Options struct {
 
 func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 	applicationAnnotationLabel := ""
-	if o.KubernetesEnableApplicationAnnotation {
+	if o.EnableKubernetesApplicationAnnotation {
 		applicationAnnotationLabel = o.KubernetesApplicationAnnotationLabel
 	}
 	return kubernetes.Options{

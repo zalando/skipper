@@ -1,2 +1,2 @@
-kubernetes-enable-application-annotation: true
+enable-kubernetes-application-annotation: true
 kubernetes-application-annotation-label: app.kubernetes.io/name
