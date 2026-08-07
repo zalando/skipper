@@ -27,6 +27,7 @@ type Registry struct {
 	swarm      Swarmer
 	redisRing  *net.RedisRingClient
 	valkeyRing *net.ValkeyRingClient
+	ownRing    bool // true only when this registry created the ring
 }
 
 // NewRegistry initializes a registry with the provided default settings.
@@ -87,7 +88,9 @@ func NewRedisSwarmRegistry(ro *net.RedisOptions, settings ...Settings) *Registry
 		ro.MetricsPrefix = RedisMetricsPrefix
 	}
 
-	return NewRatelimitRegistryRedis(net.NewRedisRingClient(ro), settings...)
+	r := NewRatelimitRegistryRedis(net.NewRedisRingClient(ro), settings...)
+	r.ownRing = true
+	return r
 }
 
 // NewValkeySwarmRegistry initializes a registry with Valkey shards
@@ -102,7 +105,9 @@ func NewValkeySwarmRegistry(vo *net.ValkeyOptions, settings ...Settings) (*Regis
 		return nil, err
 	}
 
-	return NewRatelimitRegistryValkey(ring, settings...), nil
+	r := NewRatelimitRegistryValkey(ring, settings...)
+	r.ownRing = true
+	return r, nil
 }
 
 // NewRatelimitRegistryRedis creates a registry for the given redis ring client.
@@ -112,6 +117,7 @@ func NewRatelimitRegistryRedis(ring *net.RedisRingClient, settings ...Settings) 
 		global:    getSwarmRegistryDefaultSettings(),
 		lookup:    make(map[Settings]*Ratelimit),
 		redisRing: ring,
+		ownRing:   false,
 	}
 
 	if ring != nil {
@@ -132,6 +138,7 @@ func NewRatelimitRegistryValkey(ring *net.ValkeyRingClient, settings ...Settings
 		global:     getSwarmRegistryDefaultSettings(),
 		lookup:     make(map[Settings]*Ratelimit),
 		valkeyRing: ring,
+		ownRing:    false,
 	}
 
 	if len(settings) > 0 {
@@ -144,11 +151,13 @@ func NewRatelimitRegistryValkey(ring *net.ValkeyRingClient, settings ...Settings
 // Close teardown Registry and dependent resources
 func (r *Registry) Close() {
 	r.once.Do(func() {
-		if r.redisRing != nil {
-			r.redisRing.Close()
-		}
-		if r.valkeyRing != nil {
-			r.valkeyRing.Close()
+		if r.ownRing {
+			if r.redisRing != nil {
+				r.redisRing.Close()
+			}
+			if r.valkeyRing != nil {
+				r.valkeyRing.Close()
+			}
 		}
 		for _, rl := range r.lookup {
 			rl.Close()
