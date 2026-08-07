@@ -1644,6 +1644,12 @@ func listenAndServeQuit(
 				if err != nil {
 					log.Errorf("Failed to start insecure listener on %s: %v", o.InsecureAddress, err)
 				}
+				if o.EnableProxyProtocol {
+					l, err = proxyListener(l, o)
+					if err != nil {
+						log.Errorf("Failed to start proxy listener: %v", err)
+					}
+				}
 
 				if err := srv.Serve(l); err != http.ErrServerClosed {
 					log.Errorf("Insecure listener serve failed: %v", err)
