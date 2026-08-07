@@ -73,27 +73,23 @@ func TestTransportDisabledH2c_NoProtocolSet(t *testing.T) {
 	}
 }
 
-// TestTransportEnableH2c_FallsBackToHTTP1WithRegularServer verifies that an
-// h2c-configured transport can also communicate with a plain HTTP/1 server.
-func TestTransportEnableH2c_FallsBackToHTTP1WithRegularServer(t *testing.T) {
+// TestTransportH2cOnly_FailsOnHTTP1Server documents that a transport with only
+// SetUnencryptedHTTP2 enabled (no SetHTTP1) cannot fall back to HTTP/1. It will
+// fail on a plain HTTP/1-only server. Callers that need mixed support must enable
+// both protocols on the transport.
+func TestTransportH2cOnly_FailsOnHTTP1Server(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
 
-	// A transport with only UnencryptedHTTP2 set (no SetHTTP1) will try h2c
-	// exclusively. This test documents that h2c-only transports may fail on
-	// plain HTTP/1-only servers — the behaviour is intentional for pure h2c
-	// backends. If mixed support is needed, both protocols should be enabled.
 	tr := NewTransport(Options{EnableH2c: true})
 	defer tr.Close()
 
 	req, _ := http.NewRequest("GET", srv.URL+"/", nil)
 	rsp, err := tr.RoundTrip(req)
-	// A plain HTTP/1 server that doesn't speak h2c may reject the connection
-	// or fall back — exact behaviour depends on the server. We just check we
-	// don't panic and handle the result gracefully.
 	if err == nil {
 		rsp.Body.Close()
+		t.Error("expected h2c-only transport to fail against a plain HTTP/1 server")
 	}
 }
