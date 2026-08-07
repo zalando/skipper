@@ -70,6 +70,8 @@ type filterCacheKey struct {
 	rfcMode      bool
 }
 
+var _ io.Closer = (*cacheSpec)(nil)
+
 type cacheSpec struct {
 	maxBytes     int64
 	listenAddr   string
@@ -137,13 +139,14 @@ func (s *cacheSpec) Name() string { return filterName }
 
 // Close shuts down the background revalidation worker and lru_bytes scraper.
 // Safe to call multiple times.
-func (s *cacheSpec) Close() {
+func (s *cacheSpec) Close() error {
 	s.closeOnce.Do(func() {
 		close(s.lruBytesDone) // stop scraper; must close before revalJobs so enqueueRevalidation's recover() fires first
 		close(s.revalJobs)    // unblocks revalidationWorker range loop
 		s.bgWg.Wait()
 		s.client.Close() // tear down transport after all in-flight revalidation fetches complete
 	})
+	return nil
 }
 
 func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
