@@ -3,17 +3,23 @@ package net
 import (
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+
+	"github.com/AlexanderYastrebov/noleak"
 )
 
-// newH2cServer starts an h2c (HTTP/2 cleartext) test server that records the
-// incoming request protocol.
-func newH2cServer(t *testing.T, gotProto *string) *httptest.Server {
-	t.Helper()
+// TestTransportEnableH2c verifies that when EnableH2c is set, NewTransport
+// produces a transport that connects to an h2c backend over HTTP/2.
+func TestTransportEnableH2c(t *testing.T) {
+	noleak.Check(t)
+
+	var mu sync.Mutex
+	var proto string
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if gotProto != nil {
-			*gotProto = r.Proto
-		}
+		mu.Lock()
+		proto = r.Proto
+		mu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	}))
 	srv.Config.Protocols = new(http.Protocols)
@@ -21,19 +27,14 @@ func newH2cServer(t *testing.T, gotProto *string) *httptest.Server {
 	srv.Config.Protocols.SetUnencryptedHTTP2(true)
 	srv.Start()
 	t.Cleanup(srv.Close)
-	return srv
-}
-
-// TestTransportEnableH2c verifies that when EnableH2c is set, NewTransport
-// produces a transport that connects to an h2c backend over HTTP/2.
-func TestTransportEnableH2c(t *testing.T) {
-	var gotProto string
-	srv := newH2cServer(t, &gotProto)
 
 	tr := NewTransport(Options{EnableH2c: true})
 	defer tr.Close()
 
-	req, _ := http.NewRequest("GET", srv.URL+"/", nil)
+	req, err := http.NewRequest("GET", srv.URL+"/", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
 	rsp, err := tr.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("RoundTrip failed: %v", err)
@@ -43,6 +44,9 @@ func TestTransportEnableH2c(t *testing.T) {
 	if rsp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", rsp.StatusCode)
 	}
+	mu.Lock()
+	gotProto := proto
+	mu.Unlock()
 	if gotProto != "HTTP/2.0" {
 		t.Errorf("expected server to receive HTTP/2.0, got %q", gotProto)
 	}
@@ -51,6 +55,8 @@ func TestTransportEnableH2c(t *testing.T) {
 // TestTransportEnableH2c_ProtocolSet verifies that the underlying transport
 // has SetUnencryptedHTTP2(true) when EnableH2c is set.
 func TestTransportEnableH2c_ProtocolSet(t *testing.T) {
+	noleak.Check(t)
+
 	tr := NewTransport(Options{EnableH2c: true})
 	defer tr.Close()
 
@@ -65,6 +71,8 @@ func TestTransportEnableH2c_ProtocolSet(t *testing.T) {
 // TestTransportDisabledH2c_NoProtocolSet verifies that when EnableH2c is
 // false (default) the transport does not set UnencryptedHTTP2.
 func TestTransportDisabledH2c_NoProtocolSet(t *testing.T) {
+	noleak.Check(t)
+
 	tr := NewTransport(Options{})
 	defer tr.Close()
 
@@ -78,6 +86,8 @@ func TestTransportDisabledH2c_NoProtocolSet(t *testing.T) {
 // fail on a plain HTTP/1-only server. Callers that need mixed support must enable
 // both protocols on the transport.
 func TestTransportH2cOnly_FailsOnHTTP1Server(t *testing.T) {
+	noleak.Check(t)
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -86,7 +96,10 @@ func TestTransportH2cOnly_FailsOnHTTP1Server(t *testing.T) {
 	tr := NewTransport(Options{EnableH2c: true})
 	defer tr.Close()
 
-	req, _ := http.NewRequest("GET", srv.URL+"/", nil)
+	req, err := http.NewRequest("GET", srv.URL+"/", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
 	rsp, err := tr.RoundTrip(req)
 	if err == nil {
 		rsp.Body.Close()

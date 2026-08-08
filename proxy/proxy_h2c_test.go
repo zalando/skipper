@@ -134,12 +134,17 @@ func TestH2cServer_H2cTransportConfigured(t *testing.T) {
 
 	ht, ok := tp.proxy.h2cRoundTripper.(*http.Transport)
 	if !ok {
-		t.Skip("h2cRoundTripper is not *http.Transport, skipping protocol check")
+		t.Fatalf("h2cRoundTripper is not *http.Transport, got %T", tp.proxy.h2cRoundTripper)
 	}
 	if ht.Protocols == nil {
 		t.Fatal("expected Protocols to be set on h2c transport, got nil")
 	}
 	if !ht.Protocols.UnencryptedHTTP2() {
 		t.Error("expected UnencryptedHTTP2 to be true on h2c transport")
+	}
+
+	rt, ok := tp.proxy.roundTripper.(*http.Transport)
+	if ok && rt.Protocols != nil && rt.Protocols.UnencryptedHTTP2() {
+		t.Error("standard roundTripper must NOT have UnencryptedHTTP2 set")
 	}
 }
