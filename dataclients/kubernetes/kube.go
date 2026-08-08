@@ -223,9 +223,9 @@ type Options struct {
 	// KubernetesAnnotationFiltersAppend sets filters to append for each annotation key and value
 	KubernetesAnnotationFiltersAppend []AnnotationFilters
 
-	// KubernetesApplicationAnnotationLabel, when set, is the Kubernetes routing object label used to add
+	// KubernetesApplicationAnnotationLabelKey, when set, is the Kubernetes routing object label used to add
 	// annotate("Application", <label value>) to generated routes.
-	KubernetesApplicationAnnotationLabel string
+	KubernetesApplicationAnnotationLabelKey string
 
 	// DefaultFiltersDir enables default filters mechanism and sets the location of the default filters.
 	// The provided filters are then applied to all routes.

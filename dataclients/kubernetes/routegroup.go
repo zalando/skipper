@@ -605,7 +605,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				certificateRegistry:          cr,
 				zone:                         r.options.TopologyZone,
 				disableZoneAwareness:         rg.Metadata.Annotations[trafficZoneAwareAnnotationKey] == "false",
-				applicationAnnotationLabel:   r.options.KubernetesApplicationAnnotationLabel,
+				applicationAnnotationLabel:   r.options.KubernetesApplicationAnnotationLabelKey,
 			}
 
 			ri, err := transformRouteGroup(ctx)
@@ -654,7 +654,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				defaultLoadBalancerAlgorithm: r.options.DefaultLoadBalancerAlgorithm,
 				forwardBackendURL:            r.options.ForwardBackendURL,
 				certificateRegistry:          cr,
-				applicationAnnotationLabel:   r.options.KubernetesApplicationAnnotationLabel,
+				applicationAnnotationLabel:   r.options.KubernetesApplicationAnnotationLabelKey,
 			}
 
 			internalRi, err := transformRouteGroup(internalCtx)

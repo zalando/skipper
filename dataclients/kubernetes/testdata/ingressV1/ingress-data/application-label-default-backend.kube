@@ -1,2 +1,1 @@
-enable-kubernetes-application-annotation: true
 kubernetes-application-annotation-label: application

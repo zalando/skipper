@@ -124,7 +124,7 @@ func newIngress(o Options) *ingress {
 		kubernetesAnnotationFiltersAppend:              o.KubernetesAnnotationFiltersAppend,
 		kubernetesEastWestRangeAnnotationPredicates:    o.KubernetesEastWestRangeAnnotationPredicates,
 		kubernetesEastWestRangeAnnotationFiltersAppend: o.KubernetesEastWestRangeAnnotationFiltersAppend,
-		kubernetesApplicationAnnotationLabel:           o.KubernetesApplicationAnnotationLabel,
+		kubernetesApplicationAnnotationLabel:           o.KubernetesApplicationAnnotationLabelKey,
 	}
 }
 

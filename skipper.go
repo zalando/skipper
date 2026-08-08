@@ -308,10 +308,8 @@ type Options struct {
 	// KubernetesAnnotationFiltersAppend sets filters to append for each annotation key and value
 	KubernetesAnnotationFiltersAppend []kubernetes.AnnotationFilters
 
-// EnableKubernetesApplicationAnnotation enables adding annotate("Application", <label value>) to routes generated from kubernetes routing objects.
-EnableKubernetesApplicationAnnotation bool
-
-	// KubernetesApplicationAnnotationLabel is the kubernetes routing object label used for annotations.
+	// KubernetesApplicationAnnotationLabel, when set, is the kubernetes routing object label used to add
+	// annotate("Application", <label value>) to generated routes.
 	KubernetesApplicationAnnotationLabel string
 
 	// EnableKubernetesExternalNames enables to use Kubernetes service type ExternalName as backend in Ingress and RouteGroup.
@@ -1156,10 +1154,6 @@ EnableKubernetesApplicationAnnotation bool
 }
 
 func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
-	applicationAnnotationLabel := ""
-	if o.EnableKubernetesApplicationAnnotation {
-		applicationAnnotationLabel = o.KubernetesApplicationAnnotationLabel
-	}
 	return kubernetes.Options{
 		AllowedExternalNames:                           o.KubernetesAllowedExternalNames,
 		EnableExternalNames:                            o.EnableKubernetesExternalNames,
@@ -1200,7 +1194,7 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		ForwardBackendURL:                              o.ForwardBackendURL,
 		TopologyZone:                                   o.KubernetesTopologyZone,
 		IngressStatusFromService:                       o.KubernetesStatusFromService,
-		KubernetesApplicationAnnotationLabel:           applicationAnnotationLabel,
+		KubernetesApplicationAnnotationLabelKey:        o.KubernetesApplicationAnnotationLabel,
 	}
 }
 
