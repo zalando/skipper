@@ -99,13 +99,9 @@ Enable h2c on the listener (for clients that speak h2c to skipper):
     -enable-h2c-server
         enable h2c (HTTP/2 cleartext) on the incoming listener; no effect when TLS is configured
 
-Enable h2c on outgoing backend connections (for backends that speak h2c):
-
-    -enable-h2c-backends
-        enable h2c (HTTP/2 cleartext) for outgoing connections to backends; backends must speak h2c
-
-When `-enable-h2c-backends` is set, skipper uses HTTP/2 cleartext for any backend whose
-URL scheme is `h2c://`. Skipper sets the `h2c://` scheme automatically when:
+Skipper uses HTTP/2 cleartext for any backend whose URL scheme is
+`h2c://`. Skipper sets the `h2c://` scheme automatically when one of
+the following points are true:
 
 - The Ingress or RouteGroup has the annotation `zalando.org/skipper-backend-protocol: h2c`
 - The EndpointSlice port has `appProtocol: kubernetes.io/h2c` and
