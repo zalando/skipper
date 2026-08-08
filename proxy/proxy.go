@@ -818,9 +818,6 @@ func WithParams(p Params) *Proxy {
 	tr := newTransport(p)
 
 	quit := make(chan struct{})
-	// We need this to reliably fade on DNS change, which is right
-	// now not fixed with IdleConnTimeout in the http.Transport.
-	// https://github.com/golang/go/issues/23427
 	if p.ClientTLS != nil {
 		tr.TLSClientConfig = p.ClientTLS
 	}
@@ -859,6 +856,9 @@ func WithParams(p Params) *Proxy {
 	h2cTr.Protocols = new(http.Protocols)
 	h2cTr.Protocols.SetUnencryptedHTTP2(true)
 
+	// We need this to reliably fade on DNS change, which is right
+	// now not fixed with IdleConnTimeout in the http.Transport.
+	// https://github.com/golang/go/issues/23427
 	if p.CloseIdleConnsPeriod > 0 {
 		go func() {
 			ticker := time.NewTicker(p.CloseIdleConnsPeriod)
