@@ -17,8 +17,6 @@ type AnnotationFilters struct {
 	Filters []*eskip.Filter
 }
 
-const applicationAnnotationKey = "Application"
-
 func appendAnnotationPredicates(annotationPredicates []AnnotationPredicates, annotations map[string]string, r *eskip.Route) {
 	for _, ap := range annotationPredicates {
 		if objAnnotationVal, ok := annotations[ap.Key]; ok && ap.Value == objAnnotationVal {
@@ -49,7 +47,7 @@ func applicationAnnotationFilter(labels map[string]string, labelKey string) *esk
 
 	return &eskip.Filter{
 		Name: filters.AnnotateName,
-		Args: []interface{}{applicationAnnotationKey, application},
+		Args: []interface{}{labelKey, application},
 	}
 }
 

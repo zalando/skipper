@@ -58,7 +58,7 @@ type kubeOptionsParser struct {
 	TopologyZone                                   string                            `yaml:"topology-zone"`
 	KubernetesAnnotationPredicates                 []kubernetes.AnnotationPredicates `yaml:"kubernetesAnnotationPredicates"`
 	KubernetesAnnotationFiltersAppend              []kubernetes.AnnotationFilters    `yaml:"kubernetesAnnotationFiltersAppend"`
-	KubernetesApplicationAnnotationLabel           string                            `yaml:"kubernetes-application-annotation-label"`
+	KubernetesApplicationAnnotationLabelKey        string                            `yaml:"kubernetes-application-annotation-label"`
 	KubernetesEastWestRangeAnnotationPredicates    []kubernetes.AnnotationPredicates `yaml:"kubernetesEastWestRangeAnnotationPredicates"`
 	KubernetesEastWestRangeAnnotationFiltersAppend []kubernetes.AnnotationFilters    `yaml:"kubernetesEastWestRangeAnnotationFiltersAppend"`
 }
@@ -255,7 +255,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.ForwardBackendURL = kop.ForwardBackendURL
 		o.TopologyZone = kop.TopologyZone
 
-		o.KubernetesApplicationAnnotationLabelKey = kop.KubernetesApplicationAnnotationLabel
+		o.KubernetesApplicationAnnotationLabelKey = kop.KubernetesApplicationAnnotationLabelKey
 
 		if kop.BackendTrafficAlgorithm != "" {
 			o.BackendTrafficAlgorithm, err = kubernetes.ParseBackendTrafficAlgorithm(kop.BackendTrafficAlgorithm)
