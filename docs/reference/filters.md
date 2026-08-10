@@ -1830,6 +1830,16 @@ Examples:
 jwtValidation("https://login.microsoftonline.com/{tenantId}/v2.0")
 ```
 
+To also validate specific claims like `iss` or `aud`, chain with [oidcClaimsQuery](#oidcclaimsquery).
+Note that queries within a single `oidcClaimsQuery` argument are OR-matched, so use separate filters for AND logic:
+
+```
+jwtValidation("https://accounts.google.com")
+-> oidcClaimsQuery("/:@_:iss==\"https://accounts.google.com\"")
+-> oidcClaimsQuery("/:@_:aud==\"123456789\"")
+```
+
+
 #### jwtValidationKeys
 
 The filter works like [jwtValidation](#jwtvalidation) but takes a JWKS URL directly instead of
