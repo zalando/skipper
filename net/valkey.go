@@ -2,6 +2,7 @@ package net
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -32,6 +33,8 @@ const (
 	DefaultDialTimeout      = 25 * time.Millisecond
 	DefaultKeepAlive        = time.Second
 )
+
+var ErrValkeyNoResult = errors.New("failed to SetWithExpire, no result")
 
 // ValkeyOptions is used to configure the ValkeyRing
 //
@@ -543,7 +546,7 @@ func (vrc *ValkeyRingClient) Set(ctx context.Context, key, val string) (string, 
 func (vrc *ValkeyRingClient) SetWithExpire(ctx context.Context, key string, value string, expire time.Duration) error {
 	results := vrc.ring.SetWithExpire(ctx, key, value, expire)
 	if len(results) == 0 {
-		return fmt.Errorf("failed to SetWithExpire, no result")
+		return ErrValkeyNoResult
 	}
 	for _, res := range results {
 		if err := res.Error(); err != nil {
