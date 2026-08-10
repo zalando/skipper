@@ -42,6 +42,7 @@ type kubeOptionsParser struct {
 	DisableCatchAllRoutes                          bool                              `yaml:"disableCatchAllRoutes"`
 	BackendNameTracingTag                          bool                              `yaml:"backendNameTracingTag"`
 	EnableExternalNames                            bool                              `yaml:"enableExternalNames"`
+	ExternalNamePreserveHost                       bool                              `yaml:"externalNamePreserveHost"`
 	OnlyAllowedExternalNames                       bool                              `yaml:"onlyAllowedExternalNames"`
 	AllowedExternalNames                           []string                          `yaml:"allowedExternalNames"`
 	IngressClass                                   string                            `yaml:"kubernetes-ingress-class"`
@@ -267,6 +268,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		}
 
 		o.EnableExternalNames = kop.EnableExternalNames
+		o.ExternalNamePreserveHost = kop.ExternalNamePreserveHost
 		o.OnlyAllowedExternalNames = kop.OnlyAllowedExternalNames
 		o.AllowedExternalNames = aen
 	}
