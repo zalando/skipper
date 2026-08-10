@@ -480,7 +480,9 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext, cookies []*
 		}
 	}
 
-	oauth2URL := f.config.AuthCodeURL(fmt.Sprintf("%x", stateEnc), opts...)
+	stateEncHex := fmt.Sprintf("%x", stateEnc)
+	oauth2URL := f.config.AuthCodeURL(stateEncHex, opts...)
+
 	rsp := &http.Response{
 		Header: http.Header{
 			"Location": []string{oauth2URL},
@@ -986,6 +988,16 @@ func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthSta
 	state, err := extractState(stateQueryPlain)
 	if err != nil {
 		return nil, requestErrorf("failed to deserialize state: %v", err)
+	}
+
+	// CSRF protection: verify the request was redirected from the OIDC provider
+	// by checking the Referer header matches the provider's authorization endpoint.
+	// A browser that never started the flow (e.g. a CSRF victim following a crafted
+	// link) arrives without a Referer, while a legitimate redirect from the provider
+	// carries Referer set to the provider's auth URL.
+	referer := r.Header.Get("Referer")
+	if !strings.HasPrefix(referer, f.config.Endpoint.AuthURL) {
+		return nil, requestErrorf("invalid referer for OIDC callback")
 	}
 
 	return state, nil

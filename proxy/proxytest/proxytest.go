@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"time"
 
@@ -30,6 +31,19 @@ type TestProxy struct {
 
 type TestClient struct {
 	*http.Client
+}
+
+// Do sends the HTTP request. If the request already has a Cookie header (manually added cookies),
+// the cookie jar is temporarily disabled so that jar cookies do not interfere with the request.
+// This allows tests that manually construct requests with specific cookies to avoid cross-test
+// cookie interference while still supporting automatic cookie handling for full browser-like flows.
+func (c *TestClient) Do(req *http.Request) (*http.Response, error) {
+	if req.Header.Get("Cookie") != "" {
+		savedJar := c.Client.Jar
+		c.Client.Jar = nil
+		defer func() { c.Client.Jar = savedJar }()
+	}
+	return c.Client.Do(req)
 }
 
 type Config struct {
@@ -147,7 +161,10 @@ func (p *TestProxy) SetListener(l net.Listener) {
 }
 
 func (p *TestProxy) Client() *TestClient {
-	return &TestClient{p.server.Client()}
+	c := p.server.Client()
+	jar, _ := cookiejar.New(nil)
+	c.Jar = jar
+	return &TestClient{c}
 }
 
 func (p *TestProxy) Close() error {
