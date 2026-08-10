@@ -2,6 +2,7 @@ package net
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -32,6 +33,8 @@ const (
 	DefaultDialTimeout      = 25 * time.Millisecond
 	DefaultKeepAlive        = time.Second
 )
+
+var ErrValkeyNoResult = errors.New("failed to SetWithExpire, no result")
 
 // ValkeyOptions is used to configure the ValkeyRing
 //
@@ -277,6 +280,11 @@ func (vr *valkeyRing) Expire(ctx context.Context, key string, expire time.Durati
 	return shard.Do(ctx, shard.B().Expire().Key(key).Seconds(int64(expire.Seconds())).Build())
 }
 
+func (vr *valkeyRing) Del(ctx context.Context, key string) valkey.ValkeyResult {
+	shard := vr.shardForKey(key)
+	return shard.Do(ctx, shard.B().Del().Key(key).Build())
+}
+
 func (vr *valkeyRing) Get(ctx context.Context, key string) valkey.ValkeyResult {
 	shard := vr.shardForKey(key)
 	return shard.Do(ctx, shard.B().Get().Key(key).Build())
@@ -520,6 +528,11 @@ func (vrc *ValkeyRingClient) Expire(ctx context.Context, key string, d time.Dura
 	return res.ToInt64()
 }
 
+func (vrc *ValkeyRingClient) Del(ctx context.Context, key string) (int64, error) {
+	res := vrc.ring.Del(ctx, key)
+	return res.ToInt64()
+}
+
 func (vrc *ValkeyRingClient) Get(ctx context.Context, key string) (string, error) {
 	res := vrc.ring.Get(ctx, key)
 	return res.ToString()
@@ -532,15 +545,15 @@ func (vrc *ValkeyRingClient) Set(ctx context.Context, key, val string) (string, 
 
 func (vrc *ValkeyRingClient) SetWithExpire(ctx context.Context, key string, value string, expire time.Duration) error {
 	results := vrc.ring.SetWithExpire(ctx, key, value, expire)
+	if len(results) == 0 {
+		return ErrValkeyNoResult
+	}
 	for _, res := range results {
 		if err := res.Error(); err != nil {
 			return err
 		}
 	}
-	if len(results) == 0 {
-		return fmt.Errorf("failed to SetWithExpire, no result")
-	}
-	return results[len(results)-1].Error()
+	return nil
 }
 
 func (vrc *ValkeyRingClient) ZAdd(ctx context.Context, key, val string, score float64) (int64, error) {

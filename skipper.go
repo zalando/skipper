@@ -2215,11 +2215,41 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 	}
 
-	var ratelimitRegistry *ratelimit.Registry
-	var failClosedRatelimitPostProcessor *ratelimitfilters.FailClosedPostProcessor
+	var valkeyRing *skpnet.ValkeyRingClient
+	if valkeyOptions != nil {
+		if valkeyOptions.MetricsPrefix == "" {
+			valkeyOptions.MetricsPrefix = ratelimit.ValkeyMetricsPrefix
+		}
+		valkeyRing, err = skpnet.NewValkeyRingClient(valkeyOptions)
+		if err != nil {
+			return err
+		}
+		defer valkeyRing.Close()
+	}
+
+	var (
+		ratelimitRegistry                *ratelimit.Registry
+		failClosedRatelimitPostProcessor *ratelimitfilters.FailClosedPostProcessor
+	)
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		ratelimitRegistry = ratelimit.NewSwarmRegistry(swarmer, redisOptions, valkeyOptions, o.RatelimitSettings...)
+
+		switch {
+		case valkeyRing != nil:
+			ratelimitRegistry = ratelimit.NewRatelimitRegistryValkey(valkeyRing, o.RatelimitSettings...)
+
+		case redisOptions != nil:
+			if redisOptions.MetricsPrefix == "" {
+				redisOptions.MetricsPrefix = ratelimit.RedisMetricsPrefix
+			}
+			redisRing := skpnet.NewRedisRingClient(redisOptions)
+			ratelimitRegistry = ratelimit.NewRatelimitRegistryRedis(redisRing, o.RatelimitSettings...)
+			defer redisRing.Close()
+
+		default:
+			// swim based Swarmer (deprecated)
+			ratelimitRegistry = ratelimit.NewSwarmRegistry(swarmer, redisOptions, valkeyOptions, o.RatelimitSettings...)
+		}
 		defer ratelimitRegistry.Close()
 
 		if hook := o.SwarmRegistry; hook != nil {

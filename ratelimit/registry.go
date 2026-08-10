@@ -27,6 +27,7 @@ type Registry struct {
 	swarm      Swarmer
 	redisRing  *net.RedisRingClient
 	valkeyRing *net.ValkeyRingClient
+	ownRing    bool // true only when this registry created the ring
 }
 
 // NewRegistry initializes a registry with the provided default settings.
@@ -84,17 +85,43 @@ func NewSwimSwarmRegistry(swarm Swarmer, settings ...Settings) *Registry {
 // the optional provided default settings.
 func NewRedisSwarmRegistry(ro *net.RedisOptions, settings ...Settings) *Registry {
 	if ro != nil && ro.MetricsPrefix == "" {
-		ro.MetricsPrefix = redisMetricsPrefix
+		ro.MetricsPrefix = RedisMetricsPrefix
 	}
 
+	r := NewRatelimitRegistryRedis(net.NewRedisRingClient(ro), settings...)
+	r.ownRing = true
+	return r
+}
+
+// NewValkeySwarmRegistry initializes a registry with Valkey shards
+// and the optional provided default settings.
+func NewValkeySwarmRegistry(vo *net.ValkeyOptions, settings ...Settings) (*Registry, error) {
+	if vo != nil && vo.MetricsPrefix == "" {
+		vo.MetricsPrefix = ValkeyMetricsPrefix
+	}
+
+	ring, err := net.NewValkeyRingClient(vo)
+	if err != nil {
+		return nil, err
+	}
+
+	r := NewRatelimitRegistryValkey(ring, settings...)
+	r.ownRing = true
+	return r, nil
+}
+
+// NewRatelimitRegistryRedis creates a registry for the given redis ring client.
+func NewRatelimitRegistryRedis(ring *net.RedisRingClient, settings ...Settings) *Registry {
 	r := &Registry{
 		once:      sync.Once{},
 		global:    getSwarmRegistryDefaultSettings(),
 		lookup:    make(map[Settings]*Ratelimit),
-		redisRing: net.NewRedisRingClient(ro),
+		redisRing: ring,
+		ownRing:   false,
 	}
-	if ro != nil {
-		r.redisRing.StartMetricsCollection()
+
+	if ring != nil {
+		ring.StartMetricsCollection()
 	}
 
 	if len(settings) > 0 {
@@ -104,40 +131,33 @@ func NewRedisSwarmRegistry(ro *net.RedisOptions, settings ...Settings) *Registry
 	return r
 }
 
-// NewValkeySwarmRegistry initializes a registry with Valkey shards
-// and the optional provided default settings.
-func NewValkeySwarmRegistry(vo *net.ValkeyOptions, settings ...Settings) (*Registry, error) {
-	if vo != nil && vo.MetricsPrefix == "" {
-		vo.MetricsPrefix = valkeyMetricsPrefix
-	}
-
-	ring, err := net.NewValkeyRingClient(vo)
-	if err != nil {
-		return nil, err
-	}
-
+// NewRatelimitRegistryValkey creates a registry for the given valkey ring client.
+func NewRatelimitRegistryValkey(ring *net.ValkeyRingClient, settings ...Settings) *Registry {
 	r := &Registry{
 		once:       sync.Once{},
 		global:     getSwarmRegistryDefaultSettings(),
 		lookup:     make(map[Settings]*Ratelimit),
 		valkeyRing: ring,
+		ownRing:    false,
 	}
 
 	if len(settings) > 0 {
 		r.global = settings[0]
 	}
 
-	return r, nil
+	return r
 }
 
 // Close teardown Registry and dependent resources
 func (r *Registry) Close() {
 	r.once.Do(func() {
-		if r.redisRing != nil {
-			r.redisRing.Close()
-		}
-		if r.valkeyRing != nil {
-			r.valkeyRing.Close()
+		if r.ownRing {
+			if r.redisRing != nil {
+				r.redisRing.Close()
+			}
+			if r.valkeyRing != nil {
+				r.valkeyRing.Close()
+			}
 		}
 		for _, rl := range r.lookup {
 			rl.Close()
