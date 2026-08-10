@@ -655,8 +655,6 @@ The annotation `zalando.org/skipper-backend-protocol` sets the backend protocol 
 service backends in the RouteGroup. Set it to `h2c` to use HTTP/2 cleartext when
 connecting to backends.
 
-Requires skipper to be started with `-enable-h2c-backends`.
-
 ```yaml
 apiVersion: zalando.org/v1
 kind: RouteGroup

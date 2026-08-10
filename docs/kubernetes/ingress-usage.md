@@ -24,7 +24,7 @@ zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skip
 zalando.org/skipper-ingress-redirect | `"true"` | change the default HTTPS redirect behavior for specific ingresses (true/false)
 zalando.org/skipper-ingress-redirect-code | `301` | change the default HTTPS redirect code for specific ingresses
 zalando.org/skipper-loadbalancer | `consistentHash` | defaults to `roundRobin`, [see available choices](../reference/backends.md#load-balancer-backend)
-zalando.org/skipper-backend-protocol | `h2c` | defaults to `http`, overrides backend protocol for all endpoints of this Ingress; use `h2c` for HTTP/2 cleartext backends, [see available choices](../reference/backends.md#backend-protocols)
+zalando.org/skipper-backend-protocol | `h2c` | defaults to `http`, overrides backend protocol for all endpoints of this Ingress; use `h2c` for HTTP/2 cleartext backends and `fastcgi` for Fast CGI, [see available choices](../reference/backends.md#backend-protocols)
 zalando.org/skipper-ingress-path-mode | `path-prefix` | (*deprecated*) please use [Ingress version 1 pathType option](https://kubernetes.io/docs/concepts/services-networking/ingress/#path-types), which defaults to ImplementationSpecific and does not change the behavior. Skipper's path-mode defaults to `kubernetes-ingress`, [see available choices](#ingress-path-handling), to change the default use `-kubernetes-path-mode`.
 zalando.org/traffic-zone-aware | `"false"` | opt out individual Ingress from zone aware traffic routing
 
@@ -1261,8 +1261,6 @@ spec:
 
 Skipper can use HTTP/2 cleartext (h2c) when connecting to backends that speak h2c.
 This is useful for gRPC backends or any service that requires HTTP/2 without TLS.
-
-Require skipper to be started with `-enable-h2c-backends` flag.
 
 ### Via annotation
 
