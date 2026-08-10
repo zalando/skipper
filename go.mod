@@ -324,7 +324,7 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.41.0 // indirect
-	oras.land/oras-go/v2 v2.6.2-0.20260709121256-949f13c117ed // indirect
+	oras.land/oras-go/v2 v2.6.2 // indirect
 )
 
 go 1.26.5
