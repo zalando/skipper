@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: qux
+  namespace: foo
+spec:
+  rules:
+  - host: www.example.org
+    http:
+      paths:
+      - path: "/"
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: qux
+            port:
+              name: ext
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qux
+  namespace: foo
+spec:
+  type: ExternalName
+  externalName: www.zalando.de
+  ports:
+  - name: ext
+    port: 443
+    protocol: TCP
+    targetPort: 443
