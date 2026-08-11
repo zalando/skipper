@@ -59,6 +59,7 @@ spec:
                       - consistentHash
                       - powerOfRandomNChoices
                       - weightedRoundRobin
+                      - leastRequests
                       type: string
                     endpoints:
                       description: Endpoints is required for Type lb

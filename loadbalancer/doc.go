@@ -35,6 +35,16 @@ weightedRoundRobin Algorithm
 	check to be enabled to be updated. With equal weights it behaves
 	like the roundRobin algorithm.
 
+leastRequests Algorithm
+
+	The leastRequests algorithm routes each request to the endpoint
+	with the lowest load factor, defined as inflight requests divided
+	by the endpoint weight. When multiple endpoints share the lowest
+	load factor, ties are broken using smooth weighted round-robin
+	over the tied set, proportional to their endpoint weights. With
+	equal weights and no inflight requests it behaves like the
+	roundRobin algorithm.
+
 The load balancing algorithms also provide fade-in behavior for LB endpoints of routes where the
 fade-in duration was configured. This feature can be used to gradually add traffic to new instances of
 applications that require a certain amount of warm-up time.
@@ -46,6 +56,7 @@ Eskip example:
 	r3: * -> <random, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 	r4: * -> <powerOfRandomNChoices, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 	r5: * -> <weightedRoundRobin, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+	r6: * -> <leastRequests, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 
 Package loadbalancer also implements health checking of pool members for
 a group of routes, if backend calls are reported to the loadbalancer.
