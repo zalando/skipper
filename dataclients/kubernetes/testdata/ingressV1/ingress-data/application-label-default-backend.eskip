@@ -1,5 +1,5 @@
 kube_default__checkout______:
 	*
-	-> annotate("application", "checkout")
+	-> annotate("Application", "checkout")
 	-> "http://10.2.9.103:8080";
 
