@@ -1090,6 +1090,13 @@ These metrics are particularly useful for:
 - Historical analysis of route stability (metrics set to 0 when fixed, preserving time series)
 - Trend analysis over your retention period (e.g., 30 days)
 
+### Data client metrics
+
+* `routes.load_all.<client>`: timer measuring execution time for loading all routes from the data client.
+* `routes.load_update.<client>`: timer measuring execution time for loading incremental route updates from the data client.
+
+The `<client>` part is the name of the data client (e.g., `kubernetes` or `inline`), resolved via `NamedDataClient.Name()`. Data clients that do not implement the `NamedDataClient` interface are reported as `unknown` (e.g., `routes.load_all.unknown`).
+
 ## OpenTracing
 
 Skipper has support for different [OpenTracing API](http://opentracing.io/) vendors, including
