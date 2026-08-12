@@ -654,8 +654,8 @@ Example:
 ### mtlsSanDNS
 
 This authz filter checks DNS of the SAN value of the provided
-certificate. It supports exact match and globbing.  You have to use
-`mtlsAuthn()` to verify validity.
+certificate. It supports exact match and wildcard domain match.
+You have to use `mtlsAuthn()` to verify validity.
 
 Parameters are one or more:
 

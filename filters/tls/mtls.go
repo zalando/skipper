@@ -92,14 +92,14 @@ type mtlsFilter struct {
 	// mtlsIssuerDN allow-list (RFC 2253 DN strings)
 	allowedDN map[string]struct{}
 
-	// mtlsSAN* allow-lists: hostnames, URIs, and IP/CIDR ranges are stored
+	// mtlsSan* allow-lists: hostnames, URIs, and IP/CIDR ranges are stored
 	// separately so the hot path can use a single IPSet.Contains call for IPs
 	// instead of re-parsing every pattern on each request.
-	allowedHostnames     map[string]struct{} // lowercased exact match
-	allowedHostnameGlobs []string            // lowercased glob patterns (pre-validated, path.Match semantics)
-	allowedURIs          map[string]struct{} // exact match
-	allowedURIGlobs      []string            // glob patterns (pre-validated, path.Match semantics)
-	allowedIPs           *netipx.IPSet
+	allowedHostnames        map[string]struct{} // lowercased exact match
+	allowedHostnameSuffixes []string            // lowercased DNS domain suffixes for wildcard matches
+	allowedURIs             map[string]struct{} // exact match
+	allowedURIGlobs         []string            // glob patterns (pre-validated, path.Match semantics)
+	allowedIPs              *netipx.IPSet
 
 	// mtlsAuthn: verfiy options created at filter-creation time.
 	verifyOpt x509.VerifyOptions
@@ -299,7 +299,7 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 			}
 			lower := strings.ToLower(s)
 			if strings.HasPrefix(lower, "*.") {
-				mf.allowedHostnameGlobs = append(mf.allowedHostnameGlobs, lower[2:])
+				mf.allowedHostnameSuffixes = append(mf.allowedHostnameSuffixes, lower[2:])
 			} else {
 				mf.allowedHostnames[lower] = struct{}{}
 			}
@@ -315,7 +315,7 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 			if u, err := url.Parse(s); err != nil || u.Scheme == "" {
 				return nil, filters.ErrInvalidFilterParameters
 			}
-			if strings.ContainsAny(s, "*?[") {
+			if strings.ContainsAny(s, "*") {
 				if _, err := path.Match(s, ""); err != nil {
 					return nil, filters.ErrInvalidFilterParameters
 				}
@@ -422,7 +422,7 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 			}
 			// Wildcard match: pattern suffix is stored without the leading "*.".
 			// A name matches only when it has exactly one label before the suffix.
-			for _, suffix := range mf.allowedHostnameGlobs {
+			for _, suffix := range mf.allowedHostnameSuffixes {
 				if matchesDNSWildcard(lower, suffix) {
 					allowed = true
 					auditCertData.WriteString("SAN DNS: ")
