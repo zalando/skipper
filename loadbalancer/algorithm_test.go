@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -288,6 +290,11 @@ func TestApply(t *testing.T) {
 			expected:      N,
 			algorithm:     newWeightedRoundRobin(eps),
 			algorithmName: "weightedRoundRobin",
+		}, {
+			name:          "leastRequests algorithm",
+			expected:      N,
+			algorithm:     newLeastRequests(eps),
+			algorithmName: "leastRequests",
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
@@ -618,6 +625,206 @@ func applyAndCountSelections(t *testing.T, route *routing.Route, rounds int) map
 		selectionCounts[route.LBAlgorithm.Apply(lbContext).Host]++
 	}
 	return selectionCounts
+}
+
+func TestLeastRequestsDistribution(t *testing.T) {
+	type endpointCfg struct {
+		endpoint     string
+		weight       float64
+		inflightReqs int
+	}
+
+	tests := []struct {
+		name      string
+		endpoints []endpointCfg
+	}{
+		{
+			name: "no inflight requests with equal weights, do round robin",
+			endpoints: []endpointCfg{
+				{"http://127.0.0.1:1231/foo", 1.0, 0},
+				{"http://127.0.0.1:1232/foo", 1.0, 0},
+				{"http://127.0.0.1:1233/foo", 1.0, 0},
+			},
+		},
+		{
+			name: "single endpoint with load, rest without, do round robin over the rest",
+			endpoints: []endpointCfg{
+				{"http://127.0.0.1:1231/foo", 1.0, 1},
+				{"http://127.0.0.1:1232/foo", 1.0, 0},
+				{"http://127.0.0.1:1233/foo", 1.0, 0},
+			},
+		},
+		{
+			name: "higher weight endpoint preferred",
+			endpoints: []endpointCfg{
+				{"http://127.0.0.1:1231/foo", 0.2, 10},
+				{"http://127.0.0.1:1232/foo", 0.8, 5},
+				{"http://127.0.0.1:1233/foo", 1.0, 7},
+			},
+		},
+		{
+			name: "equal weights, lowest inflight preferred",
+			endpoints: []endpointCfg{
+				{"http://127.0.0.1:1231/foo", 1.0, 10},
+				{"http://127.0.0.1:1232/foo", 1.0, 6},
+				{"http://127.0.0.1:1233/foo", 1.0, 2},
+			},
+		},
+		{
+			name: "when tie, do weighted round robin",
+			endpoints: []endpointCfg{
+				{"http://127.0.0.1:1231/foo", 1.0, 10},
+				{"http://127.0.0.1:1232/foo", 0.5, 2},
+				{"http://127.0.0.1:1233/foo", 1.0, 4},
+			},
+		},
+		{
+			name: "when tie with equal weights, do round robin",
+			endpoints: []endpointCfg{
+				{"http://127.0.0.1:1231/foo", 1.0, 10},
+				{"http://127.0.0.1:1232/foo", 1.0, 4},
+				{"http://127.0.0.1:1233/foo", 1.0, 4},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			endpoints := make([]string, len(tt.endpoints))
+			for i, ep := range tt.endpoints {
+				endpoints[i] = ep.endpoint
+			}
+
+			r, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
+			route := NewAlgorithmProvider().Do([]*routing.Route{{
+				Route: eskip.Route{
+					BackendType: eskip.LBBackend,
+					LBAlgorithm: LeastRequests.String(),
+					LBEndpoints: eskip.NewLBEndpoints(endpoints),
+				},
+			}})[0]
+
+			endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+			defer endpointRegistry.Close()
+			endpointRegistry.Do([]*routing.Route{route})
+			for i := range route.LBEndpoints {
+				addInflightRequests(
+					endpointRegistry,
+					route.LBEndpoints[i],
+					tt.endpoints[i].inflightReqs,
+				)
+			}
+			for i := range route.LBEndpoints {
+				route.LBEndpoints[i].Metrics = fixedWeightMetrics{
+					Metrics: route.LBEndpoints[i].Metrics,
+					weight:  tt.endpoints[i].weight,
+				}
+			}
+
+			scores := make([]float64, len(tt.endpoints))
+			for i, ep := range tt.endpoints {
+				scores[i] = float64(ep.inflightReqs) / ep.weight
+			}
+
+			minScore := slices.Min(scores)
+
+			expected := make(map[string]bool)
+			for i, s := range scores {
+				if s == minScore {
+					expected[mustParseHost(t, endpoints[i])] = true
+				}
+			}
+
+			lr := route.LBAlgorithm.(*leastRequests)
+			ctx := &routing.LBContext{
+				Request:     r,
+				Route:       route,
+				LBEndpoints: route.LBEndpoints,
+			}
+
+			const rounds = 1000
+			selectionCounts := make(map[string]int)
+			for range rounds {
+				selectionCounts[lr.Apply(ctx).Host]++
+			}
+
+			for ep := range selectionCounts {
+				if !expected[ep] {
+					t.Errorf("unexpected endpoint selected %s, expected %v", ep, expected)
+				}
+			}
+
+			if len(selectionCounts) > 1 {
+				var tiedEndpoints []endpointCfg
+				for _, e := range tt.endpoints {
+					if _, ok := selectionCounts[mustParseHost(t, e.endpoint)]; ok {
+						tiedEndpoints = append(tiedEndpoints, e)
+					}
+				}
+
+				totalWeight := 0.0
+				for _, e := range tiedEndpoints {
+					totalWeight += e.weight
+				}
+				for i, e := range tiedEndpoints {
+					expectedSelections := rounds * e.weight / totalWeight
+					assert.InDelta(
+						t,
+						expectedSelections,
+						selectionCounts[mustParseHost(t, e.endpoint)],
+						1.0,
+						"endpoint %d",
+						i,
+					)
+				}
+			}
+		})
+	}
+}
+
+func mustParseHost(t *testing.T, rawURL string) string {
+	t.Helper()
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fail()
+	}
+	return u.Host
+}
+
+func BenchmarkLeastRequestsAlgorithm(b *testing.B) {
+	for _, numberOfEndpoints := range []int{10, 100, 1000, 10000} {
+		b.Run(fmt.Sprintf("%d_endpoints", numberOfEndpoints), func(b *testing.B) {
+			endpointAddresses := make([]string, numberOfEndpoints)
+			for i := range numberOfEndpoints {
+				endpointAddresses[i] = fmt.Sprintf("10.0.%d.%d:8080", i/256, i%256)
+			}
+
+			registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+			defer registry.Close()
+
+			algorithm := newLeastRequests(endpointAddresses)
+
+			endpoints := make([]routing.LBEndpoint, len(endpointAddresses))
+			for i := range len(endpointAddresses) {
+				endpoints[i] = routing.LBEndpoint{
+					Scheme:  "http",
+					Host:    endpointAddresses[i],
+					Metrics: registry.GetMetrics(endpointAddresses[i]),
+				}
+			}
+
+			lbContext := &routing.LBContext{
+				Route:       &routing.Route{},
+				LBEndpoints: endpoints,
+			}
+
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				algorithm.Apply(lbContext)
+			}
+		})
+	}
 }
 
 func TestWeightedRoundRobinDistribution(t *testing.T) {

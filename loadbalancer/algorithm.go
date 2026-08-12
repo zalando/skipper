@@ -39,6 +39,11 @@ const (
 	// WeightedRoundRobin distributes requests proportionally to the dynamic
 	// endpoint weights derived from observed failed round trips.
 	WeightedRoundRobin
+
+	// LeastRequests routes each request to the endpoint with the lowest load
+	// factor, defined as inflight requests divided by the endpoint weight.
+	// Ties are broken by smooth weighted round-robin over the tied endpoints.
+	LeastRequests
 )
 
 const powerOfRandomNChoicesDefaultN = 2
@@ -54,6 +59,7 @@ var (
 		ConsistentHash:        newConsistentHash,
 		PowerOfRandomNChoices: newPowerOfRandomNChoices,
 		WeightedRoundRobin:    newWeightedRoundRobin,
+		LeastRequests:         newLeastRequests,
 	}
 	defaultAlgorithm = newRoundRobin
 )
@@ -325,6 +331,88 @@ func (w *weightedRoundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	return ctx.LBEndpoints[best]
 }
 
+func newLeastRequests(endpoints []string) routing.LBAlgorithm {
+	return &leastRequests{
+		rnd:            rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), // #nosec
+		currentWeights: make(map[string]float64, len(endpoints)),
+	}
+}
+
+type leastRequests struct {
+	mu             sync.Mutex
+	rnd            *rand.Rand
+	currentWeights map[string]float64
+}
+
+// Apply implements routing.LBAlgorithm by selecting the endpoint with the
+// lowest load factor (inflight requests divided by weight). When multiple
+// endpoints share the same load factor, ties are broken using smooth weighted
+// round-robin over the tied set.
+// Iteration within the tied set starts at a random offset to avoid bias
+// toward the first endpoint in the list.
+func (l *leastRequests) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+	ne := len(ctx.LBEndpoints)
+	if ne == 1 {
+		return ctx.LBEndpoints[0]
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	bestByLoadFactorIdx, tie := l.findBestByLoadFactor(ctx.LBEndpoints)
+	if !tie {
+		return ctx.LBEndpoints[bestByLoadFactorIdx]
+	}
+	bestLoadFactor := getLoadFactor(ctx.LBEndpoints[bestByLoadFactorIdx])
+
+	total := 0.0
+	best := 0
+	bestWeight := math.Inf(-1)
+	offset := l.rnd.IntN(ne - bestByLoadFactorIdx) // #nosec
+	for k := 0; k < ne-bestByLoadFactorIdx; k++ {
+		i := bestByLoadFactorIdx + (offset+k)%(ne-bestByLoadFactorIdx)
+		e := ctx.LBEndpoints[i]
+
+		if getLoadFactor(e) != bestLoadFactor {
+			continue
+		}
+
+		weight := e.Metrics.Weight()
+		total += weight
+
+		cw := l.currentWeights[e.Host] + weight
+		l.currentWeights[e.Host] = cw
+		if cw > bestWeight {
+			bestWeight = cw
+			best = i
+		}
+	}
+	l.currentWeights[ctx.LBEndpoints[best].Host] -= total
+
+	return ctx.LBEndpoints[best]
+
+}
+
+func (l *leastRequests) findBestByLoadFactor(endpoints []routing.LBEndpoint) (i int, tie bool) {
+	best := getLoadFactor(endpoints[0])
+	for j := 1; j < len(endpoints); j++ {
+		f := getLoadFactor(endpoints[j])
+		switch {
+		case f < best:
+			i = j
+			best = f
+			tie = false
+		case f == best:
+			tie = true
+		}
+	}
+	return i, tie
+}
+
+func getLoadFactor(ep routing.LBEndpoint) float64 {
+	return float64(ep.Metrics.InflightRequests()) / ep.Metrics.Weight()
+}
+
 type (
 	algorithmProvider   struct{}
 	initializeAlgorithm func(endpoints []string) routing.LBAlgorithm
@@ -353,6 +441,8 @@ func AlgorithmFromString(a string) (Algorithm, error) {
 		return PowerOfRandomNChoices, nil
 	case "weightedRoundRobin":
 		return WeightedRoundRobin, nil
+	case "leastRequests":
+		return LeastRequests, nil
 	default:
 		return None, errors.New("unsupported algorithm")
 	}
@@ -371,6 +461,8 @@ func (a Algorithm) String() string {
 		return "powerOfRandomNChoices"
 	case WeightedRoundRobin:
 		return "weightedRoundRobin"
+	case LeastRequests:
+		return "leastRequests"
 	default:
 		return ""
 	}
