@@ -238,6 +238,11 @@ type Options struct {
 	// Service type ExternalName as backends in Ingress.
 	EnableExternalNames bool
 
+	// ExternalNamePreserveHost disables overwriting the Host header with the
+	// external name of a Service type ExternalName used as backend in Ingress,
+	// letting the preserveHost filter and the -proxy-preserve-host flag control it instead.
+	ExternalNamePreserveHost bool
+
 	// OnlyAllowedExternalNames will enable validation of ingress external names and route groups network
 	// backend addresses, explicit LB endpoints validation against the list of patterns in
 	// AllowedExternalNames.

@@ -41,6 +41,12 @@ NodePort | yes | ---
 ExternalName | yes (enable by `-enable-kubernetes-external-names` | ---
 LoadBalancer | no | it should not, because Kubernetes cloud-controller-manager will maintain it
 
+By default, requests routed to an ExternalName backend get their `Host`
+header overwritten to the service's `externalName`. Set
+`-kubernetes-external-name-preserve-host` to disable this and instead let
+the [`preserveHost` filter](../reference/filters.md#preservehost) or the
+`-proxy-preserve-host` flag control the `Host` header.
+
 
 ## HTTP Host header routing
 

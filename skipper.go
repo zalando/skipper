@@ -311,6 +311,11 @@ type Options struct {
 	// EnableKubernetesExternalNames enables to use Kubernetes service type ExternalName as backend in Ingress and RouteGroup.
 	EnableKubernetesExternalNames bool
 
+	// KubernetesExternalNamePreserveHost disables overwriting the Host header with the
+	// external name of a Service type ExternalName used as backend in Ingress, letting the
+	// preserveHost filter and the -proxy-preserve-host flag control it instead.
+	KubernetesExternalNamePreserveHost bool
+
 	// KubernetesOnlyAllowedExternalNames will enable validation of ingress external names and route groups network
 	// backend addresses, explicit LB endpoints validation against the list of patterns in
 	// AllowedExternalNames.
@@ -1153,6 +1158,7 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 	return kubernetes.Options{
 		AllowedExternalNames:                           o.KubernetesAllowedExternalNames,
 		EnableExternalNames:                            o.EnableKubernetesExternalNames,
+		ExternalNamePreserveHost:                       o.KubernetesExternalNamePreserveHost,
 		BackendNameTracingTag:                          o.OpenTracingBackendNameTag,
 		DefaultFiltersDir:                              o.DefaultFiltersDir,
 		KubernetesInCluster:                            o.KubernetesInCluster,
