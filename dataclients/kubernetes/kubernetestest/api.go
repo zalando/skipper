@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v2"
 	yaml2 "sigs.k8s.io/yaml"
@@ -33,6 +34,7 @@ type namespace struct {
 }
 
 type api struct {
+	mu           sync.Mutex
 	failOn       map[string]bool
 	findNot      map[string]bool
 	namespaces   map[string]namespace
@@ -75,6 +77,9 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 }
 
 func (a *api) update(specs ...io.Reader) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	namespaces := make(map[string]map[string][]interface{})
 	all := make(map[string][]interface{})
 
@@ -163,6 +168,8 @@ func (a *api) UpdateSpec(specs ...io.Reader) error {
 }
 
 func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if r.Method != "GET" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
