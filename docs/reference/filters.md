@@ -2136,6 +2136,7 @@ oauthOidcAnyClaims("https://oidc-provider.example.com",
 ```
 
 When using `secretRef:`, Skipper expects the referenced secret to be available via the configured secrets reader; if the secret cannot be resolved, filter creation fails.
+
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
@@ -2166,6 +2167,7 @@ The filter needs the following parameters:
 * **Client Secret**  Also obtained from the provider
 
 The **Client ID** and **Client Secret** parameters also support reading values from Skipper's secrets registry using the prefix `secretRef:`.
+
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
@@ -2195,6 +2197,7 @@ The filter needs the following parameters:
 * **Client Secret**  Also obtained from the provider
 
 The **Client ID** and **Client Secret** parameters also support reading values from Skipper's secrets registry using the prefix `secretRef:`.
+
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
