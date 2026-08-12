@@ -155,11 +155,7 @@ func (a *api) update(specs ...io.Reader) error {
 	}
 
 	a.all, err = initNamespace(all)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (a *api) UpdateSpec(specs ...io.Reader) error {
