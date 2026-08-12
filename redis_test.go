@@ -533,13 +533,21 @@ spec:
 func createApiserver(t *testing.T, spec string) *stdlibhttptest.Server {
 	t.Helper()
 
+	apiServer, _ := createApiserverAndKuberntesAPI(t, spec)
+
+	return apiServer
+}
+
+func createApiserverAndKuberntesAPI(t *testing.T, spec string) (*stdlibhttptest.Server, kubernetestest.KubeTestAPI) {
+	t.Helper()
+
 	api, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, bytes.NewBufferString(spec))
 	require.NoError(t, err)
 
 	apiServer := stdlibhttptest.NewServer(api)
 	t.Cleanup(apiServer.Close)
 
-	return apiServer
+	return apiServer, api
 }
 
 func createFilterRegistry(specs ...filters.Spec) filters.Registry {

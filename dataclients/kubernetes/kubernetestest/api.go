@@ -41,6 +41,10 @@ type api struct {
 	resourceList []byte
 }
 
+type KubeTestAPI interface {
+	UpdateSpec(specs ...io.Reader) error
+}
+
 func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 	a := &api{
 		namespaces: make(map[string]namespace),
@@ -65,6 +69,12 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 
 	a.resourceList = clrb
 
+	err = a.update(specs...)
+
+	return a, err
+}
+
+func (a *api) update(specs ...io.Reader) error {
 	namespaces := make(map[string]map[string][]interface{})
 	all := make(map[string][]interface{})
 
@@ -106,50 +116,54 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 			if err := d.Decode(&o); err == io.EOF || err == nil && len(o) == 0 {
 				break
 			} else if err != nil {
-				return nil, err
+				return err
 			}
 
 			kind, ok := o["kind"].(string)
 			if !ok {
-				return nil, errInvalidFixture
+				return errInvalidFixture
 			}
 
 			if kind == "List" {
 				items, ok := o["items"].([]interface{})
 				if !ok {
-					return nil, errInvalidFixture
+					return errInvalidFixture
 				}
 				for _, item := range items {
 					o, ok := item.(map[interface{}]interface{})
 					if !ok {
-						return nil, errInvalidFixture
+						return errInvalidFixture
 					}
 					if err := addObject(o); err != nil {
-						return nil, err
+						return err
 					}
 				}
 			} else {
 				if err := addObject(o); err != nil {
-					return nil, err
+					return err
 				}
 			}
 		}
 	}
 
+	var err error
 	for ns, kinds := range namespaces {
-		var err error
 		a.namespaces[ns], err = initNamespace(kinds)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	a.all, err = initNamespace(all)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return a, nil
+	return nil
+}
+
+func (a *api) UpdateSpec(specs ...io.Reader) error {
+	return a.update(specs...)
 }
 
 func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {

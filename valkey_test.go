@@ -1,6 +1,7 @@
 package skipper_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper"
 	flog "github.com/zalando/skipper/filters/accesslog"
 	fscheduler "github.com/zalando/skipper/filters/scheduler"
@@ -500,6 +502,65 @@ spec:
 		assert.NoError(t, <-runResult)
 	})
 
+	t.Run("kubernetes dataclient and valkey starts late", func(t *testing.T) {
+		valkey1, done1 := valkeytest.NewTestValkey(t)
+		valkey2, done2 := valkeytest.NewTestValkey(t)
+		valkey3, done3 := valkeytest.NewTestValkey(t)
+		valkey4, done4 := valkeytest.NewTestValkey(t)
+		defer done1()
+		defer done2()
+		defer done3()
+		defer done4()
+
+		spec := kubeSpec
+		updateSpec := kubeSpec + createValkeyEndpointsSpec(t, valkey1, valkey2, valkey3, valkey4)
+		apiServer, kubeAPI := createApiserverAndKuberntesAPI(t, spec)
+
+		metrics := &metricstest.MockMetrics{}
+
+		skipper.MuFindAddress.Lock()
+		o := skipper.Options{
+			Address:                          skipper.FindAddress(t),
+			EnableRatelimiters:               true,
+			EnableSwarm:                      true,
+			Kubernetes:                       true, // enable kubernetes dataclient
+			KubernetesURL:                    apiServer.URL,
+			KubernetesValkeyServiceNamespace: "skipper",
+			KubernetesValkeyServiceName:      "valkey",
+			KubernetesValkeyServicePort:      6379,
+			SwarmValkeyUpdateInterval:        valkeyUpdateInterval,
+			MetricsBackend:                   metrics,
+		}
+
+		runResult := make(chan error)
+		sigs := make(chan os.Signal, 1)
+		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
+
+		go func() {
+			time.Sleep(valkeyUpdateInterval)
+			err := kubeAPI.UpdateSpec(bytes.NewBufferString(updateSpec))
+			if err != nil {
+				logrus.Errorf("Failed to update kubernetes spec: %v", err)
+			} else {
+				logrus.Infof("Updated kubernetes spec")
+			}
+		}()
+
+		waitForOK(t, "http://"+o.Address+"/test", 1*time.Second)
+		skipper.MuFindAddress.Unlock()
+		time.Sleep(2 * valkeyUpdateInterval)
+
+		metrics.WithGauges(func(g map[string]float64) {
+			t.Logf("gauges: %v", g)
+
+			assert.Equal(t, 1.0, g["routes.total"], "expected only the /test route")
+			assert.Equal(t, 4.0, g["swarm.valkey.shards"])
+		})
+
+		sigs <- syscall.SIGTERM
+		assert.NoError(t, <-runResult)
+	})
+
 	t.Run("remote url", func(t *testing.T) {
 		valkey1, done1 := valkeytest.NewTestValkey(t)
 		valkey2, done2 := valkeytest.NewTestValkey(t)
@@ -544,6 +605,60 @@ spec:
 
 			assert.Equal(t, 1.0, g["routes.total"], "expected only the /ready route")
 			assert.Equal(t, 3.0, g["swarm.valkey.shards"])
+		})
+
+		sigs <- syscall.SIGTERM
+		assert.NoError(t, <-runResult)
+	})
+
+	t.Run("remote url and valkey starts late", func(t *testing.T) {
+		valkey1, done1 := valkeytest.NewTestValkey(t)
+		defer done1()
+
+		attempt := 0
+		eps := stdlibhttptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attempt++
+
+			if attempt > 3 {
+				fmt.Fprintf(w, `{
+				"endpoints": [
+					{"address": "%s"}
+				]
+			}`, valkey1)
+			} else {
+				fmt.Fprint(w, `{
+				"endpoints": []
+			}`)
+			}
+		}))
+		defer eps.Close()
+
+		metrics := &metricstest.MockMetrics{}
+
+		skipper.MuFindAddress.Lock()
+		o := skipper.Options{
+			Address:                       skipper.FindAddress(t),
+			EnableRatelimiters:            true,
+			EnableSwarm:                   true,
+			SwarmValkeyEndpointsRemoteURL: eps.URL,
+			SwarmValkeyUpdateInterval:     valkeyUpdateInterval,
+			InlineRoutes:                  `Path("/ready") -> inlineContent("OK") -> <shunt>`,
+			MetricsBackend:                metrics,
+		}
+
+		runResult := make(chan error)
+		sigs := make(chan os.Signal, 1)
+		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
+
+		waitForOK(t, "http://"+o.Address+"/ready", 10*time.Second)
+		skipper.MuFindAddress.Unlock()
+		time.Sleep(1 * valkeyUpdateInterval)
+
+		metrics.WithGauges(func(g map[string]float64) {
+			t.Logf("gauges: %v", g)
+
+			assert.Equal(t, 1.0, g["routes.total"], "expected only the /ready route")
+			assert.Equal(t, 1.0, g["swarm.valkey.shards"])
 		})
 
 		sigs <- syscall.SIGTERM
