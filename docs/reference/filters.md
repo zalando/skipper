@@ -653,8 +653,9 @@ Example:
 
 ### mtlsSanDNS
 
-This authz filter checks DNS of the SAN value of the provided certificate. You have
-to use `mtlsAuthn()` to verify validity.
+This authz filter checks DNS of the SAN value of the provided
+certificate. It supports exact match and wildcard domain match.
+You have to use `mtlsAuthn()` to verify validity.
 
 Parameters are one or more:
 
@@ -664,6 +665,7 @@ Example:
 
 ```
 * -> mtlsAuthn() ->  mtlsSanDNS("my.host.example") -> "http://10.2.5.21:8080";
+* -> mtlsAuthn() ->  mtlsSanDNS("*.host.example") -> "http://10.2.5.21:8080";
 ```
 
 ### mtlsSanIP
@@ -683,8 +685,9 @@ Example:
 
 ### mtlsSanURI
 
-This authz filter checks URIs of the SAN value of the provided certificate. You have
-to use `mtlsAuthn()` to verify validity.
+This authz filter checks URIs of the SAN value of the provided
+certificate. It supports exact match and globbing. You have to use
+`mtlsAuthn()` to verify validity.
 
 Parameters are one or more:
 
@@ -694,6 +697,7 @@ Example:
 
 ```
 * -> mtlsAuthn() ->  mtlsSanURI("spiffe://my-service.example/app1") -> "http://10.2.5.21:8080";
+* -> mtlsAuthn() ->  mtlsSanURI("spiffe://my-service.example/*") -> "http://10.2.5.21:8080";
 ```
 
 

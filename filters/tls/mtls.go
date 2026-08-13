@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"path"
 	"strings"
 
 	"go4.org/netipx"
@@ -91,12 +92,14 @@ type mtlsFilter struct {
 	// mtlsIssuerDN allow-list (RFC 2253 DN strings)
 	allowedDN map[string]struct{}
 
-	// mtlsSAN* allow-lists: hostnames, URIs, and IP/CIDR ranges are stored
+	// mtlsSan* allow-lists: hostnames, URIs, and IP/CIDR ranges are stored
 	// separately so the hot path can use a single IPSet.Contains call for IPs
 	// instead of re-parsing every pattern on each request.
-	allowedHostnames map[string]struct{} // lowercased
-	allowedURIs      map[string]struct{} // exact match
-	allowedIPs       *netipx.IPSet
+	allowedHostnames        map[string]struct{} // lowercased exact match
+	allowedHostnameSuffixes []string            // lowercased DNS domain suffixes for wildcard matches
+	allowedURIs             map[string]struct{} // exact match
+	allowedURIGlobs         []string            // glob patterns (pre-validated, path.Match semantics)
+	allowedIPs              *netipx.IPSet
 
 	// mtlsAuthn: verfiy options created at filter-creation time.
 	verifyOpt x509.VerifyOptions
@@ -182,6 +185,17 @@ func isValidHostname(s string) bool {
 		}
 	}
 	return true
+}
+
+// matchesDNSWildcard reports whether the lowercased hostname name matches the
+// wildcard pattern "*.suffix". It requires exactly one non-empty label before
+// suffix, matching RFC 6125 single-label wildcard semantics.
+func matchesDNSWildcard(name, suffix string) bool {
+	if !strings.HasSuffix(name, "."+suffix) {
+		return false
+	}
+	label := name[:len(name)-len(suffix)-1]
+	return label != "" && !strings.Contains(label, ".")
 }
 
 func (ms *mtlsSpec) Name() string {
@@ -282,8 +296,12 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 			}
 			if !isValidHostname(s) {
 				return nil, filters.ErrInvalidFilterParameters
+			}
+			lower := strings.ToLower(s)
+			if strings.HasPrefix(lower, "*.") {
+				mf.allowedHostnameSuffixes = append(mf.allowedHostnameSuffixes, lower[2:])
 			} else {
-				mf.allowedHostnames[strings.ToLower(s)] = struct{}{}
+				mf.allowedHostnames[lower] = struct{}{}
 			}
 		}
 
@@ -296,6 +314,12 @@ func (ms *mtlsSpec) CreateFilter(args []any) (filters.Filter, error) {
 			}
 			if u, err := url.Parse(s); err != nil || u.Scheme == "" {
 				return nil, filters.ErrInvalidFilterParameters
+			}
+			if strings.ContainsAny(s, "*") {
+				if _, err := path.Match(s, ""); err != nil {
+					return nil, filters.ErrInvalidFilterParameters
+				}
+				mf.allowedURIGlobs = append(mf.allowedURIGlobs, s)
 			} else {
 				mf.allowedURIs[s] = struct{}{}
 			}
@@ -389,20 +413,48 @@ func (mf *mtlsFilter) Request(ctx filters.FilterContext) {
 	case mtlsSanDNS:
 		// Check hostname SANs against the allowlist.
 		for _, dns := range leafCert.DNSNames {
-			if _, ok := mf.allowedHostnames[strings.ToLower(dns)]; ok {
+			lower := strings.ToLower(dns)
+			if _, ok := mf.allowedHostnames[lower]; ok {
 				allowed = true
 				auditCertData.WriteString("SAN DNS: ")
 				auditCertData.WriteString(dns)
+				break
+			}
+			// Wildcard match: pattern suffix is stored without the leading "*.".
+			// A name matches only when it has exactly one label before the suffix.
+			for _, suffix := range mf.allowedHostnameSuffixes {
+				if matchesDNSWildcard(lower, suffix) {
+					allowed = true
+					auditCertData.WriteString("SAN DNS: ")
+					auditCertData.WriteString(dns)
+					break
+				}
+			}
+			if allowed {
+				break
 			}
 		}
 
 	case mtlsSanURI:
-		// Check URI SANs against the allowlist (exact string match).
+		// Check URI SANs against the allowlist (exact or glob match).
 		for _, u := range leafCert.URIs {
-			if _, ok := mf.allowedURIs[u.String()]; ok {
+			uStr := u.String()
+			if _, ok := mf.allowedURIs[uStr]; ok {
 				allowed = true
 				auditCertData.WriteString("SAN URI: ")
-				auditCertData.WriteString(u.String())
+				auditCertData.WriteString(uStr)
+				break
+			}
+			for _, glob := range mf.allowedURIGlobs {
+				if ok, _ := path.Match(glob, uStr); ok {
+					allowed = true
+					auditCertData.WriteString("SAN URI: ")
+					auditCertData.WriteString(uStr)
+					break
+				}
+			}
+			if allowed {
+				break
 			}
 		}
 
