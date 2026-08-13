@@ -74,6 +74,7 @@ type ingress struct {
 	kubernetesAnnotationFiltersAppend              []AnnotationFilters
 	kubernetesEastWestRangeAnnotationPredicates    []AnnotationPredicates
 	kubernetesEastWestRangeAnnotationFiltersAppend []AnnotationFilters
+	kubernetesApplicationAnnotationLabel           string
 }
 
 var (
@@ -126,6 +127,7 @@ func newIngress(o Options) *ingress {
 		kubernetesAnnotationFiltersAppend:              o.KubernetesAnnotationFiltersAppend,
 		kubernetesEastWestRangeAnnotationPredicates:    o.KubernetesEastWestRangeAnnotationPredicates,
 		kubernetesEastWestRangeAnnotationFiltersAppend: o.KubernetesEastWestRangeAnnotationFiltersAppend,
+		kubernetesApplicationAnnotationLabel:           o.KubernetesApplicationAnnotationLabelKey,
 	}
 }
 
@@ -255,6 +257,7 @@ func (ing *ingress) addExtraRoutes(ic *ingressContext, ruleHost, path, pathType 
 				appendAnnotationPredicates(ing.kubernetesAnnotationPredicates, ic.ingressV1.Metadata.Annotations, &route)
 				appendAnnotationFilters(ing.kubernetesAnnotationFiltersAppend, ic.ingressV1.Metadata.Annotations, &route)
 			}
+			prependApplicationAnnotation(ic.ingressV1.Metadata.Labels, ing.kubernetesApplicationAnnotationLabel, &route)
 			ic.addHostRoute(ruleHost, &route)
 			ic.redirect.updateHost(ruleHost)
 		} else {

@@ -118,6 +118,7 @@ func defaultConfig(with func(*Config)) *Config {
 		KubernetesValkeyServicePort:             6379,
 		KubernetesBackendTrafficAlgorithmString: "traffic-predicate",
 		KubernetesDefaultLoadBalancerAlgorithm:  "roundRobin",
+		KubernetesApplicationAnnotationLabelKey: "",
 		RouteServerFilters:                      &defaultFiltersFlags{},
 		Oauth2TokeninfoTimeout:                  2 * time.Second,
 		Oauth2TokenintrospectionTimeout:         2 * time.Second,
