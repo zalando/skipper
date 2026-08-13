@@ -1730,7 +1730,7 @@ func getKubernetesAddrUpdater(kdc *kubernetes.Client, loaded bool, ns, name stri
 
 func joinPort(addrs []string, port int) []string {
 	p := strconv.Itoa(port)
-	for i := 0; i < len(addrs); i++ {
+	for i := range addrs {
 		addrs[i] = net.JoinHostPort(addrs[i], p)
 	}
 	return addrs
@@ -2159,8 +2159,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			if kdc != nil {
 				kdc.LoadAll()
 				valkeyOptions.AddrUpdater = getKubernetesAddrUpdater(kdc, true, o.KubernetesValkeyServiceNamespace, o.KubernetesValkeyServiceName, o.KubernetesValkeyServicePort)
+				defer kdc.Close()
 			} else {
-				kdc, err := kubernetes.New(o.KubernetesDataClientOptions())
+				kdc, err = kubernetes.New(o.KubernetesDataClientOptions())
 				if err != nil {
 					return err
 				}
@@ -2169,22 +2170,17 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				valkeyOptions.AddrUpdater = getKubernetesAddrUpdater(kdc, false, o.KubernetesValkeyServiceNamespace, o.KubernetesValkeyServiceName, o.KubernetesValkeyServicePort)
 			}
 
-			res, err := valkeyOptions.AddrUpdater()
-			if err != nil {
-				log.Errorf("Failed to update valkey addresses from kubernetes: %v", err)
+			log.Infof("start initialValkeyAddressUpdate")
+			if err := initialValkeyAddressUpdate(valkeyOptions, kdc); err != nil {
 				return err
 			}
-			log.Infof("Initial valkey address kubernetes update got %d shards", len(res))
 
 		} else if valkeyOptions != nil && o.SwarmValkeyEndpointsRemoteURL != "" {
 			log.Infof("Use remote address %q to fetch updates valkey shards", o.SwarmValkeyEndpointsRemoteURL)
 			valkeyOptions.AddrUpdater = getRemoteURLShardAddrUpdater(o.SwarmValkeyEndpointsRemoteURL)
-			res, err := valkeyOptions.AddrUpdater()
-			if err != nil {
-				log.Errorf("Failed to update valkey addresses from URL: %v", err)
+			if err := initialValkeyAddressUpdate(valkeyOptions, nil); err != nil {
 				return err
 			}
-			log.Infof("Initial valkey address remote update got %d shards", len(res))
 		}
 
 		// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
@@ -2676,6 +2672,31 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr, cr)
+}
+
+func initialValkeyAddressUpdate(valkeyOptions *skpnet.ValkeyOptions, dc routing.DataClient) error {
+	var (
+		err error
+		a   []string
+	)
+	N := 12
+	for i := range N {
+		log.Infof("%d attempt -> %d", i, len(a))
+		a, err = valkeyOptions.AddrUpdater()
+		if err != nil {
+			log.Errorf("Failed to update valkey addresses: %v", err)
+			return err
+		}
+		if len(a) > 0 {
+			log.Infof("Initial valkey address update got %d shards after %d attempts", len(a), i)
+			return nil
+		}
+		if dc != nil {
+			dc.LoadAll() // enforce state update
+		}
+		time.Sleep(valkeyOptions.UpdateInterval + 1)
+	}
+	return fmt.Errorf("failed to get valkey addresses after %d attempts", N)
 }
 
 func ensureExpectedDataclients(o Options, dataClients []routing.DataClient) error {

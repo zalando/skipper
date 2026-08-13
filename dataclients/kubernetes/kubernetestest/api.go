@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v2"
 	yaml2 "sigs.k8s.io/yaml"
@@ -33,12 +34,17 @@ type namespace struct {
 }
 
 type api struct {
+	mu           sync.Mutex
 	failOn       map[string]bool
 	findNot      map[string]bool
 	namespaces   map[string]namespace
 	all          namespace
 	pathRx       *regexp.Regexp
 	resourceList []byte
+}
+
+type KubeTestAPI interface {
+	UpdateSpec(specs ...io.Reader) error
 }
 
 func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
@@ -64,6 +70,15 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 	}
 
 	a.resourceList = clrb
+
+	err = a.update(specs...)
+
+	return a, err
+}
+
+func (a *api) update(specs ...io.Reader) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
 	namespaces := make(map[string]map[string][]interface{})
 	all := make(map[string][]interface{})
@@ -106,53 +121,55 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 			if err := d.Decode(&o); err == io.EOF || err == nil && len(o) == 0 {
 				break
 			} else if err != nil {
-				return nil, err
+				return err
 			}
 
 			kind, ok := o["kind"].(string)
 			if !ok {
-				return nil, errInvalidFixture
+				return errInvalidFixture
 			}
 
 			if kind == "List" {
 				items, ok := o["items"].([]interface{})
 				if !ok {
-					return nil, errInvalidFixture
+					return errInvalidFixture
 				}
 				for _, item := range items {
 					o, ok := item.(map[interface{}]interface{})
 					if !ok {
-						return nil, errInvalidFixture
+						return errInvalidFixture
 					}
 					if err := addObject(o); err != nil {
-						return nil, err
+						return err
 					}
 				}
 			} else {
 				if err := addObject(o); err != nil {
-					return nil, err
+					return err
 				}
 			}
 		}
 	}
 
+	var err error
 	for ns, kinds := range namespaces {
-		var err error
 		a.namespaces[ns], err = initNamespace(kinds)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	a.all, err = initNamespace(all)
-	if err != nil {
-		return nil, err
-	}
+	return err
+}
 
-	return a, nil
+func (a *api) UpdateSpec(specs ...io.Reader) error {
+	return a.update(specs...)
 }
 
 func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if r.Method != "GET" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return

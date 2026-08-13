@@ -5,8 +5,8 @@ CURRENT_VERSION     = $(shell git describe --tags --always --dirty)
 VERSION            ?= $(CURRENT_VERSION)
 COMMIT_HASH         = $(shell git rev-parse --short HEAD)
 LIMIT_FDS           = $(shell ulimit -n)
-TEST_ETCD_VERSION  ?= v3.6.12
-TEST_ETCD_CHECKSUM ?= d2564bb50b58e52fbaf3bde4a9561a1d04e20cdc761f795580e4d615d5d41355
+TEST_ETCD_VERSION  ?= v3.6.14
+TEST_ETCD_CHECKSUM ?= ffe840ff9295808e88cce2794a18a5ac87f12a5203c8314d0bf6aa119b41bac5
 TEST_PLUGINS       = _test_plugins/filter_noop.so \
 		     _test_plugins/predicate_match_none.so \
 		     _test_plugins/dataclient_noop.so \
