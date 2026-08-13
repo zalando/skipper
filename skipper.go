@@ -2671,18 +2671,18 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 func initialValkeyAddressUpdate(valkeyOptions *skpnet.ValkeyOptions, dc routing.DataClient) error {
 	var (
 		err error
-		res []string
+		a   []string
 	)
 	N := 12
 	for i := range N {
-		log.Infof("%d attempt -> %d", i, len(res))
-		res, err = valkeyOptions.AddrUpdater()
+		log.Infof("%d attempt -> %d", i, len(a))
+		a, err = valkeyOptions.AddrUpdater()
 		if err != nil {
 			log.Errorf("Failed to update valkey addresses: %v", err)
 			return err
 		}
-		if len(res) > 0 {
-			log.Infof("Initial valkey address update got %d shards after %d attempts", len(res), i)
+		if len(a) > 0 {
+			log.Infof("Initial valkey address update got %d shards after %d attempts", len(a), i)
 			return nil
 		}
 		if dc != nil {
