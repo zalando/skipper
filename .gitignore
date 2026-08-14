@@ -24,6 +24,7 @@ build/
 skptesting/lorem.html
 .vscode/*
 *.test
+*.patch
 
 skptesting/okserver
 skptesting/lb-algorithms.eskip
