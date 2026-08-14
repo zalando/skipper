@@ -324,12 +324,12 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 
 	var ac *authClient
 	var ok bool
-	if ac, ok = issuerAuthClient[issuerURL]; !ok {
+	if ac, ok = issuerAuthClient[getAuthClientKey(issuerURL, clientId)]; !ok {
 		ac, err = newAuthClient(cfg.IntrospectionEndpoint, tokenIntrospectionSpanName, s.options.Timeout, s.options.MaxIdleConns, s.options.Tracer, s.options.OpenTracingClientTraceByTag)
 		if err != nil {
 			return nil, filters.ErrInvalidFilterParameters
 		}
-		issuerAuthClient[issuerURL] = ac
+		issuerAuthClient[getAuthClientKey(issuerURL, clientId)] = ac
 	}
 
 	if s.secure && clientId != "" && clientSecret != "" {
@@ -375,6 +375,10 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	}
 
 	return f, nil
+}
+
+func getAuthClientKey(issuer, clientID string) string {
+	return issuer + " | " + clientID
 }
 
 // String prints nicely the tokenintrospectFilter configuration based on the
