@@ -103,7 +103,9 @@ func TestForwardFieldFieldEmpty(t *testing.T) {
 
 	f.Request(c)
 
-	if c.FRequest.Header.Get("Header1") != "blbabla" {
-		t.Fatalf("Header1 should not be overridden")
+	// The field is absent from the token, so the filter must not forward a value.
+	// Any client-supplied inbound copy is dropped to prevent identity forgery.
+	if c.FRequest.Header.Get("Header1") != "" {
+		t.Fatalf("forged inbound Header1 must be stripped when the token field is missing")
 	}
 }

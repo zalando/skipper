@@ -899,6 +899,9 @@ func setHeaders(upstreamHeaders map[string]string, ctx filters.FilterContext, co
 	parsed := gjson.ParseBytes(oidcInfoJson)
 
 	for key, query := range upstreamHeaders {
+		// Always drop any client-supplied inbound copy first, on every path,
+		// so a forged identity header cannot survive a missing claim.
+		ctx.Request().Header.Del(key)
 		match := parsed.Get(query)
 		log.Debugf("header: %s results: %s", query, match.String())
 		if !match.Exists() {
