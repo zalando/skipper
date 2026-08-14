@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -543,6 +544,57 @@ func TestExcludeInsecureCipherSuites(t *testing.T) {
 		if cfg.filterCipherSuites() == nil {
 			t.Error(`Failed to get list of filtered cipher suites`)
 		}
+	})
+}
+
+func TestTLSKeyLogFile(t *testing.T) {
+	t.Run("test default has no key log writer", func(t *testing.T) {
+		cfg := NewConfig()
+		err := cfg.ParseArgs("skipper", nil)
+		require.NoError(t, err)
+		assert.Nil(t, cfg.TLSKeyLogWriter)
+	})
+
+	t.Run("test tls-key-log-file flag opens file and sets writer", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "keylog.txt")
+
+		cfg := NewConfig()
+		err := cfg.ParseArgs("skipper", []string{"-tls-key-log-file=" + path})
+		require.NoError(t, err)
+
+		require.NotNil(t, cfg.TLSKeyLogWriter)
+		assert.Equal(t, path, cfg.TLSKeyLogFile)
+
+		n, err := cfg.TLSKeyLogWriter.Write([]byte("test-secret-line\n"))
+		require.NoError(t, err)
+		assert.Equal(t, len("test-secret-line\n"), n)
+
+		if f, ok := cfg.TLSKeyLogWriter.(*os.File); ok {
+			require.NoError(t, f.Close())
+		}
+
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Contains(t, string(data), "test-secret-line")
+	})
+
+	t.Run("test invalid path returns error", func(t *testing.T) {
+		cfg := NewConfig()
+		err := cfg.ParseArgs("skipper", []string{"-tls-key-log-file=/nonexistent-dir/keylog.txt"})
+		require.Error(t, err)
+	})
+
+	t.Run("test ToOptions propagates KeyLogWriter", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "keylog.txt")
+
+		cfg := NewConfig()
+		err := cfg.ParseArgs("skipper", []string{"-tls-key-log-file=" + path})
+		require.NoError(t, err)
+
+		opts := cfg.ToOptions()
+		assert.Same(t, cfg.TLSKeyLogWriter, opts.KeyLogWriter)
 	})
 }
 
