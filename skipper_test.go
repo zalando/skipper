@@ -1,6 +1,7 @@
 package skipper
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -227,6 +228,22 @@ func TestOptionsTLSConfig(t *testing.T) {
 	c, err = o.TlsConfig(cr)
 	require.NoError(t, err)
 	assert.Equal(t, len(c.CipherSuites), 1)
+
+	// KeyLogWriter
+	keyLogWriter := &bytes.Buffer{}
+	verifyConnection := func(tls.ConnectionState) error {
+		return nil
+	}
+
+	o = &Options{
+		KeyLogWriter:     keyLogWriter,
+		VerifyConnection: verifyConnection,
+	}
+	c, err = o.TlsConfig(cr)
+	require.NoError(t, err)
+	require.NotNil(t, c)
+	assert.Same(t, keyLogWriter, c.KeyLogWriter)
+	assert.NotNil(t, c.VerifyConnection)
 
 }
 

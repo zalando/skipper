@@ -744,6 +744,13 @@ type Options struct {
 	// Client TLS to connect to Backends
 	ClientTLS *tls.Config
 
+	// KeyLogWriter optionally specifies a destination for TLS master keys
+	// in NSS Key Log Format.
+	KeyLogWriter io.Writer
+
+	// VerifyConnection is called after normal certificate verification.
+	VerifyConnection func(tls.ConnectionState) error
+
 	// ClientCertFile is the path to a PEM-encoded client certificate for mTLS to backends.
 	// Must be set together with ClientKeyFile. When set, certificate rotation is enabled.
 	ClientCertFile string
@@ -1467,8 +1474,10 @@ func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 	}
 
 	config := &tls.Config{
-		MinVersion: o.TLSMinVersion,
-		ClientAuth: o.TLSClientAuth,
+		MinVersion:       o.TLSMinVersion,
+		ClientAuth:       o.TLSClientAuth,
+		KeyLogWriter:     o.KeyLogWriter,
+		VerifyConnection: o.VerifyConnection,
 	}
 
 	if o.CipherSuites != nil {
