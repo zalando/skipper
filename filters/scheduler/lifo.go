@@ -12,12 +12,17 @@ import (
 )
 
 type (
-	lifoSpec      struct{}
-	lifoGroupSpec struct{}
+	lifoSpec struct {
+		typ string
+	}
+	lifoGroupSpec struct {
+		typ string
+	}
 
 	lifoFilter struct {
 		config scheduler.Config
 		queue  *scheduler.Queue
+		typ    string
 	}
 
 	lifoGroupFilter struct {
@@ -25,6 +30,7 @@ type (
 		hasConfig bool
 		config    scheduler.Config
 		queue     *scheduler.Queue
+		typ       string
 	}
 )
 
@@ -40,11 +46,46 @@ const (
 )
 
 func NewLIFO() filters.Spec {
-	return &lifoSpec{}
+	return &lifoSpec{
+		typ: filters.LifoName,
+	}
+}
+
+// NewLIFOWithBody creates a lifo filter that releases the queue slot only
+// after the response body was streamed to the client, such that streaming
+// backends are limited by the actual number of concurrent streams.
+func NewLIFOWithBody() filters.Spec {
+	return &lifoSpec{
+		typ: filters.LifoWithBodyName,
+	}
 }
 
 func NewLIFOGroup() filters.Spec {
-	return &lifoGroupSpec{}
+	return &lifoGroupSpec{
+		typ: filters.LifoGroupName,
+	}
+}
+
+// NewLIFOGroupWithBody creates a lifoGroup filter that releases the queue slot
+// only after the response body was streamed to the client, such that streaming
+// backends are limited by the actual number of concurrent streams.
+func NewLIFOGroupWithBody() filters.Spec {
+	return &lifoGroupSpec{
+		typ: filters.LifoGroupWithBodyName,
+	}
+}
+
+// lifoStateBagKey returns the key the filter parks its queue release function
+// under. The WithBody variants use their own key, because the proxy releases
+// them after the response body was streamed, and a plain lifo() or lifoGroup()
+// on the same route must not release their slot in the response phase.
+func lifoStateBagKey(typ string) string {
+	switch typ {
+	case filters.LifoWithBodyName, filters.LifoGroupWithBodyName:
+		return typ
+	default:
+		return scheduler.LIFOKey
+	}
 }
 
 func intArg(a interface{}) (int, error) {
@@ -67,7 +108,7 @@ func durationArg(a interface{}) (time.Duration, error) {
 	}
 }
 
-func (s *lifoSpec) Name() string { return filters.LifoName }
+func (s *lifoSpec) Name() string { return s.typ }
 
 // CreateFilter creates a lifoFilter, that will use a queue based
 // queue for handling requests instead of the fifo queue. The first
@@ -89,6 +130,7 @@ func (s *lifoSpec) Name() string { return filters.LifoName }
 // values.
 func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	var l lifoFilter
+	l.typ = s.typ
 
 	// set defaults
 	l.config.MaxConcurrency = defaultMaxConcurrency
@@ -132,7 +174,7 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return &l, nil
 }
 
-func (*lifoGroupSpec) Name() string { return filters.LifoGroupName }
+func (s *lifoGroupSpec) Name() string { return s.typ }
 
 // CreateFilter creates a lifoGroupFilter, that will use a queue based
 // queue for handling requests instead of the fifo queue. The first
@@ -162,12 +204,12 @@ func (*lifoGroupSpec) Name() string { return filters.LifoGroupName }
 // one of them will be used as the source for the applied settings, if there
 // is accidentally a difference between the settings in the same group, a
 // warning will be logged.
-func (*lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) < 1 || len(args) > 4 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	l := &lifoGroupFilter{}
+	l := &lifoGroupFilter{typ: s.typ}
 
 	switch v := args[0].(type) {
 	case string:
@@ -248,13 +290,19 @@ func (l *lifoFilter) Close() error {
 // - 503 if jobqueue.ErrStackFull
 // - 502 if jobqueue.ErrTimeout
 func (l *lifoFilter) Request(ctx filters.FilterContext) {
-	request(l.GetQueue(), scheduler.LIFOKey, ctx)
+	request(l.GetQueue(), lifoStateBagKey(l.typ), ctx)
 }
 
 // Response is the filter.Filter interface implementation. Response
 // will decrease the number of inflight requests.
 func (l *lifoFilter) Response(ctx filters.FilterContext) {
-	response(scheduler.LIFOKey, ctx)
+	switch l.typ {
+	case filters.LifoName:
+		response(scheduler.LIFOKey, ctx)
+
+	case filters.LifoWithBodyName:
+		// nothing to do here, handled in the proxy after copyStream()
+	}
 }
 
 // HandleErrorResponse is to opt-in for filters to get called
@@ -301,13 +349,19 @@ func (l *lifoGroupFilter) Close() error {
 // - 503 if jobqueue.ErrStackFull
 // - 502 if jobqueue.ErrTimeout
 func (l *lifoGroupFilter) Request(ctx filters.FilterContext) {
-	request(l.GetQueue(), scheduler.LIFOKey, ctx)
+	request(l.GetQueue(), lifoStateBagKey(l.typ), ctx)
 }
 
 // Response is the filter.Filter interface implementation. Response
 // will decrease the number of inflight requests.
 func (l *lifoGroupFilter) Response(ctx filters.FilterContext) {
-	response(scheduler.LIFOKey, ctx)
+	switch l.typ {
+	case filters.LifoGroupName:
+		response(scheduler.LIFOKey, ctx)
+
+	case filters.LifoGroupWithBodyName:
+		// nothing to do here, handled in the proxy after copyStream()
+	}
 }
 
 // HandleErrorResponse is to opt-in for filters to get called

@@ -3540,6 +3540,31 @@ to 150 and Timeout to 10 seconds.
 
 When there are multiple lifo filters on the route, only the last one will be applied.
 
+### lifoWithBody
+
+This filter is similar to the [lifo](#lifo) filter in regards to
+parameters and status codes.
+
+The difference between lifo and lifoWithBody is that lifo will decrement
+the concurrency as soon as the backend sent response headers and
+lifoWithBody will decrement the concurrency if the response body was
+served. This is the same distinction as between [fifo](#fifo) and
+[fifoWithBody](#fifowithbody), and it matters for backends that stream a
+long response body, where lifo would decrement concurrency too early and
+admit more than MaxConcurrency concurrent streams.
+
+Parameters:
+
+* MaxConcurrency specifies how many goroutines are allowed to work on this queue (int)
+* MaxQueueSize sets the queue size (int)
+* Timeout sets the timeout to get request scheduled (time)
+
+Example:
+
+```
+lifoWithBody(100, 150, "10s")
+```
+
 ### lifoGroup
 
 This filter is similar to the [lifo](#lifo) filter.
@@ -3570,6 +3595,26 @@ group, a warning will be logged.
 It is possible to use the lifoGroup filter together with the single lifo filter, e.g. if
 a route belongs to a group, but needs to have additional stricter settings then the whole
 group.
+
+### lifoGroupWithBody
+
+This filter is similar to the [lifoGroup](#lifogroup) filter, and relates to it
+the same way [lifoWithBody](#lifowithbody) relates to [lifo](#lifo): the
+concurrency is decremented after the response body was served, rather than when
+the backend sent the response headers.
+
+Parameters:
+
+* GroupName to group multiple one or many routes to the same queue, which have to have the same settings (string)
+* MaxConcurrency specifies how many goroutines are allowed to work on this queue (int)
+* MaxQueueSize sets the queue size (int)
+* Timeout sets the timeout to get request scheduled (time)
+
+Example:
+
+```
+lifoGroupWithBody("mygroup", 100, 150, "10s")
+```
 
 ## RFC Compliance
 ### rfcHost

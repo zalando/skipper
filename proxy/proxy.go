@@ -1890,11 +1890,18 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	responseElapsed += ctx.proxyResponseElapsed
 	responseStopWatch.Start()
-	// fifoWithBody() filter
-	if sbf, ok := ctx.StateBag()[filters.FifoWithBodyName]; ok {
-		if fs, ok := sbf.([]func()); ok {
-			for i := len(fs) - 1; i >= 0; i-- {
-				fs[i]()
+	// fifoWithBody(), lifoWithBody() and lifoGroupWithBody() filters hold
+	// their queue slot until the response body was streamed to the client
+	for _, name := range []string{
+		filters.FifoWithBodyName,
+		filters.LifoWithBodyName,
+		filters.LifoGroupWithBodyName,
+	} {
+		if sbf, ok := ctx.StateBag()[name]; ok {
+			if fs, ok := sbf.([]func()); ok {
+				for i := len(fs) - 1; i >= 0; i-- {
+					fs[i]()
+				}
 			}
 		}
 	}

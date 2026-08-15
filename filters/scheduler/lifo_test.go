@@ -2,10 +2,12 @@ package scheduler
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -61,6 +63,43 @@ func TestNewLIFO(t *testing.T) {
 			},
 			schedFunc: NewLIFOGroup,
 			wantName:  filters.LifoGroupName,
+			wantKey:   "mygroup",
+			wantErr:   false,
+			wantConfig: scheduler.Config{
+				MaxConcurrency: 10,
+				MaxQueueSize:   15,
+				Timeout:        5 * time.Second,
+			},
+			wantCode: http.StatusOK,
+		},
+		{
+			name: "lifoWithBody with valid configuration",
+			args: []interface{}{
+				10,
+				15,
+				"5s",
+			},
+			schedFunc: NewLIFOWithBody,
+			wantName:  filters.LifoWithBodyName,
+			wantKey:   "mykey",
+			wantErr:   false,
+			wantConfig: scheduler.Config{
+				MaxConcurrency: 10,
+				MaxQueueSize:   15,
+				Timeout:        5 * time.Second,
+			},
+			wantCode: http.StatusOK,
+		},
+		{
+			name: "lifogroupWithBody with valid configuration",
+			args: []interface{}{
+				"mygroup",
+				10,
+				15,
+				"5s",
+			},
+			schedFunc: NewLIFOGroupWithBody,
+			wantName:  filters.LifoGroupWithBodyName,
 			wantKey:   "mygroup",
 			wantErr:   false,
 			wantConfig: scheduler.Config{
@@ -528,4 +567,113 @@ func requestSpike(t *testing.T, n int, url string) {
 		}()
 	}
 	wg.Wait()
+}
+
+// TestLifoWithBody documents the difference between the lifo and the
+// lifoWithBody filters: lifo releases the queue slot once the backend sent the
+// response headers, while lifoWithBody holds it until the response body was
+// streamed to the client.
+//
+// The scenario is the same for both, one request that received its headers but
+// is still streaming its body, and a second concurrent request on a route with
+// MaxConcurrency 1 and no queue. lifo admits the second request, lifoWithBody
+// rejects it with a queue timeout, which is the behaviour a streaming backend
+// needs.
+func TestLifoWithBody(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		spec           func() filters.Spec
+		filter         string
+		wantSecondCode int
+	}{{
+		name:           "lifo releases the slot before the body was streamed",
+		spec:           NewLIFO,
+		filter:         `lifo(1, 0, "10ms")`,
+		wantSecondCode: http.StatusOK,
+	}, {
+		name:           "lifoWithBody holds the slot until the body was streamed",
+		spec:           NewLIFOWithBody,
+		filter:         `lifoWithBody(1, 0, "10ms")`,
+		wantSecondCode: http.StatusBadGateway,
+	}, {
+		name:           "lifoGroup releases the slot before the body was streamed",
+		spec:           NewLIFOGroup,
+		filter:         `lifoGroup("g", 1, 0, "10ms")`,
+		wantSecondCode: http.StatusOK,
+	}, {
+		name:           "lifoGroupWithBody holds the slot until the body was streamed",
+		spec:           NewLIFOGroupWithBody,
+		filter:         `lifoGroupWithBody("g", 1, 0, "10ms")`,
+		wantSecondCode: http.StatusBadGateway,
+	}} {
+		t.Run(tt.name, func(t *testing.T) {
+			streaming := make(chan struct{})
+			release := make(chan struct{})
+			var blocked atomic.Bool
+
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.(http.Flusher).Flush()
+
+				// Only the first request holds its body open, so that the
+				// second one is decided by the scheduler and not by the backend.
+				if blocked.CompareAndSwap(false, true) {
+					close(streaming)
+					<-release
+				}
+				w.Write([]byte("body"))
+			}))
+			defer backend.Close()
+
+			fr := make(filters.Registry)
+			fr.Register(tt.spec())
+
+			dc, err := testdataclient.NewDoc(fmt.Sprintf(`r: * -> %s -> "%s"`, tt.filter, backend.URL))
+			require.NoError(t, err)
+			defer dc.Close()
+
+			reg := scheduler.RegistryWith(scheduler.Options{})
+			defer reg.Close()
+
+			rt := routing.New(routing.Options{
+				SignalFirstLoad: true,
+				FilterRegistry:  fr,
+				DataClients:     []routing.DataClient{dc},
+				PostProcessors:  []routing.PostProcessor{reg},
+			})
+			defer rt.Close()
+			<-rt.FirstLoad()
+
+			pr := proxy.WithParams(proxy.Params{Routing: rt})
+			defer pr.Close()
+			ts := httptest.NewServer(pr)
+			defer ts.Close()
+
+			firstDone := make(chan int, 1)
+			go func() {
+				rsp, err := ts.Client().Get(ts.URL)
+				if err != nil {
+					firstDone <- 0
+					return
+				}
+				defer rsp.Body.Close()
+				io.Copy(io.Discard, rsp.Body)
+				firstDone <- rsp.StatusCode
+			}()
+
+			// The backend flushed the headers, give the proxy a moment to run
+			// the response phase of the filter before the second request.
+			<-streaming
+			time.Sleep(100 * time.Millisecond)
+
+			rsp, err := ts.Client().Get(ts.URL)
+			require.NoError(t, err)
+			defer rsp.Body.Close()
+			io.Copy(io.Discard, rsp.Body)
+			assert.Equal(t, tt.wantSecondCode, rsp.StatusCode, "second request while the first is still streaming")
+
+			close(release)
+			assert.Equal(t, http.StatusOK, <-firstDone, "first request")
+		})
+	}
 }
