@@ -251,7 +251,12 @@ func scanBacktick(code string) (token, string, error)    { return scanStringLite
 func scanNumber(code string) (t token, rest string, err error) {
 	t.id = number
 	decimal := false
-	t.val, rest = scanWhile(code, func(c byte) bool {
+	start := 0
+	if code[0] == '-' {
+		start = 1
+	}
+
+	t.val, rest = scanWhile(code[start:], func(c byte) bool {
 		if isDecimalChar(c) {
 			if decimal {
 				return false
@@ -263,6 +268,7 @@ func scanNumber(code string) (t token, rest string, err error) {
 
 		return isDigit(c)
 	})
+	t.val = code[:start+len(t.val)]
 
 	if isDecimalChar(t.val[len(t.val)-1]) {
 		err = errIncompleteToken
@@ -308,6 +314,9 @@ func scan(code string) (token, string, error) {
 	case '-':
 		if len(code) >= 2 && code[1] == '>' {
 			return arrowToken.scan(code)
+		}
+		if len(code) >= 2 && isNumberChar(code[1]) {
+			return scanNumber(code)
 		}
 	case '/':
 		return scanRegexpOrComment(code)
