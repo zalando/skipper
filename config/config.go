@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"sort"
@@ -272,6 +273,10 @@ type Config struct {
 	// TLS version
 	TLSMinVersion string             `yaml:"tls-min-version"`
 	TLSClientAuth tls.ClientAuthType `yaml:"tls-client-auth"`
+
+	// TLS debugging
+	TLSKeyLogFile   string    `yaml:"tls-key-log-file"`
+	TLSKeyLogWriter io.Writer `yaml:"-"`
 
 	// Exclude insecure cipher suites
 	ExcludeInsecureCipherSuites bool `yaml:"exclude-insecure-cipher-suites"`
@@ -661,6 +666,8 @@ func NewConfig() *Config {
 	flag.Func("tls-client-auth", "TLS client authentication policy for server, one of: "+
 		"NoClientCert, RequestClientCert, RequireAnyClientCert, VerifyClientCertIfGiven or RequireAndVerifyClientCert. "+
 		"See https://pkg.go.dev/crypto/tls#ClientAuthType for details.", cfg.setTLSClientAuth)
+	flag.StringVar(&cfg.TLSKeyLogFile, "tls-key-log-file", "", "path to a file where TLS master secrets are logged in NSS Key Log Format for debugging with tools like Wireshark. "+
+		"WARNING: anyone with access to this file can decrypt all TLS traffic — never use in production")
 
 	// Exclude insecure cipher suites
 	flag.BoolVar(&cfg.ExcludeInsecureCipherSuites, "exclude-insecure-cipher-suites", false, "excludes insecure cipher suites")
@@ -884,6 +891,14 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 		}
 
 		c.Certificates = certificates
+	}
+
+	if c.TLSKeyLogFile != "" {
+		f, err := os.OpenFile(c.TLSKeyLogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+		if err != nil {
+			return fmt.Errorf("failed to open TLS key log file: %w", err)
+		}
+		c.TLSKeyLogWriter = f
 	}
 
 	if c.MtlsAuthnAppendCA {
@@ -1266,6 +1281,7 @@ func (c *Config) ToOptions() skipper.Options {
 	options.ClientKeyFile = c.ClientKeyFile
 	options.ClientCertRefreshInterval = c.ClientCertRefreshInterval
 	options.MtlsAuthnCA = c.MtlsAuthnCA
+	options.KeyLogWriter = c.TLSKeyLogWriter
 
 	var wrappers []func(handler http.Handler) http.Handler
 	options.CustomHttpHandlerWrap = func(handler http.Handler) http.Handler {

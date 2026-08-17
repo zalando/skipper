@@ -1720,6 +1720,23 @@ predicates and filters involved in the route processing:
 }
 ```
 
+### Debugging TLS
+
+Skipper supports logging TLS master secrets in NSS Key Log Format,
+which allows tools like Wireshark to decrypt captured HTTPS traffic
+during troubleshooting.
+
+To enable TLS key logging, pass the `-tls-key-log-file` flag with the
+target output file path:
+
+```bash
+skipper -tls-key-log-file=/path/to/tls-secrets.log
+```
+
+> **WARNING:** Anyone with access to this file can decrypt all TLS
+> traffic passing through Skipper. Never use this flag in production
+> environments.
+
 ## Profiling
 
 Go profiling is explained in Go's
