@@ -794,6 +794,9 @@ type Options struct {
 	// and the response messages during web socket upgrades.
 	ExperimentalUpgradeAudit bool
 
+	// EnableH2cServer enables h2c (HTTP/2 cleartext) on the incoming listener.
+	EnableH2cServer bool
+
 	// MaxLoopbacks defines the maximum number of loops that the proxy can execute when the routing table
 	// contains loop backends (<loopback>).
 	MaxLoopbacks int
@@ -1603,6 +1606,15 @@ func listenAndServeQuit(
 		IdleTimeout:       o.IdleTimeoutServer,
 		MaxHeaderBytes:    o.MaxHeaderBytes,
 		ErrorLog:          newServerErrorLog(),
+	}
+
+	if o.EnableH2cServer {
+		if srv.Protocols == nil {
+			srv.Protocols = new(http.Protocols)
+		}
+		srv.Protocols.SetHTTP1(true)
+		srv.Protocols.SetUnencryptedHTTP2(true)
+		log.Info("h2c (HTTP/2 cleartext) enabled on listener")
 	}
 
 	cm := &skpnet.ConnManager{

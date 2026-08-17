@@ -483,6 +483,7 @@ type Proxy struct {
 	fadein                   *fadeIn
 	healthyEndpoints         *healthyEndpoints
 	roundTripper             http.RoundTripper
+	h2cRoundTripper          http.RoundTripper
 	priorityRoutes           []PriorityRoute
 	flags                    Flags
 	metrics                  metrics.Metrics
@@ -814,41 +815,9 @@ func WithParams(p Params) *Proxy {
 		}
 	}
 
-	tr := &http.Transport{
-		DialContext: newSkipperDialer(net.Dialer{
-			Timeout:   p.Timeout,
-			KeepAlive: p.KeepAlive,
-			DualStack: p.DualStack,
-		}).DialContext,
-		TLSHandshakeTimeout:   p.TLSHandshakeTimeout,
-		ResponseHeaderTimeout: p.ResponseHeaderTimeout,
-		ExpectContinueTimeout: p.ExpectContinueTimeout,
-		MaxIdleConns:          p.MaxIdleConns,
-		MaxIdleConnsPerHost:   p.IdleConnectionsPerHost,
-		IdleConnTimeout:       p.CloseIdleConnsPeriod,
-		DisableKeepAlives:     p.DisableHTTPKeepalives,
-		Proxy:                 proxyFromContext,
-	}
+	tr := newTransport(p)
 
 	quit := make(chan struct{})
-	// We need this to reliably fade on DNS change, which is right
-	// now not fixed with IdleConnTimeout in the http.Transport.
-	// https://github.com/golang/go/issues/23427
-	if p.CloseIdleConnsPeriod > 0 {
-		go func() {
-			ticker := time.NewTicker(p.CloseIdleConnsPeriod)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-					tr.CloseIdleConnections()
-				case <-quit:
-					return
-				}
-			}
-		}()
-	}
-
 	if p.ClientTLS != nil {
 		tr.TLSClientConfig = p.ClientTLS
 	}
@@ -881,6 +850,29 @@ func WithParams(p Params) *Proxy {
 			}
 			tr.TLSClientConfig.GetClientCertificate = cr.GetClientCertificate
 		}
+	}
+
+	h2cTr := newTransport(p)
+	h2cTr.Protocols = new(http.Protocols)
+	h2cTr.Protocols.SetUnencryptedHTTP2(true)
+
+	// We need this to reliably fade on DNS change, which is right
+	// now not fixed with IdleConnTimeout in the http.Transport.
+	// https://github.com/golang/go/issues/23427
+	if p.CloseIdleConnsPeriod > 0 {
+		go func() {
+			ticker := time.NewTicker(p.CloseIdleConnsPeriod)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					tr.CloseIdleConnections()
+					h2cTr.CloseIdleConnections()
+				case <-quit:
+					return
+				}
+			}
+		}()
 	}
 
 	m := p.Metrics
@@ -925,6 +917,7 @@ func WithParams(p Params) *Proxy {
 		},
 		healthyEndpoints:         healthyEndpointsChooser,
 		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
+		h2cRoundTripper:          p.CustomHttpRoundTripperWrap(h2cTr),
 		priorityRoutes:           p.PriorityRoutes,
 		flags:                    p.Flags,
 		metrics:                  m,
@@ -949,6 +942,25 @@ func WithParams(p Params) *Proxy {
 		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
 		cr:                       cr,
 	}
+}
+
+func newTransport(p Params) *http.Transport {
+	tr := &http.Transport{
+		DialContext: newSkipperDialer(net.Dialer{
+			Timeout:   p.Timeout,
+			KeepAlive: p.KeepAlive,
+			DualStack: p.DualStack,
+		}).DialContext,
+		TLSHandshakeTimeout:   p.TLSHandshakeTimeout,
+		ResponseHeaderTimeout: p.ResponseHeaderTimeout,
+		ExpectContinueTimeout: p.ExpectContinueTimeout,
+		MaxIdleConns:          p.MaxIdleConns,
+		MaxIdleConnsPerHost:   p.IdleConnectionsPerHost,
+		IdleConnTimeout:       p.CloseIdleConnsPeriod,
+		DisableKeepAlives:     p.DisableHTTPKeepalives,
+		Proxy:                 proxyFromContext,
+	}
+	return tr
 }
 
 // applies filters to a request
@@ -1208,6 +1220,9 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 func (p *Proxy) getRoundTripper(ctx *context, req *http.Request) (http.RoundTripper, error) {
 	switch req.URL.Scheme {
+	case "h2c":
+		req.URL.Scheme = "http"
+		return p.h2cRoundTripper, nil
 	case "fastcgi":
 		f := "index.php"
 		if sf, ok := ctx.StateBag()["fastCgiFilename"]; ok {

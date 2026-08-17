@@ -649,6 +649,36 @@ Ingress (`pathType: ImplementationSpecific`): | RouteGroup:
 `path-prefix` and `/foo` | pathSubtree: `/foo`
 `kubernetes-ingress` and /foo$ | path: `/foo`
 
+### zalando.org/skipper-backend-protocol
+
+The annotation `zalando.org/skipper-backend-protocol` sets the backend protocol for all
+service backends in the RouteGroup. Set it to `h2c` to use HTTP/2 cleartext when
+connecting to backends.
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-route-group
+  annotations:
+    zalando.org/skipper-backend-protocol: h2c
+spec:
+  hosts:
+  - app.example.org
+  backends:
+  - name: my-backend
+    type: service
+    serviceName: my-service
+    servicePort: 80
+  defaultBackends:
+  - backendName: my-backend
+```
+
+When using EndpointSlices (`-enable-kubernetes-endpointslices`), the annotation is not
+needed if the Service port has `appProtocol: kubernetes.io/h2c` — skipper will
+automatically use h2c in that case. The annotation always takes precedence when both are
+set.
+
 ### zalando.org/traffic-zone-aware
 
 This annotation allows opting out individual RouteGroup resources from

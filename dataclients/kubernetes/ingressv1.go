@@ -120,12 +120,14 @@ func convertPathRuleV1(
 		eps = []string{serviceNameBackend(svcName, ns, servicePort)}
 	} else {
 		protocol := "http"
+		annotationSet := false
 		if p, ok := metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
 			protocol = p
+			annotationSet = true
 		}
 
 		if state.enableEndpointSlices {
-			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort, ic)
+			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, annotationSet, servicePort, ic)
 			for _, ep := range epSlices {
 				eps = append(eps, ep.Address)
 			}
@@ -408,12 +410,14 @@ func (ing *ingress) convertDefaultBackendV1(
 	} else {
 		ic.logger.Debugf("Found target port %v, for service %s", servicePort.TargetPort, svcName)
 		protocol := "http"
+		annotationSet := false
 		if p, ok := i.Metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
 			protocol = p
+			annotationSet = true
 		}
 
 		if state.enableEndpointSlices {
-			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, servicePort, ic)
+			epSlices = state.GetEndpointSlicesByService(dataclientZone, ns, svcName, protocol, annotationSet, servicePort, ic)
 			for _, ep := range epSlices {
 				eps = append(eps, ep.Address)
 			}

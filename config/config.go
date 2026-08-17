@@ -298,6 +298,7 @@ type Config struct {
 	BackendFlushInterval         time.Duration `yaml:"backend-flush-interval"`
 	ExperimentalUpgrade          bool          `yaml:"experimental-upgrade"`
 	ExperimentalUpgradeAudit     bool          `yaml:"experimental-upgrade-audit"`
+	EnableH2cServer              bool          `yaml:"enable-h2c-server"`
 	ReadTimeoutServer            time.Duration `yaml:"read-timeout-server"`
 	ReadHeaderTimeoutServer      time.Duration `yaml:"read-header-timeout-server"`
 	WriteTimeoutServer           time.Duration `yaml:"write-timeout-server"`
@@ -692,6 +693,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.BackendFlushInterval, "backend-flush-interval", 20*time.Millisecond, "flush interval for upgraded proxy connections")
 	flag.BoolVar(&cfg.ExperimentalUpgrade, "experimental-upgrade", false, "enable experimental feature to handle upgrade protocol requests")
 	flag.BoolVar(&cfg.ExperimentalUpgradeAudit, "experimental-upgrade-audit", false, "enable audit logging of the request line and the messages during the experimental web socket upgrades")
+	flag.BoolVar(&cfg.EnableH2cServer, "enable-h2c-server", false, "enable h2c (HTTP/2 cleartext) on the incoming listener")
 	flag.DurationVar(&cfg.ReadTimeoutServer, "read-timeout-server", 5*time.Minute, "set ReadTimeout for http server connections")
 	flag.DurationVar(&cfg.ReadHeaderTimeoutServer, "read-header-timeout-server", 60*time.Second, "set ReadHeaderTimeout for http server connections")
 	flag.DurationVar(&cfg.WriteTimeoutServer, "write-timeout-server", 60*time.Second, "set WriteTimeout for http server connections")
@@ -1153,6 +1155,7 @@ func (c *Config) ToOptions() skipper.Options {
 		BackendFlushInterval:         c.BackendFlushInterval,
 		ExperimentalUpgrade:          c.ExperimentalUpgrade,
 		ExperimentalUpgradeAudit:     c.ExperimentalUpgradeAudit,
+		EnableH2cServer:              c.EnableH2cServer,
 		ReadTimeoutServer:            c.ReadTimeoutServer,
 		ReadHeaderTimeoutServer:      c.ReadHeaderTimeoutServer,
 		WriteTimeoutServer:           c.WriteTimeoutServer,

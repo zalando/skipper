@@ -89,6 +89,25 @@ implementation of DialContext, which is the TCP connection pool used in the
     -enable-dualstack-backend
         enables DualStack for backend connections (default true)
 
+### HTTP/2 Cleartext (h2c)
+
+Skipper supports HTTP/2 cleartext (h2c) in two directions: on the incoming listener and
+on outgoing backend connections.
+
+Enable h2c on the listener (for clients that speak h2c to skipper):
+
+    -enable-h2c-server
+        enable h2c (HTTP/2 cleartext) on the incoming listener; no effect when TLS is configured
+
+Skipper uses HTTP/2 cleartext for any backend whose URL scheme is
+`h2c://`. Skipper sets the `h2c://` scheme automatically when one of
+the following points are true:
+
+- The Ingress or RouteGroup has the annotation `zalando.org/skipper-backend-protocol: h2c`
+- The EndpointSlice port has `appProtocol: kubernetes.io/h2c` and
+  `-enable-kubernetes-endpointslices` is active (the annotation takes precedence if both
+  are set)
+
 ### Client
 
 Client is the side skipper gets incoming calls from.

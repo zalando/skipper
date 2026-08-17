@@ -4,7 +4,10 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
-const endpointSliceServiceNameLabel = "kubernetes.io/service-name"
+const (
+	endpointSliceServiceNameLabel = "kubernetes.io/service-name"
+	appProtocolH2C                = "kubernetes.io/h2c"
+)
 
 // There are [1..N] Kubernetes endpointslices created for a single Kubernetes service.
 // Kubernetes endpointslices of a given service can have duplicates with different states.
@@ -23,7 +26,15 @@ type skipperEndpoint struct {
 }
 
 func (eps *skipperEndpointSlice) getPort(protocol, pName string, pValue int) int {
-	var port int
+	epPort := eps.getEndpointSlicePort(protocol, pName, pValue)
+	if epPort != nil {
+		return epPort.Port
+	}
+
+	return 0
+}
+
+func (eps *skipperEndpointSlice) getEndpointSlicePort(protocol, pName string, pValue int) *endpointSlicePort {
 	for _, p := range eps.Ports {
 		if protocol != "" && p.Protocol != protocol {
 			continue
@@ -32,18 +43,16 @@ func (eps *skipperEndpointSlice) getPort(protocol, pName string, pValue int) int
 		// Optional if only one ServicePort is defined on this service.
 		// Therefore empty name match is fine.
 		if p.Name == pName {
-			port = p.Port
-			break
+			return p
 		}
 		if pValue != 0 && p.Port == pValue {
-			port = pValue
-			break
+			return p
 		}
 	}
-
-	return port
+	return nil
 }
-func (eps *skipperEndpointSlice) targetsByServicePort(protocol, scheme string, servicePort *servicePort) []skipperEndpoint {
+
+func (eps *skipperEndpointSlice) targetsByServicePort(protocol, scheme string, annotationSet bool, servicePort *servicePort) []skipperEndpoint {
 	var port int
 	if servicePort.Name != "" {
 		port = eps.getPort(protocol, servicePort.Name, servicePort.Port)
@@ -57,6 +66,9 @@ func (eps *skipperEndpointSlice) targetsByServicePort(protocol, scheme string, s
 		port = eps.getPort(protocol, servicePort.Name, servicePort.Port)
 	}
 
+	esp := eps.getEndpointSlicePort(protocol, servicePort.Name, servicePort.Port)
+	scheme = effectiveScheme(esp, scheme, annotationSet)
+
 	result := make([]skipperEndpoint, 0, len(eps.Endpoints))
 	for _, ep := range eps.Endpoints {
 		addr := formatEndpointString(ep.Address, scheme, port)
@@ -65,10 +77,13 @@ func (eps *skipperEndpointSlice) targetsByServicePort(protocol, scheme string, s
 	return result
 }
 
-func (eps *skipperEndpointSlice) targetsByServiceTarget(protocol, scheme string, serviceTarget *definitions.BackendPort) []skipperEndpoint {
+func (eps *skipperEndpointSlice) targetsByServiceTarget(protocol, scheme string, annotationSet bool, serviceTarget *definitions.BackendPort) []skipperEndpoint {
 	pName, _ := serviceTarget.Value.(string)
 	pValue, _ := serviceTarget.Value.(int)
 	port := eps.getPort(protocol, pName, pValue)
+
+	esp := eps.getEndpointSlicePort(protocol, pName, pValue)
+	scheme = effectiveScheme(esp, scheme, annotationSet)
 
 	result := make([]skipperEndpoint, 0, len(eps.Endpoints))
 	for _, ep := range eps.Endpoints {
@@ -94,6 +109,16 @@ func (eps *skipperEndpointSlice) addresses() []string {
 		result = append(result, ep.Address)
 	}
 	return result
+}
+
+func effectiveScheme(p *endpointSlicePort, schemeDefault string, annotationSet bool) string {
+	if annotationSet {
+		return schemeDefault
+	}
+	if p != nil && p.AppProtocol == appProtocolH2C {
+		return "h2c"
+	}
+	return schemeDefault
 }
 
 type endpointSliceList struct {
@@ -139,10 +164,9 @@ type endpointsliceCondition struct {
 }
 
 type endpointSlicePort struct {
-	Name     string `json:"name"`     // "http"
-	Port     int    `json:"port"`     // 8080
-	Protocol string `json:"protocol"` // "TCP"
-	// AppProtocol is not used, but would make it possible to optimize H2C and websocket connections
+	Name        string `json:"name"`        // "http"
+	Port        int    `json:"port"`        // 8080
+	Protocol    string `json:"protocol"`    // "TCP"
 	AppProtocol string `json:"appProtocol"` // "kubernetes.io/h2c", "kubernetes.io/ws", "kubernetes.io/wss"
 }
 

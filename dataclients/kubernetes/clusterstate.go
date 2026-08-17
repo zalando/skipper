@@ -79,10 +79,17 @@ func (state *clusterState) GetEndpointsByService(namespace, name, protocol strin
 }
 
 // GetEndpointSlicesByService returns the skipper endpointslices for kubernetes endpointslices.
-func (state *clusterState) GetEndpointSlicesByService(zone, namespace, name, protocol string, servicePort *servicePort, ic *ingressContext) []skipperEndpoint {
+func (state *clusterState) GetEndpointSlicesByService(zone, namespace, name, protocol string, annotationSet bool, servicePort *servicePort, ic *ingressContext) []skipperEndpoint {
+	// When no annotation was set, AppProtocol from the endpointslice port may override the scheme.
+	// Use an empty string as cache key for that case to avoid mixing annotation-derived and
+	// AppProtocol-derived entries for the same service and port.
+	cacheScheme := protocol
+	if !annotationSet {
+		cacheScheme = ""
+	}
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
-		Protocol:   protocol,
+		Protocol:   cacheScheme,
 		TargetPort: servicePort.TargetPort.String(),
 	}
 
@@ -93,7 +100,7 @@ func (state *clusterState) GetEndpointSlicesByService(zone, namespace, name, pro
 		targets = cached
 	} else {
 		if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
-			targets = eps.targetsByServicePort("TCP", protocol, servicePort)
+			targets = eps.targetsByServicePort("TCP", protocol, annotationSet, servicePort)
 		} else {
 			return nil
 		}
@@ -171,7 +178,7 @@ func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol, schem
 }
 
 // GetEndpointSlicesByTarget returns the skipper endpointslices for kubernetes endpointslices.
-func (state *clusterState) GetEndpointSlicesByTarget(zone, namespace, name, protocol, scheme string, target *definitions.BackendPort, rgc *routeGroupContext) []skipperEndpoint {
+func (state *clusterState) GetEndpointSlicesByTarget(zone, namespace, name, protocol, scheme string, annotationSet bool, target *definitions.BackendPort, rgc *routeGroupContext) []skipperEndpoint {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
@@ -185,7 +192,7 @@ func (state *clusterState) GetEndpointSlicesByTarget(zone, namespace, name, prot
 		targets = cached
 	} else {
 		if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
-			targets = eps.targetsByServiceTarget(protocol, scheme, target)
+			targets = eps.targetsByServiceTarget(protocol, scheme, annotationSet, target)
 		} else {
 			return nil
 		}

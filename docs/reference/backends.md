@@ -392,9 +392,16 @@ B
 Current implemented protocols:
 
 - `http`: (default) http protocol
-- `fastcgi`: (*experimental*) directly connect Skipper with a FastCGI backend like PHP FPM.
+- `h2c`: HTTP/2 cleartext protocol Direct [Prior Knowledge](https://datatracker.ietf.org/doc/html/rfc9113#name-starting-http-2-with-prior-)
+- `fastcgi`: directly connect Skipper with a FastCGI backend like PHP FPM.
 
-Route example that uses FastCGI (*experimental*):
+Route example that uses h2c:
+```
+h2c: * -> "h2c://127.0.0.1:9000";
+h2c_lb: * -> <roundRobin, "h2c://127.0.0.1:9000", "h2c://127.0.0.1:9001">;
+```
+
+Route example that uses FastCGI:
 ```
 php: * -> setFastCgiFilename("index.php") -> "fastcgi://127.0.0.1:9000";
 php_lb: * -> setFastCgiFilename("index.php") -> <roundRobin, "fastcgi://127.0.0.1:9000", "fastcgi://127.0.0.1:9001">;

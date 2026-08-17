@@ -842,3 +842,38 @@ func TestParseAnnotationConfig(t *testing.T) {
 		}
 	})
 }
+
+func TestH2cFlags_ParseAndToOptions(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		args          []string
+		wantH2cServer bool
+	}{
+		{
+			name:          "defaults are false",
+			args:          []string{"skipper"},
+			wantH2cServer: false,
+		},
+		{
+			name:          "enable-h2c-server only",
+			args:          []string{"skipper", "-enable-h2c-server"},
+			wantH2cServer: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			if err := cfg.ParseArgs(tt.args[0], tt.args[1:]); err != nil {
+				t.Fatalf("ParseArgs failed: %v", err)
+			}
+
+			if cfg.EnableH2cServer != tt.wantH2cServer {
+				t.Errorf("EnableH2cServer: got %v, want %v", cfg.EnableH2cServer, tt.wantH2cServer)
+			}
+
+			opts := cfg.ToOptions()
+			if opts.EnableH2cServer != tt.wantH2cServer {
+				t.Errorf("ToOptions EnableH2cServer: got %v, want %v", opts.EnableH2cServer, tt.wantH2cServer)
+			}
+		})
+	}
+}
