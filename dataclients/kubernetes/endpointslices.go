@@ -25,6 +25,15 @@ type skipperEndpoint struct {
 	Zone    string
 }
 
+func (eps *skipperEndpointSlice) getPort(protocol, pName string, pValue int) int {
+	epPort := eps.getEndpointSlicePort(protocol, pName, pValue)
+	if epPort != nil {
+		return epPort.Port
+	}
+
+	return 0
+}
+
 func (eps *skipperEndpointSlice) getEndpointSlicePort(protocol, pName string, pValue int) *endpointSlicePort {
 	for _, p := range eps.Ports {
 		if protocol != "" && p.Protocol != protocol {
@@ -43,34 +52,21 @@ func (eps *skipperEndpointSlice) getEndpointSlicePort(protocol, pName string, pV
 	return nil
 }
 
-func effectiveScheme(p *endpointSlicePort, schemeDefault string, annotationSet bool) string {
-	if annotationSet {
-		return schemeDefault
-	}
-	if p != nil && p.AppProtocol == appProtocolH2C {
-		return "h2c"
-	}
-	return schemeDefault
-}
 func (eps *skipperEndpointSlice) targetsByServicePort(protocol, scheme string, annotationSet bool, servicePort *servicePort) []skipperEndpoint {
-	var esp *endpointSlicePort
 	var port int
 	if servicePort.Name != "" {
-		esp = eps.getEndpointSlicePort(protocol, servicePort.Name, servicePort.Port)
+		port = eps.getPort(protocol, servicePort.Name, servicePort.Port)
 	} else if servicePort.TargetPort != nil {
 		var ok bool
 		port, ok = servicePort.TargetPort.Number()
 		if !ok {
-			esp = eps.getEndpointSlicePort(protocol, servicePort.Name, servicePort.Port)
-		} else {
-			esp = eps.getEndpointSlicePort(protocol, "", port)
+			port = eps.getPort(protocol, servicePort.Name, servicePort.Port)
 		}
 	} else {
-		esp = eps.getEndpointSlicePort(protocol, servicePort.Name, servicePort.Port)
+		port = eps.getPort(protocol, servicePort.Name, servicePort.Port)
 	}
-	if esp != nil {
-		port = esp.Port
-	}
+
+	esp := eps.getEndpointSlicePort(protocol, servicePort.Name, servicePort.Port)
 	scheme = effectiveScheme(esp, scheme, annotationSet)
 
 	result := make([]skipperEndpoint, 0, len(eps.Endpoints))
@@ -84,11 +80,9 @@ func (eps *skipperEndpointSlice) targetsByServicePort(protocol, scheme string, a
 func (eps *skipperEndpointSlice) targetsByServiceTarget(protocol, scheme string, annotationSet bool, serviceTarget *definitions.BackendPort) []skipperEndpoint {
 	pName, _ := serviceTarget.Value.(string)
 	pValue, _ := serviceTarget.Value.(int)
+	port := eps.getPort(protocol, pName, pValue)
+
 	esp := eps.getEndpointSlicePort(protocol, pName, pValue)
-	var port int
-	if esp != nil {
-		port = esp.Port
-	}
 	scheme = effectiveScheme(esp, scheme, annotationSet)
 
 	result := make([]skipperEndpoint, 0, len(eps.Endpoints))
@@ -115,6 +109,16 @@ func (eps *skipperEndpointSlice) addresses() []string {
 		result = append(result, ep.Address)
 	}
 	return result
+}
+
+func effectiveScheme(p *endpointSlicePort, schemeDefault string, annotationSet bool) string {
+	if annotationSet {
+		return schemeDefault
+	}
+	if p != nil && p.AppProtocol == appProtocolH2C {
+		return "h2c"
+	}
+	return schemeDefault
 }
 
 type endpointSliceList struct {
