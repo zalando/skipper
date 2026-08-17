@@ -3849,10 +3849,44 @@ pr: Path("/products/:productId")
     -> consistentHashKey("${productId}")
     -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 ```
+
 ```
 consistentHashKey("${request.header.Authorization}")
 consistentHashKey("${request.source}") // same as the default key
 ```
+
+#### Sticky sessions by header or by path
+
+`consistentHashKey` can be used to implement sticky sessions: requests
+that produce the same key are, with high probability, routed to the
+same backend endpoint, without Skipper storing any session state.
+
+To pin requests by a chosen request header, e.g. `My-Header`:
+
+```
+sticky_by_header: *
+    -> consistentHashKey("${request.header.My-Header}")
+    -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+```
+
+To pin requests by a path segment, e.g. an `:item` id:
+
+```
+sticky_by_path: Path("/items/:item")
+    -> consistentHashKey("${item}")
+    -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+```
+
+If the chosen header is absent, or the path parameter can't be
+resolved, the filter falls back to the default key
+(`${request.source}`, i.e. the first `X-Forwarded-For` address or the
+client's remote IP) — so make sure the header is always set, or route
+matching guarantees the path parameter is present, if strict pinning
+per header/path value is required.
+
+Use [`consistentHashBalanceFactor`](#consistenthashbalancefactor) to
+prevent a single popular key (a hot product, or many users behind the
+same header/IP) from overloading one backend endpoint.
 
 ### consistentHashBalanceFactor
 
