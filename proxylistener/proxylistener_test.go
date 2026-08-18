@@ -13,23 +13,6 @@ import (
 	proxyproto "github.com/pires/go-proxyproto"
 )
 
-// type testListener struct {
-// 	addr net.Addr
-// }
-
-// func (l *testListener) Accept() (net.Conn, error) {
-
-// }
-
-// func (l *testListener) Addr() net.Addr {
-// 	if l.addr == nil {
-// 		return &net.IPAddr{}
-// 	}
-
-// 	return l.addr
-// }
-// func (l *testListener) Close() error { return nil }
-
 func createTestListener() net.Listener {
 	l, err := net.Listen("tcp", ":0")
 	if err != nil {
@@ -174,24 +157,29 @@ func TestProxyListenerWithProxyClient(t *testing.T) {
 			clientString := `hello from client`
 			serverString := `hello from server`
 			addr := l.Addr().String()
+
+			// handlerErr collects assertion failures from the HTTP handler goroutine.
+			// t.Fatalf inside a non-test goroutine is a no-op (only exits that goroutine),
+			// so we send errors through a channel and check them in the test goroutine.
+			handlerErr := make(chan error, 8)
+
 			srv := &http.Server{
 				Addr: addr,
 				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					t.Logf("server RemoteAddr: %q", r.RemoteAddr)
 					expectedClientAddr := fmt.Sprintf("%s:%d", clientIP, clientPort)
 					if r.RemoteAddr != expectedClientAddr {
-						t.Fatalf("Failed to get the expected client %q, got %q", expectedClientAddr, r.RemoteAddr)
+						handlerErr <- fmt.Errorf("unexpected RemoteAddr: want %q got %q", expectedClientAddr, r.RemoteAddr)
 					}
 					if r.Host != tt.host {
-						t.Fatalf("Failed to get the expected host %q, got: %q", tt.host, r.Host)
+						handlerErr <- fmt.Errorf("unexpected Host: want %q got %q", tt.host, r.Host)
 					}
 					if r.Method == "POST" {
 						buf, err := io.ReadAll(r.Body)
 						if err != nil {
-							t.Fatalf("Failed to read body in server: %v", err)
-						}
-						if s := string(buf); s != clientString {
-							t.Fatalf("Failed to get %q, got: %q", clientString, s)
+							handlerErr <- fmt.Errorf("failed to read body in server: %v", err)
+						} else if s := string(buf); s != clientString {
+							handlerErr <- fmt.Errorf("unexpected body: want %q got %q", clientString, s)
 						}
 					}
 					w.WriteHeader(http.StatusOK)
@@ -231,12 +219,12 @@ func TestProxyListenerWithProxyClient(t *testing.T) {
 			}
 			req.Host = tt.host
 			rsp, err := client.Do(req)
-			close(shutdownCH) // trigger shutdown now that request has completed or failed
+			if rsp != nil {
+				rsp.Body.Close() // drain body before triggering shutdown
+			}
+			close(shutdownCH) // trigger shutdown now that response body is consumed
 			if err != nil && !tt.wantErr {
 				t.Fatalf("Failed to get response: %v", err)
-			}
-			if rsp != nil {
-				rsp.Body.Close()
 			}
 			if !tt.wantErr && rsp.StatusCode != tt.want {
 				t.Fatalf("Failed to get %d, got %d", tt.want, rsp.StatusCode)
@@ -244,6 +232,11 @@ func TestProxyListenerWithProxyClient(t *testing.T) {
 
 			<-waitShutdownCH
 			<-waitServeCH
+
+			close(handlerErr)
+			for e := range handlerErr {
+				t.Error(e)
+			}
 			t.Log("done")
 		})
 	}
@@ -312,23 +305,25 @@ func TestProxyListenerWithBogusProxyClient(t *testing.T) {
 			clientString := `hello from client`
 			serverString := `hello from server`
 			addr := l.Addr().String()
+
+			handlerErr := make(chan error, 8)
+
 			srv := &http.Server{
 				Addr: addr,
 				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					expectedClientAddr := fmt.Sprintf("%s:%d", clientIP, clientPort)
 					if r.RemoteAddr != expectedClientAddr {
-						t.Fatalf("Failed to get the expected client %q, got %q", expectedClientAddr, r.RemoteAddr)
+						handlerErr <- fmt.Errorf("unexpected RemoteAddr: want %q got %q", expectedClientAddr, r.RemoteAddr)
 					}
 					if r.Host != tt.host {
-						t.Fatalf("Failed to get the expected host %q, got: %q", tt.host, r.Host)
+						handlerErr <- fmt.Errorf("unexpected Host: want %q got %q", tt.host, r.Host)
 					}
 					if r.Method == "POST" {
 						buf, err := io.ReadAll(r.Body)
 						if err != nil {
-							t.Fatalf("Failed to read body in server: %v", err)
-						}
-						if s := string(buf); s != clientString {
-							t.Fatalf("Failed to get %q, got: %q", clientString, s)
+							handlerErr <- fmt.Errorf("failed to read body in server: %v", err)
+						} else if s := string(buf); s != clientString {
+							handlerErr <- fmt.Errorf("unexpected body: want %q got %q", clientString, s)
 						}
 					}
 					w.WriteHeader(http.StatusOK)
@@ -366,12 +361,12 @@ func TestProxyListenerWithBogusProxyClient(t *testing.T) {
 			}
 			req.Host = tt.host
 			rsp, err := client.Do(req)
+			if rsp != nil {
+				rsp.Body.Close()
+			}
 			close(shutdownCH)
 			if err != nil && !tt.wantErr {
 				t.Fatalf("Failed to get response: %v", err)
-			}
-			if rsp != nil {
-				rsp.Body.Close()
 			}
 			if !tt.wantErr && rsp.StatusCode != tt.want {
 				t.Fatalf("Failed to get %d, got %d", tt.want, rsp.StatusCode)
@@ -379,6 +374,11 @@ func TestProxyListenerWithBogusProxyClient(t *testing.T) {
 
 			<-waitShutdownCH
 			<-waitServeCH
+
+			close(handlerErr)
+			for e := range handlerErr {
+				t.Error(e)
+			}
 			t.Log("done")
 		})
 	}
@@ -421,12 +421,14 @@ func TestProxyListenerConfigErrors(t *testing.T) {
 			skipList: []string{"::/0", "0.0.0.0/33"},
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
+			base := createTestListener()
 			l, err := NewListener(Options{
-				Listener:       createTestListener(),
+				Listener:       base,
 				AllowListCIDRs: tt.allowList,
 				DenyListCIDRs:  tt.denyList,
 				SkipListCIDRs:  tt.skipList,
 			})
+			base.Close()
 			if l != nil || err == nil {
 				t.Fatal("Failed to get err")
 			}
@@ -486,19 +488,21 @@ func TestProxyListenerWithHttpClient(t *testing.T) {
 			clientString := `hello from client`
 			serverString := `hello from server`
 			addr := l.Addr().String()
+
+			handlerErr := make(chan error, 8)
+
 			srv := &http.Server{
 				Addr: addr,
 				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if r.Host != tt.host {
-						t.Fatalf("Failed to get the expected host %q, got: %q", tt.host, r.Host)
+						handlerErr <- fmt.Errorf("unexpected Host: want %q got %q", tt.host, r.Host)
 					}
 					if r.Method == "POST" {
 						buf, err := io.ReadAll(r.Body)
 						if err != nil {
-							t.Fatalf("Failed to read body in server: %v", err)
-						}
-						if s := string(buf); s != clientString {
-							t.Fatalf("Failed to get %q, got: %q", clientString, s)
+							handlerErr <- fmt.Errorf("failed to read body in server: %v", err)
+						} else if s := string(buf); s != clientString {
+							handlerErr <- fmt.Errorf("unexpected body: want %q got %q", clientString, s)
 						}
 					}
 					w.WriteHeader(http.StatusOK)
@@ -540,12 +544,12 @@ func TestProxyListenerWithHttpClient(t *testing.T) {
 			}
 			req.Host = tt.host
 			rsp, err := client.Do(req)
+			if rsp != nil {
+				rsp.Body.Close()
+			}
 			close(shutdownCH)
 			if err != nil && !tt.wantErr {
 				t.Fatalf("Failed to get response: %v", err)
-			}
-			if rsp != nil {
-				rsp.Body.Close()
 			}
 			if !tt.wantErr && rsp.StatusCode != tt.want {
 				t.Fatalf("Failed to get %d, got %d", tt.want, rsp.StatusCode)
@@ -553,6 +557,11 @@ func TestProxyListenerWithHttpClient(t *testing.T) {
 
 			<-waitShutdownCH
 			<-waitServeCH
+
+			close(handlerErr)
+			for e := range handlerErr {
+				t.Error(e)
+			}
 			t.Log("done")
 		})
 	}
