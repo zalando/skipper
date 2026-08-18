@@ -54,9 +54,9 @@ type Options struct {
 	MaxBytes   int64          // maximum number of bytes the in-process LRU (L1) is allowed to hold across all cached entries
 	ListenAddr string         // Skipper's own address; revalidation requests loop back through it so the full filter chain runs
 	NetOpts    skpnet.Options // HTTP client options for background worker that re-fetches stale entries from origin
-	ValkeyRing *skpnet.ValkeyRingClient
-	L1TTL      time.Duration
-	Metrics    metrics.Metrics
+	ValkeyRing *skpnet.ValkeyRingClient // optional L2 cache; nil = in-process LRU only
+	L1TTL      time.Duration            // max TTL for write-through L1 warming; 0 = write-around
+	Metrics    metrics.Metrics          // nil defaults to metrics.Default
 }
 
 // filterCacheKey identifies a unique cache filter configuration for registry lookup.
