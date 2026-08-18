@@ -2308,7 +2308,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		o.CustomFilters = append(o.CustomFilters, cacheSpec)
 	}
 
-
 	if o.TLSMinVersion == 0 {
 		o.TLSMinVersion = tls.VersionTLS12
 	}
