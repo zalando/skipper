@@ -1931,7 +1931,10 @@ store (L2) accessible by all Skipper instances via a client-side consistent hash
 read checks L1 first; an L1 hit returns without contacting Valkey.
 
 On every successful Valkey write the entry is also written to L1
-(write-through) with a TTL of `min(--cache-l1-ttl, entry.TTL)`. The default is
+(write-through) with a TTL of `min(--cache-l1-ttl, entry.TTL)`. On a Valkey
+read hit, L1 is warmed with `min(--cache-l1-ttl, remaining freshness)` —
+remaining freshness (`entry.TTL - age`) is used rather than the original TTL to
+prevent L1 from serving the entry beyond Valkey's actual expiry. The default is
 60 seconds, bounding how long Skipper serves a locally-cached entry before
 re-consulting Valkey. Set `--cache-l1-ttl=0` to disable L1 warming and
 restore write-around behaviour (L1 used only when Valkey is unavailable; this
@@ -1943,6 +1946,15 @@ only the local process's L1 is cleared — other Skipper processes in the fleet
 retain their own L1 copies until `--cache-l1-ttl` expires. Set `--cache-l1-ttl`
 accordingly to bound the stale window after an invalidation.
 
+Concurrent cold-miss requests for the same key within one Skipper process are
+coalesced into a single upstream fetch (thundering-herd protection). This is
+process-local: a fleet of N instances may still issue up to N simultaneous
+origin requests on a cold miss.
+
+The L1 memory budget defaults to 25% of the container's cgroup memory limit,
+falling back to 2 GB if the limit is unreadable. Override it programmatically
+via `skipper.Options.ResponseCacheMaxMemoryBytes`.
+
 !!! note
     An in-process LRU (L1) is shared across all `cache()` filter instances in the same process.
     The L1 storage budget is divided evenly across 256 internal shards; a single entry larger
@@ -1950,18 +1962,35 @@ accordingly to bound the stale window after an invalidation.
 
 ### Metrics
 
+**Cache outcomes (always active):**
+
+- `hit`: Counter, request served from cache without contacting the upstream
+- `miss`: Counter, request not in cache; upstream was contacted
+- `stale`: Counter, stale entry served while background revalidation was enqueued
+- `coalesce_error`: Counter, singleflight cold-miss fetch returned an error
+
+**LRU (always active):**
+
 - `lru_eviction`: Counter, incremented each time an L1 entry is evicted due to memory pressure
 - `lru_bytes`: Gauge, current L1 usage in bytes
 - `lru_oversized`: Counter, incremented when an entry is too large for any shard and silently dropped
+
+**Revalidation (always active):**
+
 - `reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
 - `reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
-- `reval_dropped`: Counter, revalidation jobs dropped because the queue was full
+- `reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
 - `reval_error`: Counter, background revalidation fetch failures
 - `reval_duration`: Histogram, end-to-end duration of each background revalidation job
 
-When Valkey is configured:
+**Valkey (when Valkey is configured):**
 
 - `l1_hit`: Counter, L1 hits that bypassed Valkey
 - `valkey_miss`: Counter, Valkey misses that proceeded to an upstream fetch
 - `valkey_get_fallback`, `valkey_set_fallback`: Counters, reads/writes that fell back to L1 due to Valkey errors
 - `l1_warm_from_valkey`: Counter, entries written into L1 after a successful Valkey Get (write-through on read path)
+
+**OpenTracing span tags (set on every request when a span is active):**
+
+- `cache_status`: `"hit"`, `"miss"`, or `"stale"`
+- `cache_ttl_remaining_ms`: remaining freshness in milliseconds (only set on hits)
