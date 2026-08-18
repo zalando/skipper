@@ -148,6 +148,11 @@ type Options struct {
 	// using a fixed 25% fraction. Set explicitly to override that behaviour.
 	ResponseCacheMaxMemoryBytes int64
 
+	// CacheL1TTL sets the maximum TTL for write-through L1 warming in ValkeyStorage.
+	// On a successful Valkey Set, L1 is warmed with min(CacheL1TTL, entry.TTL).
+	// Set to 0 to disable write-through (write-around behaviour). Default: 60s.
+	CacheL1TTL time.Duration
+
 	// ReadMemoryLimit, when set, is called by the cache() filter initialiser
 	// to determine the container memory limit. Defaults to reading cgroup files.
 	// Override in tests or on non-standard platforms.
@@ -1963,23 +1968,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
 		}),
 	)
-
-	// cache() filter registered here (not in filterRegistry) so the resolved tracer
-	// and connection options from skipper.Options can be wired through.
-	if !slices.Contains(o.DisabledFilters, cache.Name) {
-		o.CustomFilters = append(o.CustomFilters, cache.NewCacheFilter(
-			o.cacheBudget(),
-			o.Address,
-			skpnet.Options{
-				IdleConnTimeout:         o.CloseIdleConnsPeriod,
-				MaxIdleConnsPerHost:     o.IdleConnectionsPerHost,
-				Tracer:                  tracer,
-				OpentracingComponentTag: "skipper",
-				OpentracingSpanName:     "cache_revalidation",
-				OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
-			},
-		))
-	}
 
 	if o.OAuthTokeninfoURL != "" {
 		tio := auth.TokeninfoOptions{
