@@ -65,6 +65,40 @@ func TestBackendTimeoutWithSlowBodyShadow(t *testing.T) {
 	}
 }
 
+func TestBackendTimeoutWithSlowResponseHeadersShadow(t *testing.T) {
+	proxyLog := proxy.NewTestLog()
+	defer proxyLog.Close()
+	backend := createBackend(t)
+	defer backend.Close()
+
+	slowBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(io.Discard, r.Body)
+		time.Sleep(100 * time.Millisecond)
+		w.WriteHeader(599)
+	}))
+	defer slowBackend.Close()
+
+	p, mockMetrics, closeProxy := createProxy(t, backend, slowBackend)
+	defer closeProxy()
+
+	N := 1
+	resCH := make(chan int, N)
+	client, closeClient := createClient(p, 500*time.Millisecond, 120*time.Millisecond)
+	defer closeClient()
+	sendRequests(t, N, p, client, resCH)
+	logFifoMetrics(t, mockMetrics)
+	close(resCH)
+	checkStatusCode(t, resCH, N)
+
+	checkMainRouteIsFine(t, p, client)
+
+	if err := proxyLog.WaitFor("failed to execute loopback request: dialing failed false: context deadline exceeded", time.Second); err != nil {
+		t.Fatalf("Failed to get expected error: %v", err)
+	} else {
+		t.Log(`Found "failed to execute loopback request" error log`)
+	}
+}
+
 func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
 	proxyLog := proxy.NewTestLog()
 	defer proxyLog.Close()
@@ -99,12 +133,6 @@ func TestBackendTimeoutWithSlowBodyWriterShadow(t *testing.T) {
 	shouldReturn := checkMainRouteIsFine(t, p, client)
 	if shouldReturn {
 		return
-	}
-
-	if err := proxyLog.WaitFor("failed to execute loopback request: dialing failed false: context deadline exceeded", time.Second); err != nil {
-		t.Fatalf("Failed to get expected error: %v", err)
-	} else {
-		t.Log(`Found "failed to execute loopback request" error log`)
 	}
 
 	if err := proxyLog.WaitFor("context: error while discarding remainder response body", time.Second); err != nil {
