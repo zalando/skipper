@@ -88,26 +88,57 @@ func loginRedirectWithOverride(ctx filters.FilterContext, config *OAuthConfig, o
 		return
 	}
 
-	authCodeURL := authConfig.AuthCodeURL(state, config.GetAuthURLParameters(redirect)...)
+	verifier := oauth2.GenerateVerifier()
+
+	params := append(config.GetAuthURLParameters(redirect), oauth2.S256ChallengeOption(verifier))
+	authCodeURL := authConfig.AuthCodeURL(state, params...)
+
+	host := extractDomainFromHost(req.Host, *config.TokenCookieRemoveSubdomains)
+	stateCookie := &http.Cookie{
+		Name:     config.TokenCookieName + "-state",
+		Value:    state,
+		Path:     "/",
+		Domain:   host,
+		MaxAge:   int(time.Hour.Seconds()),
+		HttpOnly: true,
+		Secure:   !config.Insecure,
+		SameSite: http.SameSiteLaxMode,
+	}
+	verifierCookie := &http.Cookie{
+		Name:     config.TokenCookieName + "-verifier",
+		Value:    verifier,
+		Path:     "/",
+		Domain:   host,
+		MaxAge:   int(time.Hour.Seconds()),
+		HttpOnly: true,
+		Secure:   !config.Insecure,
+		SameSite: http.SameSiteLaxMode,
+	}
 
 	if lrs, ok := annotate.GetAnnotations(ctx)["oauthGrant.loginRedirectStub"]; ok {
 		lrs = strings.ReplaceAll(lrs, "{{authCodeURL}}", authCodeURL)
 		lrs = strings.ReplaceAll(lrs, "{authCodeURL}", authCodeURL)
-		ctx.Serve(&http.Response{
+		resp := &http.Response{
 			StatusCode: http.StatusOK,
 			Header: http.Header{
 				"Content-Length":  []string{strconv.Itoa(len(lrs))},
 				"X-Auth-Code-Url": []string{authCodeURL},
 			},
 			Body: io.NopCloser(strings.NewReader(lrs)),
-		})
+		}
+		resp.Header.Add("Set-Cookie", stateCookie.String())
+		resp.Header.Add("Set-Cookie", verifierCookie.String())
+		ctx.Serve(resp)
 	} else {
-		ctx.Serve(&http.Response{
+		resp := &http.Response{
 			StatusCode: http.StatusTemporaryRedirect,
 			Header: http.Header{
 				"Location": []string{authCodeURL},
 			},
-		})
+		}
+		resp.Header.Add("Set-Cookie", stateCookie.String())
+		resp.Header.Add("Set-Cookie", verifierCookie.String())
+		ctx.Serve(resp)
 	}
 }
 

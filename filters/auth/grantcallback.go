@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -33,9 +34,15 @@ func (f *grantCallbackFilter) exchangeAccessToken(req *http.Request, code string
 	if err != nil {
 		return nil, err
 	}
+
+	verifierCookie, err := req.Cookie(f.config.TokenCookieName + "-verifier")
+	if err != nil {
+		return nil, fmt.Errorf("missing PKCE verifier cookie")
+	}
+
 	redirectURI, _ := f.config.RedirectURLs(req)
 	ctx := providerContext(f.config)
-	params := f.config.GetAuthURLParameters(redirectURI)
+	params := append(f.config.GetAuthURLParameters(redirectURI), oauth2.VerifierOption(verifierCookie.Value))
 	return authConfig.Exchange(ctx, code, params...)
 }
 
@@ -68,7 +75,8 @@ func (f *grantCallbackFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	// Redirect callback request to the host of the initial request
+	// Redirect callback request to the host of the initial request before
+	// checking browser-bound cookies, which may not be present on the wrong host.
 	if initial, _ := url.Parse(state.RequestURL); initial.Host != req.Host {
 		location := *req.URL
 		location.Host = initial.Host
@@ -80,6 +88,12 @@ func (f *grantCallbackFilter) Request(ctx filters.FilterContext) {
 				"Location": []string{location.String()},
 			},
 		})
+		return
+	}
+
+	stateCookie, err := req.Cookie(f.config.TokenCookieName + "-state")
+	if err != nil || stateCookie.Value != queryState {
+		badRequest(ctx)
 		return
 	}
 
