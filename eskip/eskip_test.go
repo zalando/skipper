@@ -266,6 +266,11 @@ func TestParseFilters(t *testing.T) {
 		[]*Filter{{Name: "filter1", Args: []interface{}{3.14}}, {Name: "filter2", Args: []interface{}{"key", float64(42)}}},
 		"",
 	}, {
+		"negative number",
+		`filter1(-42, -3.14)`,
+		[]*Filter{{Name: "filter1", Args: []interface{}{float64(-42), -3.14}}},
+		"",
+	}, {
 		"a comment produces nil filters without error",
 		"// a comment",
 		nil,
@@ -302,6 +307,16 @@ func TestParseFilters(t *testing.T) {
 	}
 }
 
+func TestParseFiltersRejectsInvalidNegativeNumbers(t *testing.T) {
+	for _, expression := range []string{`f(-)`, `f(-.)`, `f(-x)`} {
+		t.Run(expression, func(t *testing.T) {
+			_, err := ParseFilters(expression)
+
+			assert.Error(t, err)
+		})
+	}
+}
+
 func TestParsePredicates(t *testing.T) {
 	for _, test := range []struct {
 		title    string
@@ -322,6 +337,10 @@ func TestParsePredicates(t *testing.T) {
 		title:    "single predicate",
 		input:    `Foo("bar")`,
 		expected: []*Predicate{{Name: "Foo", Args: []interface{}{"bar"}}},
+	}, {
+		title:    "negative number starting with decimal",
+		input:    `Foo(-.3)`,
+		expected: []*Predicate{{Name: "Foo", Args: []interface{}{float64(-0.3)}}},
 	}, {
 		title: "multiple predicates",
 		input: `Foo("bar") && Baz("qux") && Quux("quuz")`,

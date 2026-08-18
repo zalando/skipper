@@ -237,6 +237,53 @@ func TestCompressArgs(t *testing.T) {
 	}
 }
 
+func TestCompressWithEskipNegativeArgs(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		expression    string
+		expectedLevel int
+		expectedErr   bool
+	}{
+		{
+			name:          "default compression negative level",
+			expression:    `compress(-1)`,
+			expectedLevel: -1,
+		},
+		{
+			name:          "huffman only negative level",
+			expression:    `compress(-2)`,
+			expectedLevel: -2,
+		},
+		{
+			name:          "negative level with custom mime",
+			expression:    `compress(-1, "text/plain", "application/json")`,
+			expectedLevel: -1,
+		},
+		{
+			name:        "invalid negative level below huffman only",
+			expression:  `compress(-3)`,
+			expectedErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fs, err := eskip.ParseFilters(tc.expression)
+			assert.NoError(t, err)
+			assert.Len(t, fs, 1)
+
+			s := NewCompress()
+			f, err := s.CreateFilter(fs[0].Args)
+			if tc.expectedErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			c, ok := f.(*compress)
+			assert.True(t, ok)
+			assert.Equal(t, tc.expectedLevel, c.level)
+		})
+	}
+}
+
 func TestCompress(t *testing.T) {
 	for _, ti := range []struct {
 		msg            string
