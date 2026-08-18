@@ -40,7 +40,7 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 	}
 	t.Cleanup(cf.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
-	t.Cleanup(spec.(*cacheSpec).Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	return cf
 }
 
@@ -62,7 +62,7 @@ func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *
 	}
 	t.Cleanup(cf.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
-	t.Cleanup(spec.(*cacheSpec).Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	return cf
 }
 
@@ -140,7 +140,7 @@ func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
 	f := fi.(*cacheFilter)
 	t.Cleanup(f.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
-	t.Cleanup(spec.(*cacheSpec).Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	f.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
 	}
@@ -265,7 +265,7 @@ func TestCacheFilter_Response_NoopIfStateBagKeyMissing(t *testing.T) {
 func TestCreateFilter_InvalidArgs(t *testing.T) {
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
-	t.Cleanup(spec.(*cacheSpec).Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	cases := []struct {
 		name string
 		args []interface{}
@@ -1321,7 +1321,7 @@ func TestCacheFilter_MustRevalidate_ForcesCoalesceWhenStale(t *testing.T) {
 func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
-	t.Cleanup(spec.(*cacheSpec).Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	makeFilter := func(t *testing.T) *cacheFilter {
 		t.Helper()
@@ -2619,7 +2619,7 @@ func TestCacheFilter_SMaxAge_CapsRouteTTL(t *testing.T) {
 func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
-	t.Cleanup(spec.(*cacheSpec).Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	cases := []struct {
 		name    string
@@ -2665,7 +2665,7 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 	// no operator ceiling. TTL should equal upstream max-age exactly.
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
-	t.Cleanup(spec.(*cacheSpec).Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -2701,7 +2701,7 @@ func TestCacheFilter_LRUBytesGaugeUpdatesWithoutEviction(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 		t.Cleanup(spec.(*cacheSpec).client.Close)
-		t.Cleanup(spec.(*cacheSpec).Close)
+		t.Cleanup(func() { spec.(*cacheSpec).Close() })
 		f, err := spec.CreateFilter([]interface{}{5 * time.Minute, 15 * time.Second, 5 * time.Minute})
 		if err != nil {
 			t.Fatal(err)
@@ -2746,7 +2746,7 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testi
 	// and no Last-Modified, nothing should be cached (no heuristic without Last-Modified).
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
-	t.Cleanup(spec.(*cacheSpec).Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	f, err := spec.CreateFilter([]interface{}{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -2864,7 +2864,7 @@ func TestCacheFilter_RevalDropped_WhenQueueFull(t *testing.T) {
 func TestCacheSpec_FilterRegistry(t *testing.T) {
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
-	t.Cleanup(spec.(*cacheSpec).Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	// Same args — should return same *cacheFilter pointer (registry hit)
 	f1, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
@@ -2920,7 +2920,7 @@ func TestCacheSpec_FilterRegistry_InFlightJobsSurviveRebuild(t *testing.T) {
 
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
-	t.Cleanup(spec.(*cacheSpec).Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	// Create initial filter with blocking fetch stub (same pattern as TestCacheFilter_RevalDropped_WhenQueueFull).
 	f1, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
