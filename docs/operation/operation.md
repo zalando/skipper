@@ -1904,11 +1904,15 @@ re-consulting Valkey. Set `--cache-l1-ttl=0` to disable L1 warming and
 restore write-around behaviour (L1 used only when Valkey is unavailable; this
 applies to both read errors (`valkey_get_fallback`) and write errors (`valkey_set_fallback`)).
 
-Explicit deletes (unsafe methods or operator-initiated invalidation) always
-remove the L1 entry unconditionally, regardless of `--cache-l1-ttl`. However,
-only the local process's L1 is cleared — other Skipper processes in the fleet
-retain their own L1 copies until `--cache-l1-ttl` expires. Set `--cache-l1-ttl`
-accordingly to bound the stale window after an invalidation.
+When an upstream responds successfully to an unsafe method (`POST`, `PUT`, `DELETE`, `PATCH`),
+the filter removes the cached entry for that URL from both Valkey and the local L1.
+Only the local process's L1 is cleared — other Skipper processes in the fleet retain their
+own L1 copies until `--cache-l1-ttl` expires. Set `--cache-l1-ttl` accordingly to bound
+the stale window after an invalidation.
+
+There is no out-of-band operator invalidation API. To clear the cache outside the normal
+unsafe-method path, options are: wait for TTL expiry, restart the Skipper process (clears
+L1 entirely), or delete the key directly in Valkey (L2 only; does not clear other pods' L1).
 
 Concurrent cold-miss requests for the same key within one Skipper process are
 coalesced into a single upstream fetch (thundering-herd protection). This is
