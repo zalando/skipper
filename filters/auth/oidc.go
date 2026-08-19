@@ -469,10 +469,13 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext, cookies []*
 		return
 	}
 
-	opts := f.authCodeOptions
+	verifier := oauth2.GenerateVerifier()
+
+	opts := append(f.authCodeOptions, oauth2.S256ChallengeOption(verifier))
 	if f.queryParams != nil {
-		opts = make([]oauth2.AuthCodeOption, len(f.authCodeOptions), len(f.authCodeOptions)+len(f.queryParams))
+		opts = make([]oauth2.AuthCodeOption, len(f.authCodeOptions), len(f.authCodeOptions)+len(f.queryParams)+1)
 		copy(opts, f.authCodeOptions)
+		opts = append(opts, oauth2.S256ChallengeOption(verifier))
 		for _, p := range f.queryParams {
 			if v := ctx.Request().URL.Query().Get(p); v != "" {
 				opts = append(opts, oauth2.SetAuthURLParam(p, v))
@@ -482,6 +485,30 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext, cookies []*
 
 	stateEncHex := fmt.Sprintf("%x", stateEnc)
 	oauth2URL := f.config.AuthCodeURL(stateEncHex, opts...)
+
+	r := ctx.Request()
+	host := extractDomainFromHost(r.Host, f.subdomainsToRemove)
+	secureCookie := !strings.HasPrefix(f.config.RedirectURL, "http://")
+	stateCookie := &http.Cookie{
+		Name:     f.cookiename + "-state",
+		Value:    stateEncHex,
+		Path:     "/",
+		Domain:   host,
+		MaxAge:   int(time.Hour.Seconds()),
+		HttpOnly: true,
+		Secure:   secureCookie,
+		SameSite: http.SameSiteLaxMode,
+	}
+	verifierCookie := &http.Cookie{
+		Name:     f.cookiename + "-verifier",
+		Value:    verifier,
+		Path:     "/",
+		Domain:   host,
+		MaxAge:   int(time.Hour.Seconds()),
+		HttpOnly: true,
+		Secure:   secureCookie,
+		SameSite: http.SameSiteLaxMode,
+	}
 
 	rsp := &http.Response{
 		Header: http.Header{
@@ -493,6 +520,8 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext, cookies []*
 	for _, cookie := range cookies {
 		rsp.Header.Add("Set-Cookie", cookie.String())
 	}
+	rsp.Header.Add("Set-Cookie", stateCookie.String())
+	rsp.Header.Add("Set-Cookie", verifierCookie.String())
 	ctx.Logger().Debugf("serve redirect: plaintextState:%s to Location: %s", statePlain, rsp.Header.Get("Location"))
 	ctx.Serve(rsp)
 }
@@ -600,6 +629,9 @@ func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcSt
 	for _, cookie := range oidcCookies {
 		r.Header.Add("Set-Cookie", cookie.String())
 	}
+	// Delete the CSRF helper cookies now that the flow is complete.
+	r.Header.Add("Set-Cookie", f.deleteOidcCookie(ctx, f.cookiename+"-state").String())
+	r.Header.Add("Set-Cookie", f.deleteOidcCookie(ctx, f.cookiename+"-verifier").String())
 	ctx.Serve(r)
 }
 
@@ -627,6 +659,22 @@ func (f *tokenOidcFilter) validateCookie(cookie *http.Cookie) ([]byte, bool) {
 	return decompressedCookie, true
 }
 
+// callbackUnauthorized serves a 401 and deletes the CSRF helper cookies so they
+// don't linger in the browser after a failed callback.
+func (f *tokenOidcFilter) callbackUnauthorized(ctx filters.FilterContext, host, debuginfo string) {
+	ctx.Logger().Debugf("Rejected callback: %s, info: %s.", host, debuginfo)
+	rsp := &http.Response{
+		StatusCode: http.StatusUnauthorized,
+		Header:     make(map[string][]string),
+	}
+	if host != "" {
+		rsp.Header.Add("WWW-Authenticate", host)
+	}
+	rsp.Header.Add("Set-Cookie", f.deleteOidcCookie(ctx, f.cookiename+"-state").String())
+	rsp.Header.Add("Set-Cookie", f.deleteOidcCookie(ctx, f.cookiename+"-verifier").String())
+	ctx.Serve(rsp)
+}
+
 // https://openid.net/specs/openid-connect-core-1_0.html#CodeFlowSteps
 // 5. Authorization Server sends the End-User back to the Client with an Authorization Code.
 func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
@@ -646,15 +694,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 		if _, ok := err.(*requestError); !ok {
 			ctx.Logger().Errorf("Error while retrieving callback state: %v.", err)
 		}
-
-		unauthorized(
-			ctx,
-			"",
-			invalidToken,
-			r.Host,
-			fmt.Sprintf("Failed to get state from callback: %v.", err),
-		)
-
+		f.callbackUnauthorized(ctx, r.Host, fmt.Sprintf("Failed to get state from callback: %v.", err))
 		return
 	}
 
@@ -663,15 +703,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 		if _, ok := err.(*requestError); !ok {
 			ctx.Logger().Errorf("Error while getting token in callback: %v.", err)
 		}
-
-		unauthorized(
-			ctx,
-			"",
-			invalidClaim,
-			r.Host,
-			fmt.Sprintf("Failed to get token in callback: %v.", err),
-		)
-
+		f.callbackUnauthorized(ctx, r.Host, fmt.Sprintf("Failed to get token in callback: %v.", err))
 		return
 	}
 
@@ -682,15 +714,8 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 			// error coming from an external library and the possible error reasons are
 			// not documented explicitly, so we assume that the cause is always rooted
 			// in the incoming request, and only log it with a debug flag, via calling
-			// unauthorized().
-			unauthorized(
-				ctx,
-				"",
-				invalidToken,
-				r.Host,
-				fmt.Sprintf("Failed to get userinfo: %v.", err),
-			)
-
+			// callbackUnauthorized().
+			f.callbackUnauthorized(ctx, r.Host, fmt.Sprintf("Failed to get userinfo: %v.", err))
 			return
 		}
 		oidcIDToken, err = f.getidtoken(oauth2Token)
@@ -698,27 +723,13 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 			if _, ok := err.(*requestError); !ok {
 				ctx.Logger().Errorf("Error while getting id token: %v", err)
 			}
-
-			unauthorized(
-				ctx,
-				"",
-				invalidClaim,
-				r.Host,
-				fmt.Sprintf("Failed to get id token: %v", err),
-			)
-
+			f.callbackUnauthorized(ctx, r.Host, fmt.Sprintf("Failed to get id token: %v", err))
 			return
 		}
 		sub = userInfo.Subject
 		claimsMap, _, err = f.tokenClaims(ctx, oauth2Token)
 		if err != nil {
-			unauthorized(
-				ctx,
-				"",
-				invalidToken,
-				r.Host,
-				fmt.Sprintf("Failed to get claims: %v.", err),
-			)
+			f.callbackUnauthorized(ctx, r.Host, fmt.Sprintf("Failed to get claims: %v.", err))
 			return
 		}
 	case checkOIDCAnyClaims, checkOIDCAllClaims:
@@ -727,15 +738,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 			if _, ok := err.(*requestError); !ok {
 				ctx.Logger().Errorf("Error while getting id token: %v", err)
 			}
-
-			unauthorized(
-				ctx,
-				"",
-				invalidClaim,
-				r.Host,
-				fmt.Sprintf("Failed to get id token: %v", err),
-			)
-
+			f.callbackUnauthorized(ctx, r.Host, fmt.Sprintf("Failed to get id token: %v", err))
 			return
 		}
 		claimsMap, sub, err = f.tokenClaims(ctx, oauth2Token)
@@ -743,19 +746,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 			if _, ok := err.(*requestError); !ok {
 				ctx.Logger().Errorf("Failed to get claims with error: %v", err)
 			}
-
-			unauthorized(
-				ctx,
-				"",
-				invalidToken,
-				r.Host,
-				fmt.Sprintf(
-					"Failed to get claims: %s, %v",
-					f.claims,
-					err,
-				),
-			)
-
+			f.callbackUnauthorized(ctx, r.Host, fmt.Sprintf("Failed to get claims: %s, %v", f.claims, err))
 			return
 		}
 	}
@@ -770,14 +761,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 	data, err = json.Marshal(resp)
 	if err != nil {
 		log.Errorf("Failed to serialize claims: %v.", err)
-		unauthorized(
-			ctx,
-			"",
-			invalidSub,
-			r.Host,
-			"Failed to serialize claims.",
-		)
-
+		f.callbackUnauthorized(ctx, r.Host, "Failed to serialize claims.")
 		return
 	}
 
@@ -788,14 +772,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 	encryptedData, err := f.encrypter.Encrypt(compressedData)
 	if err != nil {
 		log.Errorf("Failed to encrypt the returned oidc data: %v.", err)
-		unauthorized(
-			ctx,
-			"",
-			invalidSub,
-			r.Host,
-			"Failed to encrypt the returned oidc data.",
-		)
-
+		f.callbackUnauthorized(ctx, r.Host, "Failed to encrypt the returned oidc data.")
 		return
 	}
 
@@ -823,11 +800,20 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	)
 	r := ctx.Request()
 
-	// Retrieve skipperOauthOidc cookie for processing and remove it from downstream request
+	// Retrieve skipperOauthOidc session cookie chunks for processing and remove
+	// them from the downstream request. The -state and -verifier CSRF cookies are
+	// stashed in the state bag so callbackEndpoint can read them without forwarding
+	// them to the backend.
+	stateCookieName := f.cookiename + "-state"
+	verifierCookieName := f.cookiename + "-verifier"
 	rCookies := r.Cookies()
 	r.Header.Del("Cookie")
 	for _, cookie := range rCookies {
-		if strings.HasPrefix(cookie.Name, f.cookiename) {
+		if cookie.Name == stateCookieName {
+			ctx.StateBag()[stateCookieName] = cookie.Value
+		} else if cookie.Name == verifierCookieName {
+			ctx.StateBag()[verifierCookieName] = cookie.Value
+		} else if strings.HasPrefix(cookie.Name, f.cookiename) {
 			cookies = append(cookies, cookie)
 		} else {
 			r.AddCookie(cookie)
@@ -990,14 +976,12 @@ func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthSta
 		return nil, requestErrorf("failed to deserialize state: %v", err)
 	}
 
-	// CSRF protection: verify the request was redirected from the OIDC provider
-	// by checking the Referer header matches the provider's authorization endpoint.
-	// A browser that never started the flow (e.g. a CSRF victim following a crafted
-	// link) arrives without a Referer, while a legitimate redirect from the provider
-	// carries Referer set to the provider's auth URL.
-	referer := r.Header.Get("Referer")
-	if !strings.HasPrefix(referer, f.config.Endpoint.AuthURL) {
-		return nil, requestErrorf("invalid referer for OIDC callback")
+	// CSRF protection: verify the state cookie (stashed in StateBag by Request())
+	// matches the state query parameter. A browser that never started the flow
+	// holds no cookie and is rejected here.
+	stateCookieValue, ok := ctx.StateBag()[f.cookiename+"-state"].(string)
+	if !ok || stateCookieValue != stateQueryEncHex {
+		return nil, requestErrorf("missing or invalid state cookie")
 	}
 
 	return state, nil
@@ -1012,10 +996,19 @@ func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.Fi
 	// authcode flow
 	code := r.URL.Query().Get("code")
 
+	verifierValue, ok := ctx.StateBag()[f.cookiename+"-verifier"].(string)
+	if !ok || verifierValue == "" {
+		return nil, requestErrorf("missing PKCE verifier cookie")
+	}
+
+	exchangeOpts := make([]oauth2.AuthCodeOption, len(f.authCodeOptions)+1)
+	copy(exchangeOpts, f.authCodeOptions)
+	exchangeOpts[len(f.authCodeOptions)] = oauth2.VerifierOption(verifierValue)
+
 	// https://openid.net/specs/openid-connect-core-1_0.html#CodeFlowSteps
 	// 6. Client requests a response using the Authorization Code at the Token Endpoint.
 	// 7. Client receives a response that contains an ID Token and Access Token in the response body.
-	oauth2Token, err := f.config.Exchange(r.Context(), code, f.authCodeOptions...)
+	oauth2Token, err := f.config.Exchange(r.Context(), code, exchangeOpts...)
 	if err != nil {
 		// error coming from an external library and the possible error reasons are
 		// not documented explicitly, so we assume that the cause is always rooted
