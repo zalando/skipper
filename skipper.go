@@ -2269,7 +2269,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	if o.Letsencrypt != nil {
-		println("running Letsencrypt")
 		switch o.LetsencryptCache {
 		case "remote":
 			var cache autocert.Cache
