@@ -81,7 +81,6 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		tracer:             tracer,
 		metrics:            m,
 		now:                time.Now,
-		zoneData:           make(map[string][]byte),
 		zoneDataCompressed: make(map[string][]byte),
 		zoneCount:          make(map[string]int),
 		zoneLastModified:   make(map[string]time.Time),
