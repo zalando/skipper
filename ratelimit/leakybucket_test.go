@@ -79,7 +79,7 @@ func verifyAttempts(t *testing.T, capacity int, emission time.Duration, incremen
 				redisAddr, done := redistest.NewTestRedis(t)
 				t.Cleanup(done)
 				ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
-				t.Cleanup(ringClient.Close)
+				t.Cleanup(func() { ringClient.Close() })
 				return newClusterLeakyBucketRedis(ringClient, capacity, emission, now)
 			},
 		},
