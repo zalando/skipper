@@ -191,7 +191,7 @@ func TestLRUStorage_OversizedEntry(t *testing.T) {
 	}
 
 	// The lru_oversized counter must have been incremented exactly once.
-	if got := m.counter("lru_oversized"); got != 1 {
+	if got := m.counter("cache.lru_oversized"); got != 1 {
 		t.Errorf("lru_oversized counter: got %d, want 1", got)
 	}
 

@@ -48,17 +48,17 @@ func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
 	// L1-first: serve from local memory when the write-through warming populated it.
 	// LRUStorage.Get returns nil, nil for expired entries — a miss falls through.
 	if e, err := s.l1.Get(ctx, key); err == nil && e != nil {
-		s.metrics.IncCounter("l1_hit")
+		s.metrics.IncCounter("cache.l1_hit")
 		return e, nil
 	}
 
 	data, err := s.ring.Get(ctx, key)
 	if err != nil {
 		if valkey.IsValkeyNil(err) {
-			s.metrics.IncCounter("valkey_miss")
+			s.metrics.IncCounter("cache.valkey_miss")
 			return nil, nil
 		}
-		s.metrics.IncCounter("valkey_get_fallback")
+		s.metrics.IncCounter("cache.valkey_get_fallback")
 		log.WithError(err).Warn("cache: valkey Get failed, falling back to L1")
 		// Second L1 lookup: a concurrent request may have written to L1 via the
 		// valkey_set_fallback path between our miss above and this Valkey error.
@@ -76,7 +76,7 @@ func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
 			warmed.TTL = min(s.l1TTL, remaining)
 			warmed.CreatedAt = time.Now()
 			_ = s.l1.Set(ctx, key, &warmed)
-			s.metrics.IncCounter("l1_warm_from_valkey")
+			s.metrics.IncCounter("cache.l1_warm_from_valkey")
 		}
 	}
 	return &e, nil
@@ -94,7 +94,7 @@ func (s *ValkeyStorage) Set(ctx context.Context, key string, entry *Entry) error
 	}
 
 	if err := s.ring.SetWithExpire(ctx, key, string(data), valkeyTTL); err != nil {
-		s.metrics.IncCounter("valkey_set_fallback")
+		s.metrics.IncCounter("cache.valkey_set_fallback")
 		log.WithError(err).Warn("cache: valkey Set failed, falling back to L1")
 		return s.l1.Set(ctx, key, entry)
 	}
