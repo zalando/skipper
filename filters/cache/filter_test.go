@@ -505,19 +505,24 @@ func TestCacheFilter_ColdMissCoalescing_UpstreamError(t *testing.T) {
 
 func TestCacheFilter_ColdMissCoalescing_FetchError_CoalesceErrorMetric(t *testing.T) {
 	// coalesce_error must be incremented when the upstream fetch fails during coalescing.
-	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+	mockMetrics := &metricstest.MockMetrics{}
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second, Metrics: mockMetrics})
+	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	f.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("upstream unavailable")
 	}
 
-	mockMetrics := &metricstest.MockMetrics{}
 	ctx := newCtx("GET", "https://cdn.contentful.com/spaces/abc/entries/coalesce-err", "")
-	ctx.FMetrics = mockMetrics
 	f.Request(ctx)
 
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["coalesce_error"] != 1 {
-			t.Errorf("expected coalesce_error==1, got %d", counters["coalesce_error"])
+		if counters["cache.coalesce_error"] != 1 {
+			t.Errorf("expected cache.coalesce_error==1, got %d", counters["cache.coalesce_error"])
 		}
 	})
 }
@@ -706,7 +711,16 @@ func TestCacheFilter_Metrics(t *testing.T) {
 	// ttl=1ms, swrWindow=1h — entry expires quickly, SWR window is huge.
 	// Filter created outside the bubble so sknet.Client's transport goroutine
 	// does not get trapped inside the synctest bubble.
-	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+	// Metrics passed via Options so f.metrics captures hit/miss/stale counters.
+	mockMetrics := &metricstest.MockMetrics{}
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second, Metrics: mockMetrics})
+	fi, err := spec.CreateFilter([]interface{}{time.Millisecond.String(), (15 * time.Second).String(), time.Hour.String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+	f.fetch = func(*http.Request) (*http.Response, error) { return nil, errors.New("no fetch stub set") }
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	url := "https://cdn.contentful.com/spaces/abc/entries/metrics"
 
 	synctest.Test(t, func(t *testing.T) {
@@ -717,12 +731,12 @@ func TestCacheFilter_Metrics(t *testing.T) {
 		miss.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
 		f.Response(miss)
 
-		miss.FMetrics.(*metricstest.MockMetrics).WithCounters(func(counters map[string]int64) {
-			if counters["miss"] != 1 {
-				t.Errorf("after MISS: expected miss==1, got %d", counters["miss"])
+		mockMetrics.WithCounters(func(counters map[string]int64) {
+			if counters["cache.miss"] != 1 {
+				t.Errorf("after MISS: expected cache.miss==1, got %d", counters["cache.miss"])
 			}
-			if counters["hit"] != 0 {
-				t.Errorf("after MISS: expected hit==0, got %d", counters["hit"])
+			if counters["cache.hit"] != 0 {
+				t.Errorf("after MISS: expected cache.hit==0, got %d", counters["cache.hit"])
 			}
 		})
 
@@ -732,12 +746,12 @@ func TestCacheFilter_Metrics(t *testing.T) {
 		if !hit.FServed {
 			t.Fatal("expected HIT within TTL")
 		}
-		hit.FMetrics.(*metricstest.MockMetrics).WithCounters(func(counters map[string]int64) {
-			if counters["hit"] != 1 {
-				t.Errorf("after HIT: expected hit==1, got %d", counters["hit"])
+		mockMetrics.WithCounters(func(counters map[string]int64) {
+			if counters["cache.hit"] != 1 {
+				t.Errorf("after HIT: expected cache.hit==1, got %d", counters["cache.hit"])
 			}
-			if counters["stale"] != 0 {
-				t.Errorf("after HIT: expected stale==0, got %d", counters["stale"])
+			if counters["cache.stale"] != 0 {
+				t.Errorf("after HIT: expected cache.stale==0, got %d", counters["cache.stale"])
 			}
 		})
 
@@ -761,12 +775,13 @@ func TestCacheFilter_Metrics(t *testing.T) {
 		if stale.FResponse.Header.Get("X-Cache-Status") != "STALE" {
 			t.Fatalf("expected STALE header, got %q", stale.FResponse.Header.Get("X-Cache-Status"))
 		}
-		stale.FMetrics.(*metricstest.MockMetrics).WithCounters(func(counters map[string]int64) {
-			if counters["stale"] != 1 {
-				t.Errorf("after STALE: expected stale==1, got %d", counters["stale"])
+		mockMetrics.WithCounters(func(counters map[string]int64) {
+			if counters["cache.stale"] != 1 {
+				t.Errorf("after STALE: expected cache.stale==1, got %d", counters["cache.stale"])
 			}
-			if counters["hit"] != 0 {
-				t.Errorf("after STALE: expected hit==0, got %d", counters["hit"])
+			// cache.hit==1 from the preceding HIT request; STALE must not add another hit.
+			if counters["cache.hit"] != 1 {
+				t.Errorf("after STALE: expected cache.hit still==1 (from HIT step), got %d", counters["cache.hit"])
 			}
 		})
 	})
@@ -946,8 +961,8 @@ func TestCacheFilter_RevalidationError_MetricIncremented(t *testing.T) {
 			t.Fatal("expected STALE to be served")
 		}
 		mockMetrics.WithCounters(func(counters map[string]int64) {
-			if counters["reval_error"] != 1 {
-				t.Errorf("expected reval_error==1, got %d", counters["reval_error"])
+			if counters["cache.reval_error"] != 1 {
+				t.Errorf("expected reval_error==1, got %d", counters["cache.reval_error"])
 			}
 		})
 	})
@@ -2721,7 +2736,7 @@ func TestCacheFilter_LRUBytesGaugeUpdatesWithoutEviction(t *testing.T) {
 
 		var initialBytes float64
 		mockMetrics.WithGauges(func(g map[string]float64) {
-			initialBytes = g["lru_bytes"]
+			initialBytes = g["cache.lru_bytes"]
 		})
 
 		// Store an entry large enough to be visible but not enough to evict.
@@ -2733,7 +2748,7 @@ func TestCacheFilter_LRUBytesGaugeUpdatesWithoutEviction(t *testing.T) {
 
 		var afterBytes float64
 		mockMetrics.WithGauges(func(g map[string]float64) {
-			afterBytes = g["lru_bytes"]
+			afterBytes = g["cache.lru_bytes"]
 		})
 		if afterBytes <= initialBytes {
 			t.Errorf("expected lru_bytes to increase after Set without eviction; before=%v after=%v", initialBytes, afterBytes)
@@ -2852,8 +2867,8 @@ func TestCacheFilter_RevalDropped_WhenQueueFull(t *testing.T) {
 		t.Fatalf("expected X-Cache-Status: STALE, got %q", ctx.FResponse.Header.Get("X-Cache-Status"))
 	}
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["reval_dropped"] != 1 {
-			t.Errorf("expected reval_dropped==1, got %d", counters["reval_dropped"])
+		if counters["cache.reval_dropped"] != 1 {
+			t.Errorf("expected reval_dropped==1, got %d", counters["cache.reval_dropped"])
 		}
 	})
 

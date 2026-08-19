@@ -228,11 +228,11 @@ func TestValkeyStorage_FallsBackToL1OnValkeyUnavailable(t *testing.T) {
 	if got == nil {
 		t.Fatal("expected L1 fallback hit, got nil")
 	}
-	if m.counter("l1_hit") == 0 {
+	if m.counter("cache.l1_hit") == 0 {
 		t.Error("expected l1_hit to be incremented: Set fallback warmed L1, Get should serve from it")
 	}
-	if m.counter("valkey_get_fallback") != 0 {
-		t.Errorf("expected valkey_get_fallback=0 (L1 served before Valkey was contacted), got %d", m.counter("valkey_get_fallback"))
+	if m.counter("cache.valkey_get_fallback") != 0 {
+		t.Errorf("expected valkey_get_fallback=0 (L1 served before Valkey was contacted), got %d", m.counter("cache.valkey_get_fallback"))
 	}
 
 	// Confirm the entry was physically written to L1 — not just returned via some
@@ -260,11 +260,11 @@ func TestValkeyStorage_RecordsValkeyMiss(t *testing.T) {
 	if got != nil {
 		t.Fatalf("expected nil on miss, got %+v", got)
 	}
-	if m.counter("valkey_miss") != 1 {
-		t.Errorf("expected valkey_miss=1, got %d", m.counter("valkey_miss"))
+	if m.counter("cache.valkey_miss") != 1 {
+		t.Errorf("expected valkey_miss=1, got %d", m.counter("cache.valkey_miss"))
 	}
-	if m.counter("valkey_get_fallback") != 0 {
-		t.Errorf("expected valkey_get_fallback=0 on clean miss, got %d", m.counter("valkey_get_fallback"))
+	if m.counter("cache.valkey_get_fallback") != 0 {
+		t.Errorf("expected valkey_get_fallback=0 on clean miss, got %d", m.counter("cache.valkey_get_fallback"))
 	}
 }
 
@@ -300,8 +300,8 @@ func TestValkeyStorage_WriteThroughWarmsL1(t *testing.T) {
 	if string(got.Payload) != "warm" {
 		t.Errorf("payload: got %q, want %q", string(got.Payload), "warm")
 	}
-	if m.counter("l1_hit") != 1 {
-		t.Errorf("expected l1_hit=1, got %d", m.counter("l1_hit"))
+	if m.counter("cache.l1_hit") != 1 {
+		t.Errorf("expected l1_hit=1, got %d", m.counter("cache.l1_hit"))
 	}
 }
 
@@ -381,24 +381,24 @@ func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	entry := &Entry{StatusCode: 200, Payload: []byte("x"), TTL: time.Minute, CreatedAt: time.Now()}
 
 	_ = s.Set(ctx, "k", entry)
-	if m.counter("valkey_set_fallback") != 1 {
-		t.Errorf("expected valkey_set_fallback=1, got %d", m.counter("valkey_set_fallback"))
+	if m.counter("cache.valkey_set_fallback") != 1 {
+		t.Errorf("expected valkey_set_fallback=1, got %d", m.counter("cache.valkey_set_fallback"))
 	}
-	if m.counter("valkey_get_fallback") != 0 {
-		t.Errorf("expected valkey_get_fallback=0 after Set, got %d", m.counter("valkey_get_fallback"))
+	if m.counter("cache.valkey_get_fallback") != 0 {
+		t.Errorf("expected valkey_get_fallback=0 after Set, got %d", m.counter("cache.valkey_get_fallback"))
 	}
 
 	// L1-first: the entry was written to L1 by the Set fallback path, so Get returns
 	// it from L1 without ever touching (broken) Valkey.
 	_, _ = s.Get(ctx, "k")
-	if m.counter("l1_hit") != 1 {
-		t.Errorf("expected l1_hit=1, got %d", m.counter("l1_hit"))
+	if m.counter("cache.l1_hit") != 1 {
+		t.Errorf("expected l1_hit=1, got %d", m.counter("cache.l1_hit"))
 	}
-	if m.counter("valkey_get_fallback") != 0 {
-		t.Errorf("expected valkey_get_fallback=0 (L1 served before Valkey check), got %d", m.counter("valkey_get_fallback"))
+	if m.counter("cache.valkey_get_fallback") != 0 {
+		t.Errorf("expected valkey_get_fallback=0 (L1 served before Valkey check), got %d", m.counter("cache.valkey_get_fallback"))
 	}
-	if m.counter("valkey_set_fallback") != 1 {
-		t.Errorf("valkey_set_fallback should still be 1, got %d", m.counter("valkey_set_fallback"))
+	if m.counter("cache.valkey_set_fallback") != 1 {
+		t.Errorf("valkey_set_fallback should still be 1, got %d", m.counter("cache.valkey_set_fallback"))
 	}
 }
 

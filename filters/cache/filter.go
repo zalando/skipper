@@ -108,7 +108,7 @@ func NewCacheFilter(opts Options) filters.Spec {
 
 	m := opts.Metrics
 	lru := NewLRUStorage(opts.MaxBytes, func() {
-		m.IncCounter("lru_eviction")
+		m.IncCounter("cache.lru_eviction")
 	}, m)
 
 	var store Storage = lru
@@ -245,10 +245,10 @@ func (s *cacheSpec) revalidationWorker() {
 		select {
 		case job := <-s.revalJobs:
 			if job.filter != nil {
-				s.metrics.MeasureSince("reval_wait_duration", job.enqueuedAt)
+				s.metrics.MeasureSince("cache.reval_wait_duration", job.enqueuedAt)
 				start := time.Now()
 				job.filter.doRevalidate(job.key, job.req)
-				s.metrics.MeasureSince("reval_duration", start)
+				s.metrics.MeasureSince("cache.reval_duration", start)
 			}
 		case <-s.ctx.Done():
 			return
@@ -267,8 +267,8 @@ func (s *cacheSpec) metricsScraper() {
 	for {
 		select {
 		case <-ticker.C:
-			s.metrics.UpdateGauge("lru_bytes", float64(s.lruStorage.lru.Bytes()))
-			s.metrics.UpdateGauge("reval_queue_depth", float64(len(s.revalJobs)))
+			s.metrics.UpdateGauge("cache.lru_bytes", float64(s.lruStorage.lru.Bytes()))
+			s.metrics.UpdateGauge("cache.reval_queue_depth", float64(len(s.revalJobs)))
 		case <-s.ctx.Done():
 			return
 		}
@@ -403,7 +403,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 		rsp.Header.Set(cacheStatusHeader, cacheStatusStale)
 		tagSpan(ctx, cacheStatusStale, -1)
 		setAgeHeader(rsp, entry, now)
-		ctx.Metrics().IncCounter("stale")
+		f.metrics.IncCounter("cache.stale")
 		method := ctx.Request().Method
 		if isCacheableMethod(method) && evaluateConditionals(ctx.Request(), entry) {
 			notModified := &http.Response{
@@ -441,7 +441,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	rsp.Header.Set(cacheStatusHeader, cacheStatusHit)
 	tagSpan(ctx, cacheStatusHit, max(0, entry.TTL-time.Since(entry.CreatedAt)).Milliseconds())
 	setAgeHeader(rsp, entry, time.Now())
-	ctx.Metrics().IncCounter("hit")
+	f.metrics.IncCounter("cache.hit")
 	method := ctx.Request().Method
 	if (method == http.MethodGet || method == http.MethodHead) && evaluateConditionals(ctx.Request(), entry) {
 		notModified := &http.Response{
@@ -549,7 +549,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 	select {
 	case res := <-ch:
 		if res.Err != nil || res.Val == nil {
-			ctx.Metrics().IncCounter("coalesce_error")
+			f.metrics.IncCounter("cache.coalesce_error")
 			return
 		}
 		cr := res.Val.(*coalesceResult)
@@ -578,7 +578,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		}
 		rsp.Header.Set(cacheStatusHeader, cacheStatusMiss)
 		tagSpan(ctx, cacheStatusMiss, -1)
-		ctx.Metrics().IncCounter("miss")
+		f.metrics.IncCounter("cache.miss")
 		ctx.Serve(headBodyOmitted(ctx.Request().Method, rsp))
 	case <-ctx.Request().Context().Done():
 		// Client disconnected. Remaining waiters still receive their result.
@@ -651,13 +651,13 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	if ctx.StateBag()[stateBagNoStore] == true {
 		rsp.Header.Set(cacheStatusHeader, cacheStatusMiss)
 		tagSpan(ctx, cacheStatusMiss, -1)
-		ctx.Metrics().IncCounter("miss")
+		f.metrics.IncCounter("cache.miss")
 		return
 	}
 
 	rsp.Header.Set(cacheStatusHeader, cacheStatusMiss)
 	tagSpan(ctx, cacheStatusMiss, -1)
-	ctx.Metrics().IncCounter("miss")
+	f.metrics.IncCounter("cache.miss")
 
 	// Vary: * means every response is unique — never cache.
 	varyHeader := rsp.Header.Get("Vary")
@@ -758,9 +758,9 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 	select {
 	case f.revalJobs <- job:
 	case <-f.ctx.Done():
-		f.metrics.IncCounter("reval_dropped")
+		f.metrics.IncCounter("cache.reval_dropped")
 	default:
-		f.metrics.IncCounter("reval_dropped")
+		f.metrics.IncCounter("cache.reval_dropped")
 	}
 }
 
@@ -786,7 +786,7 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request) {
 		requestTime := time.Now()
 		resp, err := f.fetch(req)
 		if err != nil {
-			f.metrics.IncCounter("reval_error")
+			f.metrics.IncCounter("cache.reval_error")
 			log.WithFields(log.Fields{
 				"url": req.URL.String(),
 			}).WithError(err).Warn("cache: background revalidation fetch failed")
@@ -818,7 +818,7 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request) {
 			var rerr error
 			body, rerr = io.ReadAll(resp.Body)
 			if rerr != nil {
-				f.metrics.IncCounter("reval_error")
+				f.metrics.IncCounter("cache.reval_error")
 				log.WithFields(log.Fields{
 					"url": req.URL.String(),
 				}).WithError(rerr).Warn("cache: failed to read response body during background revalidation")

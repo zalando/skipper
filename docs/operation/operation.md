@@ -1928,31 +1928,31 @@ via `skipper.Options.ResponseCacheMaxMemoryBytes`.
 
 **Cache outcomes (always active):**
 
-- `hit`: Counter, request served from cache without contacting the upstream
-- `miss`: Counter, request not in cache; upstream was contacted
-- `stale`: Counter, stale entry served while background revalidation was enqueued
-- `coalesce_error`: Counter, singleflight cold-miss fetch returned an error
+- `cache.hit`: Counter, request served from cache without contacting the upstream
+- `cache.miss`: Counter, request not in cache; upstream was contacted
+- `cache.stale`: Counter, stale entry served while background revalidation was enqueued
+- `cache.coalesce_error`: Counter, singleflight cold-miss fetch returned an error
 
 **LRU (always active):**
 
-- `lru_eviction`: Counter, incremented each time an L1 entry is evicted due to memory pressure
-- `lru_bytes`: Gauge, current L1 usage in bytes
-- `lru_oversized`: Counter, incremented when an entry is too large for any shard and silently dropped
+- `cache.lru_eviction`: Counter, incremented each time an L1 entry is evicted due to memory pressure
+- `cache.lru_bytes`: Gauge, current L1 usage in bytes
+- `cache.lru_oversized`: Counter, incremented when an entry is too large for any shard and silently dropped
 
 **Revalidation (always active):**
 
-- `reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
-- `reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
-- `reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
-- `reval_error`: Counter, background revalidation fetch failures
-- `reval_duration`: Histogram, end-to-end duration of each background revalidation job
+- `cache.reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
+- `cache.reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
+- `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
+- `cache.reval_error`: Counter, background revalidation fetch failures
+- `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
 
 **Valkey (when Valkey is configured):**
 
-- `l1_hit`: Counter, L1 hits that bypassed Valkey
-- `valkey_miss`: Counter, Valkey misses that proceeded to an upstream fetch
-- `valkey_get_fallback`, `valkey_set_fallback`: Counters, reads/writes that fell back to L1 due to Valkey errors
-- `l1_warm_from_valkey`: Counter, entries written into L1 after a successful Valkey Get (write-through on read path)
+- `cache.l1_hit`: Counter, L1 hits that bypassed Valkey
+- `cache.valkey_miss`: Counter, Valkey misses that proceeded to an upstream fetch
+- `cache.valkey_get_fallback`, `cache.valkey_set_fallback`: Counters, reads/writes that fell back to L1 due to Valkey errors
+- `cache.l1_warm_from_valkey`: Counter, entries written into L1 after a successful Valkey Get (write-through on read path)
 
 **OpenTracing span tags (set on every request when a span is active):**
 

@@ -63,7 +63,7 @@ func (s *LRUStorage) Set(_ context.Context, key string, entry *Entry) error {
 			"size_bytes": len(data),
 			"shard_max":  s.lru.shards[0].maxBytes,
 		}).Warn("cache: entry exceeds shard capacity and will not be stored")
-		s.metrics.IncCounter("lru_oversized")
+		s.metrics.IncCounter("cache.lru_oversized")
 		return nil
 	}
 	s.lru.Set(key, data)
