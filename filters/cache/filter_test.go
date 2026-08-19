@@ -2391,9 +2391,9 @@ func TestCacheFilter_StaleIfError_Serves_On_5xx(t *testing.T) {
 	// Entry expires after 1ms; staleIfError=60s keeps it in storage.
 	// A 503 upstream via coalesce should cause the stale entry to be served.
 	//
-	// Regression: the SIE block in Response() was dead code — coalesce() always calls
+	// Regression: the stale-if-error block in Response() was dead code — coalesce() always calls
 	// ctx.Serve() (even on 5xx), so Response() returned early before reaching it.
-	// SIE logic must live inside coalesce() with the pre-fetch snapshot captured
+	// stale-if-error logic must live inside coalesce() with the pre-fetch snapshot captured
 	// before f.fetch runs, preventing the 5xx from overwriting the stored entry.
 	f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond, 60*time.Second)
 	url := "http://example.com/sie-5xx"
@@ -2433,8 +2433,8 @@ func TestCacheFilter_StaleIfError_Serves_On_5xx(t *testing.T) {
 func TestCacheFilter_StaleIfError_Expired_NotServed(t *testing.T) {
 	// ttl=1ms, errorTTL=10s, swrWindow=1ms, staleIfError=100ms
 	// Sleep 200ms — past TTL + staleIfError window. Entry too old for stale-if-error.
-	// Uses f.fetch returning 503 via coalesce (the same path as the positive SIE case)
-	// to confirm the 503 is passed through when the SIE window has already elapsed.
+	// Uses f.fetch returning 503 via coalesce (the same path as the positive stale-if-error case)
+	// to confirm the 503 is passed through when the stale-if-error window has already elapsed.
 	f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond, 100*time.Millisecond)
 	url := "http://example.com/sie-expired"
 
@@ -2461,7 +2461,7 @@ func TestCacheFilter_StaleIfError_Expired_NotServed(t *testing.T) {
 			t.Fatal("expected a response, got nil")
 		}
 		if ctx2.FResponse.StatusCode != http.StatusServiceUnavailable {
-			t.Fatalf("want 503 (SIE window expired), got %d", ctx2.FResponse.StatusCode)
+			t.Fatalf("want 503 (stale-if-error window expired), got %d", ctx2.FResponse.StatusCode)
 		}
 	})
 }
@@ -2485,7 +2485,7 @@ func TestCacheFilter_StaleIfError_Disabled_When_Zero(t *testing.T) {
 		f.Response(ctx2)
 
 		if ctx2.FResponse.StatusCode != http.StatusServiceUnavailable {
-			t.Fatalf("want 503 (SIE disabled), got %d", ctx2.FResponse.StatusCode)
+			t.Fatalf("want 503 (stale-if-error disabled), got %d", ctx2.FResponse.StatusCode)
 		}
 	})
 }
