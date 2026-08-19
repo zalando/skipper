@@ -3964,7 +3964,11 @@ matching the same key. It has no awareness of other filters in the chain.
 * **`Authorization` is not in the key by default.** Responses are stored and
   served without regard to caller identity. To isolate per-user responses, add
   `Authorization` to `keyHeaders`; without it, a response stored for one user
-  will be served to all others on the same path.
+  will be served to all others on the same path. Note: in RFC mode, if the
+  request carries an `Authorization` header and the upstream does not respond
+  with `Cache-Control: public` or `must-revalidate`, the response is silently
+  not stored (RFC 9111 §3.5). Use force mode or ensure the upstream sets
+  `Cache-Control: public` if you want authenticated responses cached.
 * **`Cache-Control: private` is ignored in force mode.** Audit the upstream
   response before enabling force mode on any authenticated route.
 

@@ -1914,10 +1914,11 @@ There is no out-of-band operator invalidation API. To clear the cache outside th
 unsafe-method path, options are: wait for TTL expiry, restart the Skipper process (clears L1 in-memory cache only; Valkey data persists), or
 delete the key directly in Valkey (L2 only; does not clear other pods' L1).
 
-Concurrent cold-miss requests for the same key within one Skipper process are
-coalesced into a single upstream fetch (thundering-herd protection). This is
-process-local: a fleet of N instances may still issue up to N simultaneous
-origin requests on a cold miss.
+Concurrent cold-miss requests for the same route and key within one Skipper process are
+coalesced into a single upstream fetch (thundering-herd protection). Requests arriving via
+different routes are not coalesced even if they target the same upstream URL, because the
+route ID is part of the cache key. This protection is also process-local: a fleet of N
+instances may still issue up to N simultaneous origin requests on a cold miss.
 
 The L1 memory budget defaults to 25% of the container's cgroup memory limit,
 falling back to 2 GB if the limit is unreadable. Override it programmatically
