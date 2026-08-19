@@ -456,12 +456,12 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	ctx.Serve(headBodyOmitted(method, rsp))
 }
 
-// coalesceResult carries both the fetched entry and any SIE-eligible stored entry
-// snapshotted before the fetch. The snapshot is taken before f.fetch() so that a
-// 5xx result cannot overwrite it in storage before the stale-if-error check runs.
+// coalesceResult carries both the fetched entry and any stale-if-error eligible
+// stored entry snapshotted before the fetch. The snapshot is taken before f.fetch() so
+// that a 5xx result cannot overwrite it in storage before the stale-if-error check runs.
 type coalesceResult struct {
 	entry  *Entry
-	stored *Entry // snapshot before fetch; nil if no eligible SIE entry existed
+	stored *Entry // snapshot before fetch; nil if no eligible stale-if-error entry existed
 }
 
 // coalesce gates concurrent cold misses for the same key behind a single upstream
@@ -474,7 +474,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 	req := ctx.Request().Clone(context.Background())
 
 	ch := f.coldSF.DoChan(key, func() (interface{}, error) {
-		// Capture any existing SIE-eligible entry before fetching, so that a
+		// Capture any existing stale-if-error eligible entry before fetching, so that a
 		// subsequent 5xx response cannot overwrite it in storage before we read it.
 		var sieStored *Entry
 		if f.staleIfError > 0 {
