@@ -72,7 +72,7 @@ func (ic *InmemoryCache) Delete(ctx context.Context, key string) error {
 
 type RemoteCacheClient interface {
 	Get(ctx context.Context, key string) (string, error)
-	Del(ctx context.Context, key string) error
+	Del(ctx context.Context, key string) (int64, error)
 	Set(ctx context.Context, key string, val string) (string, error)
 	Close() error
 }
@@ -90,7 +90,8 @@ func (rc *RemoteCache) Get(ctx context.Context, key string) ([]byte, error) {
 }
 
 func (rc *RemoteCache) Delete(ctx context.Context, key string) error {
-	return rc.Client.Del(ctx, key)
+	_, err := rc.Client.Del(ctx, key)
+	return err
 }
 
 func (rc *RemoteCache) Put(ctx context.Context, key string, val []byte) error {
