@@ -1957,8 +1957,11 @@ via `skipper.Options.ResponseCacheMaxMemoryBytes`.
 
 !!! note
     An in-process LRU (L1) is shared across all `cache()` filter instances in the same process.
-    The L1 storage budget is divided evenly across 256 internal shards; a single entry larger
-    than one shard's budget is dropped with a warning log.
+    Two routes or two users that produce the same cache key will share the cached entry — the
+    second request is served whatever the first stored. Ensure the cache key includes all
+    dimensions that distinguish responses (e.g. add `Authorization` to `keyHeaders` for
+    per-user routes). The L1 storage budget is divided evenly across 256 internal shards; a
+    single entry larger than one shard's budget is dropped with a warning log.
 
 ### Metrics
 
