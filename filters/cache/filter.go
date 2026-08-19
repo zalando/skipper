@@ -247,7 +247,7 @@ func (s *cacheSpec) revalidationWorker() {
 			if job.filter != nil {
 				s.metrics.MeasureSince("reval_wait_duration", job.enqueuedAt)
 				start := time.Now()
-				job.filter.doRevalidate(job.key, job.req, job.body)
+				job.filter.doRevalidate(job.key, job.req)
 				s.metrics.MeasureSince("reval_duration", start)
 			}
 		case <-s.ctx.Done():
@@ -277,8 +277,7 @@ func (s *cacheSpec) metricsScraper() {
 
 type revalJob struct {
 	key        string
-	req        *http.Request // cloned via Request.Clone; Body is nil for GET/HEAD
-	body       []byte        // non-nil for QUERY: snapshot of the request body for revalidation
+	req        *http.Request // cloned via Request.Clone
 	filter     *cacheFilter  // instance whose doRevalidate to call
 	enqueuedAt time.Time     // wall-clock time the job entered the queue; used to measure wait time
 }
@@ -750,21 +749,9 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 // The closure captures f.doRevalidate so the spec-level worker respects this route's config.
 func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 	cloned := orig.Clone(context.Background())
-	var bodySnapshot []byte
-	if orig.Method == "QUERY" && orig.Body != nil && orig.Body != http.NoBody {
-		var err error
-		bodySnapshot, err = io.ReadAll(orig.Body)
-		if err != nil {
-			log.WithError(err).Warn("cache: failed to read QUERY body for revalidation; dropping job")
-			f.metrics.IncCounter("reval_dropped")
-			return
-		}
-		orig.Body = io.NopCloser(bytes.NewReader(bodySnapshot))
-	}
 	job := revalJob{
 		key:        key,
 		req:        cloned,
-		body:       bodySnapshot,
 		filter:     f,
 		enqueuedAt: time.Now(),
 	}
@@ -780,16 +767,12 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 // doRevalidate revalidates key against the upstream. It sends a conditional
 // request (If-None-Match / If-Modified-Since) when the stored entry carries
 // validators; a 304 response reuses the stored payload and merges new headers.
-func (f *cacheFilter) doRevalidate(key string, req *http.Request, body []byte) {
+func (f *cacheFilter) doRevalidate(key string, req *http.Request) {
 	f.revalSF.Do(key, func() (interface{}, error) { //nolint:errcheck
 		req.Header.Set(revalidateHeader, "1")
 		req.URL.Scheme = "http"
 		req.URL.Host = f.listenAddr
 		req.RequestURI = ""
-		if len(body) > 0 {
-			req.Body = io.NopCloser(bytes.NewReader(body))
-			req.ContentLength = int64(len(body))
-		}
 
 		if stored, err := f.storage.Get(context.Background(), key); err == nil && stored != nil {
 			if stored.ETag != "" {
@@ -945,18 +928,6 @@ func cacheKey(routeID string, r *http.Request, keyHeaders []string) string {
 	for _, name := range keyHeaders {
 		fmt.Fprintf(h, "\n%s: %s", name, r.Header.Get(name))
 	}
-	// QUERY carries semantics in its body; include it in the key so different
-	// queries to the same URL produce distinct cache entries.
-	if r.Method == "QUERY" && r.Body != nil && r.Body != http.NoBody {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			// Body unreadable: key would omit the body and collide with other QUERY
-			// requests. Return "" so Request() bypasses the cache and Response() skips storing.
-			return ""
-		}
-		r.Body = io.NopCloser(bytes.NewReader(body))
-		h.Write(body)
-	}
 	return hex.EncodeToString(h.Sum(nil))
 }
 
@@ -1037,7 +1008,7 @@ func setAgeHeader(rsp *http.Response, entry *Entry, now time.Time) {
 // evaluateConditionals checks client If-None-Match / If-Modified-Since against
 // a cached entry per RFC 9111 §4.3.2 / RFC 9110 §13. Returns true when the
 // client condition is "not modified" (cache should respond 304).
-// Only call for cacheable methods (GET, HEAD, QUERY).
+// Only call for cacheable methods (GET, HEAD).
 func evaluateConditionals(req *http.Request, entry *Entry) bool {
 	if inm := req.Header.Get("If-None-Match"); inm != "" {
 		return matchesETag(inm, entry.ETag)
@@ -1127,11 +1098,9 @@ func capTTLByExpires(ttl time.Duration, header http.Header, d cacheDirectives) t
 	return ttl
 }
 
-// isCacheableMethod reports whether method may be served from cache.
-// GET and HEAD are defined as cacheable by RFC 9111. QUERY is a safe method
-// with a request body (HTTPWG draft-ietf-httpbis-safe-method-w-body).
+// isCacheableMethod reports whether method may be served from cache per RFC 9111.
 func isCacheableMethod(method string) bool {
-	return method == http.MethodGet || method == http.MethodHead || method == "QUERY"
+	return method == http.MethodGet || method == http.MethodHead
 }
 
 func isUnsafeMethod(method string) bool {

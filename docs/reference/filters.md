@@ -3904,10 +3904,6 @@ Stale-while-revalidate (SWR): a stale entry within the SWR window is served
 immediately while a background fetch refreshes the entry. Concurrent cold-miss
 requests for the same key are coalesced into a single upstream fetch.
 
-The filter caches `GET`, `HEAD`, and `QUERY` requests. The `QUERY` method
-([HTTPWG draft](https://www.ietf.org/archive/id/draft-ietf-httpbis-safe-method-w-body-05.txt))
-carries a request body; it is included in the cache key.
-
 Unsafe methods (`POST`, `PUT`, `DELETE`, `PATCH`) invalidate the cached entry on
 success. `HEAD 200` freshens stored headers without replacing the body.
 
@@ -3955,9 +3951,6 @@ Route ID is included so entries from different routes never collide when sharing
 the same storage instance. Additional request headers can be folded in via
 `keyHeaders`. Without `keyHeaders`, all requests to the same path share one
 cache entry regardless of caller identity.
-
-For `QUERY` requests the request body is also hashed into the key, so different
-query bodies produce distinct cache entries.
 
 **Safety**
 
