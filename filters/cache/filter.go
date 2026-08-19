@@ -73,18 +73,19 @@ type filterCacheKey struct {
 var _ io.Closer = (*cacheSpec)(nil)
 
 type cacheSpec struct {
-	maxBytes     int64
-	listenAddr   string
-	client       *skpnet.Client
-	storage      Storage     // shared across all filter instances
-	lruStorage   *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
-	metrics      metrics.Metrics
-	revalJobs    chan revalJob
-	lruBytesDone chan struct{}
-	bgWg         sync.WaitGroup
-	closeOnce    sync.Once
-	muFilter     sync.Mutex
-	filters      map[filterCacheKey]*cacheFilter
+	maxBytes   int64
+	listenAddr string
+	client     *skpnet.Client
+	storage    Storage     // shared across all filter instances
+	lruStorage *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
+	metrics    metrics.Metrics
+	revalJobs  chan revalJob
+	ctx        context.Context
+	cancel     context.CancelFunc
+	bgWg       sync.WaitGroup
+	closeOnce  sync.Once
+	muFilter   sync.Mutex
+	filters    map[filterCacheKey]*cacheFilter
 }
 
 // NewCacheFilter returns a Spec for the cache() filter.
@@ -115,16 +116,18 @@ func NewCacheFilter(opts Options) filters.Spec {
 		store = NewValkeyStorage(opts.ValkeyRing, lru, m, opts.L1TTL)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	spec := &cacheSpec{
-		maxBytes:     opts.MaxBytes,
-		listenAddr:   opts.ListenAddr,
-		client:       skpnet.NewClient(opts.NetOpts),
-		storage:      store,
-		lruStorage:   lru,
-		metrics:      m,
-		revalJobs:    make(chan revalJob, revalQueueSize),
-		lruBytesDone: make(chan struct{}),
-		filters:      make(map[filterCacheKey]*cacheFilter),
+		maxBytes:   opts.MaxBytes,
+		listenAddr: opts.ListenAddr,
+		client:     skpnet.NewClient(opts.NetOpts),
+		storage:    store,
+		lruStorage: lru,
+		metrics:    m,
+		revalJobs:  make(chan revalJob, revalQueueSize),
+		ctx:        ctx,
+		cancel:     cancel,
+		filters:    make(map[filterCacheKey]*cacheFilter),
 	}
 
 	// Start shared background goroutines (one worker + one scraper for all filter instances)
@@ -137,12 +140,11 @@ func NewCacheFilter(opts Options) filters.Spec {
 
 func (s *cacheSpec) Name() string { return filterName }
 
-// Close shuts down the background revalidation worker and lru_bytes scraper.
+// Close shuts down the background revalidation worker and metrics scraper.
 // Safe to call multiple times.
 func (s *cacheSpec) Close() error {
 	s.closeOnce.Do(func() {
-		close(s.lruBytesDone) // stop scraper; must close before revalJobs so enqueueRevalidation's recover() fires first
-		close(s.revalJobs)    // unblocks revalidationWorker range loop
+		s.cancel()       // signals both goroutines to stop via ctx.Done()
 		s.bgWg.Wait()
 		s.client.Close() // tear down transport after all in-flight revalidation fetches complete
 	})
@@ -225,8 +227,8 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		rfcMode:      rfcMode,
 		metrics:      s.metrics,
 		keyHeaders:   keyHeaders,
-		revalJobs:    s.revalJobs,    // use spec-level shared channel
-		lruBytesDone: s.lruBytesDone, // use spec-level shared signal
+		revalJobs: s.revalJobs, // use spec-level shared channel
+		ctx:       s.ctx,       // cancelled when spec shuts down
 	}
 
 	cf.fetch = s.client.Do
@@ -239,22 +241,25 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 // the per-instance doRevalidate method to respect each route's configuration.
 func (s *cacheSpec) revalidationWorker() {
 	defer s.bgWg.Done()
-	for job := range s.revalJobs {
-		if job.filter != nil {
-			s.metrics.MeasureSince("reval_wait_duration", job.enqueuedAt)
-			start := time.Now()
-			job.filter.doRevalidate(job.key, job.req, job.body)
-			s.metrics.MeasureSince("reval_duration", start)
+	for {
+		select {
+		case job := <-s.revalJobs:
+			if job.filter != nil {
+				s.metrics.MeasureSince("reval_wait_duration", job.enqueuedAt)
+				start := time.Now()
+				job.filter.doRevalidate(job.key, job.req, job.body)
+				s.metrics.MeasureSince("reval_duration", start)
+			}
+		case <-s.ctx.Done():
+			return
 		}
 	}
-	log.Debug("cache: revalidation worker stopped")
 }
 
 const lruBytesScrapeInterval = 10 * time.Second
 
 // metricsScraper periodically updates the lru_bytes gauge so it stays current
 // even when no evictions occur. It's spec-level and shared across all filter instances.
-// It exits when lruBytesDone is closed (via cacheSpec.Close).
 func (s *cacheSpec) metricsScraper() {
 	defer s.bgWg.Done()
 	ticker := time.NewTicker(lruBytesScrapeInterval)
@@ -264,7 +269,7 @@ func (s *cacheSpec) metricsScraper() {
 		case <-ticker.C:
 			s.metrics.UpdateGauge("lru_bytes", float64(s.lruStorage.lru.Bytes()))
 			s.metrics.UpdateGauge("reval_queue_depth", float64(len(s.revalJobs)))
-		case <-s.lruBytesDone:
+		case <-s.ctx.Done():
 			return
 		}
 	}
@@ -293,9 +298,9 @@ type cacheFilter struct {
 	rfcMode      bool
 	coldSF       singleflight.Group // cold-miss coalescing
 	revalSF      singleflight.Group // coalesces concurrent background revalidations per key
-	revalJobs    chan revalJob      // shared background revalidation queue from cacheSpec
-	lruBytesDone chan struct{}      // shared channel from cacheSpec; closed to stop scraper
-	fetch        func(*http.Request) (*http.Response, error)
+	revalJobs chan revalJob      // shared background revalidation queue from cacheSpec
+	ctx       context.Context  // cancelled when cacheSpec shuts down
+	fetch     func(*http.Request) (*http.Response, error)
 	metrics      metrics.Metrics
 }
 
@@ -763,16 +768,10 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 		filter:     f,
 		enqueuedAt: time.Now(),
 	}
-	// recover guards against a send on a closed channel during the shutdown window
-	// between cacheSpec.Close() closing revalJobs and this goroutine observing it.
-	// The job is dropped, which is safe — the same outcome as the default (full buffer) path.
-	defer func() {
-		if recover() != nil {
-			f.metrics.IncCounter("reval_dropped")
-		}
-	}()
 	select {
 	case f.revalJobs <- job:
+	case <-f.ctx.Done():
+		f.metrics.IncCounter("reval_dropped")
 	default:
 		f.metrics.IncCounter("reval_dropped")
 	}
