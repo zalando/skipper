@@ -79,15 +79,20 @@ func (jar *insecureCookieJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
 		cookieMap[c.Name] = c
 	}
 	for _, c := range cookies {
-		cookieMap[c.Name] = c
+		if c.MaxAge < 0 {
+			// MaxAge < 0 means delete: remove from the map.
+			delete(cookieMap, c.Name)
+		} else {
+			cookieMap[c.Name] = c
+		}
 	}
 
-	cookies = make([]*http.Cookie, 0, len(cookieMap))
+	stored := make([]*http.Cookie, 0, len(cookieMap))
 	for _, c := range cookieMap {
-		cookies = append(cookies, c)
+		stored = append(stored, c)
 	}
 
-	jar.store[u.Hostname()] = cookies
+	jar.store[u.Hostname()] = stored
 }
 func (jar *insecureCookieJar) Cookies(u *url.URL) []*http.Cookie {
 	return jar.store[u.Hostname()]
@@ -840,7 +845,7 @@ func TestOIDCSetup(t *testing.T) {
 		msg:             "has authType, all claims: valid claims and invalid scope",
 		filter:          `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "invalid", "uid")`,
 		expected:        401,
-		expectNoCookies: true, // 401 returned by OIDC server due to invalid scope before redirect
+		expectNoCookies: true, // 401 returned by OIDC server due to invalid scope before callback
 	}, {
 		msg:      "has authType, all claims valid and invalid",
 		filter:   `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "uid invalid")`,
@@ -1061,7 +1066,14 @@ func TestOIDCSetup(t *testing.T) {
 				t.Logf("Got body: %s", string(b))
 			}
 
-			cookies := client.Jar.Cookies(reqURL)
+			allCookies := client.Jar.Cookies(reqURL)
+			// Filter out CSRF helper cookies (-state, -verifier) when checking for session cookies.
+			var cookies []*http.Cookie
+			for _, c := range allCookies {
+				if !strings.HasSuffix(c.Name, "-state") && !strings.HasSuffix(c.Name, "-verifier") {
+					cookies = append(cookies, c)
+				}
+			}
 			if tc.expectNoCookies {
 				assert.Empty(t, cookies)
 			} else {
@@ -1265,5 +1277,195 @@ func Test_tokenOidcFilter_getMaxAge(t *testing.T) {
 			assert.True(t, got >= tt.want-time.Minute && got <= 2*tt.want,
 				fmt.Sprintf("maxAge has to be within [%s - 1m, %s]", tt.want, tt.want))
 		})
+	}
+}
+
+// setupOIDCProxy creates the shared proxy+oidcServer infrastructure used by
+// the OIDC CSRF and normal-flow tests.
+func setupOIDCProxy(t *testing.T) (proxy *proxytest.TestProxy, oidcServer *httptest.Server, backend *httptest.Server, cleanup func()) {
+	t.Helper()
+
+	backend = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	fd, err := os.CreateTemp("", "testSecrets")
+	if err != nil {
+		backend.Close()
+		t.Fatal(err)
+	}
+	secretsFile := fd.Name()
+
+	fr := make(filters.Registry)
+	fr.Register(NewOAuthOidcAnyClaimsWithOptions(secretsFile, secrettest.NewTestRegistry(), OidcOptions{}))
+
+	dc := testdataclient.New(nil)
+
+	proxy = proxytest.WithRoutingOptions(fr, routing.Options{
+		DataClients: []routing.DataClient{dc},
+	})
+
+	redirectURL, _ := url.Parse(proxy.URL)
+	redirectURL.Path = "/redirect"
+
+	oidcServer = createOIDCServer(redirectURL.String(), "valid-client", "mysec", nil, nil)
+
+	f, err := parseFilter(
+		`oauthOidcAnyClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "")`,
+		oidcServer.URL, redirectURL.String())
+	if err != nil {
+		oidcServer.Close()
+		proxy.Close()
+		dc.Close()
+		backend.Close()
+		os.Remove(secretsFile)
+		t.Fatal(err)
+	}
+
+	proxy.Log.Reset()
+	dc.Update([]*eskip.Route{{Filters: f, Backend: backend.URL}}, nil)
+	if err := proxy.Log.WaitFor("route settings applied", 10*time.Second); err != nil {
+		oidcServer.Close()
+		proxy.Close()
+		dc.Close()
+		backend.Close()
+		os.Remove(secretsFile)
+		t.Fatal(err)
+	}
+
+	cleanup = func() {
+		oidcServer.Close()
+		proxy.Close()
+		dc.Close()
+		backend.Close()
+		os.Remove(secretsFile)
+	}
+	return proxy, oidcServer, backend, cleanup
+}
+
+// TestOIDCNormalFlow verifies that a browser completing the full OIDC authorization
+// code flow receives a session cookie and can access the protected resource.
+func TestOIDCNormalFlow(t *testing.T) {
+	proxy, _, _, cleanup := setupOIDCProxy(t)
+	defer cleanup()
+
+	// Use a client that does NOT auto-follow redirects so we can manually drive
+	// each hop and verify the cookie jar is populated correctly.
+	noRedirects := func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	browser := &http.Client{
+		Timeout:       5 * time.Second,
+		Jar:           newInsecureCookieJar(),
+		CheckRedirect: noRedirects,
+	}
+
+	// 1. First unauthenticated request → proxy redirects to OIDC provider and
+	//    sets state + verifier cookies.
+	rsp, err := browser.Get(proxy.URL + "/")
+	if err != nil {
+		t.Fatalf("step 1: %v", err)
+	}
+	rsp.Body.Close()
+	if rsp.StatusCode != http.StatusTemporaryRedirect {
+		t.Fatalf("step 1: expected 307, got %d", rsp.StatusCode)
+	}
+	oidcAuthURL := rsp.Header.Get("Location")
+	t.Logf("step 1: redirecting to OIDC: %s", oidcAuthURL)
+
+	// 2. Follow to OIDC provider → provider authenticates and redirects to callback.
+	rsp, err = browser.Get(oidcAuthURL)
+	if err != nil {
+		t.Fatalf("step 2: %v", err)
+	}
+	rsp.Body.Close()
+	callbackURL := rsp.Header.Get("Location")
+	t.Logf("step 2: provider returned callback: %s", callbackURL)
+
+	// 3. Follow callback → proxy validates state cookie, exchanges code for token,
+	//    sets session cookie, redirects to original URL.
+	rsp, err = browser.Get(callbackURL)
+	if err != nil {
+		t.Fatalf("step 3: %v", err)
+	}
+	rsp.Body.Close()
+	t.Logf("step 3: callback response %d", rsp.StatusCode)
+	if rsp.StatusCode != http.StatusTemporaryRedirect {
+		t.Fatalf("step 3: expected 307 redirect after callback, got %d", rsp.StatusCode)
+	}
+	finalURL := rsp.Header.Get("Location")
+
+	// 4. Follow to original URL with session cookie → backend responds.
+	// The callback redirect Location may be relative (e.g. "/") — resolve it.
+	if !strings.HasPrefix(finalURL, "http") {
+		base, _ := url.Parse(proxy.URL)
+		rel, err := url.Parse(finalURL)
+		if err != nil {
+			t.Fatalf("step 4: bad location %q: %v", finalURL, err)
+		}
+		finalURL = base.ResolveReference(rel).String()
+	}
+	rsp, err = browser.Get(finalURL)
+	if err != nil {
+		t.Fatalf("step 4: %v", err)
+	}
+	rsp.Body.Close()
+	if rsp.StatusCode != http.StatusNoContent {
+		t.Errorf("step 4: expected 204 from backend, got %d", rsp.StatusCode)
+	}
+}
+
+// TestOIDCLoginCSRF verifies that a browser which never started a login flow
+// cannot be authenticated by a callback URL crafted by an attacker.
+// After the cookie-based CSRF protection is in place, the victim's request to
+// the callback endpoint is rejected (no state cookie → 400 Bad Request).
+func TestOIDCLoginCSRF(t *testing.T) {
+	proxy, _, _, cleanup := setupOIDCProxy(t)
+	defer cleanup()
+
+	noRedirects := func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+
+	// 1. Attacker starts the flow on their own browser (no cookie jar → cookies discarded).
+	attacker := &http.Client{Timeout: 5 * time.Second, CheckRedirect: noRedirects}
+
+	rsp, err := attacker.Get(proxy.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsp.Body.Close()
+	if rsp.StatusCode != http.StatusTemporaryRedirect {
+		t.Fatalf("expected redirect from proxy, got %d", rsp.StatusCode)
+	}
+
+	// 2. Attacker follows to provider, captures the callback URL.
+	rsp, err = attacker.Get(rsp.Header.Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsp.Body.Close()
+
+	callbackURL := rsp.Header.Get("Location")
+	parsed, err := url.Parse(callbackURL)
+	if err != nil || parsed.Query().Get("code") == "" {
+		t.Fatalf("expected callback URL with code, got: %s", callbackURL)
+	}
+
+	// 3. Victim (no cookie jar) follows the attacker's callback URL.
+	victim := &http.Client{Timeout: 5 * time.Second, CheckRedirect: noRedirects}
+
+	rsp, err = victim.Get(callbackURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsp.Body.Close()
+
+	// The callback must be rejected: no state cookie → Unauthorized.
+	if rsp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized for victim without state cookie, got %d", rsp.StatusCode)
+	}
+	// CSRF cookie cleanup (MaxAge=0, empty value) may be present in the response;
+	// ensure no session cookies (non-empty value, positive MaxAge) were issued.
+	for _, c := range rsp.Cookies() {
+		if c.Value != "" && c.MaxAge > 0 {
+			t.Errorf("victim received unexpected session cookie: %v", c)
+		}
 	}
 }

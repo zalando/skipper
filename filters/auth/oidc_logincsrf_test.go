@@ -96,10 +96,14 @@ func TestOidcLoginCSRF(t *testing.T) {
 	rsp.Body.Close()
 
 	t.Logf("victim callback response: %d, cookies set: %d", rsp.StatusCode, len(rsp.Cookies()))
+	var sessionCookies []*http.Cookie
 	for _, c := range rsp.Cookies() {
 		t.Logf("  cookie %s (len %d)", c.Name, len(c.Value))
+		if c.Value != "" && c.MaxAge > 0 {
+			sessionCookies = append(sessionCookies, c)
+		}
 	}
 
-	require.Empty(t, rsp.Cookies(),
+	require.Empty(t, sessionCookies,
 		"callbackEndpoint issued a session cookie to a browser that never started the flow")
 }
