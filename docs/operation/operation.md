@@ -1911,8 +1911,8 @@ own L1 copies until `--cache-l1-ttl` expires. Set `--cache-l1-ttl` accordingly t
 the stale window after an invalidation.
 
 There is no out-of-band operator invalidation API. To clear the cache outside the normal
-unsafe-method path, options are: wait for TTL expiry, restart the Skipper process (clears
-L1 entirely), or delete the key directly in Valkey (L2 only; does not clear other pods' L1).
+unsafe-method path, options are: wait for TTL expiry, restart the Skipper process (clears L1 in-memory cache only; Valkey data persists), or
+delete the key directly in Valkey (L2 only; does not clear other pods' L1).
 
 Concurrent cold-miss requests for the same key within one Skipper process are
 coalesced into a single upstream fetch (thundering-herd protection). This is
