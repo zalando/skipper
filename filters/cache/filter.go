@@ -51,9 +51,9 @@ const (
 
 // Options configures the cache filter.
 type Options struct {
-	MaxBytes   int64          // maximum number of bytes the in-process LRU (L1) is allowed to hold across all cached entries
-	ListenAddr string         // Skipper's own address; revalidation requests loop back through it so the full filter chain runs
-	NetOpts    skpnet.Options // HTTP client options for background worker that re-fetches stale entries from origin
+	MaxBytes   int64                    // maximum number of bytes the in-process LRU (L1) is allowed to hold across all cached entries
+	ListenAddr string                   // Skipper's own address; revalidation requests loop back through it so the full filter chain runs
+	NetOpts    skpnet.Options           // HTTP client options for background worker that re-fetches stale entries from origin
 	ValkeyRing *skpnet.ValkeyRingClient // optional L2 cache; nil = in-process LRU only
 	L1TTL      time.Duration            // max TTL for write-through L1 warming; 0 = write-around
 	Metrics    metrics.Metrics          // nil defaults to metrics.Default
@@ -144,7 +144,7 @@ func (s *cacheSpec) Name() string { return filterName }
 // Safe to call multiple times.
 func (s *cacheSpec) Close() error {
 	s.closeOnce.Do(func() {
-		s.cancel()       // signals both goroutines to stop via ctx.Done()
+		s.cancel() // signals both goroutines to stop via ctx.Done()
 		s.bgWg.Wait()
 		s.client.Close() // tear down transport after all in-flight revalidation fetches complete
 	})
@@ -227,8 +227,8 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		rfcMode:      rfcMode,
 		metrics:      s.metrics,
 		keyHeaders:   keyHeaders,
-		revalJobs: s.revalJobs, // use spec-level shared channel
-		ctx:       s.ctx,       // cancelled when spec shuts down
+		revalJobs:    s.revalJobs, // use spec-level shared channel
+		ctx:          s.ctx,       // cancelled when spec shuts down
 	}
 
 	cf.fetch = s.client.Do
@@ -295,13 +295,13 @@ type cacheFilter struct {
 
 	// rfcMode true: upstream Cache-Control is authoritative (cache()).
 	// false: operator ttl/errorTTL/swrWindow are authoritative (force mode).
-	rfcMode      bool
-	coldSF       singleflight.Group // cold-miss coalescing
-	revalSF      singleflight.Group // coalesces concurrent background revalidations per key
+	rfcMode   bool
+	coldSF    singleflight.Group // cold-miss coalescing
+	revalSF   singleflight.Group // coalesces concurrent background revalidations per key
 	revalJobs chan revalJob      // shared background revalidation queue from cacheSpec
-	ctx       context.Context  // cancelled when cacheSpec shuts down
+	ctx       context.Context    // cancelled when cacheSpec shuts down
 	fetch     func(*http.Request) (*http.Response, error)
-	metrics      metrics.Metrics
+	metrics   metrics.Metrics
 }
 
 // Close is intentionally a no-op. The routing layer calls Close() on every
