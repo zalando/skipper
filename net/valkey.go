@@ -528,6 +528,8 @@ func (vrc *ValkeyRingClient) Expire(ctx context.Context, key string, d time.Dura
 	return res.ToInt64()
 }
 
+var _ RemoteCacheClient = &ValkeyRingClient{}
+
 func (vrc *ValkeyRingClient) Del(ctx context.Context, key string) (int64, error) {
 	res := vrc.ring.Del(ctx, key)
 	return res.ToInt64()

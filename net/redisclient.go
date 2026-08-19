@@ -392,14 +392,16 @@ func (r *RedisRingClient) StartSpan(operationName string, opts ...opentracing.St
 	return r.tracer.StartSpan(operationName, opts...)
 }
 
-func (r *RedisRingClient) Close() {
+func (r *RedisRingClient) Close() error {
+	var err error
 	r.once.Do(func() {
 		r.closed = true
 		close(r.quit)
 		if r.ring != nil {
-			r.ring.Close()
+			err = r.ring.Close()
 		}
 	})
+	return err
 }
 
 func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs []string) {
@@ -408,6 +410,8 @@ func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs []string) {
 	}
 	r.ring.SetAddrs(createAddressMap(addrs))
 }
+
+var _ RemoteCacheClient = &RedisRingClient{}
 
 func (r *RedisRingClient) Del(ctx context.Context, key string) (int64, error) {
 	res := r.ring.Del(ctx, key)
@@ -419,7 +423,13 @@ func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {
 	return res.Val(), res.Err()
 }
 
-func (r *RedisRingClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) (string, error) {
+func (r *RedisRingClient) Set(ctx context.Context, key, value string) (string, error) {
+	var v interface{} = value
+	res := r.ring.Set(ctx, key, v, 0)
+	return res.Result()
+}
+
+func (r *RedisRingClient) SetWithExpire(ctx context.Context, key string, value interface{}, expiration time.Duration) (string, error) {
 	res := r.ring.Set(ctx, key, value, expiration)
 	return res.Result()
 }

@@ -70,6 +70,7 @@ func (ic *InmemoryCache) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
+// RemoteCacheClient is used as Client for RemoteCache. The Interface for Get, Del, Set are driven by the autocert.Cache interface
 type RemoteCacheClient interface {
 	Get(ctx context.Context, key string) (string, error)
 	Del(ctx context.Context, key string) (int64, error)
