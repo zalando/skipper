@@ -298,7 +298,7 @@ func TestRedisClientGetSet(t *testing.T) {
 			defer cli.Close()
 			ctx := context.Background()
 
-			_, err := cli.Set(ctx, tt.key, tt.value, tt.expire)
+			_, err := cli.SetWithExpire(ctx, tt.key, tt.value, tt.expire)
 			if err != nil && !tt.wantErr {
 				t.Errorf("Failed to do Set error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -1036,7 +1036,7 @@ func TestRedisClientSetAddr(t *testing.T) {
 			r := NewRedisRingClient(tt.options)
 			defer r.Close()
 			for i := 0; i < len(tt.keys); i++ {
-				r.Set(context.Background(), tt.keys[i], tt.vals[i], time.Second)
+				r.SetWithExpire(context.Background(), tt.keys[i], tt.vals[i], time.Second)
 			}
 			if len(tt.redisUpdate) != len(tt.options.Addrs) {
 				r.SetAddrs(context.Background(), tt.redisUpdate)
