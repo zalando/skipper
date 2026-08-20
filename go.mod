@@ -327,4 +327,4 @@ require (
 	oras.land/oras-go/v2 v2.6.2 // indirect
 )
 
-go 1.26.6
+go 1.27.0

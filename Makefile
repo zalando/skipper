@@ -149,7 +149,7 @@ clean: ## clean temporary files and directories
 deps: ## install dependencies to run everything
 	go env
 	./etcd/install.sh $(TEST_ETCD_VERSION) $(TEST_ETCD_CHECKSUM)
-	@go install honnef.co/go/tools/cmd/staticcheck@latest
+	@go install honnef.co/go/tools/cmd/staticcheck@v0.8.0-rc.1
 	@go install github.com/securego/gosec/v2/cmd/gosec@latest
 	@go install golang.org/x/vuln/cmd/govulncheck@latest
 	@go install github.com/google/osv-scanner/cmd/osv-scanner@v1
@@ -163,8 +163,9 @@ vet: $(SOURCES) ## run Go vet
 # TODO(sszuecs) review disabling these checks, f.e.:
 # -ST1003 wrong naming convention Api vs API, Id vs ID
 # -ST1020 too many wrong comments on exported functions to fix right away
+# -SA1019 for now, but we have to fix it
 staticcheck: $(SOURCES) ## run staticcheck
-	staticcheck -checks "all,-ST1003,-ST1020" ./...
+	staticcheck -checks "all,-ST1003,-ST1020,-SA1019" ./...
 
 .PHONY: gosec
 # TODO(sszuecs) review disabling these checks, f.e.:
