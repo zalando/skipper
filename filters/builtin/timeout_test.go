@@ -326,8 +326,8 @@ func TestTimeoutsFilterWriteTimeout(t *testing.T) {
 				t.Fatalf("Failed to parse url %s: %v", proxy.URL, err)
 			}
 
-			client := net.NewClient(net.Options{})
-			defer client.Close()
+			client := proxy.Client()
+			defer client.CloseIdleConnections()
 
 			var req *http.Request
 			req, err = http.NewRequest("GET", reqURL.String(), nil)
@@ -339,6 +339,7 @@ func TestTimeoutsFilterWriteTimeout(t *testing.T) {
 
 			// test write timing out
 			if tt.wantErr {
+				defer rsp.Body.Close()
 				n, err := io.Copy(io.Discard, rsp.Body)
 				t.Logf("Copied %d bytes from response body", n)
 				if err != nil {
