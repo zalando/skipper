@@ -50,6 +50,26 @@ func TestLogBodyCreateFilter(t *testing.T) {
 			name: "wrong arg1 type should fail",
 			args: []interface{}{"request", "foo"},
 			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "wrong arg2 type should fail",
+			args: []interface{}{"request", 1024.0, "foo"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "arg2 below the status range should fail",
+			args: []interface{}{"request", 1024.0, 99.0},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "arg2 above the status range should fail",
+			args: []interface{}{"request", 1024.0, 600.0},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "more than expected args should fail",
+			args: []interface{}{"request", 1024.0, 500.0, 1.0},
+			want: filters.ErrInvalidFilterParameters,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := NewLogBody()
@@ -60,6 +80,44 @@ func TestLogBodyCreateFilter(t *testing.T) {
 		})
 	}
 
+}
+
+func TestLogBodyCreateFilterValid(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args []interface{}
+	}{
+		{
+			name: "request without status condition",
+			args: []interface{}{"request", 1024.0},
+		},
+		{
+			name: "response without status condition",
+			args: []interface{}{"response", 1024.0},
+		},
+		{
+			name: "request with status condition",
+			args: []interface{}{"request", 1024.0, 500.0},
+		},
+		{
+			name: "response with status condition",
+			args: []interface{}{"response", 1024.0, 500.0},
+		},
+		{
+			name: "lowest valid status",
+			args: []interface{}{"request", 1024.0, 100.0},
+		},
+		{
+			name: "highest valid status",
+			args: []interface{}{"request", 1024.0, 599.0},
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := NewLogBody()
+			if _, err := spec.CreateFilter(tt.args); err != nil {
+				t.Fatalf("Failed to create filter for args %v: %v", tt.args, err)
+			}
+		})
+	}
 }
 
 func TestLogBody(t *testing.T) {
@@ -255,6 +313,122 @@ func TestLogBody(t *testing.T) {
 			t.Fatalf("Failed to not change response body(%d): %v", len(data), data)
 		}
 	})
+
+	t.Run("Request with status condition logs on matching status", func(t *testing.T) {
+		be := statusEchoBackend(http.StatusInternalServerError)
+		defer be.Close()
+
+		content := "testrequest"
+		got, rspBody := runLogBody(t, be.URL, `logBody("request", 1024, 500)`, content, http.StatusInternalServerError)
+
+		if !strings.Contains(got, content) {
+			t.Fatalf("Failed to find %q log, got: %q", content, got)
+		}
+
+		// buffering the request body must not truncate what the backend receives
+		if rspBody != content {
+			t.Fatalf("Failed to pass the request body through, got: %q", rspBody)
+		}
+	})
+
+	t.Run("Request with status condition is silent below the status", func(t *testing.T) {
+		be := statusEchoBackend(http.StatusOK)
+		defer be.Close()
+
+		content := "testrequest"
+		got, rspBody := runLogBody(t, be.URL, `logBody("request", 1024, 500)`, content, http.StatusOK)
+
+		if strings.Contains(got, content) {
+			t.Fatalf("Found request body %q in %q", content, got)
+		}
+
+		if rspBody != content {
+			t.Fatalf("Failed to pass the request body through, got: %q", rspBody)
+		}
+	})
+
+	t.Run("Response with status condition logs on matching status", func(t *testing.T) {
+		be := statusContentBackend(http.StatusBadGateway, strings.Repeat("b", 10))
+		defer be.Close()
+
+		got, _ := runLogBody(t, be.URL, `logBody("response", 1024, 500)`, "testrequest", http.StatusBadGateway)
+
+		if !strings.Contains(got, strings.Repeat("b", 10)) {
+			t.Fatalf("Failed to find rsp content %q log, got: %q", strings.Repeat("b", 10), got)
+		}
+	})
+
+	t.Run("Response with status condition is silent below the status", func(t *testing.T) {
+		be := statusContentBackend(http.StatusOK, strings.Repeat("b", 10))
+		defer be.Close()
+
+		got, rspBody := runLogBody(t, be.URL, `logBody("response", 1024, 500)`, "testrequest", http.StatusOK)
+
+		if strings.Contains(got, strings.Repeat("b", 10)) {
+			t.Fatalf("Found response body %q in %q", strings.Repeat("b", 10), got)
+		}
+
+		// the response body is still delivered to the client
+		if rspBody != strings.Repeat("b", 10) {
+			t.Fatalf("Failed to pass the response body through, got: %q", rspBody)
+		}
+	})
+}
+
+// statusEchoBackend responds with the given status and echoes the request
+// body back, so that a test can assert the backend received it unchanged.
+func statusEchoBackend(status int) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(status)
+		w.Write(body)
+	}))
+}
+
+// statusContentBackend drains the request body and responds with the given
+// status and a fixed response body.
+func statusContentBackend(status int, content string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(io.Discard, r.Body)
+		w.WriteHeader(status)
+		w.Write([]byte(content))
+	}))
+}
+
+// runLogBody proxies a POST with the given filter to beURL and returns what
+// was logged and the response body received by the client.
+func runLogBody(t *testing.T, beURL, filter, content string, wantStatus int) (string, string) {
+	t.Helper()
+
+	fr := make(filters.Registry)
+	fr.Register(NewLogBody())
+
+	routes := eskip.MustParse(fmt.Sprintf(`r: * -> %s -> "%s"`, filter, beURL))
+	p := proxytest.New(fr, routes...)
+	defer p.Close()
+
+	logbuf := bytes.NewBuffer(nil)
+	log.SetOutput(logbuf)
+	rsp, err := p.Client().Post(p.URL, "text/plain", bytes.NewBufferString(content))
+	if err != nil {
+		log.SetOutput(os.Stderr)
+		t.Fatalf("Failed to POST: %v", err)
+	}
+
+	rspBuf := bytes.NewBuffer(nil)
+	io.Copy(rspBuf, rsp.Body)
+	rsp.Body.Close()
+	log.SetOutput(os.Stderr)
+
+	if rsp.StatusCode != wantStatus {
+		t.Fatalf("Failed to get status %d, got: %d", wantStatus, rsp.StatusCode)
+	}
+
+	return logbuf.String(), rspBuf.String()
 }
 
 type mybuf struct {
