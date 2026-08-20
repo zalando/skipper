@@ -340,6 +340,7 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*
 	go registry.startCleanerDaemon()
 
 	if registry.enableCustomControlLoop {
+		registry.startAndTriggerOpaPlugins()
 		go registry.startCustomControlLoopDaemon()
 	}
 
@@ -498,22 +499,26 @@ func (registry *OpenPolicyAgentRegistry) startCustomControlLoopDaemon() {
 		case <-registry.quit:
 			return
 		case <-ticker.C:
-			registry.mu.Lock()
-			instances := slices.Collect(maps.Values(registry.instances))
-			registry.mu.Unlock()
-
-			for _, opa := range instances {
-				if opa != nil && !opa.Started() { // Skip retriggering plugins of unstarted instances
-					continue
-				}
-				func() {
-					ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
-					defer cancel()
-					opa.triggerPlugins(ctx)
-				}()
-			}
+			registry.startAndTriggerOpaPlugins()
 			ticker.Reset(registry.controlLoopIntervalWithJitter())
 		}
+	}
+}
+
+func (registry *OpenPolicyAgentRegistry) startAndTriggerOpaPlugins() {
+	registry.mu.Lock()
+	instances := slices.Collect(maps.Values(registry.instances))
+	registry.mu.Unlock()
+
+	for _, opa := range instances {
+		if opa != nil && !opa.Started() { // Skip retriggering plugins of unstarted instances
+			continue
+		}
+		func() {
+			ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
+			defer cancel()
+			opa.triggerPlugins(ctx)
+		}()
 	}
 }
 
