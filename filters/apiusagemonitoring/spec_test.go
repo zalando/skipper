@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/zalando/skipper/routing"
 )
 
 func Test_CreateSpec(t *testing.T) {
@@ -819,4 +822,46 @@ func Benchmark_CreateFilter_FullConfigSingleApiNakadi(b *testing.B) {
 			b.Fatal("Failed to convert filter")
 		}
 	}
+}
+
+func Test_PostProcessor_RemovesCachedFiltersOfDeletedRoutes(t *testing.T) {
+	spec := NewApiUsageMonitoring(true, "", "", "").(*apiUsageMonitoringSpec)
+
+	keptArgs := []interface{}{`{"application_id": "kept", "api_id": "api", "path_templates": ["foo"]}`}
+	goneArgs := []interface{}{`{"application_id": "gone", "api_id": "api", "path_templates": ["bar"]}`}
+
+	kept, err := spec.CreateFilter(keptArgs)
+	require.NoError(t, err)
+	gone, err := spec.CreateFilter(goneArgs)
+	require.NoError(t, err)
+	require.Len(t, spec.filterMap, 2)
+
+	// kept is neither on the first route nor the first filter of its route
+	routes := []*routing.Route{
+		{Filters: []*routing.RouteFilter{{Filter: noopFilter{}}}},
+		{Filters: []*routing.RouteFilter{{Filter: noopFilter{}}, {Filter: kept}}},
+	}
+
+	assert.Equal(t, routes, spec.Do(routes))
+	assert.Len(t, spec.filterMap, 1)
+
+	cached, err := spec.CreateFilter(keptArgs)
+	require.NoError(t, err)
+	assert.Same(t, kept, cached)
+
+	recreated, err := spec.CreateFilter(goneArgs)
+	require.NoError(t, err)
+	assert.NotSame(t, gone, recreated)
+}
+
+func Test_PostProcessor_EmptyRouteTableEmptiesCache(t *testing.T) {
+	spec := NewApiUsageMonitoring(true, "", "", "").(*apiUsageMonitoringSpec)
+
+	_, err := spec.CreateFilter(defaultArgs)
+	require.NoError(t, err)
+	require.Len(t, spec.filterMap, 1)
+
+	spec.Do(nil)
+
+	assert.Empty(t, spec.filterMap)
 }

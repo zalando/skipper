@@ -13,6 +13,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/routing"
 )
 
 const (
@@ -193,6 +194,34 @@ func keyFromArgs(args []interface{}) (string, error) {
 func (s *apiUsageMonitoringSpec) Close() error {
 	close(s.quitCH)
 	return nil
+}
+
+var _ routing.PostProcessor = &apiUsageMonitoringSpec{}
+
+// Do implements routing.PostProcessor and drops the filters cached by
+// CreateFilter that the new route table no longer uses. Without it the cache
+// keeps every filter configuration ever seen for the lifetime of the process.
+func (s *apiUsageMonitoringSpec) Do(routes []*routing.Route) []*routing.Route {
+	inUse := make(map[*apiUsageMonitoringFilter]struct{})
+
+	for _, ri := range routes {
+		for _, fi := range ri.Filters {
+			if f, ok := fi.Filter.(*apiUsageMonitoringFilter); ok {
+				inUse[f] = struct{}{}
+			}
+		}
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for key, f := range s.filterMap {
+		if _, ok := inUse[f]; !ok {
+			delete(s.filterMap, key)
+		}
+	}
+
+	return routes
 }
 
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
