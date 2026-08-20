@@ -3915,7 +3915,11 @@ Parameters (force mode):
 * `staleIfError` – optional; how long a stale entry may be served on upstream
   5xx (string, [RFC 5861](https://www.rfc-editor.org/rfc/rfc5861))
 * `keyHeaders` – optional; comma-separated request header names folded into the
-  cache key for per-header isolation (string, e.g. `"Authorization,X-Tenant-ID"`)
+  cache key for additional per-header isolation (string, e.g. `"X-Tenant-ID"`)
+* `group` – optional; when set, the key is derived from `group + URL` only (no
+  route ID, no auth-header hash). All routes sharing the same group name share
+  cache entries across users — use for fully public responses where cross-user
+  coalescing is intentional (string, e.g. `"public-banner"`)
 
 Examples:
 
@@ -3943,14 +3947,28 @@ Force mode with per-tenant cache key isolation:
 -> cache("5m", "15s", "30s", "0s", "X-Tenant-ID") -> "https://cdn.example.org"
 ```
 
+Force mode with shared group (cross-user coalescing for public content):
+
+```
+-> cache("5m", "15s", "30s", "0s", "", "public-banner") -> "https://cdn.example.org"
+```
+
 **Cache key**
 
 The key is derived from route ID + scheme + host + path + query string,
 hashed with SHA-256 for uniform shard distribution.
 Route ID is included so entries from different routes never collide when sharing
-the same storage instance. Additional request headers can be folded in via
-`keyHeaders`. Without `keyHeaders`, all requests to the same path share one
-cache entry regardless of caller identity.
+the same storage instance.
+
+`Authorization` and `Cookie` header values are hashed (SHA-256) and folded into
+the key by default when present, so authenticated routes are isolated per-user
+without any extra configuration. Additional request headers can be folded in via
+`keyHeaders`.
+
+When `group` is set the key is derived from `group + URL` only — route ID and
+auth-header hashes are omitted. Routes sharing the same group name share cache
+entries across users; use this for fully public responses where cross-user
+coalescing is intentional.
 
 **Safety**
 
@@ -3961,14 +3979,14 @@ matching the same key. It has no awareness of other filters in the chain.
   public CMS content, unauthenticated APIs, static assets.
 * **Do not use on routes that return user-specific data or set user-scoped
   cookies** — those responses will be served to other users.
-* **`Authorization` is not in the key by default.** Responses are stored and
-  served without regard to caller identity. To isolate per-user responses, add
-  `Authorization` to `keyHeaders`; without it, a response stored for one user
-  will be served to all others on the same path. Note: in RFC mode, if the
-  request carries an `Authorization` header and the upstream does not respond
-  with `Cache-Control: public` or `must-revalidate`, the response is silently
-  not stored (RFC 9111 §3.5). Use force mode or ensure the upstream sets
-  `Cache-Control: public` if you want authenticated responses cached.
+* **`Authorization` and `Cookie` are in the key by default.** Per-user
+  isolation is automatic — no `keyHeaders` configuration needed. In RFC mode,
+  if the request carries an `Authorization` header and the upstream does not
+  respond with `Cache-Control: public` or `must-revalidate`, the response is
+  silently not stored (RFC 9111 §3.5). Use force mode or ensure the upstream
+  sets `Cache-Control: public` if you want authenticated responses cached.
+  Use `group` to opt out of per-user isolation when cross-user coalescing is
+  intentional (e.g. fully public responses, shared service-account tokens).
 * **`Cache-Control: private` is ignored in force mode.** Audit the upstream
   response before enabling force mode on any authenticated route.
 

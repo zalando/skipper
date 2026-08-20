@@ -67,6 +67,7 @@ type filterCacheKey struct {
 	swrWindow    time.Duration
 	staleIfError time.Duration
 	keyHeaders   string // canonical: sorted, comma-joined
+	group        string
 	rfcMode      bool
 }
 
@@ -152,8 +153,8 @@ func (s *cacheSpec) Close() error {
 }
 
 func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 0 && (len(args) < 3 || len(args) > 5) {
-		return nil, fmt.Errorf("cache: expected 0 or 3-5 args (ttl, errorTTL, swrWindow[, staleIfError[, keyHeaders]]), got %d: %w", len(args), filters.ErrInvalidFilterParameters)
+	if len(args) != 0 && (len(args) < 3 || len(args) > 6) {
+		return nil, fmt.Errorf("cache: expected 0 or 3-6 args (ttl, errorTTL, swrWindow[, staleIfError[, keyHeaders[, group]]]), got %d: %w", len(args), filters.ErrInvalidFilterParameters)
 	}
 
 	rfcMode := len(args) == 0 // zero args → pure RFC mode
@@ -200,6 +201,15 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		}
 	}
 
+	var group string
+	if len(args) == 6 {
+		g, ok := args[5].(string)
+		if !ok {
+			return nil, fmt.Errorf("cache: arg 5 (group): expected string, got %T: %w", args[5], filters.ErrInvalidFilterParameters)
+		}
+		group = strings.TrimSpace(g)
+	}
+
 	sort.Strings(keyHeaders) // canonical order for registry key
 	fk := filterCacheKey{
 		ttl:          ttl,
@@ -207,6 +217,7 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		swrWindow:    swr,
 		staleIfError: staleIfError,
 		keyHeaders:   strings.Join(keyHeaders, ","),
+		group:        group,
 		rfcMode:      rfcMode,
 	}
 
@@ -227,6 +238,7 @@ func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		rfcMode:      rfcMode,
 		metrics:      s.metrics,
 		keyHeaders:   keyHeaders,
+		group:        group,
 		revalJobs:    s.revalJobs, // use spec-level shared channel
 		ctx:          s.ctx,       // cancelled when spec shuts down
 	}
@@ -291,6 +303,7 @@ type cacheFilter struct {
 	swrWindow    time.Duration
 	staleIfError time.Duration
 	keyHeaders   []string // request headers folded into the base cache key
+	group        string   // when non-empty, key = group+URL (no routeID, no auth hash)
 
 	// rfcMode true: upstream Cache-Control is authoritative (cache()).
 	// false: operator ttl/errorTTL/swrWindow are authoritative (force mode).
@@ -328,7 +341,7 @@ func tagSpan(ctx filters.FilterContext, status string, ttlRemainingMs int64) {
 func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	// Key is built from the already-filtered request: mutations by earlier filters
 	// (e.g. header stripping by auth) are intentionally reflected in the cache key.
-	baseKey := cacheKey(ctx.RouteId(), ctx.Request(), f.keyHeaders)
+	baseKey := cacheKey(ctx.RouteId(), ctx.Request(), f.keyHeaders, f.group)
 	key := baseKey
 	if sentinel, _ := f.storage.Get(ctx.Request().Context(), "vary:"+baseKey); sentinel != nil && len(sentinel.VaryHeaders) > 0 {
 		key = varyKey(baseKey, ctx.Request(), sentinel.VaryHeaders)
@@ -635,7 +648,7 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 		}
 		for _, hdrName := range []string{"Location", "Content-Location"} {
 			if loc := rsp.Header.Get(hdrName); loc != "" && sameOrigin(ctx.Request(), loc) {
-				if locKey := cacheKeyForURL(ctx.RouteId(), ctx.Request(), loc, f.keyHeaders); locKey != "" {
+				if locKey := cacheKeyForURL(ctx.RouteId(), ctx.Request(), loc, f.keyHeaders, f.group); locKey != "" {
 					if err := f.storage.Delete(ctx.Request().Context(), locKey); err != nil {
 						log.WithError(err).Warn("cache: Delete failed (Location invalidation)")
 					}
@@ -921,10 +934,29 @@ func (f *cacheFilter) resolveTTL(statusCode int, header http.Header, directives 
 // SHA-256 is used for uniform distribution and to satisfy the lru.go requirement
 // that keys passed to ShardedByteLRU are pre-hashed by the caller.
 // keyHeaders is an optional list of request header names whose values are folded
-// into the key, allowing per-header cache isolation (e.g. "Authorization").
-func cacheKey(routeID string, r *http.Request, keyHeaders []string) string {
+// into the key, allowing per-header cache isolation (e.g. "X-Tenant-ID").
+//
+// When group is non-empty the key is derived from group+URL only (no routeID,
+// no auth-header hash), so all routes sharing the same group name share cache
+// entries regardless of caller identity.
+//
+// When group is empty, Authorization and Cookie header values are hashed
+// (SHA-256) and folded into the key when present, so different users never
+// share a cache entry without any extra configuration.
+func cacheKey(routeID string, r *http.Request, keyHeaders []string, group string) string {
 	h := sha256.New()
-	fmt.Fprintf(h, "%s\n%s://%s%s?%s", routeID, r.URL.Scheme, r.Host, r.URL.Path, r.URL.RawQuery)
+	if group != "" {
+		fmt.Fprintf(h, "group:%s\n%s://%s%s?%s", group, r.URL.Scheme, r.Host, r.URL.Path, r.URL.RawQuery)
+	} else {
+		fmt.Fprintf(h, "%s\n%s://%s%s?%s", routeID, r.URL.Scheme, r.Host, r.URL.Path, r.URL.RawQuery)
+		// Fold auth headers into key by default so different users never share a cache entry.
+		for _, hdr := range []string{"Authorization", "Cookie"} {
+			if v := r.Header.Get(hdr); v != "" {
+				authHash := sha256.Sum256([]byte(v))
+				fmt.Fprintf(h, "\n%s-hash: %x", hdr, authHash)
+			}
+		}
+	}
 	for _, name := range keyHeaders {
 		fmt.Fprintf(h, "\n%s: %s", name, r.Header.Get(name))
 	}
@@ -1215,7 +1247,7 @@ func sameOrigin(base *http.Request, rawTarget string) bool {
 // cacheKeyForURL builds the cache key for rawTarget resolved against base.
 // routeID must match the routeID used when the entry was originally stored.
 // Returns "" if rawTarget cannot be parsed.
-func cacheKeyForURL(routeID string, base *http.Request, rawTarget string, keyHeaders []string) string {
+func cacheKeyForURL(routeID string, base *http.Request, rawTarget string, keyHeaders []string, group string) string {
 	u, err := url.Parse(rawTarget)
 	if err != nil {
 		return ""
@@ -1230,5 +1262,5 @@ func cacheKeyForURL(routeID string, base *http.Request, rawTarget string, keyHea
 	}
 	// Synthesise a minimal *http.Request so we can reuse cacheKey.
 	synthetic := &http.Request{URL: u, Host: u.Host, Header: base.Header}
-	return cacheKey(routeID, synthetic, keyHeaders)
+	return cacheKey(routeID, synthetic, keyHeaders, group)
 }

@@ -1160,7 +1160,7 @@ func TestCacheFilter_NoCacheResponse_StoredWithZeroTTL(t *testing.T) {
 	}
 
 	// Verify entry is stored in the cache with TTL=0 and ETag preserved.
-	key := cacheKey(ctx1.FRouteId, ctx1.FRequest, nil)
+	key := cacheKey(ctx1.FRouteId, ctx1.FRequest, nil, "")
 	entry, err := f.storage.Get(ctx1.FRequest.Context(), key)
 	if err != nil {
 		t.Fatalf("storage.Get error: %v", err)
@@ -1624,7 +1624,7 @@ func TestCacheFilter_HEAD_200_FreshensStoredEntry(t *testing.T) {
 	f.Response(headCtx) // must freshen even though FServed=true
 
 	// Stored GET entry must now have ETag "v2".
-	key := cacheKey(headCtx.FRouteId, headCtx.FRequest, nil)
+	key := cacheKey(headCtx.FRouteId, headCtx.FRequest, nil, "")
 	entry, err := f.storage.Get(headCtx.FRequest.Context(), key)
 	if err != nil || entry == nil {
 		t.Fatal("expected stored entry after freshening")
@@ -1666,7 +1666,7 @@ func TestCacheFilter_HeuristicFreshness_NoExplicitTTL(t *testing.T) {
 		f.Request(ctx1)
 
 		// Entry must be stored with heuristic TTL ~= 100s.
-		key := cacheKey(ctx1.FRouteId, ctx1.FRequest, nil)
+		key := cacheKey(ctx1.FRouteId, ctx1.FRequest, nil, "")
 		entry, err := f.storage.Get(ctx1.FRequest.Context(), key)
 		if err != nil || entry == nil {
 			t.Fatal("heuristic TTL response must be stored in cache")
@@ -1711,7 +1711,7 @@ func TestCacheFilter_HeuristicFreshness_ExplicitMaxAge_NoHeuristic(t *testing.T)
 	}
 	f.Request(ctx1)
 
-	key := cacheKey(ctx1.FRouteId, ctx1.FRequest, nil)
+	key := cacheKey(ctx1.FRouteId, ctx1.FRequest, nil, "")
 	entry, err := f.storage.Get(ctx1.FRequest.Context(), key)
 	if err != nil || entry == nil {
 		t.Fatal("entry with explicit max-age must be stored")
@@ -1741,7 +1741,7 @@ func TestCacheFilter_HeuristicFreshness_NoLastModified_NotCached(t *testing.T) {
 		return nil, errors.New("no fetch stub: expected cache miss, not upstream call")
 	}
 
-	key := cacheKey(ctx1.FRouteId, ctx1.FRequest, nil)
+	key := cacheKey(ctx1.FRouteId, ctx1.FRequest, nil, "")
 	entry, err := f.storage.Get(ctx1.FRequest.Context(), key)
 	if err != nil {
 		t.Fatalf("storage.Get error: %v", err)
@@ -1767,7 +1767,7 @@ func TestCacheFilter_HeuristicFreshness_Capped(t *testing.T) {
 		}
 		f.Request(ctx1)
 
-		key := cacheKey(ctx1.FRouteId, ctx1.FRequest, nil)
+		key := cacheKey(ctx1.FRouteId, ctx1.FRequest, nil, "")
 		entry, err := f.storage.Get(ctx1.FRequest.Context(), key)
 		if err != nil || entry == nil {
 			t.Fatal("expected stored entry")
@@ -1793,7 +1793,7 @@ func TestCacheFilter_HEAD_NoStoredEntry_NoFreshen(t *testing.T) {
 	}
 	f.Response(headCtx)
 
-	key := cacheKey(headCtx.FRouteId, headCtx.FRequest, nil)
+	key := cacheKey(headCtx.FRouteId, headCtx.FRequest, nil, "")
 	entry, err := f.storage.Get(headCtx.FRequest.Context(), key)
 	if err != nil {
 		t.Fatalf("storage.Get error: %v", err)
@@ -2648,7 +2648,8 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 		{"4 args staleIfError", []interface{}{"5m", "15s", "30s", "60s"}, false, 60 * time.Second, false},
 		{"1 arg invalid", []interface{}{"5m"}, false, 0, true},
 		{"2 args invalid", []interface{}{"5m", "15s"}, false, 0, true},
-		{"6 args too many", []interface{}{"5m", "15s", "30s", "60s", "Authorization", "extra"}, false, 0, true},
+		{"6 args with group", []interface{}{"5m", "15s", "30s", "60s", "X-Tenant-ID", "public-label"}, false, 60 * time.Second, false},
+		{"7 args too many", []interface{}{"5m", "15s", "30s", "60s", "X-Tenant-ID", "public-label", "extra"}, false, 0, true},
 	}
 
 	for _, tc := range cases {
@@ -2841,7 +2842,7 @@ func TestCacheFilter_RevalDropped_WhenQueueFull(t *testing.T) {
 	// IsStale(now) returns true (past TTL) and IsUsable(now) returns true (within SWR).
 	url := "https://cdn.contentful.com/spaces/abc/entries/reval-dropped"
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
-	key := cacheKey("" /* routeID */, req, nil)
+	key := cacheKey("" /* routeID */, req, nil, "")
 	staleEntry := &Entry{
 		StatusCode:           http.StatusOK,
 		Header:               http.Header{"Content-Type": {"application/json"}},
@@ -2966,7 +2967,7 @@ func TestCacheSpec_FilterRegistry_InFlightJobsSurviveRebuild(t *testing.T) {
 	// Inject a stale entry so the next GET will trigger revalidation.
 	url := "https://cdn.contentful.com/spaces/abc/entries/in-flight-rebuild"
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
-	key := cacheKey("" /* routeID */, req, nil)
+	key := cacheKey("" /* routeID */, req, nil, "")
 	staleEntry := &Entry{
 		StatusCode:           http.StatusOK,
 		Header:               http.Header{"Content-Type": {"application/json"}},
@@ -3011,5 +3012,158 @@ func TestCacheSpec_FilterRegistry_InFlightJobsSurviveRebuild(t *testing.T) {
 	cf2.Request(ctx2)
 	if !ctx2.FServed {
 		t.Fatal("expected entry to be served after rebuild (job draining continued)")
+	}
+}
+
+func TestCacheKey_AuthIsolation_DefaultNoGroup(t *testing.T) {
+	// Without a group, Authorization and Cookie values are hashed into the key by default.
+	// Two requests with different auth tokens must produce different keys.
+	reqA, _ := http.NewRequest(http.MethodGet, "https://api.example.com/items", nil)
+	reqA.Header.Set("Authorization", "Bearer token-a")
+
+	reqB, _ := http.NewRequest(http.MethodGet, "https://api.example.com/items", nil)
+	reqB.Header.Set("Authorization", "Bearer token-b")
+
+	reqNoAuth, _ := http.NewRequest(http.MethodGet, "https://api.example.com/items", nil)
+
+	keyA := cacheKey("route1", reqA, nil, "")
+	keyB := cacheKey("route1", reqB, nil, "")
+	keyNoAuth := cacheKey("route1", reqNoAuth, nil, "")
+
+	if keyA == keyB {
+		t.Error("different Authorization tokens must produce different cache keys")
+	}
+	if keyA == keyNoAuth {
+		t.Error("request with Authorization must produce a different key than request without")
+	}
+}
+
+func TestCacheKey_CookieIsolation_DefaultNoGroup(t *testing.T) {
+	// Cookie values are also hashed into the key by default.
+	reqA, _ := http.NewRequest(http.MethodGet, "https://api.example.com/items", nil)
+	reqA.Header.Set("Cookie", "session=abc")
+
+	reqB, _ := http.NewRequest(http.MethodGet, "https://api.example.com/items", nil)
+	reqB.Header.Set("Cookie", "session=xyz")
+
+	keyA := cacheKey("route1", reqA, nil, "")
+	keyB := cacheKey("route1", reqB, nil, "")
+
+	if keyA == keyB {
+		t.Error("different Cookie values must produce different cache keys")
+	}
+}
+
+func TestCacheKey_Group_SharedAcrossUsers(t *testing.T) {
+	// With a group set, Authorization is NOT folded in — all users share the same key.
+	reqA, _ := http.NewRequest(http.MethodGet, "https://api.example.com/items", nil)
+	reqA.Header.Set("Authorization", "Bearer token-a")
+
+	reqB, _ := http.NewRequest(http.MethodGet, "https://api.example.com/items", nil)
+	reqB.Header.Set("Authorization", "Bearer token-b")
+
+	keyA := cacheKey("route1", reqA, nil, "public-group")
+	keyB := cacheKey("route1", reqB, nil, "public-group")
+
+	if keyA != keyB {
+		t.Error("group mode: requests with different auth tokens on same URL must share the same cache key")
+	}
+}
+
+func TestCacheKey_Group_IsolatesAcrossGroups(t *testing.T) {
+	// Different group names must produce different keys for the same URL.
+	req, _ := http.NewRequest(http.MethodGet, "https://api.example.com/items", nil)
+
+	keyG1 := cacheKey("route1", req, nil, "group-a")
+	keyG2 := cacheKey("route1", req, nil, "group-b")
+	keyNoGroup := cacheKey("route1", req, nil, "")
+
+	if keyG1 == keyG2 {
+		t.Error("different group names must produce different cache keys")
+	}
+	if keyG1 == keyNoGroup {
+		t.Error("group key must differ from non-group key even for same route+URL")
+	}
+}
+
+func TestCacheKey_Group_IndependentOfRouteID(t *testing.T) {
+	// With a group, the routeID is NOT folded in — two different routes sharing the
+	// same group name and URL share a cache entry.
+	req, _ := http.NewRequest(http.MethodGet, "https://api.example.com/items", nil)
+
+	keyRoute1 := cacheKey("route1", req, nil, "shared-group")
+	keyRoute2 := cacheKey("route2", req, nil, "shared-group")
+
+	if keyRoute1 != keyRoute2 {
+		t.Error("group mode: different routeIDs with same group+URL must share the same cache key")
+	}
+}
+
+func TestCreateFilter_GroupArg(t *testing.T) {
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+
+	// 6-arg form: ttl, errorTTL, swrWindow, staleIfError, keyHeaders, group
+	f, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s", "0s", "", "my-public-group"})
+	if err != nil {
+		t.Fatalf("CreateFilter with group arg failed: %v", err)
+	}
+	cf := f.(*cacheFilter)
+	if cf.group != "my-public-group" {
+		t.Errorf("expected group=%q, got %q", "my-public-group", cf.group)
+	}
+
+	// Same group arg → same registry instance
+	f2, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s", "0s", "", "my-public-group"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.(*cacheFilter) != f2.(*cacheFilter) {
+		t.Error("expected same *cacheFilter instance for identical args including group")
+	}
+
+	// Different group → different instance
+	f3, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s", "0s", "", "other-group"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.(*cacheFilter) == f3.(*cacheFilter) {
+		t.Error("expected different *cacheFilter instance for different group arg")
+	}
+}
+
+func TestCacheFilter_Group_CrossUserCoalescing(t *testing.T) {
+	// With group set, two users with different Authorization tokens must hit the
+	// same cache key and share a cache entry (cross-user coalescing is intentional).
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+
+	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m", "0s", "", "public-content"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+	f.fetch = func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("no fetch stub set")
+	}
+	url := "https://cdn.example.com/public/banner"
+
+	// Populate cache via user A.
+	ctxA := newCtx("GET", url, "Bearer token-a")
+	f.Request(ctxA)
+	ctxA.FResponse = upstreamResponseCC(http.StatusOK, `{"banner":"sale"}`, "public, max-age=300")
+	f.Response(ctxA)
+
+	// User B (different token) must get a HIT from the same entry.
+	ctxB := newCtx("GET", url, "Bearer token-b")
+	f.Request(ctxB)
+	if !ctxB.FServed {
+		t.Fatal("group mode: user B must get cache HIT from user A's entry")
+	}
+	bodyB, _ := io.ReadAll(ctxB.FResponse.Body)
+	if string(bodyB) != `{"banner":"sale"}` {
+		t.Fatalf("group mode: user B got wrong payload: %q", bodyB)
 	}
 }
