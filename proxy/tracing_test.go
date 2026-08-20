@@ -1001,3 +1001,71 @@ func verifyHasTag(t *testing.T, span *tracingtest.MockSpan, name string) {
 		t.Logf("%s: %v", name, got)
 	}
 }
+
+func TestSameW3CTraceID(t *testing.T) {
+	const (
+		tp1 = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+		tp2 = "00-4bf92f3577b34da6a3ce929d0e0e4736-b7ad6b7169203331-00"
+		tp3 = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-00f067aa0ba902b7-01"
+	)
+	tests := []struct {
+		a, b string
+		want bool
+	}{
+		{tp1, tp1, true},
+		{tp1, tp2, true},  // same traceID, different spanID/flags
+		{tp1, tp3, false}, // different traceID
+		{"", tp1, false},
+		{tp1, "", false},
+		{"", "", false},
+		{"bad", tp1, false},
+	}
+	for _, tt := range tests {
+		if got := sameW3CTraceID(tt.a, tt.b); got != tt.want {
+			t.Errorf("sameW3CTraceID(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
+
+// TestTraceparentPreservedOnExtractFailure verifies that when the tracer cannot parse
+// an incoming traceparent (Extract fails), skipper forwards the original traceparent
+// header unchanged so downstream services that understand the format keep their chain.
+func TestTraceparentPreservedOnExtractFailure(t *testing.T) {
+	const incomingTraceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+	var receivedTraceparent string
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedTraceparent = r.Header.Get("Traceparent")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	doc := fmt.Sprintf(`r: Path("/") -> "%s"`, backend.URL)
+
+	// tracingtest.NewTracer uses an OpenTracing mock tracer that does not understand
+	// W3C traceparent — Extract will fail, triggering the preserve logic.
+	tracer := tracingtest.NewTracer()
+	params := Params{
+		OpenTracing: &OpenTracingParams{
+			Tracer: tracer,
+		},
+		Flags: FlagsNone,
+	}
+
+	tp, err := newTestProxyWithParams(doc, params)
+	require.NoError(t, err)
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	req, err := http.NewRequest("GET", ps.URL+"/", nil)
+	require.NoError(t, err)
+	req.Header.Set("Traceparent", incomingTraceparent)
+
+	_, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, incomingTraceparent, receivedTraceparent,
+		"original traceparent should be forwarded unchanged when Extract fails")
+}

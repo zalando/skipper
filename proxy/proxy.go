@@ -1129,7 +1129,21 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)
+	origTraceparent := req.Header.Get("Traceparent")
+	origTracestate := req.Header.Get("Tracestate")
 	_ = p.tracing.tracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
+	// If the incoming request had a traceparent that Inject replaced with a different
+	// traceID, the upstream trace context was unrecognized (Extract failed and skipper
+	// started a new root span). Restore the original headers so downstream services
+	// that understand the upstream format keep their trace chain intact.
+	if origTraceparent != "" && !sameW3CTraceID(origTraceparent, req.Header.Get("Traceparent")) {
+		req.Header.Set("Traceparent", origTraceparent)
+		if origTracestate != "" {
+			req.Header.Set("Tracestate", origTracestate)
+		} else {
+			req.Header.Del("Tracestate")
+		}
+	}
 
 	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
 
@@ -2028,6 +2042,19 @@ func injectClientTraceByEvent(req *http.Request, span ot.Span) *http.Request {
 		},
 	}
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+}
+
+// sameW3CTraceID reports whether two W3C traceparent header values carry the same
+// trace ID. The traceparent format is "version-traceID-parentID-flags"; the traceID
+// occupies characters 3–34 (32 hex digits). Returns false if either value is empty
+// or malformed, so callers can treat that as "not the same".
+func sameW3CTraceID(a, b string) bool {
+	// traceparent: "00-<32 hex traceID>-<16 hex spanID>-<2 hex flags>"
+	// minimum length: 2 (version) + 1 (-) + 32 (traceID) = 35
+	if len(a) < 35 || len(b) < 35 || a[2] != '-' || b[2] != '-' {
+		return false
+	}
+	return a[3:35] == b[3:35]
 }
 
 func ensureUTF8(s string) string {
