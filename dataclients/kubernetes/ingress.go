@@ -21,7 +21,6 @@ const (
 	ingressRouteIDPrefix                = "kube"
 	backendWeightsAnnotationKey         = "zalando.org/backend-weights"
 	ratelimitAnnotationKey              = "zalando.org/ratelimit"
-	skipperLoadBalancerAnnotationKey    = "zalando.org/skipper-loadbalancer"
 	skipperBackendProtocolAnnotationKey = "zalando.org/skipper-backend-protocol"
 	pathModeAnnotationKey               = "zalando.org/skipper-ingress-path-mode"
 	trafficZoneAwareAnnotationKey       = "zalando.org/traffic-zone-aware"
@@ -133,7 +132,7 @@ func newIngress(o Options) *ingress {
 
 func getLoadBalancerAlgorithm(m *definitions.Metadata, defaultAlgorithm string) string {
 	algorithm := defaultAlgorithm
-	if algorithmAnnotationValue, ok := m.Annotations[skipperLoadBalancerAnnotationKey]; ok {
+	if algorithmAnnotationValue, ok := m.Annotations[definitions.IngressLoadBalancerAnnotation]; ok {
 		algorithm = algorithmAnnotationValue
 	}
 
