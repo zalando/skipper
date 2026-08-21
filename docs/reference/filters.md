@@ -1011,10 +1011,19 @@ data. Logs can also explode in the amount of bytes, so you have to
 choose a limit. You can log request or response bodies. This filter
 has close to no overhead other than the I/O created by the logger.
 
+The optional status parameter logs the body only if the response status
+code is greater than or equal to it, which is useful to capture the
+bodies of failing requests without logging the successful ones. The
+response body is still streamed in that case, but for the request body
+the status is not known while it streams, so up to limit bytes are
+buffered and logged once the response status is known. The request body
+itself is neither held back nor truncated.
+
 Parameters:
 
 * type: "request" or "response" (string)
 * limit: maximum number of bytes to log (int)
+* status: log only from this response status code on, 100 to 599 (int) - optional
 
 Example:
 
@@ -1022,6 +1031,12 @@ Example:
 * -> logBody("request", 1024) -> "https://www.example.org";
 * -> logBody("response", 1024) -> "https://www.example.org";
 * -> logBody("request", 1024) -> logBody("response", 1024) -> "https://www.example.org";
+```
+
+Log the request body only for server errors:
+
+```
+* -> logBody("request", 1024, 500) -> "https://www.example.org";
 ```
 
 ## Timeout
