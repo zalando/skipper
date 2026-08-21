@@ -198,6 +198,24 @@ func TestValidationHandlers(t *testing.T) {
 			},
 		},
 		{
+			name: "ingress load balancer annotation validation success",
+			path: "/ingresses",
+			payload: newIngressPayload(func(meta map[string]any) {
+				annotations := meta["annotations"].(map[string]any)
+				annotations[definitions.IngressLoadBalancerAnnotation] = "consistentHash"
+			}),
+			expectedAllowed: true,
+		},
+		{
+			name: "ingress load balancer annotation validation error",
+			path: "/ingresses",
+			payload: newIngressPayload(func(meta map[string]any) {
+				annotations := meta["annotations"].(map[string]any)
+				annotations[definitions.IngressLoadBalancerAnnotation] = `consistentHashParam("client_id")`
+			}),
+			expectedMessage: `invalid "zalando.org/skipper-loadbalancer" annotation: unsupported algorithm`,
+		},
+		{
 			name: "ingress route validation success",
 			path: "/ingresses",
 			payload: newIngressPayload(func(meta map[string]any) {

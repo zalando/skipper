@@ -942,3 +942,48 @@ func TestValidateIngress(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateIngressLoadBalancerAnnotation(t *testing.T) {
+	tests := []struct {
+		name      string
+		algorithm string
+		annotated bool
+		wantErr   bool
+	}{
+		{name: "annotation absent"},
+		{name: "empty annotation", annotated: true},
+		{name: "round robin", algorithm: "roundRobin", annotated: true},
+		{name: "random", algorithm: "random", annotated: true},
+		{name: "consistent hash", algorithm: "consistentHash", annotated: true},
+		{name: "power of random choices", algorithm: "powerOfRandomNChoices", annotated: true},
+		{name: "weighted round robin", algorithm: "weightedRoundRobin", annotated: true},
+		{name: "least requests", algorithm: "leastRequests", annotated: true},
+		{name: "filter used as algorithm", algorithm: `consistentHashParam("client_id")`, annotated: true, wantErr: true},
+		{name: "unsupported algorithm", algorithm: "unsupported", annotated: true, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			annotations := make(map[string]string)
+			if tt.annotated {
+				annotations[IngressLoadBalancerAnnotation] = tt.algorithm
+			}
+
+			ingress := &IngressV1Item{
+				Metadata: &Metadata{
+					Namespace:   "ns1",
+					Name:        "ing1",
+					Annotations: annotations,
+				},
+			}
+
+			err := (&IngressV1Validator{}).Validate(ingress)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected validation error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected validation error: %v", err)
+			}
+		})
+	}
+}

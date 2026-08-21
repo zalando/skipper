@@ -7,10 +7,11 @@ import (
 )
 
 const (
-	IngressFilterAnnotation    = "zalando.org/skipper-filter"
-	IngressPredicateAnnotation = "zalando.org/skipper-predicate"
-	IngressRoutesAnnotation    = "zalando.org/skipper-routes"
-	IngressBackendAnnotation   = "zalando.org/skipper-backend"
+	IngressFilterAnnotation       = "zalando.org/skipper-filter"
+	IngressPredicateAnnotation    = "zalando.org/skipper-predicate"
+	IngressRoutesAnnotation       = "zalando.org/skipper-routes"
+	IngressBackendAnnotation      = "zalando.org/skipper-backend"
+	IngressLoadBalancerAnnotation = "zalando.org/skipper-loadbalancer"
 )
 
 var errInvalidPortType = errors.New("invalid port type")

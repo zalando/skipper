@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -22,8 +23,22 @@ func (igv *IngressV1Validator) Validate(item *IngressV1Item) error {
 	errs = append(errs, igv.validateFilterAnnotation(item))
 	errs = append(errs, igv.validatePredicateAnnotation(item))
 	errs = append(errs, igv.validateRoutesAnnotation(item))
+	errs = append(errs, igv.validateLoadBalancerAnnotation(item))
 
 	return errors.Join(errs...)
+}
+
+func (igv *IngressV1Validator) validateLoadBalancerAnnotation(item *IngressV1Item) error {
+	algorithm, ok := item.Metadata.Annotations[IngressLoadBalancerAnnotation]
+	if !ok {
+		return nil
+	}
+
+	if _, err := loadbalancer.AlgorithmFromString(algorithm); err != nil {
+		return fmt.Errorf("invalid %q annotation: %w", IngressLoadBalancerAnnotation, err)
+	}
+
+	return nil
 }
 
 func (igv *IngressV1Validator) validateFilterAnnotation(item *IngressV1Item) error {
