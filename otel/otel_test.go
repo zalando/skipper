@@ -118,6 +118,92 @@ func TestOtel(t *testing.T) {
 				TracesExporter: "console",
 				Propagators:    []string{"baggage"},
 			},
+		},
+		{
+			name: "test otel sampler always_on",
+			opt: &Options{
+				TracesExporter: "console",
+				Sampler:        "always_on",
+			},
+		},
+		{
+			name: "test otel sampler always_off",
+			opt: &Options{
+				TracesExporter: "console",
+				Sampler:        "always_off",
+			},
+		},
+		{
+			name: "test otel sampler traceidratio without arg",
+			opt: &Options{
+				TracesExporter: "console",
+				Sampler:        "traceidratio",
+			},
+		},
+		{
+			name: "test otel sampler traceidratio with arg",
+			opt: &Options{
+				TracesExporter: "console",
+				Sampler:        "traceidratio",
+				SamplerArg:     "0.5",
+			},
+		},
+		{
+			name: "test otel sampler parentbased_always_on",
+			opt: &Options{
+				TracesExporter: "console",
+				Sampler:        "parentbased_always_on",
+			},
+		},
+		{
+			name: "test otel sampler parentbased_always_off",
+			opt: &Options{
+				TracesExporter: "console",
+				Sampler:        "parentbased_always_off",
+			},
+		},
+		{
+			name: "test otel sampler parentbased_traceidratio",
+			opt: &Options{
+				TracesExporter: "console",
+				Sampler:        "parentbased_traceidratio",
+				SamplerArg:     "0.1",
+			},
+		},
+		{
+			name: "test otel sampler unknown",
+			opt: &Options{
+				TracesExporter: "console",
+				Sampler:        "unknown",
+			},
+			errString: "invalid sampler \"unknown\" - should be one of ['always_on', 'always_off', 'traceidratio', 'parentbased_always_on', 'parentbased_always_off', 'parentbased_traceidratio']",
+		},
+		{
+			name: "test otel sampler traceidratio with invalid arg",
+			opt: &Options{
+				TracesExporter: "console",
+				Sampler:        "traceidratio",
+				SamplerArg:     "not-a-float",
+			},
+			errString: `invalid sampler argument "not-a-float": strconv.ParseFloat: parsing "not-a-float": invalid syntax`,
+		},
+		{
+			name: "test otel sampler traceidratio with out of range arg",
+			opt: &Options{
+				TracesExporter: "console",
+				Sampler:        "traceidratio",
+				SamplerArg:     "1.5",
+			},
+			errString: `invalid sampler argument "1.5": trace ID ratio must be in range [0.0, 1.0]`,
+		},
+		{
+			name: "test otel sampler empty falls back to env",
+			opt: &Options{
+				TracesExporter: "console",
+			},
+			env: map[string]string{
+				"OTEL_TRACES_SAMPLER": "always_on",
+			},
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			for k, v := range tt.env {
