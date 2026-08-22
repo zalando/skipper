@@ -393,6 +393,7 @@ const (
 	AWSSigV4Name                               = "awsSigv4"
 	LoopbackIfStatus                           = "loopbackIfStatus"
 	CacheName                                  = "cache"
+	HTTPMessageSignatureName                   = "httpMessageSignature"
 
 	// Undocumented filters
 	HealthCheckName        = "healthcheck"

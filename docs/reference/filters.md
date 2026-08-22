@@ -2479,6 +2479,42 @@ This filter reads the body in memory. This is needed to generate signature as pe
 This filter resets `read` and `close` implementations of body to default. So when a filter before this filter has some custom implementations of these methods, they would be overwritten.
 
 
+### httpMessageSignature
+
+Signs outgoing HTTP requests according to [RFC 9421 (HTTP Message Signatures)](https://www.rfc-editor.org/rfc/rfc9421). It computes the signature across specified HTTP components and attaches the `Signature-Input` and `Signature` headers. The signing key and key ID are configured globally via command line flags, and key material is loaded dynamically via the configured secrets reader (set via `-credentials-paths`) to support key rotation.
+
+Parameters:
+
+* `Algorithm` (string): Cryptographic signing algorithm. Supported: `"hmac-sha256"`, `"rsa-pss-sha512"`, `"rsa-v1_5-sha256"`, `"ecdsa-p256-sha256"`, `"ed25519"`.
+* `Components` (string): Comma-separated list of HTTP fields and derived components to cover in the signature (e.g., `"@method, @path, @authority, content-type"`).
+* `Signature Label` (string, optional): Label prefix for the headers. Default: `"sig1"`.
+
+Skipper arguments:
+
+| Flag | Required | Description |
+|---|---|---|
+| `-http-message-signature-key-file` | **yes** | Name or path of the key file inside the secrets directory (`-credentials-paths`). |
+| `-http-message-signature-key-id` | **yes** | Key identifier to attach to signature parameters (`keyid="<id>"`). |
+
+Examples:
+
+```
+// Egress signing using HMAC-SHA256
+egress_route:
+    Method("POST")
+    -> httpMessageSignature("hmac-sha256", "@method, @path, @authority, content-type")
+    -> "https://api.partner.com";
+```
+
+```text
+// Egress signing using Ed25519 with a custom signature label
+egress_ed25519:
+    *
+    -> httpMessageSignature("ed25519", "@method, @path, host", "sig-ed")
+    -> "https://secure-service.internal";
+```
+
+
 
 ## Cookie Handling
 ### dropRequestCookie
