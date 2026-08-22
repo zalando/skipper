@@ -18,6 +18,7 @@ listed here:
    * [rateBreaker](filters.md#ratebreaker)
    * [disableBreaker](filters.md#disablebreaker)
 * [bearerinjector](filters.md#bearerinjector) filter, that injects tokens for an app
+* [rfc9421](filters.md#rfc9421) filter, that signs outgoing HTTP requests according to RFC 9421 HTTP Message Signatures using secrets managed by the secrets module
 * The secrets module that does
    * automated secrets rotation read from files used by `bearerinjector filter`
    * dynamic secrets lookup used by `bearerinjector filter`
@@ -118,6 +119,24 @@ Accept-Encoding: gzip
 ```
 
 This example showed bearer injection with secrets rotation.
+
+#### Example RFC 9421 HTTP Message Signatures
+
+Create a private key file:
+
+```bash
+mkdir -p /tmp/secrets
+echo "secret-key-material" > /tmp/secrets/api-key
+```
+
+Run Skipper with `-credentials-paths`:
+
+```bash
+skipper -inline-routes='Host("api.partner.com") -> rfc9421("/tmp/secrets/api-key", "my-key-1", "hmac-sha256", "@method, @path, @authority") -> "https://upstream.partner.com"' -credentials-paths=/tmp/secrets
+```
+
+See the [rfc9421 filter documentation](filters.md#rfc9421) for full configuration
+options and supported signature algorithms.
 
 ##### Reach multiple services
 Often your service wants to reach multiple services, so you need to
