@@ -2479,6 +2479,40 @@ This filter reads the body in memory. This is needed to generate signature as pe
 This filter resets `read` and `close` implementations of body to default. So when a filter before this filter has some custom implementations of these methods, they would be overwritten.
 
 
+### rfc9421
+
+Signs outgoing HTTP requests according to [RFC 9421 (HTTP Message Signatures)](https://www.rfc-editor.org/rfc/rfc9421). It computes the signature across specified HTTP fields and attaches the `Signature-Input` and `Signature` headers.
+
+The private key must be supplied via the temporary `x-rfc9421-private-key` request header. The filter reads the key into memory and deletes the header before forwarding the request upstream.
+
+Parameters:
+
+* `Key ID` (string): Identifier for the signing key (e.g., `"key-1"`).
+* `Algorithm` (string): Cryptographic signing algorithm. Supported: `"hmac-sha256"`, `"rsa-pss-sha512"`, `"rsa-v1_5-sha256"`, `"ecdsa-p256-sha256"`, `"ed25519"`.
+* `Components` (string): Comma-separated list of HTTP fields and derived components to cover in the signature (e.g., `"@method, @path, @authority, content-type"`).
+* `Signature Label` (string, optional): Label prefix for the headers. Default: `"sig1"`.
+
+Examples:
+
+```
+// Egress signing using HMAC-SHA256 with key injected from credentials
+egress_route:
+    Method("POST")
+    -> setRequestHeaderFromSecret("x-rfc9421-private-key", "/tmp/secrets/api-secret")
+    -> rfc9421("my-hmac-key", "hmac-sha256", "@method, @path, @authority, content-type")
+    -> "[https://api.partner.com](https://api.partner.com)";
+```
+
+```
+// Egress signing using Ed25519 with a custom signature label
+egress_ed25519:
+    *
+    -> setRequestHeaderFromSecret("x-rfc9421-private-key", "/tmp/secrets/ed25519.key")
+    -> rfc9421("partner-key-id", "ed25519", "@method, @path, host", "sig-ed")
+    -> "[https://secure-service.internal](https://secure-service.internal)";
+```
+
+
 
 ## Cookie Handling
 ### dropRequestCookie
