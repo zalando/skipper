@@ -7,14 +7,11 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-// shardCount is set to 256 to balance lock contention with baseline memory overhead.
-// As a power of 2, it allows Go compiler to optimize modulo operations into
-// fast bitwise AND operations.
+// shardCount balances lock contention against memory overhead.
+// Power of 2 lets the compiler reduce modulo to bitwise AND.
 const shardCount = 256
 
-// lruItem holds raw []byte instead of Go struct pointers.
-// This eliminates Garbage Collector (GC) scanning overhead and allows us to
-// enforce strict immutability of cached responses.
+// lruItem stores raw bytes to avoid GC scanning of pointer-heavy response structs.
 type lruItem struct {
 	key  string
 	data []byte
@@ -22,12 +19,11 @@ type lruItem struct {
 }
 
 // lruShard is a bounded LRU cache protected by a single mutex.
-// mu is a standard Mutex (not RWMutex) because LRU reads (Get) modify the
-// linked list. Contention is mitigated by sharding.
+// Mutex (not RWMutex) is required because Get promotes entries in the list.
 type lruShard struct {
 	// Immutable after construction; not protected by mu.
 	maxBytes int64
-	onEvict  func() // called once per evicted item; nil = no-op
+	onEvict  func() // called once per evicted item
 
 	mu           sync.Mutex
 	currentBytes int64
@@ -45,14 +41,22 @@ func newLRUShard(maxBytes int64, onEvict func()) *lruShard {
 }
 
 func (s *lruShard) set(key string, data []byte) {
+	evictions := s.setLocked(key, data)
+	// onEvict is called outside the lock: callbacks may call Bytes() which acquires shard mutexes.
+	if s.onEvict != nil {
+		for range evictions {
+			s.onEvict()
+		}
+	}
+}
+
+func (s *lruShard) setLocked(key string, data []byte) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	size := int64(len(data))
 
-	// If item exceeds shard's capacity, we cannot cache it.
-	// We must also remove any existing smaller version of this key
-	// to prevent serving stale or inconsistent data.
+	// Entry exceeds shard capacity; evict any existing version to avoid serving stale data.
 	if size > s.maxBytes {
 		if ele, ok := s.cache[key]; ok {
 			s.ll.Remove(ele)
@@ -60,7 +64,7 @@ func (s *lruShard) set(key string, data []byte) {
 			delete(s.cache, key)
 			s.currentBytes -= item.size
 		}
-		return
+		return 0
 	}
 
 	if ele, ok := s.cache[key]; ok {
@@ -76,9 +80,13 @@ func (s *lruShard) set(key string, data []byte) {
 		s.currentBytes += size
 	}
 
+	var evictions int
 	for s.currentBytes > s.maxBytes {
-		s.removeOldest()
+		if s.removeOldest() {
+			evictions++
+		}
 	}
+	return evictions
 }
 
 func (s *lruShard) get(key string) ([]byte, bool) {
@@ -108,17 +116,18 @@ func (s *lruShard) delete(key string) {
 	}
 }
 
-func (s *lruShard) removeOldest() {
+// removeOldest evicts the LRU item. Returns false when the list is empty.
+// Caller must invoke onEvict outside the lock.
+func (s *lruShard) removeOldest() bool {
 	ele := s.ll.Back()
-	if ele != nil {
-		s.ll.Remove(ele)
-		item := ele.Value.(*lruItem)
-		delete(s.cache, item.key)
-		s.currentBytes -= item.size
-		if s.onEvict != nil {
-			s.onEvict()
-		}
+	if ele == nil {
+		return false
 	}
+	s.ll.Remove(ele)
+	item := ele.Value.(*lruItem)
+	delete(s.cache, item.key)
+	s.currentBytes -= item.size
+	return true
 }
 
 // ShardedByteLRU manages an array of LRU shards to reduce lock contention

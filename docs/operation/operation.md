@@ -1922,3 +1922,83 @@ will be changed to
 ```
 r: SourceFromLast("9.0.0.0/24","2001:67c:20a0::/48") -> ...`
 ```
+
+## Cache
+
+By default entries are stored in an in-process LRU (L1) local to each Skipper process.
+When `--swarm-valkey-urls` is configured, Valkey serves as a shared backing
+store (L2) accessible by all Skipper instances via a client-side consistent hash ring. Every
+read checks L1 first; an L1 hit returns without contacting Valkey.
+
+On every successful Valkey write the entry is also written to L1
+(write-through) with a TTL of `min(--cache-l1-ttl, entry.TTL)`. On a Valkey
+read hit, L1 is warmed with `min(--cache-l1-ttl, remaining freshness)` —
+remaining freshness (`entry.TTL - age`) is used rather than the original TTL to
+prevent L1 from serving the entry beyond Valkey's actual expiry. The default is
+60 seconds, bounding how long Skipper serves a locally-cached entry before
+re-consulting Valkey. Set `--cache-l1-ttl=0` to disable L1 warming and
+restore write-around behaviour (L1 used only when Valkey is unavailable; this
+applies to both read errors (`valkey_get_fallback`) and write errors (`valkey_set_fallback`)).
+
+When an upstream responds successfully to an unsafe method (`POST`, `PUT`, `DELETE`, `PATCH`),
+the filter removes the cached entry for that URL from both Valkey and the local L1.
+Only the local process's L1 is cleared — other Skipper processes in the fleet retain their
+own L1 copies until `--cache-l1-ttl` expires. Set `--cache-l1-ttl` accordingly to bound
+the stale window after an invalidation.
+
+There is no out-of-band operator invalidation API. To clear the cache outside the normal
+unsafe-method path, options are: wait for TTL expiry, restart the Skipper process (clears L1 in-memory cache only; Valkey data persists), or
+delete the key directly in Valkey (L2 only; does not clear other pods' L1).
+
+Concurrent cold-miss requests for the same route and key within one Skipper process are
+coalesced into a single upstream fetch (thundering-herd protection). Requests arriving via
+different routes are not coalesced even if they target the same upstream URL, because the
+route ID is part of the cache key. This protection is also process-local: a fleet of N
+instances may still issue up to N simultaneous origin requests on a cold miss.
+
+The L1 memory budget defaults to 25% of the container's cgroup memory limit,
+falling back to 2 GB if the limit is unreadable. Override it programmatically
+via `skipper.Options.ResponseCacheMaxMemoryBytes`.
+
+!!! note
+    An in-process LRU (L1) is shared across all `cache()` filter instances in the same process.
+    Two routes or two users that produce the same cache key will share the cached entry — the
+    second request is served whatever the first stored. Ensure the cache key includes all
+    dimensions that distinguish responses (e.g. add `Authorization` to `keyHeaders` for
+    per-user routes). The L1 storage budget is divided evenly across 256 internal shards; a
+    single entry larger than one shard's budget is dropped with a warning log.
+
+### Metrics
+
+**Cache outcomes (always active):**
+
+- `cache.hit`: Counter, request served from cache without contacting the upstream
+- `cache.miss`: Counter, request not in cache; upstream was contacted
+- `cache.stale`: Counter, stale entry served while background revalidation was enqueued
+- `cache.coalesce_error`: Counter, singleflight cold-miss fetch returned an error
+
+**LRU (always active):**
+
+- `cache.lru_eviction`: Counter, incremented each time an L1 entry is evicted due to memory pressure
+- `cache.lru_bytes`: Gauge, current L1 usage in bytes
+- `cache.lru_oversized`: Counter, incremented when an entry is too large for any shard and silently dropped
+
+**Revalidation (always active):**
+
+- `cache.reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
+- `cache.reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
+- `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
+- `cache.reval_error`: Counter, background revalidation fetch failures
+- `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
+
+**Valkey (when Valkey is configured):**
+
+- `cache.l1_hit`: Counter, L1 hits that bypassed Valkey
+- `cache.valkey_miss`: Counter, Valkey misses that proceeded to an upstream fetch
+- `cache.valkey_get_fallback`, `cache.valkey_set_fallback`: Counters, reads/writes that fell back to L1 due to Valkey errors
+- `cache.l1_warm_from_valkey`: Counter, entries written into L1 after a successful Valkey Get (write-through on read path)
+
+**OpenTracing span tags (set on every request when a span is active):**
+
+- `cache_status`: `"hit"`, `"miss"`, or `"stale"`
+- `cache_ttl_remaining_ms`: remaining freshness in milliseconds (only set on hits)
