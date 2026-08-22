@@ -236,6 +236,7 @@ func Filters() []filters.Spec {
 		accesslog.NewEnableAccessLog(),
 		auth.NewForwardToken(),
 		auth.NewForwardTokenField(),
+		auth.NewRFC9421(),
 		scheduler.NewFifo(),
 		scheduler.NewFifoWithBody(),
 		scheduler.NewLIFO(),
