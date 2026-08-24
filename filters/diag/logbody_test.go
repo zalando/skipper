@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -371,6 +372,160 @@ func TestLogBody(t *testing.T) {
 		// the response body is still delivered to the client
 		if rspBody != strings.Repeat("b", 10) {
 			t.Fatalf("Failed to pass the response body through, got: %q", rspBody)
+		}
+	})
+}
+
+// TestLogBodyRequestStatusConditionClientCancel covers the memory question the
+// status condition raises: with logBody("request", limit, status) the request
+// body cannot be logged while it streams, because the status that decides
+// whether to log it is not known until the response phase. It is therefore
+// buffered, and a client that disconnects while the backend is still working
+// means that buffer is built up for a response phase that never runs.
+//
+// Two properties make that safe, and each is asserted below:
+//
+//  1. the buffer is capped by the filter's own limit argument, not by the size
+//     of the request body, so a large upload cannot inflate it; and
+//  2. the buffer is reachable only from the request's state bag, so it is
+//     released with the request rather than accumulating across cancellations.
+func TestLogBodyRequestStatusConditionClientCancel(t *testing.T) {
+	defer log.SetOutput(os.Stderr)
+
+	const (
+		limit         = 1024
+		bodySize      = 256 * 1024
+		backendSleep  = 500 * time.Millisecond
+		clientTimeout = 20 * time.Millisecond
+	)
+
+	// The backend drains the request body and then sleeps well past the client
+	// timeout, so the client always disconnects before a response status exists.
+	be := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(io.Discard, r.Body)
+		time.Sleep(backendSleep)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer be.Close()
+
+	fr := make(filters.Registry)
+	fr.Register(NewLogBody())
+	routes := eskip.MustParse(fmt.Sprintf(`r: * -> logBody("request", %d, 500) -> "%s"`, limit, be.URL))
+	p := proxytest.New(fr, routes...)
+	defer p.Close()
+
+	body := strings.Repeat("a", bodySize)
+
+	// postAndCancel issues a POST that gives up while the backend is sleeping.
+	// It returns the error the client saw, which must not be nil for the
+	// cancellation assertions below to mean anything.
+	postAndCancel := func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(ctx, "POST", p.URL, strings.NewReader(body))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "text/plain")
+
+		rsp, err := p.Client().Do(req)
+		if err != nil {
+			return err
+		}
+		io.Copy(io.Discard, rsp.Body)
+		rsp.Body.Close()
+		return nil
+	}
+
+	t.Run("the buffered body is capped by the limit, not the body size", func(t *testing.T) {
+		// Drive the stream exactly as Request() does when a status condition
+		// is set: the callback appends to a buffer instead of logging.
+		buf := &bytes.Buffer{}
+		stream := newLogBodyStream(
+			limit,
+			func(chunk []byte) { buf.Write(chunk) },
+			io.NopCloser(strings.NewReader(body)),
+		)
+
+		n, err := io.Copy(io.Discard, stream)
+		if err != nil {
+			t.Fatalf("Failed to read the body through the stream: %v", err)
+		}
+		if err := stream.Close(); err != nil {
+			t.Fatalf("Failed to close the stream: %v", err)
+		}
+
+		// The body still passes through in full ...
+		if n != bodySize {
+			t.Fatalf("Failed to pass the whole body through, want %d bytes, got: %d", bodySize, n)
+		}
+		// ... while only limit bytes of it are ever retained.
+		if buf.Len() != limit {
+			t.Fatalf("Failed to cap the buffered body at %d bytes, got: %d", limit, buf.Len())
+		}
+	})
+
+	t.Run("nothing is logged when the client cancels before the status is known", func(t *testing.T) {
+		logbuf := bytes.NewBuffer(nil)
+		log.SetOutput(logbuf)
+		err := postAndCancel()
+		log.SetOutput(os.Stderr)
+
+		if err == nil {
+			t.Fatalf("Failed to cancel before the backend responded, expected a client error")
+		}
+
+		// Logging is deferred to the response phase, which never sees a status
+		// here, so the buffered body must not reach the log.
+		if got := logbuf.String(); strings.Contains(got, strings.Repeat("a", limit)) {
+			t.Fatalf("Found the buffered request body in the log after cancellation, got: %q", got)
+		}
+	})
+
+	t.Run("repeated cancellations do not accumulate buffers", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("skipping the allocation check in short mode")
+		}
+
+		const iterations = 50
+
+		log.SetOutput(io.Discard)
+		defer log.SetOutput(os.Stderr)
+
+		// Warm up so that one-off proxy and transport allocations are not
+		// counted as growth, then measure across the cancelled requests.
+		if err := postAndCancel(); err == nil {
+			t.Fatalf("Failed to cancel before the backend responded, expected a client error")
+		}
+
+		var before, after runtime.MemStats
+		runtime.GC()
+		runtime.ReadMemStats(&before)
+
+		for i := 0; i < iterations; i++ {
+			if err := postAndCancel(); err == nil {
+				t.Fatalf("Failed to cancel before the backend responded on iteration %d", i)
+			}
+		}
+
+		runtime.GC()
+		runtime.ReadMemStats(&after)
+
+		// Retaining one buffer per cancelled request would grow the heap by
+		// iterations*limit; retaining the whole body would grow it by
+		// iterations*bodySize. The threshold sits far below the latter and well
+		// above ordinary test noise, so it fails on a real leak without being
+		// sensitive to allocation churn.
+		const threshold = iterations * bodySize / 8
+
+		var growth uint64
+		if after.HeapAlloc > before.HeapAlloc {
+			growth = after.HeapAlloc - before.HeapAlloc
+		}
+		if growth > threshold {
+			t.Fatalf("Failed to release the buffered bodies, heap grew by %d bytes over %d cancelled requests, want at most %d",
+				growth, iterations, uint64(threshold))
 		}
 	})
 }

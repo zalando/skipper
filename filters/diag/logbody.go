@@ -24,13 +24,6 @@ type logBody struct {
 }
 
 // NewLogBody creates a filter specification for the 'logBody()' filter.
-//
-// It takes the type of the body to log, "request" or "response", a limit
-// of the number of bytes to log and an optional response status code from
-// which on to log. Without the status code the body is logged in chunks
-// while it streams. With it, a response body is logged the same way once
-// the status matches, while a request body is buffered up to the limit
-// and logged after the response status is known.
 func NewLogBody() filters.Spec { return logBody{} }
 
 // Name returns the logBody filter name.
