@@ -133,6 +133,9 @@ func (f *webhookFilter) Request(ctx filters.FilterContext) {
 
 	// copy required headers from webhook response into the current request
 	for _, hk := range f.forwardResponseHeaderKeys {
+		// Always drop any client-supplied inbound copy to prevent forgery,
+		// then set only the value the webhook returned.
+		ctx.Request().Header.Del(hk)
 		if h, ok := resp.Header[hk]; ok {
 			ctx.Request().Header[hk] = h
 		}

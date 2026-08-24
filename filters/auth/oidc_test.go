@@ -800,6 +800,8 @@ func TestOIDCSetup(t *testing.T) {
 		filterCookies      []string
 		extraClaims        jwt.MapClaims
 		expectCookieName   string
+		reqHeaders         map[string]string
+		expectNoRequest    string
 	}{{
 		msg:             "wrong provider",
 		filter:          `oauthOidcAnyClaims("no url", "", "", "{{ .RedirectURL }}", "", "")`,
@@ -862,6 +864,15 @@ func TestOIDCSetup(t *testing.T) {
 		extraClaims:   jwt.MapClaims{"groups": []string{"CD-Administrators", "Purchasing-Department", "AppX-Test-Users", "white space"}},
 		expected:      200,
 		expectRequest: "X-Auth-Email: someone@example.org\r\nX-Auth-Groups: AppX-Test-Users\r\nX-Auth-Something: somesub",
+	}, {
+		msg: "forged upstream identity header is stripped when claim is missing",
+		// Maps X-Auth-User to a claim that does not exist, so setHeaders takes the
+		// !match.Exists() miss path. Authorization still succeeds via "sub uid".
+		filter: `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "sub uid", "",
+			"x-auth-user:claims.does-not-exist")`,
+		reqHeaders:      map[string]string{"X-Auth-User": "attacker"},
+		expected:        200,
+		expectNoRequest: "attacker",
 	}, {
 		msg: "distributed Azure claims looked up in Microsoft Graph ",
 		filter: `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "sub uid", "",
@@ -960,6 +971,10 @@ func TestOIDCSetup(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				requestDump, _ := httputil.DumpRequest(r, false)
 				assert.Contains(t, string(requestDump), tc.expectRequest, "expected request not fulfilled")
+				if tc.expectNoRequest != "" {
+					assert.NotContains(t, string(requestDump), tc.expectNoRequest,
+						"forged inbound identity header must be stripped before reaching the backend")
+				}
 				assert.NotContains(t, string(requestDump), cmp.Or(tc.expectCookieName, oauthOidcCookieName), "oidc cookie should be dropped")
 				w.Write([]byte("OK"))
 			}))
@@ -1036,6 +1051,10 @@ func TestOIDCSetup(t *testing.T) {
 				return
 			}
 			req.Header.Set(authHeaderName, authHeaderPrefix+testToken)
+
+			for k, v := range tc.reqHeaders {
+				req.Header.Set(k, v)
+			}
 
 			for _, v := range tc.filterCookies {
 				req.Header.Set("Set-Cookie", v)
