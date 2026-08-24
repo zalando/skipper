@@ -1147,6 +1147,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT="https://telemetry-otlp-endpoint.test:4317" \
 OTEL_EXPORTER_OTLP_HEADERS="telemetry-token=telemetry-token-value" \
 OTEL_RESOURCE_ATTRIBUTES="service.name=skipper-ingress,cluster=production" \
 OTEL_PROPAGATORS="tracecontext,ottrace,b3multi,baggage" \
+OTEL_TRACES_SAMPLER="parentbased_always_on" \
 OTEL_BSP_SCHEDULE_DELAY="5s" \
 OTEL_BSP_EXPORT_TIMEOUT="30s" \
 OTEL_BSP_MAX_QUEUE_SIZE="2048" \
@@ -1168,6 +1169,7 @@ resourceAttributes:
   service.name: skipper-ingress
   cluster: production
 propagators: [tracecontext, ottrace, b3multi, baggage]
+sampler: parentbased_always_on
 batchSpanProcessor:
   scheduleDelay: 5s
   exportTimeout: 30s
@@ -1175,6 +1177,42 @@ batchSpanProcessor:
   maxExportBatchSize: 512
 '
 ```
+
+### Sampler
+
+By default the OTel SDK uses a `parentbased_always_on` Sampler: root spans (no
+incoming trace context) are always sampled, but spans with an incoming
+`traceparent` respect the parent's sampled flag. This means that once an
+upstream hop marks a trace as *not* sampled, Skipper stops sampling for the
+rest of that trace and also stops propagating `sampled=1` downstream.
+
+To make Skipper always record its own spans and always propagate
+`sampled=1` to the backend regardless of the incoming trace context, set
+the sampler to `always_on`, either via the `sampler` field or the
+`OTEL_TRACES_SAMPLER` environment variable:
+
+```sh
+skipper -open-telemetry='
+tracesExporter: otlp
+exporterOtlp:
+  endpoint: "https://telemetry-otlp-endpoint.test:4317"
+sampler: always_on
+'
+```
+
+Supported `sampler` values (matching `OTEL_TRACES_SAMPLER`):
+
+- `always_on`
+- `always_off`
+- `traceidratio` (use `samplerArg`/`OTEL_TRACES_SAMPLER_ARG` to set the ratio, e.g. `0.1`)
+- `parentbased_always_on` (default)
+- `parentbased_always_off`
+- `parentbased_traceidratio` (use `samplerArg`/`OTEL_TRACES_SAMPLER_ARG` to set the ratio)
+
+Note that `always_on` also forces 100% of Skipper's own spans to be
+recorded and exported: the sampled bit controls both whether Skipper
+exports a span and whether it propagates `sampled=1` downstream, these
+are not configured independently.
 
 Skipper creates up to 5 different
 [spans](https://opentelemetry.io/docs/concepts/signals/traces/#spans):
