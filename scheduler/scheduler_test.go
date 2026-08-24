@@ -700,6 +700,26 @@ func TestRegistryPreProcessor(t *testing.T) {
 			input:  `* -> lifo(777) -> lifoGroup("g") -> lifo(999) -> lifo() -> setPath("/bar") -> <shunt>`,
 			expect: `* -> lifoGroup("g") -> lifo() -> setPath("/bar") -> <shunt>`,
 		},
+		{
+			name:   "two fifoWithBody",
+			input:  `* -> fifoWithBody(2, 2, "3s") -> fifoWithBody(20, 2, "3s") -> setPath("/foo") -> <shunt>`,
+			expect: `* -> fifoWithBody(20, 2, "3s") -> setPath("/foo") -> <shunt>`,
+		},
+		{
+			name:   "two lifoWithBody",
+			input:  `* -> lifoWithBody(777) -> lifoWithBody() -> setPath("/foo") -> <shunt>`,
+			expect: `* -> lifoWithBody() -> setPath("/foo") -> <shunt>`,
+		},
+		{
+			name:   "fifo and fifoWithBody share a queue",
+			input:  `* -> fifo(2, 2, "3s") -> fifoWithBody(20, 2, "3s") -> setPath("/foo") -> <shunt>`,
+			expect: `* -> fifoWithBody(20, 2, "3s") -> setPath("/foo") -> <shunt>`,
+		},
+		{
+			name:   "lifo and lifoWithBody share a queue",
+			input:  `* -> lifo(777) -> lifoWithBody() -> setPath("/foo") -> <shunt>`,
+			expect: `* -> lifoWithBody() -> setPath("/foo") -> <shunt>`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dc, err := testdataclient.NewDoc(tc.input)
