@@ -2029,6 +2029,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
 	}
 
+	apiUsageMonitoringFilter := apiusagemonitoring.NewApiUsageMonitoring(
+		o.ApiUsageMonitoringEnable,
+		o.ApiUsageMonitoringRealmKeys,
+		o.ApiUsageMonitoringClientKeys,
+		o.ApiUsageMonitoringRealmsTrackingPattern,
+	)
+
 	admissionControlFilter := shedder.NewAdmissionControl(shedder.Options{
 		Tracer:                      tracer,
 		OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
@@ -2057,12 +2064,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		auth.TokenintrospectionWithOptions(auth.NewSecureOAuthTokenintrospectionAllKV, tio),
 		auth.WebhookWithOptions(who),
 		auth.NewOIDCQueryClaimsFilter(),
-		apiusagemonitoring.NewApiUsageMonitoring(
-			o.ApiUsageMonitoringEnable,
-			o.ApiUsageMonitoringRealmKeys,
-			o.ApiUsageMonitoringClientKeys,
-			o.ApiUsageMonitoringRealmsTrackingPattern,
-		),
+		apiUsageMonitoringFilter,
 		admissionControlFilter,
 	)
 
@@ -2513,6 +2515,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	if failClosedRatelimitPostProcessor != nil {
 		ro.PostProcessors = append(ro.PostProcessors, failClosedRatelimitPostProcessor)
 	}
+
+	// the api usage monitoring spec implements routing.PostProcessor to prune its
+	// filter cache (a noop when disabled), so register it unconditionally
+	ro.PostProcessors = append(ro.PostProcessors, apiUsageMonitoringFilter.(routing.PostProcessor))
 
 	if o.DefaultFilters != nil {
 		ro.PreProcessors = append(ro.PreProcessors, o.DefaultFilters)
