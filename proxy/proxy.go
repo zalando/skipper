@@ -295,6 +295,8 @@ type Params struct {
 	EnableCopyStreamPoolExperimental bool
 
 	// DualStack sets if the proxy TCP connections to the backend should be dual stack
+	//
+	// Deprecated: see go net.Dialer.DualStack
 	DualStack bool
 
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
@@ -949,7 +951,6 @@ func newTransport(p Params) *http.Transport {
 		DialContext: newSkipperDialer(net.Dialer{
 			Timeout:   p.Timeout,
 			KeepAlive: p.KeepAlive,
-			DualStack: p.DualStack,
 		}).DialContext,
 		TLSHandshakeTimeout:   p.TLSHandshakeTimeout,
 		ResponseHeaderTimeout: p.ResponseHeaderTimeout,

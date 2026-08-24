@@ -22,11 +22,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -140,9 +142,9 @@ func New(o Options) (*Client, error) {
 	if o.Insecure {
 		httpClient.Transport = &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
-			Dial: (&net.Dialer{
+			DialContext: (&net.Dialer{
 				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second}).Dial,
+				KeepAlive: 30 * time.Second}).DialContext,
 			TLSHandshakeTimeout: 10 * time.Second,
 			/* #nosec */
 			TLSClientConfig: &tls.Config{
@@ -387,7 +389,7 @@ func infoToRoutesLogged(info []*eskip.RouteInfo) []*eskip.Route {
 	return routes
 }
 
-// Returns all the route definitions currently stored in etcd,
+// LoadAndParseAll returns all the route definitions currently stored in etcd,
 // or the parsing error in case of failure.
 func (c *Client) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 	response, err := c.etcdGet()
@@ -412,7 +414,7 @@ func (c *Client) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 	return parseRoutes(data), nil
 }
 
-// Returns all the route definitions currently stored in etcd.
+// LoadAll returns all the route definitions currently stored in etcd.
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	routeInfo, err := c.LoadAndParseAll()
 	if err != nil {
@@ -422,7 +424,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	return infoToRoutesLogged(routeInfo), nil
 }
 
-// Returns the updates (upserts and deletes) since the last initial request
+// LoadUpdate returns the updates (upserts and deletes) since the last initial request
 // or update.
 //
 // It uses etcd's watch functionality that results in blocking this call
@@ -472,7 +474,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	return routes, deletedIds, nil
 }
 
-// Inserts or updates a route in etcd.
+// Upsert does an insert or update a route in etcd.
 func (c *Client) Upsert(r *eskip.Route) error {
 	if r.Id == "" {
 		return errMissingRouteId
@@ -481,7 +483,7 @@ func (c *Client) Upsert(r *eskip.Route) error {
 	return c.etcdSet(r)
 }
 
-// Deletes a route from etcd.
+// Delete a route from etcd.
 func (c *Client) Delete(id string) error {
 	if id == "" {
 		return errMissingRouteId
@@ -497,8 +499,7 @@ func (c *Client) Delete(id string) error {
 
 func (c *Client) UpsertAll(routes []*eskip.Route) error {
 	for _, r := range routes {
-		//lint:ignore SA1019 due to backward compatibility
-		r.Id = eskip.GenerateIfNeeded(r.Id)
+		r.Id = generateIfNeeded(r.Id)
 		err := c.Upsert(r)
 		if err != nil {
 			return err
@@ -521,4 +522,28 @@ func (c *Client) DeleteAllIf(routes []*eskip.Route, cond eskip.RoutePredicate) e
 	}
 
 	return nil
+}
+
+const (
+	randomIDLength = 16
+	// does not contain underscore to produce compatible output with previously used flow id generator
+	alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+)
+
+// generateIfNeeded generates a weak random id for a route if
+// it doesn't have one.
+func generateIfNeeded(existingID string) string {
+	if existingID != "" {
+		return existingID
+	}
+
+	var sb strings.Builder
+	sb.WriteString("route")
+
+	for range randomIDLength {
+		ai := rand.IntN(len(alphabet)) // #nosec
+		sb.WriteByte(alphabet[ai])
+	}
+
+	return sb.String()
 }
