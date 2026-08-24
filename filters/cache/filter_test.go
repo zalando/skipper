@@ -2563,3 +2563,11 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testi
 		t.Fatal("pure RFC mode: response with no freshness directives must not be cached")
 	}
 }
+
+func Benchmark_malicious_matchesETag(b *testing.B) {
+	ifNoneMatch := strings.Repeat(",", http.DefaultMaxHeaderBytes)
+	b.ReportAllocs()
+	for b.Loop() {
+		matchesETag(ifNoneMatch, "foobar")
+	}
+}

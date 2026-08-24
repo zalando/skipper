@@ -849,7 +849,7 @@ func matchesETag(ifNoneMatch, etag string) bool {
 		return strings.TrimPrefix(strings.TrimSpace(e), "W/")
 	}
 	normEtag := normalise(etag)
-	for _, token := range strings.Split(ifNoneMatch, ",") {
+	for token := range strings.SplitSeq(ifNoneMatch, ",") {
 		if normalise(token) == normEtag {
 			return true
 		}
