@@ -133,7 +133,7 @@ func NewCacheFilter(opts Options) filters.Spec {
 	// Start shared background goroutines (one worker + one scraper for all filter instances)
 	spec.bgWg.Add(2)
 	go spec.revalidationWorker()
-	go spec.metricsScraper()
+	go spec.updateMetrics()
 
 	return spec
 }
@@ -258,9 +258,9 @@ func (s *cacheSpec) revalidationWorker() {
 
 const lruBytesScrapeInterval = 10 * time.Second
 
-// metricsScraper periodically updates the lru_bytes gauge so it stays current
+// updateMetrics periodically updates the lru_bytes gauge so it stays current
 // even when no evictions occur. It's spec-level and shared across all filter instances.
-func (s *cacheSpec) metricsScraper() {
+func (s *cacheSpec) updateMetrics() {
 	defer s.bgWg.Done()
 	ticker := time.NewTicker(lruBytesScrapeInterval)
 	defer ticker.Stop()
