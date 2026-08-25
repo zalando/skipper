@@ -163,9 +163,8 @@ vet: $(SOURCES) ## run Go vet
 # TODO(sszuecs) review disabling these checks, f.e.:
 # -ST1003 wrong naming convention Api vs API, Id vs ID
 # -ST1020 too many wrong comments on exported functions to fix right away
-# -SA1019 for now, but we have to fix it
 staticcheck: $(SOURCES) ## run staticcheck
-	staticcheck -checks "all,-ST1003,-ST1020,-SA1019" ./...
+	staticcheck -checks "all,-ST1003,-ST1020" ./...
 
 .PHONY: gosec
 # TODO(sszuecs) review disabling these checks, f.e.:
