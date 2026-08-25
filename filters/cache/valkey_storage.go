@@ -23,7 +23,9 @@ type valkeyClient interface {
 var _ valkeyClient = (*skpnet.ValkeyRingClient)(nil)
 
 // ValkeyStorage implements Storage using a ValkeyRingClient (L2) with
-// automatic fallback to LRUStorage (L1) on any Valkey error.
+// write-through warming of LRUStorage (L1). On Valkey Set errors, L1 is
+// used as a fallback. On Valkey Get errors, the request is treated as a
+// miss and fetched from origin.
 type ValkeyStorage struct {
 	ring    valkeyClient
 	l1      *LRUStorage
@@ -36,7 +38,7 @@ type ValkeyStorage struct {
 //
 //   - l1_hit               — L1 returned a warm entry; Valkey not consulted
 //   - valkey_miss          — clean cache miss (key not found in Valkey)
-//   - valkey_get_fallback  — Valkey error on Get; L1 was consulted instead
+//   - valkey_get_fallback  — Valkey error on Get; treated as a cache miss
 //   - valkey_set_fallback  — Valkey error on Set; L1 was written instead
 //
 // Pass metrics.Default when no test-scoped metrics collector is needed.
@@ -59,10 +61,8 @@ func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
 			return nil, nil
 		}
 		s.metrics.IncCounter("cache.valkey_get_fallback")
-		log.WithError(err).Warn("cache: valkey Get failed, falling back to L1")
-		// Second L1 lookup: a concurrent request may have written to L1 via the
-		// valkey_set_fallback path between our miss above and this Valkey error.
-		return s.l1.Get(ctx, key)
+		log.WithError(err).Warn("cache: valkey Get failed, treating as miss")
+		return nil, nil
 	}
 	var e Entry
 	if err := json.Unmarshal([]byte(data), &e); err != nil {

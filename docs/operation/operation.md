@@ -1937,8 +1937,9 @@ remaining freshness (`entry.TTL - age`) is used rather than the original TTL to
 prevent L1 from serving the entry beyond Valkey's actual expiry. The default is
 60 seconds, bounding how long Skipper serves a locally-cached entry before
 re-consulting Valkey. Set `--cache-l1-ttl=0` to disable L1 warming and
-restore write-around behaviour (L1 used only when Valkey is unavailable; this
-applies to both read errors (`valkey_get_fallback`) and write errors (`valkey_set_fallback`)).
+restore write-around behaviour (on Valkey write errors (`valkey_set_fallback`), L1 is
+used as a fallback; Valkey read errors (`valkey_get_fallback`) are treated as misses
+and do not consult L1).
 
 When an upstream responds successfully to an unsafe method (`POST`, `PUT`, `DELETE`, `PATCH`),
 the filter removes the cached entry for that URL from both Valkey and the local L1.
@@ -1995,7 +1996,8 @@ via `skipper.Options.ResponseCacheMaxMemoryBytes`.
 
 - `cache.l1_hit`: Counter, L1 hits that bypassed Valkey
 - `cache.valkey_miss`: Counter, Valkey misses that proceeded to an upstream fetch
-- `cache.valkey_get_fallback`, `cache.valkey_set_fallback`: Counters, reads/writes that fell back to L1 due to Valkey errors
+- `cache.valkey_get_fallback`: Counter, Valkey Get errors — request treated as a cache miss, fetched from origin
+- `cache.valkey_set_fallback`: Counter, Valkey Set errors — entry written to L1 as fallback
 - `cache.l1_warm_from_valkey`: Counter, entries written into L1 after a successful Valkey Get (write-through on read path)
 
 **OpenTracing span tags (set on every request when a span is active):**
