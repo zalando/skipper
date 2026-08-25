@@ -19,7 +19,7 @@ type leafRequestMatcher struct {
 	exactPath string
 }
 
-func (m *leafRequestMatcher) Match(value interface{}) (bool, interface{}) {
+func (m *leafRequestMatcher) Match(value any) (bool, any) {
 	v, ok := value.(*pathMatcher)
 	if !ok {
 		return false, nil

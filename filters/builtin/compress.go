@@ -66,28 +66,28 @@ var defaultCompressMIME = []string{
 }
 
 var (
-	brotliPool = &sync.Pool{New: func() interface{} {
+	brotliPool = &sync.Pool{New: func() any {
 		ge, err := newEncoder("br", flate.BestSpeed)
 		if err != nil {
 			log.Error(err)
 		}
 		return ge
 	}}
-	gzipPool = &sync.Pool{New: func() interface{} {
+	gzipPool = &sync.Pool{New: func() any {
 		ge, err := newEncoder("gzip", flate.BestSpeed)
 		if err != nil {
 			log.Error(err)
 		}
 		return ge
 	}}
-	deflatePool = &sync.Pool{New: func() interface{} {
+	deflatePool = &sync.Pool{New: func() any {
 		fe, err := newEncoder("deflate", flate.BestSpeed)
 		if err != nil {
 			log.Error(err)
 		}
 		return fe
 	}}
-	zstdPool = &sync.Pool{New: func() interface{} {
+	zstdPool = &sync.Pool{New: func() any {
 		ze, err := newEncoder("zstd", flate.BestSpeed)
 		if err != nil {
 			log.Error(err)
@@ -181,7 +181,7 @@ func (c *compress) Name() string {
 	return filters.CompressName
 }
 
-func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (c *compress) CreateFilter(args []any) (filters.Filter, error) {
 	f := &compress{
 		mime:             defaultCompressMIME,
 		level:            flate.BestSpeed,

@@ -29,7 +29,7 @@ func (annotateSpec) Name() string {
 	return filters.AnnotateName
 }
 
-func (as annotateSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (as annotateSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, fmt.Errorf("requires string key and value arguments")
 	}

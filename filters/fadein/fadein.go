@@ -49,7 +49,7 @@ func NewFadeIn() filters.Spec {
 
 func (fadeIn) Name() string { return filters.FadeInName }
 
-func (fadeIn) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (fadeIn) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) == 0 || len(args) > 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -103,7 +103,7 @@ func endpointKey(scheme, host string) string {
 	return fmt.Sprintf("%s://%s", scheme, host)
 }
 
-func (endpointCreated) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (endpointCreated) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

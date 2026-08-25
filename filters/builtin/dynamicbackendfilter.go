@@ -23,7 +23,7 @@ type dynamicBackendFilter struct {
 }
 
 // verifies that the filter config has one string parameter
-func dynamicBackendFilterConfig(config []interface{}) (string, error) {
+func dynamicBackendFilterConfig(config []any) (string, error) {
 	if len(config) != 1 {
 		return "", filters.ErrInvalidFilterParameters
 	}
@@ -114,7 +114,7 @@ func (spec *dynamicBackendFilter) Name() string {
 }
 
 //lint:ignore ST1016 "spec" makes sense here and we reuse the type for the filter
-func (spec *dynamicBackendFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (spec *dynamicBackendFilter) CreateFilter(config []any) (filters.Filter, error) {
 	input, err := dynamicBackendFilterConfig(config)
 	return &dynamicBackendFilter{typ: spec.typ, input: input}, err
 }

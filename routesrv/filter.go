@@ -21,7 +21,7 @@ type filterContext struct {
 	rsp      *http.Response
 	metrics  metrics.Metrics
 	served   bool
-	stateBag map[string]interface{}
+	stateBag map[string]any
 }
 
 func (fc *filterContext) ResponseWriter() http.ResponseWriter   { return fc.w }
@@ -31,7 +31,7 @@ func (fc *filterContext) OriginalRequest() *http.Request        { return fc.req 
 func (fc *filterContext) OriginalResponse() *http.Response      { return fc.rsp }
 func (fc *filterContext) Served() bool                          { return fc.served }
 func (fc *filterContext) MarkServed()                           { fc.served = true }
-func (fc *filterContext) StateBag() map[string]interface{}      { return fc.stateBag }
+func (fc *filterContext) StateBag() map[string]any              { return fc.stateBag }
 func (fc *filterContext) BackendUrl() string                    { return "" }
 func (fc *filterContext) OutgoingHost() string                  { return "" }
 func (fc *filterContext) SetOutgoingHost(string)                {}

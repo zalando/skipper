@@ -20,7 +20,7 @@ func (logHeader) Name() string {
 	return filters.LogHeaderName
 }
 
-func (logHeader) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (logHeader) CreateFilter(args []any) (filters.Filter, error) {
 	var (
 		request  = false
 		response = false

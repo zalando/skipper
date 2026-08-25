@@ -41,7 +41,7 @@ func (r *redirectInfo) initCurrent(m *definitions.Metadata) {
 
 	r.code = r.defaultCode
 	if annotationCode, ok := m.Annotations[redirectCodeAnnotationKey]; ok {
-		var err interface{}
+		var err any
 		if r.code, err = strconv.Atoi(annotationCode); err != nil ||
 			r.code < http.StatusMultipleChoices ||
 			r.code >= http.StatusBadRequest {
@@ -93,14 +93,14 @@ func initRedirectRoute(r *eskip.Route, code int) {
 	// Give this route a higher weight so that it will get precedence over existing routes
 	r.Predicates = append([]*eskip.Predicate{{
 		Name: predicates.WeightName,
-		Args: []interface{}{float64(1000)},
+		Args: []any{float64(1000)},
 	}}, r.Predicates...)
 
 	// remove all filters and just set redirect filter
 	r.Filters = []*eskip.Filter{
 		{
 			Name: "redirectTo",
-			Args: []interface{}{float64(code), "https:"},
+			Args: []any{float64(code), "https:"},
 		},
 	}
 
@@ -117,7 +117,7 @@ func initDisableRedirectRoute(r *eskip.Route) {
 	// Give this route a higher weight so that it will get precedence over existing routes
 	r.Predicates = append([]*eskip.Predicate{{
 		Name: predicates.WeightName,
-		Args: []interface{}{float64(1000)},
+		Args: []any{float64(1000)},
 	}}, r.Predicates...)
 }
 
@@ -179,14 +179,14 @@ func createHTTPSRedirect(code int, r *eskip.Route) *eskip.Route {
 
 	rr.Predicates = append(rr.Predicates, &eskip.Predicate{
 		Name: "Header",
-		Args: []interface{}{forwardedProtoHeader, "http"},
+		Args: []any{forwardedProtoHeader, "http"},
 	})
 
 	// remove all filters and just set redirect filter
 	rr.Filters = []*eskip.Filter{
 		{
 			Name: "redirectTo",
-			Args: []interface{}{float64(code), "https:"},
+			Args: []any{float64(code), "https:"},
 		},
 	}
 

@@ -42,7 +42,7 @@ func (s *fifoSpec) Name() string {
 // queue for handling requests to limit concurrency of a route. The first
 // parameter is maxConcurrency the second maxQueueSize and the third
 // timeout.
-func (s *fifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *fifoSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 3 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

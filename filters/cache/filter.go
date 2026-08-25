@@ -86,7 +86,7 @@ type cacheSpec struct {
 
 func (s *cacheSpec) Name() string { return filterName }
 
-func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *cacheSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 0 && (len(args) < 3 || len(args) > 5) {
 		return nil, fmt.Errorf("cache: expected 0 or 3-5 args (ttl, errorTTL, swrWindow[, staleIfError[, keyHeaders]]), got %d: %w", len(args), filters.ErrInvalidFilterParameters)
 	}
@@ -332,7 +332,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 	req := ctx.Request().Clone(context.Background())
 
-	ch := f.coldSF.DoChan(key, func() (interface{}, error) {
+	ch := f.coldSF.DoChan(key, func() (any, error) {
 		requestTime := time.Now()
 		resp, err := f.fetch(req)
 		if err != nil {
@@ -579,7 +579,7 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 
 // doRevalidate fetches the upstream resource and refreshes the cache entry.
 func (f *cacheFilter) doRevalidate(key string, req *http.Request) {
-	f.revalSF.Do(key, func() (interface{}, error) { //nolint:errcheck
+	f.revalSF.Do(key, func() (any, error) { //nolint:errcheck
 		req.Header.Set(revalidateHeader, "1")
 		req.URL.Scheme = "http"
 		req.URL.Host = f.listenAddr
@@ -986,7 +986,7 @@ func varyKey(base string, r *http.Request, varyHeaders []string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func toDuration(v interface{}) (time.Duration, error) {
+func toDuration(v any) (time.Duration, error) {
 	s, ok := v.(string)
 	if !ok {
 		return 0, fmt.Errorf("expected string, got %T", v)

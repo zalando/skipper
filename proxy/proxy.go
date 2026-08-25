@@ -624,7 +624,7 @@ func setRequestURLFromRequest(u *url.URL, r *http.Request) {
 	}
 }
 
-func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]interface{}) {
+func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]any) {
 	dbu, ok := stateBag[filters.DynamicBackendURLKey].(string)
 	if ok && dbu != "" {
 		bu, err := url.ParseRequestURI(dbu)
@@ -1831,7 +1831,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				AuthUser:     authUser,
 			}
 
-			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]interface{})
+			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]any)
 			if p.accessLogger != nil {
 				p.accessLogger.LogAccess(entry, additionalData)
 			}

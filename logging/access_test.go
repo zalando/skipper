@@ -119,7 +119,7 @@ func TestAccessLogFormatJSON(t *testing.T) {
 }
 
 func TestAccessLogFormatJSONWithAdditionalData(t *testing.T) {
-	testAccessLogExtended(t, testAccessEntry(), map[string]interface{}{"extra": "extra"}, logExtendedJSONOutput, Options{AccessLogJSONEnabled: true})
+	testAccessLogExtended(t, testAccessEntry(), map[string]any{"extra": "extra"}, logExtendedJSONOutput, Options{AccessLogJSONEnabled: true})
 }
 
 func TestAccessLogFormatJSONWithMaskedQueryParameters(t *testing.T) {

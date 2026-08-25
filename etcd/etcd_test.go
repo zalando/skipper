@@ -56,7 +56,7 @@ func checkInitial(d []*eskip.Route) bool {
 		return false
 	}
 
-	checkFilter := func(f *eskip.Filter, name string, args ...interface{}) bool {
+	checkFilter := func(f *eskip.Filter, name string, args ...any) bool {
 		if f.Name != name {
 			return false
 		}

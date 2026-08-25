@@ -287,7 +287,7 @@ func (c *clusterClient) patchJSON(uri string, payload []byte) error {
 	return nil
 }
 
-func (c *clusterClient) getJSON(uri string, a interface{}) error {
+func (c *clusterClient) getJSON(uri string, a any) error {
 	log.Tracef("making request to: %s", uri)
 
 	req, err := c.createRequest(uri, nil)
@@ -372,7 +372,7 @@ func (c *clusterClient) filterIngressesV1ByClass(items []*definitions.IngressV1I
 	return validIngs
 }
 
-func sortByMetadata(slice interface{}, getMetadata func(int) *definitions.Metadata) {
+func sortByMetadata(slice any, getMetadata func(int) *definitions.Metadata) {
 	sort.Slice(slice, func(i, j int) bool {
 		mI := getMetadata(i)
 		mJ := getMetadata(j)
@@ -840,9 +840,9 @@ func (c *clusterClient) updateIngressesV1Status(state *clusterState) error {
 			continue
 		}
 
-		payload, err := json.Marshal(map[string]interface{}{
-			"status": map[string]interface{}{
-				"loadBalancer": map[string]interface{}{
+		payload, err := json.Marshal(map[string]any{
+			"status": map[string]any{
+				"loadBalancer": map[string]any{
 					"ingress": addresses,
 				},
 			},

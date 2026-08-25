@@ -9,11 +9,11 @@ import (
 )
 
 func TestSedInit(t *testing.T) {
-	args := func(a ...interface{}) []interface{} { return a }
+	args := func(a ...any) []any { return a }
 	for _, test := range []struct {
 		title  string
 		spec   func() filters.Spec
-		args   []interface{}
+		args   []any
 		fail   bool
 		expect filter
 	}{{

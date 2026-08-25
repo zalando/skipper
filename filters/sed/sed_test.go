@@ -16,7 +16,7 @@ import (
 
 type testItem struct {
 	title      string
-	args       []interface{}
+	args       []any
 	body       string
 	bodyReader io.Reader
 	expect     string
@@ -117,7 +117,7 @@ func testRequest(name string, test testItem) func(*testing.T) {
 }
 
 func TestSed(t *testing.T) {
-	args := func(a ...interface{}) []interface{} { return a }
+	args := func(a ...any) []any { return a }
 	for _, test := range []testItem{{
 		title: "empty body",
 		args:  args("foo", "bar"),
@@ -194,7 +194,7 @@ func TestSedLongStream(t *testing.T) {
 		return b
 	}
 
-	baseArgs := []interface{}{pattern, outputString}
+	baseArgs := []any{pattern, outputString}
 
 	t.Run("below max buffer size", testResponse(filters.SedName, testItem{
 		args:       append(baseArgs, bodySize*2),

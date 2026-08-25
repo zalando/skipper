@@ -28,7 +28,7 @@ func (dpf *defaultFiltersFlags) Set(value string) error {
 	return nil
 }
 
-func (dpf *defaultFiltersFlags) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (dpf *defaultFiltersFlags) UnmarshalYAML(unmarshal func(any) error) error {
 	values := make([]string, 1)
 	if err := unmarshal(&values); err != nil {
 		// Try to unmarshal as string for backwards compatibility.

@@ -14,7 +14,7 @@ import (
 )
 
 func TestArgs(t *testing.T) {
-	test := func(s filters.Spec, fail bool, args ...interface{}) func(*testing.T) {
+	test := func(s filters.Spec, fail bool, args ...any) func(*testing.T) {
 		return func(t *testing.T) {
 			if _, err := s.CreateFilter(args); fail && err == nil {
 				t.Error("failed to create filter")
@@ -24,8 +24,8 @@ func TestArgs(t *testing.T) {
 		}
 	}
 
-	testOK := func(s filters.Spec, args ...interface{}) func(*testing.T) { return test(s, false, args...) }
-	testErr := func(s filters.Spec, args ...interface{}) func(*testing.T) { return test(s, true, args...) }
+	testOK := func(s filters.Spec, args ...any) func(*testing.T) { return test(s, false, args...) }
+	testErr := func(s filters.Spec, args ...any) func(*testing.T) { return test(s, true, args...) }
 
 	var provider RatelimitProvider = nil
 
@@ -86,7 +86,7 @@ func TestRateLimit(t *testing.T) {
 		s func(RatelimitProvider) filters.Spec,
 		expectedSettings ratelimit.Settings,
 		expectedResponse *http.Response,
-		args ...interface{},
+		args ...any,
 	) func(*testing.T) {
 		return func(t *testing.T) {
 			s := s(&testLimit{t, expectedSettings})

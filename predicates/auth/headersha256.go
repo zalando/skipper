@@ -27,7 +27,7 @@ func (*headerSha256Spec) Name() string {
 }
 
 // Create a predicate instance matching SHA256 hash of the header value
-func (*headerSha256Spec) Create(args []interface{}) (routing.Predicate, error) {
+func (*headerSha256Spec) Create(args []any) (routing.Predicate, error) {
 	if len(args) < 2 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}

@@ -12,139 +12,139 @@ func TestCreateFilter(t *testing.T) {
 	for _, ti := range []struct {
 		msg   string
 		typ   direction
-		args  []interface{}
+		args  []any
 		check filter
 		err   bool
 	}{{
 		"too few arguments",
 		response,
-		[]interface{}{"test-cookie"},
+		[]any{"test-cookie"},
 		filter{},
 		true,
 	}, {
 		"too many arguments",
 		response,
-		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg, "something"},
+		[]any{"test-cookie", "A", 42.0, ChangeOnlyArg, "something"},
 		filter{},
 		true,
 	}, {
 		"too few arguments, js",
 		responseJS,
-		[]interface{}{"test-cookie"},
+		[]any{"test-cookie"},
 		filter{},
 		true,
 	}, {
 		"too many arguments, js",
 		responseJS,
-		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg, "something"},
+		[]any{"test-cookie", "A", 42.0, ChangeOnlyArg, "something"},
 		filter{},
 		true,
 	}, {
 		"too many arguments for request cookie",
 		request,
-		[]interface{}{"test-cookie", "A", 42.0},
+		[]any{"test-cookie", "A", 42.0},
 		filter{},
 		true,
 	}, {
 		"wrong name type",
 		response,
-		[]interface{}{3.14, "A", 42.0},
+		[]any{3.14, "A", 42.0},
 		filter{},
 		true,
 	}, {
 		"empty name",
 		response,
-		[]interface{}{"", "A", 42.0},
+		[]any{"", "A", 42.0},
 		filter{},
 		true,
 	}, {
 		"wrong value type",
 		response,
-		[]interface{}{"test-cookie", 3.14, 42.0},
+		[]any{"test-cookie", 3.14, 42.0},
 		filter{},
 		true,
 	}, {
 		"wrong Max-Age type",
 		response,
-		[]interface{}{"test-cookie", "A", "42"},
+		[]any{"test-cookie", "A", "42"},
 		filter{},
 		true,
 	}, {
 		"wrong name type, JS",
 		responseJS,
-		[]interface{}{3.14, "A", 42.0},
+		[]any{3.14, "A", 42.0},
 		filter{},
 		true,
 	}, {
 		"empty name, JS",
 		responseJS,
-		[]interface{}{"", "A", 42.0},
+		[]any{"", "A", 42.0},
 		filter{},
 		true,
 	}, {
 		"wrong value type, JS",
 		responseJS,
-		[]interface{}{"test-cookie", 3.14, 42.0},
+		[]any{"test-cookie", 3.14, 42.0},
 		filter{},
 		true,
 	}, {
 		"wrong Max-Age type, JS",
 		responseJS,
-		[]interface{}{"test-cookie", "A", "42"},
+		[]any{"test-cookie", "A", "42"},
 		filter{},
 		true,
 	}, {
 		"request cookie",
 		request,
-		[]interface{}{"test-cookie", "A"},
+		[]any{"test-cookie", "A"},
 		filter{typ: request, name: "test-cookie", value: "A"},
 		false,
 	}, {
 		"response session cookie",
 		response,
-		[]interface{}{"test-cookie", "A"},
+		[]any{"test-cookie", "A"},
 		filter{typ: response, name: "test-cookie", value: "A"},
 		false,
 	}, {
 		"response persistent cookie",
 		response,
-		[]interface{}{"test-cookie", "A", 42.0},
+		[]any{"test-cookie", "A", 42.0},
 		filter{typ: response, name: "test-cookie", value: "A", maxAge: 42},
 		false,
 	}, {
 		"response persistent cookie, not change only, explicit",
 		response,
-		[]interface{}{"test-cookie", "A", 42.0, "always"},
+		[]any{"test-cookie", "A", 42.0, "always"},
 		filter{typ: response, name: "test-cookie", value: "A", maxAge: 42},
 		false,
 	}, {
 		"response persistent cookie, change only",
 		response,
-		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
+		[]any{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		filter{typ: response, name: "test-cookie", value: "A", maxAge: 42, changeOnly: true},
 		false,
 	}, {
 		"response session cookie, JS",
 		responseJS,
-		[]interface{}{"test-cookie", "A"},
+		[]any{"test-cookie", "A"},
 		filter{typ: response, name: "test-cookie", value: "A"},
 		false,
 	}, {
 		"response persistent cookie, JS",
 		responseJS,
-		[]interface{}{"test-cookie", "A", 42.0},
+		[]any{"test-cookie", "A", 42.0},
 		filter{typ: response, name: "test-cookie", value: "A", maxAge: 42},
 		false,
 	}, {
 		"response persistent cookie, not change only, explicit, JS",
 		responseJS,
-		[]interface{}{"test-cookie", "A", 42.0, "always"},
+		[]any{"test-cookie", "A", 42.0, "always"},
 		filter{typ: response, name: "test-cookie", value: "A", maxAge: 42},
 		false,
 	}, {
 		"response persistent cookie, change only, JS",
 		responseJS,
-		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
+		[]any{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		filter{typ: response, name: "test-cookie", value: "A", maxAge: 42, changeOnly: true},
 		false,
 	}} {
@@ -192,19 +192,19 @@ func TestSetCookie(t *testing.T) {
 	for _, ti := range []struct {
 		msg           string
 		typ           direction
-		args          []interface{}
+		args          []any
 		requestCookie string
 		check         *http.Cookie
 	}{{
 		"request cookie",
 		request,
-		[]interface{}{"test-cookie", "A"},
+		[]any{"test-cookie", "A"},
 		"",
 		&http.Cookie{Name: "test-cookie", Value: "A"},
 	}, {
 		"response cookie",
 		response,
-		[]interface{}{"test-cookie", "A"},
+		[]any{"test-cookie", "A"},
 		"",
 		&http.Cookie{
 			Name:     "test-cookie",
@@ -215,7 +215,7 @@ func TestSetCookie(t *testing.T) {
 	}, {
 		"response cookie, with Max-Age",
 		response,
-		[]interface{}{"test-cookie", "A", 42.0},
+		[]any{"test-cookie", "A", 42.0},
 		"",
 		&http.Cookie{
 			Name:     "test-cookie",
@@ -227,7 +227,7 @@ func TestSetCookie(t *testing.T) {
 	}, {
 		"delete response cookie",
 		response,
-		[]interface{}{"test-cookie", "deleted", 0.0},
+		[]any{"test-cookie", "deleted", 0.0},
 		"",
 		&http.Cookie{
 			Name:     "test-cookie",
@@ -240,7 +240,7 @@ func TestSetCookie(t *testing.T) {
 	}, {
 		"response cookie, with non-sliding Max-Age",
 		response,
-		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
+		[]any{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		"",
 		&http.Cookie{
 			Name:     "test-cookie",
@@ -252,7 +252,7 @@ func TestSetCookie(t *testing.T) {
 	}, {
 		"response cookie, with non-sliding Max-Age, request contains different value",
 		response,
-		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
+		[]any{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		"B",
 		&http.Cookie{
 			Name:     "test-cookie",
@@ -264,13 +264,13 @@ func TestSetCookie(t *testing.T) {
 	}, {
 		"response cookie, with non-sliding Max-Age, request contains the same value",
 		response,
-		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
+		[]any{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		"A",
 		nil,
 	}, {
 		"response cookie, JS",
 		responseJS,
-		[]interface{}{"test-cookie", "A"},
+		[]any{"test-cookie", "A"},
 		"",
 		&http.Cookie{
 			Name:   "test-cookie",
@@ -280,7 +280,7 @@ func TestSetCookie(t *testing.T) {
 	}, {
 		"response cookie, with Max-Age, JS",
 		responseJS,
-		[]interface{}{"test-cookie", "A", 42.0},
+		[]any{"test-cookie", "A", 42.0},
 		"",
 		&http.Cookie{
 			Name:   "test-cookie",
@@ -291,7 +291,7 @@ func TestSetCookie(t *testing.T) {
 	}, {
 		"delete response js cookie",
 		responseJS,
-		[]interface{}{"test-cookie", "deleted", 0.0},
+		[]any{"test-cookie", "deleted", 0.0},
 		"",
 		&http.Cookie{
 			Name:   "test-cookie",
@@ -303,7 +303,7 @@ func TestSetCookie(t *testing.T) {
 	}, {
 		"response cookie, with non-sliding Max-Age, JS",
 		responseJS,
-		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
+		[]any{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		"",
 		&http.Cookie{
 			Name:   "test-cookie",
@@ -314,7 +314,7 @@ func TestSetCookie(t *testing.T) {
 	}, {
 		"response cookie, with non-sliding Max-Age, request contains different value, JS",
 		responseJS,
-		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
+		[]any{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		"B",
 		&http.Cookie{
 			Name:   "test-cookie",
@@ -325,7 +325,7 @@ func TestSetCookie(t *testing.T) {
 	}, {
 		"response cookie, with non-sliding Max-Age, request contains the same value, JS",
 		responseJS,
-		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
+		[]any{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		"A",
 		nil,
 	}} {
@@ -349,7 +349,7 @@ func TestSetCookie(t *testing.T) {
 			FRequest: &http.Request{
 				Header: http.Header{},
 				Host:   host},
-			FStateBag: map[string]interface{}{},
+			FStateBag: map[string]any{},
 			FResponse: &http.Response{Header: http.Header{}}}
 		if ti.requestCookie != "" {
 			ctx.Request().AddCookie(&http.Cookie{
@@ -516,7 +516,7 @@ func TestDropRequestCookie(t *testing.T) {
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := NewDropRequestCookie()
-			f, err := spec.CreateFilter([]interface{}{tt.arg})
+			f, err := spec.CreateFilter([]any{tt.arg})
 			if err != nil {
 				t.Fatalf("Failed to create filter: %v", err)
 			}
@@ -529,7 +529,7 @@ func TestDropRequestCookie(t *testing.T) {
 				FRequest: &http.Request{
 					Header: tt.cookies,
 					Host:   "foo"},
-				FStateBag: map[string]interface{}{},
+				FStateBag: map[string]any{},
 				FResponse: &http.Response{Header: http.Header{}},
 			}
 
@@ -641,7 +641,7 @@ func TestDropResponseCookie(t *testing.T) {
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := NewDropResponseCookie()
-			f, err := spec.CreateFilter([]interface{}{tt.arg})
+			f, err := spec.CreateFilter([]any{tt.arg})
 			if err != nil {
 				t.Fatalf("Failed to create filter: %v", err)
 			}
@@ -652,7 +652,7 @@ func TestDropResponseCookie(t *testing.T) {
 
 			ctx := &filtertest.Context{
 				FRequest:  &http.Request{},
-				FStateBag: map[string]interface{}{},
+				FStateBag: map[string]any{},
 				FResponse: &http.Response{Header: tt.cookies},
 			}
 

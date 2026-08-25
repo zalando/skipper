@@ -21,7 +21,7 @@ import (
 func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) *cacheFilter {
 	t.Helper()
 	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
-	args := []interface{}{
+	args := []any{
 		ttl.String(),
 		errorTTL.String(),
 		swrWindow.String(),
@@ -52,7 +52,7 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *cacheFilter {
 	t.Helper()
 	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
-	f, err := spec.CreateFilter([]interface{}{})
+	f, err := spec.CreateFilter([]any{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func newCtx(method, rawURL string, authHeader string) *filtertest.Context {
 	}
 	return &filtertest.Context{
 		FRequest:  req,
-		FStateBag: make(map[string]interface{}),
+		FStateBag: make(map[string]any),
 		FMetrics:  &metricstest.MockMetrics{},
 	}
 }
@@ -132,7 +132,7 @@ func TestCacheFilter_MissAndHit(t *testing.T) {
 
 func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
 	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
-	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m", "0s", "Authorization"})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m", "0s", "Authorization"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,12 +254,12 @@ func TestCreateFilter_InvalidArgs(t *testing.T) {
 	t.Cleanup(spec.(*cacheSpec).client.Close)
 	cases := []struct {
 		name string
-		args []interface{}
+		args []any
 	}{
-		{"too few args", []interface{}{"5m", "15s"}},
-		{"bad ttl", []interface{}{"bad", "15s", "30s"}},
-		{"zero ttl", []interface{}{"0s", "15s", "30s"}},
-		{"non-string ttl", []interface{}{300, "15s", "30s"}},
+		{"too few args", []any{"5m", "15s"}},
+		{"bad ttl", []any{"bad", "15s", "30s"}},
+		{"zero ttl", []any{"0s", "15s", "30s"}},
+		{"non-string ttl", []any{300, "15s", "30s"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1191,7 +1191,7 @@ func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
 
 	makeFilter := func(t *testing.T) *cacheFilter {
 		t.Helper()
-		f, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
+		f, err := spec.CreateFilter([]any{"5m", "15s", "30s"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2465,17 +2465,17 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 
 	cases := []struct {
 		name    string
-		args    []interface{}
+		args    []any
 		wantRFC bool
 		wantSIE time.Duration
 		wantErr bool
 	}{
-		{"0 args pure rfc mode", []interface{}{}, true, 0, false},
-		{"3 args force mode", []interface{}{"5m", "15s", "30s"}, false, 0, false},
-		{"4 args staleIfError", []interface{}{"5m", "15s", "30s", "60s"}, false, 60 * time.Second, false},
-		{"1 arg invalid", []interface{}{"5m"}, false, 0, true},
-		{"2 args invalid", []interface{}{"5m", "15s"}, false, 0, true},
-		{"6 args too many", []interface{}{"5m", "15s", "30s", "60s", "Authorization", "extra"}, false, 0, true},
+		{"0 args pure rfc mode", []any{}, true, 0, false},
+		{"3 args force mode", []any{"5m", "15s", "30s"}, false, 0, false},
+		{"4 args staleIfError", []any{"5m", "15s", "30s", "60s"}, false, 60 * time.Second, false},
+		{"1 arg invalid", []any{"5m"}, false, 0, true},
+		{"2 args invalid", []any{"5m", "15s"}, false, 0, true},
+		{"6 args too many", []any{"5m", "15s", "30s", "60s", "Authorization", "extra"}, false, 0, true},
 	}
 
 	for _, tc := range cases {
@@ -2507,7 +2507,7 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 	// no operator ceiling. TTL should equal upstream max-age exactly.
 	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
-	f, err := spec.CreateFilter([]interface{}{})
+	f, err := spec.CreateFilter([]any{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -2539,7 +2539,7 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testi
 	// and no Last-Modified, nothing should be cached (no heuristic without Last-Modified).
 	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
-	f, err := spec.CreateFilter([]interface{}{})
+	f, err := spec.CreateFilter([]any{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

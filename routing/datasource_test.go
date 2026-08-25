@@ -749,7 +749,7 @@ func (w weightedPredicateSpec) Name() string {
 	return w.name
 }
 
-func (w weightedPredicateSpec) Create([]interface{}) (routing.Predicate, error) {
+func (w weightedPredicateSpec) Create([]any) (routing.Predicate, error) {
 	return weightedPredicate{}, nil
 }
 
@@ -764,7 +764,7 @@ type (
 
 func (s slowCreateSpec) Name() string { return "slowCreate" }
 
-func (s slowCreateSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s slowCreateSpec) CreateFilter(args []any) (filters.Filter, error) {
 	d, _ := time.ParseDuration(args[0].(string))
 
 	time.Sleep(d)

@@ -18,7 +18,7 @@ func (t *teeLoopbackSpec) Name() string {
 	return filters.TeeLoopbackName
 }
 
-func (t *teeLoopbackSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (t *teeLoopbackSpec) CreateFilter(args []any) (filters.Filter, error) {
 
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters

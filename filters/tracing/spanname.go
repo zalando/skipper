@@ -30,7 +30,7 @@ func NewSpanName() filters.Spec {
 
 func (s *spec) Name() string { return filters.TracingSpanNameName }
 
-func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *spec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

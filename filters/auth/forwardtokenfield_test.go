@@ -10,7 +10,7 @@ import (
 
 func TestForwardTokenFieldInvalidHeadername(t *testing.T) {
 	ftSpec := NewForwardTokenField()
-	filterArgs := []interface{}{"test-%header\n", "aaa"}
+	filterArgs := []any{"test-%header\n", "aaa"}
 	_, err := ftSpec.CreateFilter(filterArgs)
 	if err == nil {
 		t.Fatalf("bad header name")
@@ -19,7 +19,7 @@ func TestForwardTokenFieldInvalidHeadername(t *testing.T) {
 
 func TestForwardTokenFieldInvalidNumber(t *testing.T) {
 	ftSpec := NewForwardTokenField()
-	filterArgs := []interface{}{"header1"}
+	filterArgs := []any{"header1"}
 	_, err := ftSpec.CreateFilter(filterArgs)
 	if err == nil {
 		t.Fatalf("invalid number of parameters")
@@ -38,20 +38,20 @@ func TestForwardFieldField(t *testing.T) {
 		msg           string
 		path          string
 		stateKey      string
-		state         interface{}
+		state         any
 		expectedValue string
 	}{{
 		path:     "claims.key1",
 		stateKey: oidcClaimsCacheKey,
 		state: tokenContainer{
-			Claims: map[string]interface{}{
+			Claims: map[string]any{
 				"key1": "value1",
 			}},
 		expectedValue: "value1",
 	}, {
 		path:     "key1",
 		stateKey: tokeninfoCacheKey,
-		state: map[string]interface{}{
+		state: map[string]any{
 			"key1": "value1",
 		},
 		expectedValue: "value1",
@@ -64,7 +64,7 @@ func TestForwardFieldField(t *testing.T) {
 		expectedValue: "value1",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			var state = map[string]interface{}{
+			var state = map[string]any{
 				ti.stateKey: ti.state,
 			}
 
@@ -73,7 +73,7 @@ func TestForwardFieldField(t *testing.T) {
 
 			c.FRequest.Header.Set(headerName, "oldValue")
 
-			f, _ := spec.CreateFilter([]interface{}{headerName, ti.path})
+			f, _ := spec.CreateFilter([]any{headerName, ti.path})
 			f.Request(c)
 			if c.FRequest.Header.Get(headerName) != ti.expectedValue {
 				t.Fatalf("%s %s does not contain value %s", ti.stateKey, headerName, ti.expectedValue)
@@ -88,12 +88,12 @@ func TestForwardFieldFieldEmpty(t *testing.T) {
 		t.Error("wrong name")
 	}
 
-	f, err := spec.CreateFilter([]interface{}{"Header1", "claims.key1"})
+	f, err := spec.CreateFilter([]any{"Header1", "claims.key1"})
 	if err != nil {
 		t.Fatal("failed to create filter")
 	}
 
-	var state = map[string]interface{}{
+	var state = map[string]any{
 		oidcClaimsCacheKey: tokenContainer{},
 	}
 

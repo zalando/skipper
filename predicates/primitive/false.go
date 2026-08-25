@@ -24,7 +24,7 @@ func (*falseSpec) Name() string {
 }
 
 // Create a predicate instance that always evaluates to false
-func (*falseSpec) Create(args []interface{}) (routing.Predicate, error) {
+func (*falseSpec) Create(args []any) (routing.Predicate, error) {
 	return &falsePredicate{}, nil
 }
 

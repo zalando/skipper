@@ -26,7 +26,7 @@ func (r *regexpListFlag) Set(value string) error {
 	return nil
 }
 
-func (r *regexpListFlag) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (r *regexpListFlag) UnmarshalYAML(unmarshal func(any) error) error {
 	var m map[string][]string
 	if err := unmarshal(&m); err != nil {
 		return err

@@ -373,7 +373,7 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 	return c, nil
 }
 
-func parseWeightPredicateArgs(args []interface{}) (int, error) {
+func parseWeightPredicateArgs(args []any) (int, error) {
 	if len(args) != 1 {
 		return 0, errInvalidWeightParams
 	}
@@ -462,7 +462,7 @@ func validTreePredicates(predicateList []*eskip.Predicate) bool {
 func processTreePredicates(r *Route, predicateList []*eskip.Predicate) error {
 	// backwards compatibility
 	if r.Path != "" {
-		predicateList = append(predicateList, &eskip.Predicate{Name: predicates.PathName, Args: []interface{}{r.Path}})
+		predicateList = append(predicateList, &eskip.Predicate{Name: predicates.PathName, Args: []any{r.Path}})
 	}
 
 	if !validTreePredicates(predicateList) {

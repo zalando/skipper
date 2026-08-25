@@ -13,55 +13,55 @@ func TestEncodeBase64CreateFilter(t *testing.T) {
 	tests := []struct {
 		name    string
 		newSpec func() filters.Spec
-		args    []interface{}
+		args    []any
 		wantErr bool
 	}{
 		{
 			name:    "valid: request header, no index",
 			newSpec: NewEncodeRequestHeaderBase64,
-			args:    []interface{}{"X-Custom"},
+			args:    []any{"X-Custom"},
 			wantErr: false,
 		},
 		{
 			name:    "valid: request header, with index",
 			newSpec: NewEncodeRequestHeaderBase64,
-			args:    []interface{}{"X-Custom", float64(1)},
+			args:    []any{"X-Custom", float64(1)},
 			wantErr: false,
 		},
 		{
 			name:    "valid: response header, no index",
 			newSpec: NewEncodeResponseHeaderBase64,
-			args:    []interface{}{"X-Custom"},
+			args:    []any{"X-Custom"},
 			wantErr: false,
 		},
 		{
 			name:    "valid: response header, with index",
 			newSpec: NewEncodeResponseHeaderBase64,
-			args:    []interface{}{"X-Custom", float64(0)},
+			args:    []any{"X-Custom", float64(0)},
 			wantErr: false,
 		},
 		{
 			name:    "error: no arguments",
 			newSpec: NewEncodeRequestHeaderBase64,
-			args:    []interface{}{},
+			args:    []any{},
 			wantErr: true,
 		},
 		{
 			name:    "error: too many arguments",
 			newSpec: NewEncodeRequestHeaderBase64,
-			args:    []interface{}{"X-Custom", float64(1), "extra"},
+			args:    []any{"X-Custom", float64(1), "extra"},
 			wantErr: true,
 		},
 		{
 			name:    "error: first arg not string",
 			newSpec: NewEncodeRequestHeaderBase64,
-			args:    []interface{}{42},
+			args:    []any{42},
 			wantErr: true,
 		},
 		{
 			name:    "error: second arg not number",
 			newSpec: NewEncodeRequestHeaderBase64,
-			args:    []interface{}{"X-Custom", "not-a-number"},
+			args:    []any{"X-Custom", "not-a-number"},
 			wantErr: true,
 		},
 	}
@@ -111,7 +111,7 @@ func TestEncodeBase64RequestHeaderFullValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := NewEncodeRequestHeaderBase64()
-			f, err := spec.CreateFilter([]interface{}{tt.headerName})
+			f, err := spec.CreateFilter([]any{tt.headerName})
 			if err != nil {
 				t.Fatalf("CreateFilter failed: %v", err)
 			}
@@ -177,7 +177,7 @@ func TestEncodeBase64RequestHeaderWithIndex(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := NewEncodeRequestHeaderBase64()
-			f, err := spec.CreateFilter([]interface{}{tt.headerName, tt.partIndex})
+			f, err := spec.CreateFilter([]any{tt.headerName, tt.partIndex})
 			if err != nil {
 				t.Fatalf("CreateFilter failed: %v", err)
 			}
@@ -224,7 +224,7 @@ func TestEncodeBase64ResponseHeaderFullValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := NewEncodeResponseHeaderBase64()
-			f, err := spec.CreateFilter([]interface{}{tt.headerName})
+			f, err := spec.CreateFilter([]any{tt.headerName})
 			if err != nil {
 				t.Fatalf("CreateFilter failed: %v", err)
 			}
@@ -272,7 +272,7 @@ func TestEncodeBase64ResponseHeaderWithIndex(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := NewEncodeResponseHeaderBase64()
-			f, err := spec.CreateFilter([]interface{}{tt.headerName, tt.partIndex})
+			f, err := spec.CreateFilter([]any{tt.headerName, tt.partIndex})
 			if err != nil {
 				t.Fatalf("CreateFilter failed: %v", err)
 			}
@@ -381,7 +381,7 @@ func TestEncodeBase64FilterNames(t *testing.T) {
 func TestEncodeBase64RealWorldScenario(t *testing.T) {
 	// Scenario: Encode the second part of an Authorization header to base64
 	spec := NewEncodeRequestHeaderBase64()
-	f, err := spec.CreateFilter([]interface{}{"Authorization", float64(1)})
+	f, err := spec.CreateFilter([]any{"Authorization", float64(1)})
 	if err != nil {
 		t.Fatalf("CreateFilter failed: %v", err)
 	}

@@ -380,22 +380,22 @@ func (s *Swarm) broadcast(m *message) error {
 }
 
 // Broadcast sends a broadcast message with a value to all peers.
-func (s *Swarm) Broadcast(m interface{}) error {
+func (s *Swarm) Broadcast(m any) error {
 	return s.broadcast(&message{Type: broadcast, Value: m})
 }
 
 // ShareValue sends a broadcast message with a sharedValue to all
 // peers. It implements the ratelimit.Swarmer interface.
-func (s *Swarm) ShareValue(key string, value interface{}) error {
+func (s *Swarm) ShareValue(key string, value any) error {
 	return s.broadcast(&message{Type: sharedValue, Key: key, Value: value})
 }
 
 // Values sends a request and wait blocking for a response. It
 // implements the ratelimit.Swarmer interface.
-func (s *Swarm) Values(key string) map[string]interface{} {
+func (s *Swarm) Values(key string) map[string]any {
 	req := &valueReq{
 		key: key,
-		ret: make(chan map[string]interface{}),
+		ret: make(chan map[string]any),
 	}
 	s.getValues <- req
 	d := <-req.ret

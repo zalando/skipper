@@ -52,7 +52,7 @@ func (bs *blockSpec) Name() string {
 	return filters.BlockName
 }
 
-func (bs *blockSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (bs *blockSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

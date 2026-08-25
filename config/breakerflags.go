@@ -107,7 +107,7 @@ func (b *breakerFlags) Set(value string) error {
 	return nil
 }
 
-func (b *breakerFlags) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (b *breakerFlags) UnmarshalYAML(unmarshal func(any) error) error {
 	var breakerSettings circuit.BreakerSettings
 	if err := unmarshal(&breakerSettings); err != nil {
 		return err

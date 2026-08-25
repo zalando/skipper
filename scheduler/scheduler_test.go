@@ -338,10 +338,10 @@ func TestConfig(t *testing.T) {
 		f2 := r2.Filters[0]
 
 		// fill up the group queue:
-		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})})
-		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})})
-		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})})
-		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})})
+		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]any)})
+		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]any)})
+		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]any)})
+		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]any)})
 
 		q1 := f1.Filter.(scheduler.LIFOFilter).GetQueue()
 		q2 := f2.Filter.(scheduler.LIFOFilter).GetQueue()
@@ -363,10 +363,10 @@ func TestConfig(t *testing.T) {
 		f := r.Filters[0]
 
 		// fill up the queue:
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 
 		q := f.Filter.(scheduler.FIFOFilter).GetQueue()
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
@@ -375,11 +375,11 @@ func TestConfig(t *testing.T) {
 		updateDoc(t, dc, `route: * -> fifo(3, 2, "3s") -> <shunt>`, nil)
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 0, QueuedRequests: 0})
 
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 3, QueuedRequests: 2})
 	})
 
@@ -393,10 +393,10 @@ func TestConfig(t *testing.T) {
 		f := r.Filters[0]
 
 		// fill up the queue:
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 
 		q := f.Filter.(scheduler.FIFOFilter).GetQueue()
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
@@ -405,11 +405,11 @@ func TestConfig(t *testing.T) {
 		updateDoc(t, dc, `route: * -> fifo(2, 3, "3s") -> <shunt>`, nil)
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 0, QueuedRequests: 0})
 
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 3})
 	})
 
@@ -423,9 +423,9 @@ func TestConfig(t *testing.T) {
 		f := r.Filters[0]
 
 		// fill up the queue:
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 
 		q := f.Filter.(scheduler.FIFOFilter).GetQueue()
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
@@ -436,15 +436,15 @@ func TestConfig(t *testing.T) {
 		// update resets
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 0, QueuedRequests: 0})
 		//filling again
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
 
 		// adding requests won't change the state if we have already too many in queue
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
 	})
 
@@ -458,9 +458,9 @@ func TestConfig(t *testing.T) {
 		f := r.Filters[0]
 
 		// fill up the queue minus one:
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 
 		q := f.Filter.(scheduler.FIFOFilter).GetQueue()
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
@@ -471,15 +471,15 @@ func TestConfig(t *testing.T) {
 		// update resets
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 0, QueuedRequests: 0})
 		// filling again
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 1, QueuedRequests: 2})
 
 		// adding requests won't change the state if we have already too many in queue
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 1, QueuedRequests: 2})
 	})
 
@@ -493,10 +493,10 @@ func TestConfig(t *testing.T) {
 		f := r.Filters[0]
 
 		// fill up the queue:
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 
 		q := f.Filter.(scheduler.FIFOFilter).GetQueue()
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
@@ -508,16 +508,16 @@ func TestConfig(t *testing.T) {
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 0, QueuedRequests: 0})
 
 		// fill up the queue again
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
 
 		// adding requests won't change the state if we have already too many in queue
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
 	})
 
@@ -531,10 +531,10 @@ func TestConfig(t *testing.T) {
 		f := r.Filters[0]
 
 		// fill up the queue minus one:
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 
 		q := f.Filter.(scheduler.FIFOFilter).GetQueue()
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
@@ -546,16 +546,16 @@ func TestConfig(t *testing.T) {
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 0, QueuedRequests: 0})
 
 		// fill up the queue again:
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 1, QueuedRequests: 2})
 
 		// adding requests won't change the state if we have already too many in queue
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 1, QueuedRequests: 2})
 	})
 
@@ -569,10 +569,10 @@ func TestConfig(t *testing.T) {
 		f := r.Filters[0]
 
 		// fill up the queue:
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
-		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]any)})
 
 		q := f.Filter.(scheduler.LIFOFilter).GetQueue()
 		waitForStatus(t, nil, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
@@ -602,10 +602,10 @@ func TestConfig(t *testing.T) {
 		f2 := r2.Filters[0]
 
 		// fill up the group queue:
-		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})})
-		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})})
-		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})})
-		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})})
+		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]any)})
+		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]any)})
+		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]any)})
+		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]any)})
 
 		q := f1.Filter.(scheduler.LIFOFilter).GetQueue()
 		waitForStatus(t, nil, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})

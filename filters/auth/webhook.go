@@ -63,7 +63,7 @@ func (*webhookSpec) Name() string {
 //
 //	s.CreateFilter("https://my-auth-service.example.org/auth")
 //	s.CreateFilter("https://my-auth-service.example.org/auth", "X-Auth-User,X-Auth-User-Roles")
-func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (ws *webhookSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if l := len(args); l == 0 || l > 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

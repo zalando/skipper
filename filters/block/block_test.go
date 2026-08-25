@@ -122,14 +122,14 @@ func TestBlockCreateFilterErrors(t *testing.T) {
 	spec := NewBlock(1024)
 
 	t.Run("empty args", func(t *testing.T) {
-		args := []interface{}{}
+		args := []any{}
 		if _, err := spec.CreateFilter(args); err == nil {
 			t.Error("CreateFilter with empty args should fail")
 		}
 	})
 
 	t.Run("non string args", func(t *testing.T) {
-		args := []interface{}{3}
+		args := []any{3}
 		if _, err := spec.CreateFilter(args); err == nil {
 			t.Error("CreateFilter with non string args should fail")
 		}
@@ -330,7 +330,7 @@ func TestBlockHex(t *testing.T) {
 	fr.Register(spec)
 
 	t.Run("block request", func(t *testing.T) {
-		args := []interface{}{`000a`}
+		args := []any{`000a`}
 		r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
@@ -352,7 +352,7 @@ func TestBlockHex(t *testing.T) {
 	})
 
 	t.Run("block request binary data in request", func(t *testing.T) {
-		args := []interface{}{`000a`}
+		args := []any{`000a`}
 		r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
@@ -374,7 +374,7 @@ func TestBlockHex(t *testing.T) {
 	})
 
 	t.Run("pass request", func(t *testing.T) {
-		args := []interface{}{`000a`}
+		args := []any{`000a`}
 		r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
@@ -396,7 +396,7 @@ func TestBlockHex(t *testing.T) {
 	})
 
 	t.Run("pass request binary data in request", func(t *testing.T) {
-		args := []interface{}{`000a`}
+		args := []any{`000a`}
 		r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()

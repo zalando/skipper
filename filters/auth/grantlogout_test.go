@@ -110,7 +110,7 @@ func TestGrantLogout(t *testing.T) {
 	proxy, client := newAuthProxy(t, config, []*eskip.Route{{
 		Filters: []*eskip.Filter{
 			{Name: filters.GrantLogoutName},
-			{Name: filters.StatusName, Args: []interface{}{http.StatusNoContent}},
+			{Name: filters.StatusName, Args: []any{http.StatusNoContent}},
 		},
 		BackendType: eskip.ShuntBackend,
 	}}, applicationDomain)

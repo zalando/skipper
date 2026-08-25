@@ -37,7 +37,7 @@ func TestFifoChanges(t *testing.T) {
 	spec := filterScheduler.NewFifo()
 	fr := builtin.MakeRegistry()
 	fr.Register(spec)
-	args := []interface{}{
+	args := []any{
 		2,
 		2,
 		"2s",

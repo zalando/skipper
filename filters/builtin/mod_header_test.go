@@ -9,7 +9,7 @@ import (
 
 type createTestItemHost struct {
 	msg  string
-	args []interface{}
+	args []any
 	err  bool
 }
 
@@ -52,7 +52,7 @@ func TestModRequestHostHeader(t *testing.T) {
 	}} {
 		t.Run(tt.msg, func(t *testing.T) {
 			spec := NewModRequestHeader()
-			f, err := spec.CreateFilter([]interface{}{"Host", tt.expression, tt.replacement})
+			f, err := spec.CreateFilter([]any{"Host", tt.expression, tt.replacement})
 			if err != nil {
 				t.Error(err)
 			}
@@ -126,7 +126,7 @@ func TestModRequestHeader(t *testing.T) {
 	}} {
 		t.Run(tt.msg, func(t *testing.T) {
 			spec := NewModRequestHeader()
-			f, err := spec.CreateFilter([]interface{}{tt.headerName, tt.expression, tt.replacement})
+			f, err := spec.CreateFilter([]any{tt.headerName, tt.expression, tt.replacement})
 			if err != nil {
 				t.Error(err)
 			}
@@ -200,7 +200,7 @@ func TestModResponseHeader(t *testing.T) {
 	}} {
 		t.Run(tt.msg, func(t *testing.T) {
 			spec := NewModResponseHeader()
-			f, err := spec.CreateFilter([]interface{}{tt.headerName, tt.expression, tt.replacement})
+			f, err := spec.CreateFilter([]any{tt.headerName, tt.expression, tt.replacement})
 			if err != nil {
 				t.Error(err)
 			}
@@ -229,7 +229,7 @@ func TestModResponseHeader(t *testing.T) {
 
 func TestModifyHostWithInvalidExpression(t *testing.T) {
 	spec := NewModRequestHeader()
-	if f, err := spec.CreateFilter([]interface{}{"Host", "(?=;)", "foo"}); err == nil || f != nil {
+	if f, err := spec.CreateFilter([]any{"Host", "(?=;)", "foo"}); err == nil || f != nil {
 		t.Error("Expected error for invalid regular expression parameter")
 	}
 }
@@ -257,31 +257,31 @@ func TestCreateModHost(t *testing.T) {
 		true,
 	}, {
 		"single arg",
-		[]interface{}{"Host"},
+		[]any{"Host"},
 		true,
 	}, {
 		"two args",
-		[]interface{}{"Host", ".*"},
+		[]any{"Host", ".*"},
 		true,
 	}, {
 		"non-string arg, pos 1",
-		[]interface{}{3.14, ".*", "/foo"},
+		[]any{3.14, ".*", "/foo"},
 		true,
 	}, {
 		"non-string arg, pos 2",
-		[]interface{}{"Host", 2.72, "/foo"},
+		[]any{"Host", 2.72, "/foo"},
 		true,
 	}, {
 		"non-string arg, pos 3",
-		[]interface{}{"Host", ".*", 2.72},
+		[]any{"Host", ".*", 2.72},
 		true,
 	}, {
 		"more than three args",
-		[]interface{}{"Host", ".*", "/foo", "/bar"},
+		[]any{"Host", ".*", "/foo", "/bar"},
 		true,
 	}, {
 		"create",
-		[]interface{}{"Host", ".*", "/foo"},
+		[]any{"Host", ".*", "/foo"},
 		false,
 	}})
 }

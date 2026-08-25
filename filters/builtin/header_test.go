@@ -20,7 +20,7 @@ type testContext struct {
 
 func (c testContext) Name() string { return "testContext" }
 
-func (c testContext) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (c testContext) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -560,7 +560,7 @@ func TestHeader(t *testing.T) {
 
 func BenchmarkCopyRequestHeader(b *testing.B) {
 	spec := NewCopyRequestHeader()
-	f, _ := spec.CreateFilter([]interface{}{"X-Foo", "X-Bar"})
+	f, _ := spec.CreateFilter([]any{"X-Foo", "X-Bar"})
 
 	r, _ := http.NewRequest("GET", "http://example.com", nil)
 	r.Header.Add("X-Foo", "whatever")

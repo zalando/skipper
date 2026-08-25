@@ -48,7 +48,7 @@ func (spec *modPath) Name() string {
 	}
 }
 
-func createModPath(config []interface{}) (filters.Filter, error) {
+func createModPath(config []any) (filters.Filter, error) {
 	if len(config) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -71,7 +71,7 @@ func createModPath(config []interface{}) (filters.Filter, error) {
 	return &modPath{behavior: regexpReplace, rx: rx, replacement: replacement}, nil
 }
 
-func createSetPath(config []interface{}) (filters.Filter, error) {
+func createSetPath(config []any) (filters.Filter, error) {
 	if len(config) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -87,7 +87,7 @@ func createSetPath(config []interface{}) (filters.Filter, error) {
 // Creates instances of the modPath filter.
 //
 //lint:ignore ST1016 "spec" makes sense here and we reuse the type for the filter
-func (spec *modPath) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (spec *modPath) CreateFilter(config []any) (filters.Filter, error) {
 	switch spec.behavior {
 	case regexpReplace:
 		return createModPath(config)

@@ -49,7 +49,7 @@ func applicationAnnotationFilter(labels map[string]string, labelKey string) *esk
 
 	return &eskip.Filter{
 		Name: filters.AnnotateName,
-		Args: []interface{}{applicationAnnotationKey, application},
+		Args: []any{applicationAnnotationKey, application},
 	}
 }
 

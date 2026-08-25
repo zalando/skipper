@@ -92,7 +92,7 @@ func TestHandlerCodaHaleAllMetricsRequest(t *testing.T) {
 		t.Fatalf("Metrics endpoint should provide a valid response, got: %d", rw.Code)
 	}
 
-	var data map[string]map[string]interface{}
+	var data map[string]map[string]any
 	if err := json.Unmarshal(rw.Body.Bytes(), &data); err != nil {
 		t.Fatalf("Unable to unmarshal metrics response: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestHandlerCodaHaleSingleMetricsRequest(t *testing.T) {
 		t.Error("Metrics endpoint should provide a valid response")
 	}
 
-	var data map[string]map[string]interface{}
+	var data map[string]map[string]any
 	if err := json.Unmarshal(rw.Body.Bytes(), &data); err != nil {
 		t.Error("Unable to unmarshal metrics response")
 	}
@@ -153,7 +153,7 @@ func TestHandlerCodaHaleSingleMetricsRequestWhenUsingPrefix(t *testing.T) {
 		t.Error("Metrics endpoint should provide a valid response for exact match using prefix")
 	}
 
-	var data map[string]map[string]interface{}
+	var data map[string]map[string]any
 	if err := json.Unmarshal(rw.Body.Bytes(), &data); err != nil {
 		t.Error("Unable to unmarshal metrics response for exact match using prefix")
 	}
@@ -185,7 +185,7 @@ func TestHandlerCodaHaleMetricsRequestWithPattern(t *testing.T) {
 		t.Error("Metrics endpoint should provide a valid response")
 	}
 
-	var data map[string]map[string]interface{}
+	var data map[string]map[string]any
 	if err := json.Unmarshal(rw.Body.Bytes(), &data); err != nil {
 		t.Error("Unable to unmarshal metrics response")
 	}

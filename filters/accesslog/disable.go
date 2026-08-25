@@ -24,7 +24,7 @@ func NewAccessLogDisabled() filters.Spec {
 
 func (*accessLogDisabled) Name() string { return AccessLogDisabledName }
 
-func (*accessLogDisabled) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (*accessLogDisabled) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

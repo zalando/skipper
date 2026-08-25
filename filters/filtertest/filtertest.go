@@ -17,7 +17,7 @@ import (
 // Implements both the Filter and the Spec interfaces.
 type Filter struct {
 	FilterName string
-	Args       []interface{}
+	Args       []any
 }
 
 // Context is a simple FilterContext implementation.
@@ -29,7 +29,7 @@ type Context struct {
 	FServed             bool
 	FServedWithResponse bool
 	FParams             map[string]string
-	FStateBag           map[string]interface{}
+	FStateBag           map[string]any
 	FBackendUrl         string
 	FOutgoingHost       string
 	FMetrics            filters.Metrics
@@ -47,7 +47,7 @@ func (fc *Context) Response() *http.Response            { return fc.FResponse }
 func (fc *Context) MarkServed()                         { fc.FServed = true }
 func (fc *Context) Served() bool                        { return fc.FServed }
 func (fc *Context) PathParam(key string) string         { return fc.FParams[key] }
-func (fc *Context) StateBag() map[string]interface{}    { return fc.FStateBag }
+func (fc *Context) StateBag() map[string]any            { return fc.FStateBag }
 func (fc *Context) OriginalRequest() *http.Request      { return fc.FOriginalRequest }
 func (fc *Context) OriginalResponse() *http.Response    { return nil }
 func (fc *Context) BackendUrl() string                  { return fc.FBackendUrl }
@@ -81,7 +81,7 @@ func (fc *Context) Serve(resp *http.Response) {
 }
 
 //lint:ignore ST1016 ignore receiver name, because of type reuse
-func (spec *Filter) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (spec *Filter) CreateFilter(config []any) (filters.Filter, error) {
 	return &Filter{spec.FilterName, config}, nil
 }
 

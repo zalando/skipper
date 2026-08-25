@@ -96,7 +96,7 @@ func TestWebhook(t *testing.T) {
 
 			spec := NewWebhook(d)
 
-			args := []interface{}{
+			args := []any{
 				"http://" + authServer.Listener.Addr().String(),
 			}
 
@@ -172,7 +172,7 @@ func TestWebhookStripsForgedInboundHeader(t *testing.T) {
 	defer authServer.Close()
 
 	spec := NewWebhook(100 * time.Millisecond)
-	args := []interface{}{
+	args := []any{
 		"http://" + authServer.Listener.Addr().String(),
 		headerToCopy,
 	}

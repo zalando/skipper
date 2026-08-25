@@ -62,7 +62,7 @@ func benchmarkRegexp(b *testing.B, routesCount, concurrency int) {
 			Id: fmt.Sprintf("route%d", i),
 			Filters: []*eskip.Filter{{
 				Name: "status",
-				Args: []interface{}{200},
+				Args: []any{200},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}
@@ -75,7 +75,7 @@ func benchmarkRegexp(b *testing.B, routesCount, concurrency int) {
 		} else {
 			r.Predicates = append(r.Predicates, &eskip.Predicate{
 				Name: "Path",
-				Args: []interface{}{
+				Args: []any{
 					paths[pg.Rnd.IntN(len(paths))],
 				},
 			})

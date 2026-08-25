@@ -29,7 +29,7 @@ func (*secretHeaderSpec) Name() string {
 	return filters.SetRequestHeaderFromSecretName
 }
 
-func (s *secretHeaderSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *secretHeaderSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) < 2 || len(args) > 4 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

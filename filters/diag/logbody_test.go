@@ -23,32 +23,32 @@ import (
 func TestLogBodyCreateFilter(t *testing.T) {
 	for _, tt := range []struct {
 		name string
-		args []interface{}
+		args []any
 		want error
 	}{
 		{
 			name: "no args should fail",
-			args: []interface{}{},
+			args: []any{},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name: "less than expected args should fail",
-			args: []interface{}{"request"},
+			args: []any{"request"},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name: "wrong arg0 string should fail",
-			args: []interface{}{"REQUEST", 10},
+			args: []any{"REQUEST", 10},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name: "wrong arg0 type should fail",
-			args: []interface{}{5, 10},
+			args: []any{5, 10},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name: "wrong arg1 type should fail",
-			args: []interface{}{"request", "foo"},
+			args: []any{"request", "foo"},
 			want: filters.ErrInvalidFilterParameters,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -299,7 +299,7 @@ func TestHttpBodyLogBodyStream(t *testing.T) {
 		}
 		req.Header.Add(flowid.HeaderName, "foo")
 
-		lg := func(format string, args ...interface{}) {
+		lg := func(format string, args ...any) {
 			s := fmt.Sprintf(format, args...)
 			lgbuf.WriteString(s)
 		}
@@ -363,7 +363,7 @@ func TestHttpBodyLogBodyStream(t *testing.T) {
 		}
 		req.Header.Add(flowid.HeaderName, "foo")
 
-		lg := func(format string, args ...interface{}) {
+		lg := func(format string, args ...any) {
 			s := fmt.Sprintf(format, args...)
 			lgbuf.WriteString(s)
 		}
@@ -424,7 +424,7 @@ func TestHttpBodyLogBodyStream(t *testing.T) {
 			t.Fatalf("Failed to get the expected status code 200, got: %d", rsp.StatusCode)
 		}
 
-		lg := func(format string, args ...interface{}) {
+		lg := func(format string, args ...any) {
 			s := fmt.Sprintf(format, args...)
 			lgbuf.WriteString(s)
 		}
@@ -481,7 +481,7 @@ func TestHttpBodyLogBodyStream(t *testing.T) {
 			t.Fatalf("Failed to get the expected status code 200, got: %d", rsp.StatusCode)
 		}
 
-		lg := func(format string, args ...interface{}) {
+		lg := func(format string, args ...any) {
 			s := fmt.Sprintf(format, args...)
 			lgbuf.WriteString(s)
 		}
@@ -555,7 +555,7 @@ func TestHttpBodyLogBodyStream(t *testing.T) {
 			t.Fatalf("Failed to get the expected status code 200, got: %d", rsp.StatusCode)
 		}
 
-		lg := func(format string, args ...interface{}) {
+		lg := func(format string, args ...any) {
 			s := fmt.Sprintf(format, args...)
 			lgbuf.WriteString(s)
 		}

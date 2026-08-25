@@ -8,52 +8,52 @@ import (
 func TestQueryArgs(t *testing.T) {
 	for _, ti := range []struct {
 		msg  string
-		args []interface{}
+		args []any
 		typ  matchType
 		err  bool
 	}{{
 		"too few args",
-		[]interface{}{},
+		[]any{},
 		0,
 		true,
 	}, {
 		"too many args",
-		[]interface{}{"key", "value", "something"},
+		[]any{"key", "value", "something"},
 		0,
 		true,
 	}, {
 		"exists case",
-		[]interface{}{"query"},
+		[]any{"query"},
 		exists,
 		false,
 	}, {
 		"match case simple",
-		[]interface{}{"key", "value"},
+		[]any{"key", "value"},
 		matches,
 		false,
 	}, {
 		"match case regexp",
-		[]interface{}{"key", "value"},
+		[]any{"key", "value"},
 		matches,
 		false,
 	}, {
 		"invalid regexp",
-		[]interface{}{"key", "value", `\`},
+		[]any{"key", "value", `\`},
 		0,
 		true,
 	}, {
 		"invalid type key",
-		[]interface{}{5, "value"},
+		[]any{5, "value"},
 		0,
 		true,
 	}, {
 		"invalid type value",
-		[]interface{}{"key", 5},
+		[]any{"key", 5},
 		0,
 		true,
 	}, {
 		"invalid regexp string",
-		[]interface{}{"key", `\`},
+		[]any{"key", `\`},
 		0,
 		true,
 	}} {
@@ -88,43 +88,43 @@ func TestQueryArgs(t *testing.T) {
 func TestMatchArgs(t *testing.T) {
 	for _, ti := range []struct {
 		msg    string
-		args   []interface{}
+		args   []any
 		key    string
 		values []string
 		match  bool
 	}{{
 		"find existing params",
-		[]interface{}{"key"},
+		[]any{"key"},
 		"key",
 		[]string{"value"},
 		true,
 	}, {
 		"does not find nonexistent params",
-		[]interface{}{"keyNot"},
+		[]any{"keyNot"},
 		"key",
 		[]string{"value"},
 		false,
 	}, {
 		"find existing params with multiple values",
-		[]interface{}{"key"},
+		[]any{"key"},
 		"key",
 		[]string{"value1", "value2"},
 		true,
 	}, {
 		"match query params",
-		[]interface{}{"key", "^regexp$"},
+		[]any{"key", "^regexp$"},
 		"key",
 		[]string{"regexp"},
 		true,
 	}, {
 		"match query params with multiple values",
-		[]interface{}{"key", "^regexp$"},
+		[]any{"key", "^regexp$"},
 		"key",
 		[]string{"value", "regexp"},
 		true,
 	}, {
 		"does not match nonexistent params",
-		[]interface{}{"key", "^regexp$"},
+		[]any{"key", "^regexp$"},
 		"key",
 		[]string{"value", "value2"},
 		false,

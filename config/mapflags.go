@@ -56,7 +56,7 @@ func (m *mapFlags) Set(value string) error {
 	return nil
 }
 
-func (m *mapFlags) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (m *mapFlags) UnmarshalYAML(unmarshal func(any) error) error {
 	var values = make(map[string]string)
 	if err := unmarshal(&values); err != nil {
 		return err
