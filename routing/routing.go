@@ -494,10 +494,7 @@ func slice(r []*eskip.Route, offset int, limit int) []*eskip.Route {
 	if offset > len(r) {
 		offset = len(r)
 	}
-	end := offset + limit
-	if end > len(r) {
-		end = len(r)
-	}
+	end := min(offset+limit, len(r))
 	result := r[offset:end]
 	if result == nil {
 		return []*eskip.Route{}

@@ -772,10 +772,7 @@ func correctedInitialAge(requestTime, responseTime time.Time, rspHeader http.Hea
 			ageValue = time.Duration(v) * time.Second
 		}
 	}
-	responseDelay := responseTime.Sub(requestTime)
-	if responseDelay < 0 {
-		responseDelay = 0
-	}
+	responseDelay := max(responseTime.Sub(requestTime), 0)
 	correctedAgeValue := ageValue + responseDelay
 	if correctedAgeValue > apparentAge {
 		return correctedAgeValue
@@ -790,20 +787,11 @@ func setAgeHeader(rsp *http.Response, entry *Entry, now time.Time) {
 	var age int64
 	if !entry.ResponseTime.IsZero() {
 		// RFC 9111 §4.2.3 precise formula.
-		residentTime := now.Sub(entry.ResponseTime)
-		if residentTime < 0 {
-			residentTime = 0
-		}
-		secs := int64((entry.CorrectedInitialAge + residentTime).Seconds())
-		if secs < 0 {
-			secs = 0
-		}
+		residentTime := max(now.Sub(entry.ResponseTime), 0)
+		secs := max(int64((entry.CorrectedInitialAge + residentTime).Seconds()), 0)
 		age = secs
 	} else {
-		elapsed := int64(now.Sub(entry.CreatedAt).Seconds())
-		if elapsed < 0 {
-			elapsed = 0
-		}
+		elapsed := max(int64(now.Sub(entry.CreatedAt).Seconds()), 0)
 		if existing := rsp.Header.Get("Age"); existing != "" {
 			if v, err := strconv.ParseInt(existing, 10, 64); err == nil {
 				elapsed += v

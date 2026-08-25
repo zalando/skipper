@@ -87,10 +87,7 @@ func newEditor(
 		maxBufferSize = defaultMaxEditorBufferSize
 	}
 
-	rsize := readBufferSize
-	if maxBufferSize < rsize {
-		rsize = maxBufferSize
-	}
+	rsize := min(maxBufferSize, readBufferSize)
 
 	prefix, _ := pattern.LiteralPrefix()
 	return &editor{
