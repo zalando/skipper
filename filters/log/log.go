@@ -89,10 +89,7 @@ func (tb *teeBody) Write(b []byte) (int, error) {
 		return tb.buffer.Write(b)
 	}
 
-	wl := len(b)
-	if wl >= tb.maxTee {
-		wl = tb.maxTee
-	}
+	wl := min(len(b), tb.maxTee)
 
 	n, err := tb.buffer.Write(b[:wl])
 	if err != nil {

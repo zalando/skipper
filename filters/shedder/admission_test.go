@@ -750,10 +750,3 @@ func (vpp *validationPostProcessorNumberOfFilters) Do(routes []*routing.Route) [
 	go func() { vpp.ch <- routes }()
 	return routes
 }
-
-func max(i, j int) int {
-	if i > j {
-		return i
-	}
-	return j
-}

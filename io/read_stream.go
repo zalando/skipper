@@ -52,10 +52,7 @@ func newMatcher(
 	mbh MaxBufferHandling,
 ) *matcher {
 
-	rsize := defaultReadBufferSize
-	if maxBufferSize < rsize {
-		rsize = maxBufferSize
-	}
+	rsize := min(maxBufferSize, defaultReadBufferSize)
 
 	return &matcher{
 		ctx:               ctx,
