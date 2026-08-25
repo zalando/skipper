@@ -2711,7 +2711,7 @@ func TestCacheFilter_LRUBytesGaugeUpdatesWithoutEviction(t *testing.T) {
 		spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 		t.Cleanup(spec.(*cacheSpec).client.Close)
 		t.Cleanup(func() { spec.(*cacheSpec).Close() })
-		f, err := spec.CreateFilter([]interface{}{5 * time.Minute, 15 * time.Second, 5 * time.Minute})
+		f, err := spec.CreateFilter([]interface{}{"5m", "15s", "5m"})
 		if err != nil {
 			t.Fatal(err)
 		}
