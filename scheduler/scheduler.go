@@ -542,15 +542,28 @@ func (r *Registry) PreProcessor() routing.PreProcessor {
 
 type registryPreProcessor struct{}
 
+// isFifoFilter and isLifoFilter report whether the filter shares the per route
+// queue that Registry.Do assigns. fifo() and fifoWithBody() use the same queue,
+// as do lifo() and lifoWithBody(), so instances have to be counted and removed
+// per family rather than per filter name. lifoGroup() is not included, it is
+// keyed by group name instead of route id.
+func isFifoFilter(name string) bool {
+	return name == filters.FifoName || name == filters.FifoWithBodyName
+}
+
+func isLifoFilter(name string) bool {
+	return name == filters.LifoName || name == filters.LifoWithBodyName
+}
+
 func (registryPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
 	for _, r := range routes {
 		lifoCount := 0
 		fifoCount := 0
 		for _, f := range r.Filters {
-			switch f.Name {
-			case filters.FifoName:
+			switch {
+			case isFifoFilter(f.Name):
 				fifoCount++
-			case filters.LifoName:
+			case isLifoFilter(f.Name):
 				lifoCount++
 			}
 		}
@@ -559,7 +572,7 @@ func (registryPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
 			old := r.Filters
 			r.Filters = make([]*eskip.Filter, 0, len(old)-fifoCount+1)
 			for _, f := range old {
-				if fifoCount > 1 && f.Name == filters.FifoName {
+				if fifoCount > 1 && isFifoFilter(f.Name) {
 					log.Debugf("Removing non-last %v from %s", f, r.Id)
 					fifoCount--
 				} else {
@@ -572,7 +585,7 @@ func (registryPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
 			old := r.Filters
 			r.Filters = make([]*eskip.Filter, 0, len(old)-lifoCount+1)
 			for _, f := range old {
-				if lifoCount > 1 && f.Name == filters.LifoName {
+				if lifoCount > 1 && isLifoFilter(f.Name) {
 					log.Debugf("Removing non-last %v from %s", f, r.Id)
 					lifoCount--
 				} else {
