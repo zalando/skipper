@@ -25,7 +25,7 @@ func (yf *yamlFlag[T]) Set(value string) error {
 	return nil
 }
 
-func (yf *yamlFlag[T]) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (yf *yamlFlag[T]) UnmarshalYAML(unmarshal func(any) error) error {
 	var opts T
 	if err := unmarshal(&opts); err != nil {
 		return err

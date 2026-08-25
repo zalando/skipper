@@ -275,7 +275,7 @@ type TestMatcher struct {
 	match bool
 }
 
-func (fm *TestMatcher) Match(value interface{}) (bool, interface{}) {
+func (fm *TestMatcher) Match(value any) (bool, any) {
 	return fm.match, value
 }
 

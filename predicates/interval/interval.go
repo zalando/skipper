@@ -84,7 +84,7 @@ func (s spec) Name() string {
 	}
 }
 
-func (s spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s spec) Create(args []any) (routing.Predicate, error) {
 	p := predicate{typ: s, getTime: time.Now}
 	var loc *time.Location
 	switch {
@@ -106,7 +106,7 @@ func (s spec) Create(args []interface{}) (routing.Predicate, error) {
 	return nil, predicates.ErrInvalidPredicateParameters
 }
 
-func parseUnix(arg interface{}, t *time.Time) bool {
+func parseUnix(arg any, t *time.Time) bool {
 	switch a := arg.(type) {
 	case float64:
 		*t = time.Unix(int64(a), 0)
@@ -118,7 +118,7 @@ func parseUnix(arg interface{}, t *time.Time) bool {
 	return false
 }
 
-func parseRFC(arg interface{}, t *time.Time) bool {
+func parseRFC(arg any, t *time.Time) bool {
 	if s, ok := arg.(string); ok {
 		tt, err := time.Parse(time.RFC3339, s)
 		if err == nil {
@@ -129,7 +129,7 @@ func parseRFC(arg interface{}, t *time.Time) bool {
 	return false
 }
 
-func parseRFCnz(arg interface{}, t *time.Time, loc *time.Location) bool {
+func parseRFCnz(arg any, t *time.Time, loc *time.Location) bool {
 	if s, ok := arg.(string); ok {
 		tt, err := time.ParseInLocation(rfc3339nz, s, loc)
 		if err == nil {
@@ -140,7 +140,7 @@ func parseRFCnz(arg interface{}, t *time.Time, loc *time.Location) bool {
 	return false
 }
 
-func parseLocation(arg interface{}, loc **time.Location) bool {
+func parseLocation(arg any, loc **time.Location) bool {
 	if s, ok := arg.(string); ok {
 		location, err := time.LoadLocation(s)
 		if err == nil {

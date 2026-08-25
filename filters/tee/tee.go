@@ -304,7 +304,7 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, io.ReadCloser, erro
 // Creates out tee Filter
 // If only one parameter is given shadow backend is used as it is specified
 // If second and third parameters are also set, then path is modified
-func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (spec *teeSpec) CreateFilter(config []any) (filters.Filter, error) {
 	var checkRedirect func(req *http.Request, via []*http.Request) error
 	if spec.options.NoFollow {
 		checkRedirect = func(req *http.Request, via []*http.Request) error {

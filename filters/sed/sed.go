@@ -76,7 +76,7 @@ func (s spec) Name() string {
 	}
 }
 
-func parseMaxBufferHandling(h interface{}) (maxBufferHandling, error) {
+func parseMaxBufferHandling(h any) (maxBufferHandling, error) {
 	switch h {
 	case "best-effort":
 		return maxBufferBestEffort, nil
@@ -87,7 +87,7 @@ func parseMaxBufferHandling(h interface{}) (maxBufferHandling, error) {
 	}
 }
 
-func (s spec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s spec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) < 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -116,8 +116,8 @@ func (s spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	var (
 		delimiterString string
-		maxBuf          interface{}
-		maxBufHandling  interface{}
+		maxBuf          any
+		maxBufHandling  any
 	)
 
 	switch s.typ {

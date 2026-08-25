@@ -58,7 +58,7 @@ func New() routing.PredicateSpec {
 
 func (s *spec) Name() string { return predicates.MethodsName }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []any) (routing.Predicate, error) {
 	if len(args) == 0 {
 		return nil, ErrInvalidArgumentsCount
 	}

@@ -44,7 +44,7 @@ func NewOIDCQueryClaimsFilter() filters.Spec {
 
 // SetOIDCClaims sets OIDC claims in the state bag.
 // Intended for use with the oidcClaimsQuery filter.
-func SetOIDCClaims(ctx filters.FilterContext, claims map[string]interface{}) {
+func SetOIDCClaims(ctx filters.FilterContext, claims map[string]any) {
 	ctx.StateBag()[oidcClaimsCacheKey] = tokenContainer{
 		Claims: claims,
 	}
@@ -58,7 +58,7 @@ func (spec *oidcIntrospectionSpec) Name() string {
 	return AuthUnknown
 }
 
-func (spec *oidcIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (spec *oidcIntrospectionSpec) CreateFilter(args []any) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
 		return nil, err
@@ -154,7 +154,7 @@ func gjsonThisModifier(json, arg string) string {
 	return gjson.Get(json, "[@this].#("+arg+")").Raw
 }
 
-func (filter *oidcIntrospectionFilter) validateClaimsQuery(reqPath string, gotToken map[string]interface{}) bool {
+func (filter *oidcIntrospectionFilter) validateClaimsQuery(reqPath string, gotToken map[string]any) bool {
 	l := len(filter.paths)
 	if l == 0 {
 		return false

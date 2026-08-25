@@ -27,7 +27,7 @@ import (
 func TestNewLIFO(t *testing.T) {
 	for _, tt := range []struct {
 		name       string
-		args       []interface{}
+		args       []any
 		schedFunc  func() filters.Spec
 		wantName   string
 		wantKey    string
@@ -37,7 +37,7 @@ func TestNewLIFO(t *testing.T) {
 	}{
 		{
 			name: "lifo with valid configuration",
-			args: []interface{}{
+			args: []any{
 				10,
 				15,
 				"5s",
@@ -55,7 +55,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifogroup with valid configuration",
-			args: []interface{}{
+			args: []any{
 				"mygroup",
 				10,
 				15,
@@ -74,7 +74,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifoWithBody with valid configuration",
-			args: []interface{}{
+			args: []any{
 				10,
 				15,
 				"5s",
@@ -92,7 +92,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifogroupWithBody with valid configuration",
-			args: []interface{}{
+			args: []any{
 				"mygroup",
 				10,
 				15,
@@ -111,7 +111,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifogroup with valid float64 configuration",
-			args: []interface{}{
+			args: []any{
 				"mygroup",
 				10.1,
 				15.2,
@@ -130,7 +130,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifo with invalid first arg fails",
-			args: []interface{}{
+			args: []any{
 				"a",
 				0,
 			},
@@ -140,7 +140,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifo with invalid second arg fails",
-			args: []interface{}{
+			args: []any{
 				0,
 				"a",
 			},
@@ -150,7 +150,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifo with invalid third arg fails",
-			args: []interface{}{
+			args: []any{
 				0,
 				0,
 				"a",
@@ -161,7 +161,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifogroup with invalid first arg fails",
-			args: []interface{}{
+			args: []any{
 				5,
 				0,
 			},
@@ -171,7 +171,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifogroup with invalid third arg fails",
-			args: []interface{}{
+			args: []any{
 				"foo",
 				0,
 				"a",
@@ -182,7 +182,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifo with too many args fails",
-			args: []interface{}{
+			args: []any{
 				0,
 				0,
 				"1s",
@@ -194,7 +194,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifoGroup with too many args fails",
-			args: []interface{}{
+			args: []any{
 				"foo",
 				0,
 				0,
@@ -207,14 +207,14 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name:      "lifoGroup with no args fails",
-			args:      []interface{}{},
+			args:      []any{},
 			schedFunc: NewLIFOGroup,
 			wantName:  filters.LifoGroupName,
 			wantErr:   true,
 		},
 		{
 			name: "lifo with partial invalid configuration, applies defaults",
-			args: []interface{}{
+			args: []any{
 				0,
 				0,
 			},
@@ -231,7 +231,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifogroup with partial invalid configuration, applies defaults",
-			args: []interface{}{
+			args: []any{
 				"mygroup",
 				0,
 				0,
@@ -250,7 +250,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifo with invalid configuration, does not create filter",
-			args: []interface{}{
+			args: []any{
 				0,
 				0,
 				"4a",
@@ -268,7 +268,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifogroup with invalid configuration, does not create filter",
-			args: []interface{}{
+			args: []any{
 				"mygroup",
 				0,
 				0,
@@ -287,7 +287,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifogroup with invalid duration type, does not create filter",
-			args: []interface{}{
+			args: []any{
 				"mygroup",
 				0,
 				0,
@@ -306,7 +306,7 @@ func TestNewLIFO(t *testing.T) {
 		},
 		{
 			name: "lifogroup with invalid int type, does not create filter",
-			args: []interface{}{
+			args: []any{
 				"mygroup",
 				"foo",
 				0,
@@ -384,7 +384,7 @@ func TestNewLIFO(t *testing.T) {
 			defer backend.Close()
 
 			args := append(tt.args, backend.URL)
-			args = append([]interface{}{l.Name()}, args...)
+			args = append([]any{l.Name()}, args...)
 
 			var doc string
 			switch len(args) {

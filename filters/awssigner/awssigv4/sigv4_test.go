@@ -417,7 +417,7 @@ func buildfilterContext(serviceName string, region string, method string, body *
 	return &filtertest.Context{FRequest: r}
 }
 
-func cmpDiff(e, a interface{}) string {
+func cmpDiff(e, a any) string {
 	if !reflect.DeepEqual(e, a) {
 		return fmt.Sprintf("%v != %v", e, a)
 	}

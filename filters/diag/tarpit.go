@@ -21,7 +21,7 @@ func (t *tarpitSpec) Name() string {
 	return filters.TarpitName
 }
 
-func (t *tarpitSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (t *tarpitSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

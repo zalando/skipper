@@ -92,7 +92,7 @@ func TestUpdateIngressesV1Status(t *testing.T) {
 	t.Run("patches when status changed", func(t *testing.T) {
 		var patched bool
 		var patchedPath string
-		var patchedPayload map[string]interface{}
+		var patchedPayload map[string]any
 
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			require.Equal(t, http.MethodPatch, r.Method)
@@ -129,11 +129,11 @@ func TestUpdateIngressesV1Status(t *testing.T) {
 		require.True(t, patched)
 		require.Equal(t, "/apis/networking.k8s.io/v1/namespaces/default/ingresses/test-ingress/status", patchedPath)
 
-		statusObj, ok := patchedPayload["status"].(map[string]interface{})
+		statusObj, ok := patchedPayload["status"].(map[string]any)
 		require.True(t, ok)
-		loadBalancer, ok := statusObj["loadBalancer"].(map[string]interface{})
+		loadBalancer, ok := statusObj["loadBalancer"].(map[string]any)
 		require.True(t, ok)
-		ingressEntries, ok := loadBalancer["ingress"].([]interface{})
+		ingressEntries, ok := loadBalancer["ingress"].([]any)
 		require.True(t, ok)
 		require.Len(t, ingressEntries, 1)
 	})

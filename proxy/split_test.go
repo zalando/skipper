@@ -17,9 +17,9 @@ import (
 // test filter used in TestRequestURIClonedOnSplit
 type dependentFilter chan string
 
-func (f dependentFilter) Name() string                                       { return "dependentFilter" }
-func (f dependentFilter) CreateFilter([]interface{}) (filters.Filter, error) { return f, nil }
-func (f dependentFilter) Response(filters.FilterContext)                     {}
+func (f dependentFilter) Name() string                               { return "dependentFilter" }
+func (f dependentFilter) CreateFilter([]any) (filters.Filter, error) { return f, nil }
+func (f dependentFilter) Response(filters.FilterContext)             {}
 
 func (f dependentFilter) Request(ctx filters.FilterContext) {
 	f <- ctx.Request().RequestURI

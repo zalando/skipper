@@ -31,7 +31,7 @@ func (s *forwardTokenSpec) Name() string {
 	return filters.ForwardTokenName
 }
 
-func (*forwardTokenSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (*forwardTokenSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) < 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -57,7 +57,7 @@ func (*forwardTokenSpec) CreateFilter(args []interface{}) (filters.Filter, error
 	return &forwardTokenFilter{HeaderName: headerName, RetainJsonKeys: stringifiedRemainingArgs}, nil
 }
 
-func getTokenPayload(ctx filters.FilterContext, cacheKey string) interface{} {
+func getTokenPayload(ctx filters.FilterContext, cacheKey string) any {
 	cachedValue, ok := ctx.StateBag()[cacheKey]
 	if !ok {
 		return nil
@@ -76,7 +76,7 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 
 	if len(f.RetainJsonKeys) > 0 {
 		switch typedTiMap := tiMap.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			tiMap = retainKeys(typedTiMap, f.RetainJsonKeys)
 		case tokenIntrospectionInfo:
 			tiMap = retainKeys(typedTiMap, f.RetainJsonKeys)
@@ -96,8 +96,8 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 
 func (*forwardTokenFilter) Response(filters.FilterContext) {}
 
-func retainKeys(data map[string]interface{}, keys []string) map[string]interface{} {
-	whitelistedKeys := make(map[string]interface{})
+func retainKeys(data map[string]any, keys []string) map[string]any {
+	whitelistedKeys := make(map[string]any)
 	for _, v := range keys {
 		if val, ok := data[v]; ok {
 			whitelistedKeys[v] = val

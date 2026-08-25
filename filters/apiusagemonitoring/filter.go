@@ -239,10 +239,10 @@ func parseJwtBody(req *http.Request) jwtTokenPayload {
 	return token.Claims
 }
 
-type jwtTokenPayload map[string]interface{}
+type jwtTokenPayload map[string]any
 
 func (j jwtTokenPayload) getOneOfString(properties []string) (value string, ok bool) {
-	var rawValue interface{}
+	var rawValue any
 	for _, p := range properties {
 		if rawValue, ok = j[p]; ok {
 			value = fmt.Sprint(rawValue)

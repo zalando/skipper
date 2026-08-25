@@ -13,7 +13,7 @@ var (
 )
 
 type Token struct {
-	Claims map[string]interface{}
+	Claims map[string]any
 }
 
 func Parse(value string) (*Token, error) {
@@ -31,7 +31,7 @@ func Parse(value string) (*Token, error) {
 	return &token, nil
 }
 
-func unmarshalBase64JSON(s string, v interface{}) error {
+func unmarshalBase64JSON(s string, v any) error {
 	d, err := base64.RawURLEncoding.DecodeString(s)
 	if err != nil {
 		return err

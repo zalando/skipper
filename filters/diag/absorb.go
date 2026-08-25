@@ -72,8 +72,8 @@ func (a *absorb) Name() string {
 	return filters.AbsorbName
 }
 
-func (a *absorb) CreateFilter(args []interface{}) (filters.Filter, error) { return a, nil }
-func (a *absorb) Response(filters.FilterContext)                          {}
+func (a *absorb) CreateFilter(args []any) (filters.Filter, error) { return a, nil }
+func (a *absorb) Response(filters.FilterContext)                  {}
 
 func (a *absorb) Request(ctx filters.FilterContext) {
 	req := ctx.Request()

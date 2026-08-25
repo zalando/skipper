@@ -32,7 +32,7 @@ func (*headerToQuerySpec) Name() string {
 
 // CreateFilter creates a `headerToQuery` filter instance with below signature
 // s.CreateFilter("X-Foo-Header", "foo-query-param")
-func (*headerToQuerySpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (*headerToQuerySpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

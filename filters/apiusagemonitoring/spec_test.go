@@ -23,7 +23,7 @@ func Test_CreateSpec(t *testing.T) {
 func Test_FeatureDisableCreateNilFilters(t *testing.T) {
 	spec := NewApiUsageMonitoring(false, "", "", "")
 	assert.IsType(t, &noopSpec{}, spec)
-	filter, err := spec.CreateFilter([]interface{}{})
+	filter, err := spec.CreateFilter([]any{})
 	assert.NoError(t, err)
 	assert.Equal(t, filter, &noopFilter{})
 }
@@ -108,7 +108,7 @@ func Test_FeatureNotEnabled_TypeNameAndCreatedFilterAreRight(t *testing.T) {
 	spec := NewApiUsageMonitoring(false, "", "", "")
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 
-	filter, err := spec.CreateFilter([]interface{}{})
+	filter, err := spec.CreateFilter([]any{})
 
 	assert.NoError(t, err)
 	assert.Equal(t, filter, &noopFilter{})
@@ -117,7 +117,7 @@ func Test_FeatureNotEnabled_TypeNameAndCreatedFilterAreRight(t *testing.T) {
 func Test_CreateFilter_NoParam_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	filter, err := spec.CreateFilter([]interface{}{})
+	filter, err := spec.CreateFilter([]any{})
 
 	assert.Nil(t, err)
 	assert.Equal(t, noopFilter{}, filter)
@@ -126,7 +126,7 @@ func Test_CreateFilter_NoParam_ShouldReturnNoopFilter(t *testing.T) {
 func Test_CreateFilter_EmptyString_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	filter, err := spec.CreateFilter([]interface{}{""})
+	filter, err := spec.CreateFilter([]any{""})
 
 	assert.Nil(t, err)
 	assert.Equal(t, noopFilter{}, filter)
@@ -135,7 +135,7 @@ func Test_CreateFilter_EmptyString_ShouldReturnNoopFilter(t *testing.T) {
 func Test_CreateFilter_NotAString_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	filter, err := spec.CreateFilter([]interface{}{1234})
+	filter, err := spec.CreateFilter([]any{1234})
 
 	assert.Nil(t, err)
 	assert.Equal(t, noopFilter{}, filter)
@@ -144,7 +144,7 @@ func Test_CreateFilter_NotAString_ShouldReturnNoopFilter(t *testing.T) {
 func Test_CreateFilter_NotJson_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	filter, err := spec.CreateFilter([]interface{}{"I am not JSON"})
+	filter, err := spec.CreateFilter([]any{"I am not JSON"})
 
 	assert.Nil(t, err)
 	assert.Equal(t, noopFilter{}, filter)
@@ -153,7 +153,7 @@ func Test_CreateFilter_NotJson_ShouldReturnNoopFilter(t *testing.T) {
 func Test_CreateFilter_EmptyJson_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	filter, err := spec.CreateFilter([]interface{}{"{}"})
+	filter, err := spec.CreateFilter([]any{"{}"})
 
 	assert.Nil(t, err)
 	assert.Equal(t, noopFilter{}, filter)
@@ -162,7 +162,7 @@ func Test_CreateFilter_EmptyJson_ShouldReturnNoopFilter(t *testing.T) {
 func Test_CreateFilter_NoPathTemplate_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	filter, err := spec.CreateFilter([]interface{}{`{
+	filter, err := spec.CreateFilter([]any{`{
 		"application_id": "app",
 		"api_id": "api",
 		"path_templates": []
@@ -175,7 +175,7 @@ func Test_CreateFilter_NoPathTemplate_ShouldReturnNoopFilter(t *testing.T) {
 func Test_CreateFilter_EmptyPathTemplate_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	filter, err := spec.CreateFilter([]interface{}{`{
+	filter, err := spec.CreateFilter([]any{`{
 		"application_id": "my_app",
 		"api_id": "my_api",
 		"path_templates": [
@@ -191,7 +191,7 @@ func Test_CreateFilter_TypoInPropertyNames_ShouldReturnNoopFilter(t *testing.T) 
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
 	// path_template has no `s` and should cause a JSON decoding error.
-	filter, err := spec.CreateFilter([]interface{}{`{
+	filter, err := spec.CreateFilter([]any{`{
 		"application_id": "my_app",
 		"api_id": "my_api",
 		"path_template": [
@@ -204,7 +204,7 @@ func Test_CreateFilter_TypoInPropertyNames_ShouldReturnNoopFilter(t *testing.T) 
 }
 
 func Test_CreateFilter_NonParsableParametersShouldBeLoggedAndIgnored(t *testing.T) {
-	args := []interface{}{
+	args := []any{
 		`{
 			"application_id": "my_app",
 			"api_id": "my_api",
@@ -241,7 +241,7 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 	//   - with {name} variable paths
 	//   - with :name variable paths
 	//   - with/without head/trailing slash
-	args := []interface{}{`{
+	args := []any{`{
 		"application_id": "my_app",
         "tag": "staging",
 		"api_id": "my_api",
@@ -287,7 +287,7 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 func Test_CreateFilter_NoApplicationId_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	filter, err := spec.CreateFilter([]interface{}{`{
+	filter, err := spec.CreateFilter([]any{`{
 		"api_id": "api",
 		"path_templates": [
 			"foo/orders"
@@ -302,7 +302,7 @@ func Test_CreateFilter_NoApplicationId_ShouldReturnNoopFilter(t *testing.T) {
 func Test_CreateFilter_NoApiId_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	filter, err := spec.CreateFilter([]interface{}{`{
+	filter, err := spec.CreateFilter([]any{`{
 		"application_id": "api",
 		"path_templates": [
 			"foo/orders"
@@ -314,7 +314,7 @@ func Test_CreateFilter_NoApiId_ShouldReturnNoopFilter(t *testing.T) {
 }
 
 func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
-	args := []interface{}{
+	args := []any{
 		`{
 			"application_id": "my_app",
 			"api_id": "orders_api",
@@ -382,7 +382,7 @@ func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
 }
 
 func Test_CreateFilter_MultipleApisAsMultipleArgs(t *testing.T) {
-	args := []interface{}{
+	args := []any{
 		`{
 			"application_id": "my_app",
 			"api_id": "orders_api",
@@ -427,7 +427,7 @@ func Test_CreateFilter_MultipleApisAsMultipleArgs(t *testing.T) {
 func Test_CreateFilter_TwoApplicationIds(t *testing.T) {
 	// Two different application_ids both producing paths — unknown path falls
 	// back to the global {unknown}.{unknown} because application_id is mixed.
-	args := []interface{}{
+	args := []any{
 		`{
 			"application_id": "app_a",
 			"api_id": "orders_api",
@@ -465,7 +465,7 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 	// There is a valid object for the 2nd api (customers_api), but no path_templates.
 	// Since the end result is that there are a total to observable paths > 0, it should
 	// be accepted.
-	args := []interface{}{`{
+	args := []any{`{
 			"application_id": "my_order_app",
 			"tag": "staging",
 			"api_id": "orders_api",
@@ -508,7 +508,7 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 	// PathTemplate "foo" and "/foo/" after normalising are the same.
 	// That causes an error, even if under different application or API IDs.
-	args := []interface{}{`{
+	args := []any{`{
 		"application_id": "my_app",
 		"api_id": "orders_api",
 		"path_templates": [
@@ -537,7 +537,7 @@ func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 
 func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
 	// PathTemplate "/foo/:a" and "/foo/:b" yield the same RegExp
-	args := []interface{}{`{
+	args := []any{`{
 		"application_id": "my_app",
 		"api_id": "orders_api",
 		"path_templates": [
@@ -575,7 +575,7 @@ func (ph identPathHandler) createPathPattern(path string) string {
 }
 
 func Test_CreateFilter_RegExCompileFailureIgnoresPath(t *testing.T) {
-	args := []interface{}{`{
+	args := []any{`{
 		"application_id": "my_app",
 		"api_id": "orders_api",
 		"path_templates": [
@@ -701,7 +701,7 @@ func Test_CreateFilter_PartnerClientManagement(t *testing.T) {
 	// This is the canonical multi-API usage of the filter.
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	args := []interface{}{
+	args := []any{
 		`{
 			"api_id": "partner-client-management-api-0.0.1",
 			"application_id": "corporate-single-sign-on",
@@ -777,7 +777,7 @@ func Benchmark_CreateFilter_FullConfigSingleApiNakadi(b *testing.B) {
 		"https://identity.zalando.com/managed-id,sub",
 		"services[.].*")
 
-	args := []interface{}{`{
+	args := []any{`{
 		"application_id": "my_app",
 		"tag": "staging",
 		"api_id": "my_api",
@@ -827,8 +827,8 @@ func Benchmark_CreateFilter_FullConfigSingleApiNakadi(b *testing.B) {
 func Test_PostProcessor_RemovesCachedFiltersOfDeletedRoutes(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "").(*apiUsageMonitoringSpec)
 
-	keptArgs := []interface{}{`{"application_id": "kept", "api_id": "api", "path_templates": ["foo"]}`}
-	goneArgs := []interface{}{`{"application_id": "gone", "api_id": "api", "path_templates": ["bar"]}`}
+	keptArgs := []any{`{"application_id": "kept", "api_id": "api", "path_templates": ["foo"]}`}
+	goneArgs := []any{`{"application_id": "gone", "api_id": "api", "path_templates": ["bar"]}`}
 
 	kept, err := spec.CreateFilter(keptArgs)
 	require.NoError(t, err)

@@ -49,7 +49,7 @@ func (s *leakyBucketSpec) Name() string {
 	return filters.ClusterLeakyBucketRatelimitName
 }
 
-func (s *leakyBucketSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *leakyBucketSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 5 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -124,7 +124,7 @@ func (f *leakyBucketFilter) Request(ctx filters.FilterContext) {
 
 func (*leakyBucketFilter) Response(filters.FilterContext) {}
 
-func natural(arg interface{}) (n int, err error) {
+func natural(arg any) (n int, err error) {
 	n, err = getIntArg(arg)
 	if err == nil && n <= 0 {
 		err = fmt.Errorf(`number %d must be positive`, n)

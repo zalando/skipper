@@ -31,7 +31,7 @@ func (*bearerInjectorSpec) Name() string {
 	return filters.BearerInjectorName
 }
 
-func (b *bearerInjectorSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (b *bearerInjectorSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

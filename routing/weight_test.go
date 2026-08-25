@@ -7,7 +7,7 @@ import (
 func TestWeightArgs(t *testing.T) {
 	for _, ti := range []struct {
 		msg    string
-		args   []interface{}
+		args   []any
 		weight int
 		err    bool
 	}{{
@@ -17,22 +17,22 @@ func TestWeightArgs(t *testing.T) {
 		true,
 	}, {
 		"too many args",
-		[]interface{}{"name", "value"},
+		[]any{"name", "value"},
 		0,
 		true,
 	}, {
 		"invalid value",
-		[]interface{}{"string"},
+		[]any{"string"},
 		0,
 		true,
 	}, {
 		"ok float to int",
-		[]interface{}{500.99},
+		[]any{500.99},
 		500,
 		false,
 	}, {
 		"ok",
-		[]interface{}{500},
+		[]any{500},
 		500,
 		false,
 	}} {

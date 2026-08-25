@@ -9,13 +9,13 @@ import (
 
 type createTestItem struct {
 	msg  string
-	args []interface{}
+	args []any
 	err  bool
 }
 
 func TestModifyPath(t *testing.T) {
 	spec := NewModPath()
-	f, err := spec.CreateFilter([]interface{}{"/replace-this/", "/with-this/"})
+	f, err := spec.CreateFilter([]any{"/replace-this/", "/with-this/"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -34,14 +34,14 @@ func TestModifyPath(t *testing.T) {
 
 func TestModifyPathWithInvalidExpression(t *testing.T) {
 	spec := NewModPath()
-	if f, err := spec.CreateFilter([]interface{}{"(?=;)", "foo"}); err == nil || f != nil {
+	if f, err := spec.CreateFilter([]any{"(?=;)", "foo"}); err == nil || f != nil {
 		t.Error("Expected error for invalid regular expression parameter")
 	}
 }
 
 func TestSetPath(t *testing.T) {
 	spec := NewSetPath()
-	f, err := spec.CreateFilter([]interface{}{"/baz/qux"})
+	f, err := spec.CreateFilter([]any{"/baz/qux"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -60,7 +60,7 @@ func TestSetPath(t *testing.T) {
 
 func TestSetPathWithTemplate(t *testing.T) {
 	spec := NewSetPath()
-	f, err := spec.CreateFilter([]interface{}{"/path/${param2}/${param1}"})
+	f, err := spec.CreateFilter([]any{"/path/${param2}/${param1}"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -104,23 +104,23 @@ func TestCreateModPath(t *testing.T) {
 		true,
 	}, {
 		"single arg",
-		[]interface{}{".*"},
+		[]any{".*"},
 		true,
 	}, {
 		"non-string arg, pos 1",
-		[]interface{}{3.14, "/foo"},
+		[]any{3.14, "/foo"},
 		true,
 	}, {
 		"non-string arg, pos 2",
-		[]interface{}{".*", 2.72},
+		[]any{".*", 2.72},
 		true,
 	}, {
 		"more than two args",
-		[]interface{}{".*", "/foo", "/bar"},
+		[]any{".*", "/foo", "/bar"},
 		true,
 	}, {
 		"create",
-		[]interface{}{".*", "/foo"},
+		[]any{".*", "/foo"},
 		false,
 	}})
 }
@@ -132,15 +132,15 @@ func TestCreateSetPath(t *testing.T) {
 		true,
 	}, {
 		"non-string arg",
-		[]interface{}{3.14},
+		[]any{3.14},
 		true,
 	}, {
 		"more than one args",
-		[]interface{}{"/foo", "/bar"},
+		[]any{"/foo", "/bar"},
 		true,
 	}, {
 		"create",
-		[]interface{}{"/foo"},
+		[]any{"/foo"},
 		false,
 	}})
 }

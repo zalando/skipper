@@ -14,7 +14,7 @@ import (
 
 func TestCreateFilterLogHeader(t *testing.T) {
 	lgh := logHeader{}
-	f, err := lgh.CreateFilter([]interface{}{"request", "response"})
+	f, err := lgh.CreateFilter([]any{"request", "response"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestCreateFilterLogHeader(t *testing.T) {
 }
 func TestCreateFilterLogHeaderWrongInput(t *testing.T) {
 	lgh := logHeader{}
-	_, err := lgh.CreateFilter([]interface{}{5})
+	_, err := lgh.CreateFilter([]any{5})
 	if err == nil {
 		t.Fatal("Failed to get expected error 5 is no string")
 	}

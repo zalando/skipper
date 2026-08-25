@@ -41,7 +41,7 @@ func (s *jwtMetricsSpec) Name() string {
 	return filters.JwtMetricsName
 }
 
-func (s *jwtMetricsSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *jwtMetricsSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) == 0 {
 		return &jwtMetricsFilter{}, nil
 	}
