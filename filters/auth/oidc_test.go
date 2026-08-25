@@ -744,11 +744,122 @@ func TestCreateFilterOIDC(t *testing.T) {
 }
 
 func TestOidcAnyClaimsDropRegexpName(t *testing.T) {
-	reg := secrets.NewRegistry()
-	spec := NewOAuthOidcAnyClaimsDropRegexpWithOptions("/foo", reg, OidcOptions{})
+	spec := NewOAuthOidcAnyClaimsDropRegexpWithOptions("/foo", secrettest.NewTestRegistry(), OidcOptions{})
 	if spec.Name() != filters.OAuthOidcAnyClaimsDropRegexpName {
 		t.Errorf("Name() = %q, want %q", spec.Name(), filters.OAuthOidcAnyClaimsDropRegexpName)
 	}
+}
+
+func TestOidcAnyClaimsDropRegexpCookieName(t *testing.T) {
+	oidcServer := createOIDCServer("", "", "", nil, nil)
+	defer oidcServer.Close()
+
+	createFilter := func(t *testing.T, dropVariant bool, args []any) *tokenOidcFilter {
+		t.Helper()
+		spec := &tokenOidcSpec{
+			typ:               checkOIDCAnyClaims,
+			SecretsFile:       "/foo",
+			secretsRegistry:   secrettest.NewTestRegistry(),
+			dropRegexpVariant: dropVariant,
+		}
+		f, err := spec.CreateFilter(args)
+		if err != nil {
+			t.Fatalf("CreateFilter failed: %v", err)
+		}
+		return f.(*tokenOidcFilter)
+	}
+
+	baseArgs := func(claimName, expr string) []any {
+		return []any{
+			oidcServer.URL,               // provider
+			"valid-client",               // client ID
+			"mysec",                      // client secret
+			oidcServer.URL + "/redirect", // callback URL
+			"uid",                        // scopes
+			"groups",                     // claims
+			"",                           // auth code options
+			"",                           // upstream headers
+			"",                           // subdomains to remove
+			"",                           // cookie name (empty = auto)
+			claimName,                    // drop claim name
+			expr,                         // drop claim regexp
+		}
+	}
+
+	t.Run("different regexp produces different cookie name", func(t *testing.T) {
+		f1 := createFilter(t, true, baseArgs("groups", "^LEGACY-"))
+		f2 := createFilter(t, true, baseArgs("groups", "^OTHER-"))
+		if f1.cookiename == f2.cookiename {
+			t.Errorf("expected different cookie names for different regexps, both got %q", f1.cookiename)
+		}
+	})
+
+	t.Run("different claim name produces different cookie name", func(t *testing.T) {
+		f1 := createFilter(t, true, baseArgs("groups", "^LEGACY-"))
+		f2 := createFilter(t, true, baseArgs("roles", "^LEGACY-"))
+		if f1.cookiename == f2.cookiename {
+			t.Errorf("expected different cookie names for different claim names, both got %q", f1.cookiename)
+		}
+	})
+
+	t.Run("drop-regexp variant differs from plain oauthOidcAnyClaims", func(t *testing.T) {
+		plainArgs := []any{
+			oidcServer.URL,               // provider
+			"valid-client",               // client ID
+			"mysec",                      // client secret
+			oidcServer.URL + "/redirect", // callback URL
+			"uid",                        // scopes
+			"groups",                     // claims
+			"",                           // auth code options
+			"",                           // upstream headers
+			"",                           // subdomains to remove
+			"",                           // cookie name
+		}
+		plainFilter := createFilter(t, false, plainArgs)
+		dropFilter := createFilter(t, true, baseArgs("groups", "^LEGACY-"))
+		if plainFilter.cookiename == dropFilter.cookiename {
+			t.Errorf("plain and drop-regexp filters must have different cookie names, both got %q", plainFilter.cookiename)
+		}
+	})
+
+	t.Run("explicit cookie name ignores pruning arguments", func(t *testing.T) {
+		args1 := []any{
+			oidcServer.URL,               // provider
+			"valid-client",               // client ID
+			"mysec",                      // client secret
+			oidcServer.URL + "/redirect", // callback URL
+			"uid",                        // scopes
+			"groups",                     // claims
+			"",                           // auth code options
+			"",                           // upstream headers
+			"",                           // subdomains to remove
+			"my-custom-cookie",           // explicit cookie name
+			"groups",                     // drop claim name
+			"^LEGACY-",                   // drop claim regexp
+		}
+		args2 := []any{
+			oidcServer.URL,               // provider
+			"valid-client",               // client ID
+			"mysec",                      // client secret
+			oidcServer.URL + "/redirect", // callback URL
+			"uid",                        // scopes
+			"groups",                     // claims
+			"",                           // auth code options
+			"",                           // upstream headers
+			"",                           // subdomains to remove
+			"my-custom-cookie",           // same explicit cookie name
+			"roles",                      // different claim name
+			"^OTHER-",                    // different regexp
+		}
+		f1 := createFilter(t, true, args1)
+		f2 := createFilter(t, true, args2)
+		if f1.cookiename != "my-custom-cookie" {
+			t.Errorf("expected explicit cookie name %q, got %q", "my-custom-cookie", f1.cookiename)
+		}
+		if f1.cookiename != f2.cookiename {
+			t.Errorf("explicit cookie name should be identical regardless of pruning args: %q vs %q", f1.cookiename, f2.cookiename)
+		}
+	})
 }
 
 func TestCreateFilterOIDCAnyClaimsDropRegexp(t *testing.T) {
@@ -1281,16 +1392,11 @@ func TestOIDCSetup(t *testing.T) {
 		expected:      200,
 		expectRequest: "X-Auth-Groups: [\"CD-Administrators\",\"AppX-Test-Users\",\"white space\"]",
 	}, {
-		msg:         "drop regexp removing all values preserves authorization",
-		filter:      `oauthOidcAnyClaimsDropRegexp("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "groups", "", "", "", "", "groups", ".*")`,
-		extraClaims: jwt.MapClaims{"groups": []string{"Admin", "Users"}},
-		expected:    200,
-	}, {
-		msg:              "drop regexp different expression changes default cookie name",
-		filter:           `oauthOidcAnyClaimsDropRegexp("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "groups", "", "", "", "", "groups", "^OTHER-")`,
-		extraClaims:      jwt.MapClaims{"groups": []string{"Admin"}},
-		expected:         200,
-		expectCookieName: "skipperOauthOidc",
+		msg:           "drop regexp removing all values preserves authorization",
+		filter:        `oauthOidcAnyClaimsDropRegexp("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "groups", "", "x-auth-groups:claims.groups", "", "", "groups", ".*")`,
+		extraClaims:   jwt.MapClaims{"groups": []string{"Admin", "Users"}},
+		expected:      200,
+		expectRequest: "X-Auth-Groups: []",
 	}} {
 		t.Run(tc.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
