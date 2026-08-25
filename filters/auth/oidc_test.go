@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"text/template"
@@ -581,6 +582,22 @@ func TestNewOidc(t *testing.T) {
 			},
 			want: &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: "/foo", secretsRegistry: reg, options: OidcOptions{CookieValidity: 6 * time.Hour}},
 		},
+		{
+			name:    "test AnyClaimsDropRegexp",
+			args:    "/foo",
+			f:       NewOAuthOidcAnyClaimsDropRegexpWithOptions,
+			options: OidcOptions{},
+			want:    &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: "/foo", secretsRegistry: reg, dropRegexpVariant: true},
+		},
+		{
+			name: "test AnyClaimsDropRegexp with options",
+			args: "/foo",
+			f:    NewOAuthOidcAnyClaimsDropRegexpWithOptions,
+			options: OidcOptions{
+				CookieValidity: 6 * time.Hour,
+			},
+			want: &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: "/foo", secretsRegistry: reg, dropRegexpVariant: true, options: OidcOptions{CookieValidity: 6 * time.Hour}},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.f(tt.args, reg, tt.options); !reflect.DeepEqual(got, tt.want) {
@@ -721,6 +738,287 @@ func TestCreateFilterOIDC(t *testing.T) {
 
 			if got == nil && !tt.wantErr {
 				t.Errorf("Failed to create filter: got %v", got)
+			}
+		})
+	}
+}
+
+func TestOidcAnyClaimsDropRegexpName(t *testing.T) {
+	reg := secrets.NewRegistry()
+	spec := NewOAuthOidcAnyClaimsDropRegexpWithOptions("/foo", reg, OidcOptions{})
+	if spec.Name() != filters.OAuthOidcAnyClaimsDropRegexpName {
+		t.Errorf("Name() = %q, want %q", spec.Name(), filters.OAuthOidcAnyClaimsDropRegexpName)
+	}
+}
+
+func TestCreateFilterOIDCAnyClaimsDropRegexp(t *testing.T) {
+	oidcServer := createOIDCServer("", "", "", nil, nil)
+	defer oidcServer.Close()
+
+	for _, tt := range []struct {
+		name    string
+		args    []any
+		wantErr bool
+	}{
+		{
+			name: "valid 12 args",
+			args: []any{
+				oidcServer.URL,               // provider/issuer
+				"",                           // client ID
+				"",                           // client secret
+				oidcServer.URL + "/redirect", // redirect URL
+				"",                           // scopes
+				"",                           // claims
+				"",                           // auth code options
+				"",                           // upstream headers
+				"",                           // subdomains to remove
+				"",                           // cookie name
+				"groups",                     // claim name
+				"^LEGACY-",                   // regexp
+			},
+			wantErr: false,
+		},
+		{
+			name: "missing claim and expression (10 args)",
+			args: []any{
+				oidcServer.URL,
+				"",
+				"",
+				oidcServer.URL + "/redirect",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing expression only (11 args)",
+			args: []any{
+				oidcServer.URL,
+				"",
+				"",
+				oidcServer.URL + "/redirect",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"groups",
+			},
+			wantErr: true,
+		},
+		{
+			name: "too many arguments (13 args)",
+			args: []any{
+				oidcServer.URL,
+				"",
+				"",
+				oidcServer.URL + "/redirect",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"groups",
+				"^LEGACY-",
+				"extra",
+			},
+			wantErr: true,
+		},
+		{
+			name: "empty claim name",
+			args: []any{
+				oidcServer.URL,
+				"",
+				"",
+				oidcServer.URL + "/redirect",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"", // empty claim
+				"^LEGACY-",
+			},
+			wantErr: true,
+		},
+		{
+			name: "empty expression",
+			args: []any{
+				oidcServer.URL,
+				"",
+				"",
+				oidcServer.URL + "/redirect",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"groups",
+				"", // empty regexp
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid expression",
+			args: []any{
+				oidcServer.URL,
+				"",
+				"",
+				oidcServer.URL + "/redirect",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"groups",
+				"[invalid", // bad regexp
+			},
+			wantErr: true,
+		},
+		{
+			name: "non-string claim argument",
+			args: []any{
+				oidcServer.URL,
+				"",
+				"",
+				oidcServer.URL + "/redirect",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				42, // non-string
+				"^LEGACY-",
+			},
+			wantErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := &tokenOidcSpec{
+				typ:               checkOIDCAnyClaims,
+				SecretsFile:       "/foo",
+				secretsRegistry:   secrettest.NewTestRegistry(),
+				dropRegexpVariant: true,
+			}
+
+			got, err := spec.CreateFilter(tt.args)
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error but got filter: %v", got)
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !tt.wantErr && got != nil {
+				f := got.(*tokenOidcFilter)
+				if f.dropClaimName != "groups" {
+					t.Errorf("dropClaimName = %q, want %q", f.dropClaimName, "groups")
+				}
+				if f.dropClaimValueRegexp == nil {
+					t.Error("dropClaimValueRegexp is nil, want compiled regexp")
+				}
+			}
+		})
+	}
+}
+
+func TestDropClaimValues(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		claims    map[string]any
+		claimName string
+		regexp    string
+		want      map[string]any
+	}{
+		{
+			name:      "claim absent",
+			claims:    map[string]any{"sub": "user"},
+			claimName: "groups",
+			regexp:    "^LEGACY-",
+			want:      map[string]any{"sub": "user"},
+		},
+		{
+			name:      "claim is not an array",
+			claims:    map[string]any{"groups": "scalar-value"},
+			claimName: "groups",
+			regexp:    "^LEGACY-",
+			want:      map[string]any{"groups": "scalar-value"},
+		},
+		{
+			name:      "no values match",
+			claims:    map[string]any{"groups": []any{"Admin", "Users"}},
+			claimName: "groups",
+			regexp:    "^LEGACY-",
+			want:      map[string]any{"groups": []any{"Admin", "Users"}},
+		},
+		{
+			name:      "one value matches",
+			claims:    map[string]any{"groups": []any{"Admin", "LEGACY-Support", "Users"}},
+			claimName: "groups",
+			regexp:    "^LEGACY-",
+			want:      map[string]any{"groups": []any{"Admin", "Users"}},
+		},
+		{
+			name:      "multiple values match",
+			claims:    map[string]any{"groups": []any{"LEGACY-A", "Admin", "LEGACY-B", "Users"}},
+			claimName: "groups",
+			regexp:    "^LEGACY-",
+			want:      map[string]any{"groups": []any{"Admin", "Users"}},
+		},
+		{
+			name:      "every value matches preserves empty array",
+			claims:    map[string]any{"groups": []any{"LEGACY-A", "LEGACY-B"}},
+			claimName: "groups",
+			regexp:    "^LEGACY-",
+			want:      map[string]any{"groups": []any{}},
+		},
+		{
+			name:      "non-string array values retained",
+			claims:    map[string]any{"groups": []any{"LEGACY-A", 42, true, "Admin"}},
+			claimName: "groups",
+			regexp:    "^LEGACY-",
+			want:      map[string]any{"groups": []any{42, true, "Admin"}},
+		},
+		{
+			name:      "input order preserved",
+			claims:    map[string]any{"groups": []any{"Z-Keep", "LEGACY-Drop", "A-Keep", "M-Keep"}},
+			claimName: "groups",
+			regexp:    "^LEGACY-",
+			want:      map[string]any{"groups": []any{"Z-Keep", "A-Keep", "M-Keep"}},
+		},
+		{
+			name:      "unanchored match",
+			claims:    map[string]any{"groups": []any{"foo-LEGACY-bar", "Admin"}},
+			claimName: "groups",
+			regexp:    "LEGACY",
+			want:      map[string]any{"groups": []any{"Admin"}},
+		},
+		{
+			name:      "anchored match respects boundaries",
+			claims:    map[string]any{"groups": []any{"LEGACY-A", "not-LEGACY-B", "Admin"}},
+			claimName: "groups",
+			regexp:    "^LEGACY-",
+			want:      map[string]any{"groups": []any{"not-LEGACY-B", "Admin"}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			re := regexp.MustCompile(tt.regexp)
+			f := &tokenOidcFilter{
+				dropClaimName:        tt.claimName,
+				dropClaimValueRegexp: re,
+			}
+			f.dropMatchingClaimValues(tt.claims)
+			if !reflect.DeepEqual(tt.claims, tt.want) {
+				t.Errorf("got %v, want %v", tt.claims, tt.want)
 			}
 		})
 	}
@@ -966,6 +1264,33 @@ func TestOIDCSetup(t *testing.T) {
 		expected:           200,
 		expectRequest:      "please-forward=me",
 		expectCookieDomain: "skipper.test",
+	}, {
+		msg:           "drop regexp prunes direct groups claim",
+		filter:        `oauthOidcAnyClaimsDropRegexp("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "groups", "", "x-auth-groups:claims.groups", "", "", "groups", "^LEGACY-")`,
+		extraClaims:   jwt.MapClaims{"groups": []string{"LEGACY-Support", "Admin", "LEGACY-Old", "Users"}},
+		expected:      200,
+		expectRequest: "X-Auth-Groups: [\"Admin\",\"Users\"]",
+	}, {
+		msg:    "drop regexp prunes distributed Azure groups",
+		filter: `oauthOidcAnyClaimsDropRegexp("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "groups", "", "x-auth-groups:claims.groups", "", "", "groups", "Purchasing")`,
+		extraClaims: jwt.MapClaims{
+			"oid":            "me",
+			"_claim_names":   map[string]string{"groups": "src1"},
+			"_claim_sources": map[string]map[string]string{"src1": {"endpoint": "http://graph.windows.net/distributedClaims/getMemberObjects"}},
+		},
+		expected:      200,
+		expectRequest: "X-Auth-Groups: [\"CD-Administrators\",\"AppX-Test-Users\",\"white space\"]",
+	}, {
+		msg:         "drop regexp removing all values preserves authorization",
+		filter:      `oauthOidcAnyClaimsDropRegexp("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "groups", "", "", "", "", "groups", ".*")`,
+		extraClaims: jwt.MapClaims{"groups": []string{"Admin", "Users"}},
+		expected:    200,
+	}, {
+		msg:              "drop regexp different expression changes default cookie name",
+		filter:           `oauthOidcAnyClaimsDropRegexp("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "groups", "", "", "", "", "groups", "^OTHER-")`,
+		extraClaims:      jwt.MapClaims{"groups": []string{"Admin"}},
+		expected:         200,
+		expectCookieName: "skipperOauthOidc",
 	}} {
 		t.Run(tc.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -993,6 +1318,7 @@ func TestOIDCSetup(t *testing.T) {
 			fr := make(filters.Registry)
 			fr.Register(NewOAuthOidcUserInfosWithOptions(secretsFile, secretsRegistry, OidcOptions{}))
 			fr.Register(NewOAuthOidcAnyClaimsWithOptions(secretsFile, secretsRegistry, OidcOptions{}))
+			fr.Register(NewOAuthOidcAnyClaimsDropRegexpWithOptions(secretsFile, secretsRegistry, OidcOptions{}))
 			fr.Register(NewOAuthOidcAllClaimsWithOptions(secretsFile, secretsRegistry, OidcOptions{}))
 
 			dc := testdataclient.New(nil)

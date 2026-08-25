@@ -331,6 +331,17 @@ least one of the claims specified in the filter.
 	a: Path("/") -> oauthOidcAnyClaims("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
 		"http://callback.com/auth/provider/callback", "scope1 scope2","claim1 claim2 claim3") -> "https://internal.example.org";
 
+# OpenID - oauthOidcAnyClaimsDropRegexp filter
+
+The filter oauthOidcAnyClaimsDropRegexp inherits oauthOidcAnyClaims behavior and additionally removes
+matching string values from one configured JSON array claim before serializing the session cookie.
+This reduces cookie size when claims such as Active Directory group lists contain many irrelevant entries.
+
+	a: Path("/") -> oauthOidcAnyClaimsDropRegexp("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
+		"http://callback.com/auth/provider/callback", "scope1 scope2", "groups",
+		"", "x-auth-groups:claims.groups", "", "",
+		"groups", "^(LEGACY-|UNRELATED-)") -> "https://internal.example.org";
+
 OpenID - oauthOidcAllClaims filter
 The filter oauthOidcAnyClaims is a filter for OAuth Implicit Flow authentication scheme for users through OpenID Connect.
 It verifies that the token provided by the user upon authentication with the authentication provider contains all
