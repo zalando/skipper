@@ -58,18 +58,28 @@ func TestLogBodyCreateFilter(t *testing.T) {
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
-			name: "arg2 below the status range should fail",
+			name: "zero status prefix should fail",
+			args: []interface{}{"request", 1024.0, 0.0},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "status class that cannot match should fail",
+			args: []interface{}{"request", 1024.0, 6.0},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "status sub-class that cannot match should fail",
 			args: []interface{}{"request", 1024.0, 99.0},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
-			name: "arg2 above the status range should fail",
+			name: "status above the range should fail",
 			args: []interface{}{"request", 1024.0, 600.0},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
-			name: "more than expected args should fail",
-			args: []interface{}{"request", 1024.0, 500.0, 1.0},
+			name: "an invalid prefix after a valid one should fail",
+			args: []interface{}{"request", 1024.0, 500.0, 600.0},
 			want: filters.ErrInvalidFilterParameters,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -81,6 +91,38 @@ func TestLogBodyCreateFilter(t *testing.T) {
 		})
 	}
 
+}
+
+// TestLogBodyMatchStatus pins the prefix semantics against the rules the
+// enableAccessLog filter uses, so the two cannot drift apart: a prefix
+// below 10 selects a status class, below 100 a sub-class, and anything
+// larger an exact status code.
+func TestLogBodyMatchStatus(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		prefixes []int
+		status   int
+		want     bool
+	}{
+		{"class matches its own range", []int{5}, 502, true},
+		{"class start is included", []int{5}, 500, true},
+		{"class end is included", []int{5}, 599, true},
+		{"class does not match below", []int{5}, 499, false},
+		{"class does not match above", []int{4}, 500, false},
+		{"sub-class matches its own range", []int{50}, 503, true},
+		{"sub-class does not match a sibling", []int{50}, 512, false},
+		{"exact code matches", []int{429}, 429, true},
+		{"exact code does not match a neighbour", []int{429}, 430, false},
+		{"any of several prefixes matches", []int{5, 429}, 429, true},
+		{"several prefixes still reject the rest", []int{5, 429}, 404, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			lb := &logBody{statusPrefixes: tt.prefixes}
+			if got := lb.matchStatus(tt.status); got != tt.want {
+				t.Fatalf("matchStatus(%d) with %v = %v, want %v", tt.status, tt.prefixes, got, tt.want)
+			}
+		})
+	}
 }
 
 func TestLogBodyCreateFilterValid(t *testing.T) {
@@ -97,12 +139,24 @@ func TestLogBodyCreateFilterValid(t *testing.T) {
 			args: []interface{}{"response", 1024.0},
 		},
 		{
-			name: "request with status condition",
+			name: "request with an exact status",
 			args: []interface{}{"request", 1024.0, 500.0},
 		},
 		{
-			name: "response with status condition",
+			name: "response with an exact status",
 			args: []interface{}{"response", 1024.0, 500.0},
+		},
+		{
+			name: "status class prefix",
+			args: []interface{}{"request", 1024.0, 5.0},
+		},
+		{
+			name: "status sub-class prefix",
+			args: []interface{}{"request", 1024.0, 50.0},
+		},
+		{
+			name: "several prefixes",
+			args: []interface{}{"request", 1024.0, 5.0, 429.0},
 		},
 		{
 			name: "lowest valid status",
@@ -332,7 +386,7 @@ func TestLogBody(t *testing.T) {
 		}
 	})
 
-	t.Run("Request with status condition is silent below the status", func(t *testing.T) {
+	t.Run("Request with status condition is silent on a non-matching status", func(t *testing.T) {
 		be := statusEchoBackend(http.StatusOK)
 		defer be.Close()
 
@@ -348,22 +402,23 @@ func TestLogBody(t *testing.T) {
 		}
 	})
 
-	t.Run("Response with status condition logs on matching status", func(t *testing.T) {
+	t.Run("Response with status condition logs on a matching status class", func(t *testing.T) {
 		be := statusContentBackend(http.StatusBadGateway, strings.Repeat("b", 10))
 		defer be.Close()
 
-		got, _ := runLogBody(t, be.URL, `logBody("response", 1024, 500)`, "testrequest", http.StatusBadGateway)
+		// 5 selects the whole 5xx class, so 502 matches
+		got, _ := runLogBody(t, be.URL, `logBody("response", 1024, 5)`, "testrequest", http.StatusBadGateway)
 
 		if !strings.Contains(got, strings.Repeat("b", 10)) {
 			t.Fatalf("Failed to find rsp content %q log, got: %q", strings.Repeat("b", 10), got)
 		}
 	})
 
-	t.Run("Response with status condition is silent below the status", func(t *testing.T) {
+	t.Run("Response with status condition is silent on a non-matching status", func(t *testing.T) {
 		be := statusContentBackend(http.StatusOK, strings.Repeat("b", 10))
 		defer be.Close()
 
-		got, rspBody := runLogBody(t, be.URL, `logBody("response", 1024, 500)`, "testrequest", http.StatusOK)
+		got, rspBody := runLogBody(t, be.URL, `logBody("response", 1024, 5)`, "testrequest", http.StatusOK)
 
 		if strings.Contains(got, strings.Repeat("b", 10)) {
 			t.Fatalf("Found response body %q in %q", strings.Repeat("b", 10), got)
@@ -377,7 +432,7 @@ func TestLogBody(t *testing.T) {
 }
 
 // TestLogBodyRequestStatusConditionClientCancel covers the memory question the
-// status condition raises: with logBody("request", limit, status) the request
+// status condition raises: with logBody("request", limit, prefix...) the request
 // body cannot be logged while it streams, because the status that decides
 // whether to log it is not known until the response phase. It is therefore
 // buffered, and a client that disconnects while the backend is still working

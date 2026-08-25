@@ -18,9 +18,12 @@ type logBody struct {
 	limit    int
 	request  bool
 	response bool
-	// minStatus is the response status code from which on the body is
-	// logged. Zero means no condition, i.e. always log.
-	minStatus int
+	// statusPrefixes selects which responses get logged, following the
+	// same matching rules as the enableAccessLog filter: a value below 10
+	// matches a status class (5 matches 5xx), below 100 a sub-class (50
+	// matches 50x) and any larger value an exact status code. Empty means
+	// no condition, i.e. always log.
+	statusPrefixes []int
 }
 
 // NewLogBody creates a filter specification for the 'logBody()' filter.
@@ -33,12 +36,11 @@ func (logBody) Name() string {
 
 func (logBody) CreateFilter(args []interface{}) (filters.Filter, error) {
 	var (
-		request   = false
-		response  = false
-		minStatus = 0
+		request  = false
+		response = false
 	)
 
-	if len(args) != 2 && len(args) != 3 {
+	if len(args) < 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -60,23 +62,63 @@ func (logBody) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, fmt.Errorf("failed to convert to int: %w", filters.ErrInvalidFilterParameters)
 	}
 
-	if len(args) == 3 {
-		status, ok := args[2].(float64)
-		if !ok || float64(int(status)) != status {
+	var statusPrefixes []int
+	for _, arg := range args[2:] {
+		prefix, ok := arg.(float64)
+		if !ok || float64(int(prefix)) != prefix {
 			return nil, fmt.Errorf("failed to convert to int: %w", filters.ErrInvalidFilterParameters)
 		}
-		minStatus = int(status)
-		if minStatus < 100 || minStatus > 599 {
-			return nil, fmt.Errorf("status %d out of range [100, 599]: %w", minStatus, filters.ErrInvalidFilterParameters)
+		p := int(prefix)
+		if !validStatusPrefix(p) {
+			return nil, fmt.Errorf("status prefix %d cannot match a response status: %w", p, filters.ErrInvalidFilterParameters)
 		}
+		statusPrefixes = append(statusPrefixes, p)
 	}
 
 	return &logBody{
-		limit:     int(limit),
-		request:   request,
-		response:  response,
-		minStatus: minStatus,
+		limit:          int(limit),
+		request:        request,
+		response:       response,
+		statusPrefixes: statusPrefixes,
 	}, nil
+}
+
+// validStatusPrefix reports whether prefix can select any response status.
+// A prefix below 10 matches a status class, below 100 a sub-class and
+// anything larger an exact code, so only the values that reach into the
+// [100, 599] range are accepted. This rejects typos such as 0, 6 or 600,
+// which would otherwise silently never log.
+func validStatusPrefix(prefix int) bool {
+	switch {
+	case prefix < 10:
+		return prefix >= 1 && prefix <= 5
+	case prefix < 100:
+		return prefix >= 10 && prefix <= 59
+	default:
+		return prefix <= 599
+	}
+}
+
+// matchStatus reports whether statusCode is selected by the configured
+// prefixes. The rules are the same as the enableAccessLog filter's.
+func (lb *logBody) matchStatus(statusCode int) bool {
+	for _, prefix := range lb.statusPrefixes {
+		switch {
+		case prefix < 10:
+			if statusCode >= prefix*100 && statusCode < (prefix+1)*100 {
+				return true
+			}
+		case prefix < 100:
+			if statusCode >= prefix*10 && statusCode < (prefix+1)*10 {
+				return true
+			}
+		default:
+			if statusCode == prefix {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (lb *logBody) Request(ctx filters.FilterContext) {
@@ -89,7 +131,7 @@ func (lb *logBody) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	if lb.minStatus == 0 {
+	if len(lb.statusPrefixes) == 0 {
 		req.Body = newLogBodyStream(
 			lb.limit,
 			func(chunk []byte) {
@@ -115,12 +157,12 @@ func (lb *logBody) Request(ctx filters.FilterContext) {
 }
 
 func (lb *logBody) Response(ctx filters.FilterContext) {
-	if lb.minStatus > 0 && ctx.Response().StatusCode < lb.minStatus {
+	if len(lb.statusPrefixes) > 0 && !lb.matchStatus(ctx.Response().StatusCode) {
 		return
 	}
 
 	if lb.request {
-		if lb.minStatus > 0 {
+		if len(lb.statusPrefixes) > 0 {
 			lb.logBufferedRequest(ctx)
 		}
 		return
