@@ -38,7 +38,6 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 	cf.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
 	}
-	t.Cleanup(cf.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	return cf
@@ -60,7 +59,6 @@ func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *
 	cf.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
 	}
-	t.Cleanup(cf.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	return cf
@@ -138,7 +136,6 @@ func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := fi.(*cacheFilter)
-	t.Cleanup(f.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	f.fetch = func(*http.Request) (*http.Response, error) {
@@ -1345,7 +1342,6 @@ func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
 			t.Fatal(err)
 		}
 		cf := f.(*cacheFilter)
-		t.Cleanup(cf.Close)
 		// Default fetch stub returns an error so coalesce does not serve the
 		// request; this allows the test to distinguish a true cache HIT from a
 		// coalesced upstream fetch.
@@ -2664,7 +2660,6 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			cf := f.(*cacheFilter)
-			t.Cleanup(cf.Close)
 			if cf.rfcMode != tc.wantRFC {
 				t.Errorf("rfcMode: got %v, want %v", cf.rfcMode, tc.wantRFC)
 			}
@@ -2686,7 +2681,6 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	cf := f.(*cacheFilter)
-	t.Cleanup(cf.Close)
 	cf.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub")
 	}
@@ -2767,7 +2761,6 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testi
 		t.Fatalf("unexpected error: %v", err)
 	}
 	cf := f.(*cacheFilter)
-	t.Cleanup(cf.Close)
 	cf.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub")
 	}

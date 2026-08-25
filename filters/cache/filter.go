@@ -70,8 +70,6 @@ type filterCacheKey struct {
 	rfcMode      bool
 }
 
-var _ io.Closer = (*cacheSpec)(nil)
-
 type cacheSpec struct {
 	maxBytes   int64
 	listenAddr string
@@ -282,6 +280,10 @@ type revalJob struct {
 	enqueuedAt time.Time     // wall-clock time the job entered the queue; used to measure wait time
 }
 
+// cacheFilter does not implement filters.FilterCloser. The routing layer calls
+// Close() on every FilterCloser when a route is invalidated; because all
+// goroutines and shared resources are owned by cacheSpec, closing them here
+// would be destructive. Lifecycle is managed exclusively by cacheSpec.Close().
 type cacheFilter struct {
 	storage      Storage
 	lruStorage   *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
@@ -302,11 +304,6 @@ type cacheFilter struct {
 	fetch     func(*http.Request) (*http.Response, error)
 	metrics   metrics.Metrics
 }
-
-// Close is intentionally a no-op. The routing layer calls Close() on every
-// FilterCloser when a route is invalidated; closing resources here would be
-// destructive. Lifecycle is managed by cacheSpec.Close().
-func (f *cacheFilter) Close() {}
 
 // tagSpan sets cache_status and (when >= 0) cache_ttl_remaining_ms
 // on the active OpenTracing span. No-op when no span is present.
