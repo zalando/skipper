@@ -11,7 +11,7 @@ import (
 
 func TestWithMissingAuth(t *testing.T) {
 	spec := NewBasicAuth()
-	f, err := spec.CreateFilter([]interface{}{"testdata/htpasswd"})
+	f, err := spec.CreateFilter([]any{"testdata/htpasswd"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -32,7 +32,7 @@ func TestWithMissingAuth(t *testing.T) {
 
 func TestWithWrongAuth(t *testing.T) {
 	spec := NewBasicAuth()
-	f, err := spec.CreateFilter([]interface{}{"testdata/htpasswd", "My Website"})
+	f, err := spec.CreateFilter([]any{"testdata/htpasswd", "My Website"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -54,7 +54,7 @@ func TestWithWrongAuth(t *testing.T) {
 
 func TestWithSuccessfulAuth(t *testing.T) {
 	spec := NewBasicAuth()
-	f, err := spec.CreateFilter([]interface{}{"testdata/htpasswd"})
+	f, err := spec.CreateFilter([]any{"testdata/htpasswd"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -74,7 +74,7 @@ func TestWithSuccessfulAuth(t *testing.T) {
 
 func TestWithMissingAuthFile(t *testing.T) {
 	spec := NewBasicAuth()
-	_, err := spec.CreateFilter([]interface{}{"testdata/missingfile"})
+	_, err := spec.CreateFilter([]any{"testdata/missingfile"})
 	require.Error(t, err)
 	require.Equal(t, "stat failed for \"testdata/missingfile\": stat testdata/missingfile: no such file or directory", err.Error())
 }
@@ -82,7 +82,7 @@ func TestWithMissingAuthFile(t *testing.T) {
 func TestCreateFilterBasicAuthErrorCases(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
-		args    []interface{}
+		args    []any
 		want    filters.Filter
 		wantErr bool
 	}{
@@ -94,7 +94,7 @@ func TestCreateFilterBasicAuthErrorCases(t *testing.T) {
 		},
 		{
 			name:    "test wrong arg type passed to filter",
-			args:    []interface{}{5},
+			args:    []any{5},
 			want:    nil,
 			wantErr: true,
 		}} {

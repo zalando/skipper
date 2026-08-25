@@ -36,7 +36,7 @@ func TestAnnotate(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &filtertest.Context{
-				FStateBag: make(map[string]interface{}),
+				FStateBag: make(map[string]any),
 			}
 
 			for _, f := range eskip.MustParseFilters(tc.def) {

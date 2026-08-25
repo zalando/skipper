@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -23,32 +24,62 @@ import (
 func TestLogBodyCreateFilter(t *testing.T) {
 	for _, tt := range []struct {
 		name string
-		args []interface{}
+		args []any
 		want error
 	}{
 		{
 			name: "no args should fail",
-			args: []interface{}{},
+			args: []any{},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name: "less than expected args should fail",
-			args: []interface{}{"request"},
+			args: []any{"request"},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name: "wrong arg0 string should fail",
-			args: []interface{}{"REQUEST", 10},
+			args: []any{"REQUEST", 10},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name: "wrong arg0 type should fail",
-			args: []interface{}{5, 10},
+			args: []any{5, 10},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name: "wrong arg1 type should fail",
-			args: []interface{}{"request", "foo"},
+			args: []any{"request", "foo"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "wrong arg2 type should fail",
+			args: []interface{}{"request", 1024.0, "foo"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "zero status prefix should fail",
+			args: []interface{}{"request", 1024.0, 0.0},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "status class that cannot match should fail",
+			args: []interface{}{"request", 1024.0, 6.0},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "status sub-class that cannot match should fail",
+			args: []interface{}{"request", 1024.0, 99.0},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "status above the range should fail",
+			args: []interface{}{"request", 1024.0, 600.0},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "an invalid prefix after a valid one should fail",
+			args: []interface{}{"request", 1024.0, 500.0, 600.0},
 			want: filters.ErrInvalidFilterParameters,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -60,6 +91,88 @@ func TestLogBodyCreateFilter(t *testing.T) {
 		})
 	}
 
+}
+
+// TestLogBodyMatchStatus pins the prefix semantics against the rules the
+// enableAccessLog filter uses, so the two cannot drift apart: a prefix
+// below 10 selects a status class, below 100 a sub-class, and anything
+// larger an exact status code.
+func TestLogBodyMatchStatus(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		prefixes []int
+		status   int
+		want     bool
+	}{
+		{"class matches its own range", []int{5}, 502, true},
+		{"class start is included", []int{5}, 500, true},
+		{"class end is included", []int{5}, 599, true},
+		{"class does not match below", []int{5}, 499, false},
+		{"class does not match above", []int{4}, 500, false},
+		{"sub-class matches its own range", []int{50}, 503, true},
+		{"sub-class does not match a sibling", []int{50}, 512, false},
+		{"exact code matches", []int{429}, 429, true},
+		{"exact code does not match a neighbour", []int{429}, 430, false},
+		{"any of several prefixes matches", []int{5, 429}, 429, true},
+		{"several prefixes still reject the rest", []int{5, 429}, 404, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			lb := &logBody{statusPrefixes: tt.prefixes}
+			if got := lb.matchStatus(tt.status); got != tt.want {
+				t.Fatalf("matchStatus(%d) with %v = %v, want %v", tt.status, tt.prefixes, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLogBodyCreateFilterValid(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args []interface{}
+	}{
+		{
+			name: "request without status condition",
+			args: []interface{}{"request", 1024.0},
+		},
+		{
+			name: "response without status condition",
+			args: []interface{}{"response", 1024.0},
+		},
+		{
+			name: "request with an exact status",
+			args: []interface{}{"request", 1024.0, 500.0},
+		},
+		{
+			name: "response with an exact status",
+			args: []interface{}{"response", 1024.0, 500.0},
+		},
+		{
+			name: "status class prefix",
+			args: []interface{}{"request", 1024.0, 5.0},
+		},
+		{
+			name: "status sub-class prefix",
+			args: []interface{}{"request", 1024.0, 50.0},
+		},
+		{
+			name: "several prefixes",
+			args: []interface{}{"request", 1024.0, 5.0, 429.0},
+		},
+		{
+			name: "lowest valid status",
+			args: []interface{}{"request", 1024.0, 100.0},
+		},
+		{
+			name: "highest valid status",
+			args: []interface{}{"request", 1024.0, 599.0},
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := NewLogBody()
+			if _, err := spec.CreateFilter(tt.args); err != nil {
+				t.Fatalf("Failed to create filter for args %v: %v", tt.args, err)
+			}
+		})
+	}
 }
 
 func TestLogBody(t *testing.T) {
@@ -255,6 +368,277 @@ func TestLogBody(t *testing.T) {
 			t.Fatalf("Failed to not change response body(%d): %v", len(data), data)
 		}
 	})
+
+	t.Run("Request with status condition logs on matching status", func(t *testing.T) {
+		be := statusEchoBackend(http.StatusInternalServerError)
+		defer be.Close()
+
+		content := "testrequest"
+		got, rspBody := runLogBody(t, be.URL, `logBody("request", 1024, 500)`, content, http.StatusInternalServerError)
+
+		if !strings.Contains(got, content) {
+			t.Fatalf("Failed to find %q log, got: %q", content, got)
+		}
+
+		// buffering the request body must not truncate what the backend receives
+		if rspBody != content {
+			t.Fatalf("Failed to pass the request body through, got: %q", rspBody)
+		}
+	})
+
+	t.Run("Request with status condition is silent on a non-matching status", func(t *testing.T) {
+		be := statusEchoBackend(http.StatusOK)
+		defer be.Close()
+
+		content := "testrequest"
+		got, rspBody := runLogBody(t, be.URL, `logBody("request", 1024, 500)`, content, http.StatusOK)
+
+		if strings.Contains(got, content) {
+			t.Fatalf("Found request body %q in %q", content, got)
+		}
+
+		if rspBody != content {
+			t.Fatalf("Failed to pass the request body through, got: %q", rspBody)
+		}
+	})
+
+	t.Run("Response with status condition logs on a matching status class", func(t *testing.T) {
+		be := statusContentBackend(http.StatusBadGateway, strings.Repeat("b", 10))
+		defer be.Close()
+
+		// 5 selects the whole 5xx class, so 502 matches
+		got, _ := runLogBody(t, be.URL, `logBody("response", 1024, 5)`, "testrequest", http.StatusBadGateway)
+
+		if !strings.Contains(got, strings.Repeat("b", 10)) {
+			t.Fatalf("Failed to find rsp content %q log, got: %q", strings.Repeat("b", 10), got)
+		}
+	})
+
+	t.Run("Response with status condition is silent on a non-matching status", func(t *testing.T) {
+		be := statusContentBackend(http.StatusOK, strings.Repeat("b", 10))
+		defer be.Close()
+
+		got, rspBody := runLogBody(t, be.URL, `logBody("response", 1024, 5)`, "testrequest", http.StatusOK)
+
+		if strings.Contains(got, strings.Repeat("b", 10)) {
+			t.Fatalf("Found response body %q in %q", strings.Repeat("b", 10), got)
+		}
+
+		// the response body is still delivered to the client
+		if rspBody != strings.Repeat("b", 10) {
+			t.Fatalf("Failed to pass the response body through, got: %q", rspBody)
+		}
+	})
+}
+
+// TestLogBodyRequestStatusConditionClientCancel covers the memory question the
+// status condition raises: with logBody("request", limit, prefix...) the request
+// body cannot be logged while it streams, because the status that decides
+// whether to log it is not known until the response phase. It is therefore
+// buffered, and a client that disconnects while the backend is still working
+// means that buffer is built up for a response phase that never runs.
+//
+// Two properties make that safe, and each is asserted below:
+//
+//  1. the buffer is capped by the filter's own limit argument, not by the size
+//     of the request body, so a large upload cannot inflate it; and
+//  2. the buffer is reachable only from the request's state bag, so it is
+//     released with the request rather than accumulating across cancellations.
+func TestLogBodyRequestStatusConditionClientCancel(t *testing.T) {
+	defer log.SetOutput(os.Stderr)
+
+	const (
+		limit         = 1024
+		bodySize      = 256 * 1024
+		backendSleep  = 500 * time.Millisecond
+		clientTimeout = 20 * time.Millisecond
+	)
+
+	// The backend drains the request body and then sleeps well past the client
+	// timeout, so the client always disconnects before a response status exists.
+	be := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(io.Discard, r.Body)
+		time.Sleep(backendSleep)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer be.Close()
+
+	fr := make(filters.Registry)
+	fr.Register(NewLogBody())
+	routes := eskip.MustParse(fmt.Sprintf(`r: * -> logBody("request", %d, 500) -> "%s"`, limit, be.URL))
+	p := proxytest.New(fr, routes...)
+	defer p.Close()
+
+	body := strings.Repeat("a", bodySize)
+
+	// postAndCancel issues a POST that gives up while the backend is sleeping.
+	// It returns the error the client saw, which must not be nil for the
+	// cancellation assertions below to mean anything.
+	postAndCancel := func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(ctx, "POST", p.URL, strings.NewReader(body))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "text/plain")
+
+		rsp, err := p.Client().Do(req)
+		if err != nil {
+			return err
+		}
+		io.Copy(io.Discard, rsp.Body)
+		rsp.Body.Close()
+		return nil
+	}
+
+	t.Run("the buffered body is capped by the limit, not the body size", func(t *testing.T) {
+		// Drive the stream exactly as Request() does when a status condition
+		// is set: the callback appends to a buffer instead of logging.
+		buf := &bytes.Buffer{}
+		stream := newLogBodyStream(
+			limit,
+			func(chunk []byte) { buf.Write(chunk) },
+			io.NopCloser(strings.NewReader(body)),
+		)
+
+		n, err := io.Copy(io.Discard, stream)
+		if err != nil {
+			t.Fatalf("Failed to read the body through the stream: %v", err)
+		}
+		if err := stream.Close(); err != nil {
+			t.Fatalf("Failed to close the stream: %v", err)
+		}
+
+		// The body still passes through in full ...
+		if n != bodySize {
+			t.Fatalf("Failed to pass the whole body through, want %d bytes, got: %d", bodySize, n)
+		}
+		// ... while only limit bytes of it are ever retained.
+		if buf.Len() != limit {
+			t.Fatalf("Failed to cap the buffered body at %d bytes, got: %d", limit, buf.Len())
+		}
+	})
+
+	t.Run("nothing is logged when the client cancels before the status is known", func(t *testing.T) {
+		logbuf := bytes.NewBuffer(nil)
+		log.SetOutput(logbuf)
+		err := postAndCancel()
+		log.SetOutput(os.Stderr)
+
+		if err == nil {
+			t.Fatalf("Failed to cancel before the backend responded, expected a client error")
+		}
+
+		// Logging is deferred to the response phase, which never sees a status
+		// here, so the buffered body must not reach the log.
+		if got := logbuf.String(); strings.Contains(got, strings.Repeat("a", limit)) {
+			t.Fatalf("Found the buffered request body in the log after cancellation, got: %q", got)
+		}
+	})
+
+	t.Run("repeated cancellations do not accumulate buffers", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("skipping the allocation check in short mode")
+		}
+
+		const iterations = 50
+
+		log.SetOutput(io.Discard)
+		defer log.SetOutput(os.Stderr)
+
+		// Warm up so that one-off proxy and transport allocations are not
+		// counted as growth, then measure across the cancelled requests.
+		if err := postAndCancel(); err == nil {
+			t.Fatalf("Failed to cancel before the backend responded, expected a client error")
+		}
+
+		var before, after runtime.MemStats
+		runtime.GC()
+		runtime.ReadMemStats(&before)
+
+		for i := 0; i < iterations; i++ {
+			if err := postAndCancel(); err == nil {
+				t.Fatalf("Failed to cancel before the backend responded on iteration %d", i)
+			}
+		}
+
+		runtime.GC()
+		runtime.ReadMemStats(&after)
+
+		// Retaining one buffer per cancelled request would grow the heap by
+		// iterations*limit; retaining the whole body would grow it by
+		// iterations*bodySize. The threshold sits far below the latter and well
+		// above ordinary test noise, so it fails on a real leak without being
+		// sensitive to allocation churn.
+		const threshold = iterations * bodySize / 8
+
+		var growth uint64
+		if after.HeapAlloc > before.HeapAlloc {
+			growth = after.HeapAlloc - before.HeapAlloc
+		}
+		if growth > threshold {
+			t.Fatalf("Failed to release the buffered bodies, heap grew by %d bytes over %d cancelled requests, want at most %d",
+				growth, iterations, uint64(threshold))
+		}
+	})
+}
+
+// statusEchoBackend responds with the given status and echoes the request
+// body back, so that a test can assert the backend received it unchanged.
+func statusEchoBackend(status int) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(status)
+		w.Write(body)
+	}))
+}
+
+// statusContentBackend drains the request body and responds with the given
+// status and a fixed response body.
+func statusContentBackend(status int, content string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(io.Discard, r.Body)
+		w.WriteHeader(status)
+		w.Write([]byte(content))
+	}))
+}
+
+// runLogBody proxies a POST with the given filter to beURL and returns what
+// was logged and the response body received by the client.
+func runLogBody(t *testing.T, beURL, filter, content string, wantStatus int) (string, string) {
+	t.Helper()
+
+	fr := make(filters.Registry)
+	fr.Register(NewLogBody())
+
+	routes := eskip.MustParse(fmt.Sprintf(`r: * -> %s -> "%s"`, filter, beURL))
+	p := proxytest.New(fr, routes...)
+	defer p.Close()
+
+	logbuf := bytes.NewBuffer(nil)
+	log.SetOutput(logbuf)
+	rsp, err := p.Client().Post(p.URL, "text/plain", bytes.NewBufferString(content))
+	if err != nil {
+		log.SetOutput(os.Stderr)
+		t.Fatalf("Failed to POST: %v", err)
+	}
+
+	rspBuf := bytes.NewBuffer(nil)
+	io.Copy(rspBuf, rsp.Body)
+	rsp.Body.Close()
+	log.SetOutput(os.Stderr)
+
+	if rsp.StatusCode != wantStatus {
+		t.Fatalf("Failed to get status %d, got: %d", wantStatus, rsp.StatusCode)
+	}
+
+	return logbuf.String(), rspBuf.String()
 }
 
 type mybuf struct {
@@ -299,7 +683,7 @@ func TestHttpBodyLogBodyStream(t *testing.T) {
 		}
 		req.Header.Add(flowid.HeaderName, "foo")
 
-		lg := func(format string, args ...interface{}) {
+		lg := func(format string, args ...any) {
 			s := fmt.Sprintf(format, args...)
 			lgbuf.WriteString(s)
 		}
@@ -363,7 +747,7 @@ func TestHttpBodyLogBodyStream(t *testing.T) {
 		}
 		req.Header.Add(flowid.HeaderName, "foo")
 
-		lg := func(format string, args ...interface{}) {
+		lg := func(format string, args ...any) {
 			s := fmt.Sprintf(format, args...)
 			lgbuf.WriteString(s)
 		}
@@ -424,7 +808,7 @@ func TestHttpBodyLogBodyStream(t *testing.T) {
 			t.Fatalf("Failed to get the expected status code 200, got: %d", rsp.StatusCode)
 		}
 
-		lg := func(format string, args ...interface{}) {
+		lg := func(format string, args ...any) {
 			s := fmt.Sprintf(format, args...)
 			lgbuf.WriteString(s)
 		}
@@ -481,7 +865,7 @@ func TestHttpBodyLogBodyStream(t *testing.T) {
 			t.Fatalf("Failed to get the expected status code 200, got: %d", rsp.StatusCode)
 		}
 
-		lg := func(format string, args ...interface{}) {
+		lg := func(format string, args ...any) {
 			s := fmt.Sprintf(format, args...)
 			lgbuf.WriteString(s)
 		}
@@ -555,7 +939,7 @@ func TestHttpBodyLogBodyStream(t *testing.T) {
 			t.Fatalf("Failed to get the expected status code 200, got: %d", rsp.StatusCode)
 		}
 
-		lg := func(format string, args ...interface{}) {
+		lg := func(format string, args ...any) {
 			s := fmt.Sprintf(format, args...)
 			lgbuf.WriteString(s)
 		}

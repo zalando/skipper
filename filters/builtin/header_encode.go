@@ -45,7 +45,7 @@ func (spec *encodeHeaderSpec) Name() string {
 	return "unknown"
 }
 
-func (spec *encodeHeaderSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (spec *encodeHeaderSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

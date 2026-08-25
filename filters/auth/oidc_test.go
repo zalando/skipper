@@ -470,15 +470,15 @@ func TestOidcValidateAllClaims(t *testing.T) {
 	oidcFilter, err := makeTestingFilter([]string{"uid", "email"})
 	assert.NoError(t, err, "error creating test filter")
 	assert.True(t, oidcFilter.validateAllClaims(
-		map[string]interface{}{"uid": "test", "email": "test@example.org"}),
+		map[string]any{"uid": "test", "email": "test@example.org"}),
 		"claims should be valid but filter returned false.")
 	assert.False(t, oidcFilter.validateAllClaims(
-		map[string]interface{}{}), "claims are invalid but filter returned true.")
+		map[string]any{}), "claims are invalid but filter returned true.")
 	assert.False(t, oidcFilter.validateAllClaims(
-		map[string]interface{}{"uid": "test"}),
+		map[string]any{"uid": "test"}),
 		"claims are not enough but filter returned true.")
 	assert.False(t, oidcFilter.validateAllClaims(
-		map[string]interface{}{}),
+		map[string]any{}),
 		"no claims but filter returned true.")
 }
 
@@ -486,15 +486,15 @@ func TestOidcValidateAnyClaims(t *testing.T) {
 	oidcFilter, err := makeTestingFilter([]string{"uid", "test", "email"})
 	assert.NoError(t, err, "error creating test filter")
 	assert.True(t, oidcFilter.validateAnyClaims(
-		map[string]interface{}{"uid": "test", "email": "test@example.org"}),
+		map[string]any{"uid": "test", "email": "test@example.org"}),
 		"claims should be valid but filter returned false.")
 	assert.False(t, oidcFilter.validateAnyClaims(
-		map[string]interface{}{}), "claims are invalid but filter returned true.")
+		map[string]any{}), "claims are invalid but filter returned true.")
 	assert.True(t, oidcFilter.validateAnyClaims(
-		map[string]interface{}{"foo": "test", "email": "test@example.org"}),
+		map[string]any{"foo": "test", "email": "test@example.org"}),
 		"claims are valid but filter returned false.")
 	assert.True(t, oidcFilter.validateAnyClaims(
-		map[string]interface{}{"uid": "test", "email": "test@example.org", "hd": "something.com", "empty": ""}),
+		map[string]any{"uid": "test", "email": "test@example.org", "hd": "something.com", "empty": ""}),
 		"claims are valid but filter returned false.")
 }
 
@@ -597,7 +597,7 @@ func TestCreateFilterOIDC(t *testing.T) {
 
 	for _, tt := range []struct {
 		name    string
-		args    []interface{}
+		args    []any
 		wantErr bool
 	}{
 		{
@@ -607,27 +607,27 @@ func TestCreateFilterOIDC(t *testing.T) {
 		},
 		{
 			name:    "test wrong number of args",
-			args:    []interface{}{"s"},
+			args:    []any{"s"},
 			wantErr: true,
 		},
 		{
 			name:    "test wrong number of args",
-			args:    []interface{}{"s", "d"},
+			args:    []any{"s", "d"},
 			wantErr: true,
 		},
 		{
 			name:    "test wrong number of args",
-			args:    []interface{}{"s", "d", "a"},
+			args:    []any{"s", "d", "a"},
 			wantErr: true,
 		},
 		{
 			name:    "test wrong args",
-			args:    []interface{}{"s", "d", "a", "f"},
+			args:    []any{"s", "d", "a", "f"},
 			wantErr: true,
 		},
 		{
 			name: "test minimal args",
-			args: []interface{}{
+			args: []any{
 				oidcServer.URL,               // provider/issuer
 				"",                           // client ID
 				"",                           // client secret
@@ -639,7 +639,7 @@ func TestCreateFilterOIDC(t *testing.T) {
 		},
 		{
 			name: "wrong provider",
-			args: []interface{}{
+			args: []any{
 				"invalid url",                  // provider/issuer
 				"",                             // client ID
 				"",                             // client secret
@@ -651,7 +651,7 @@ func TestCreateFilterOIDC(t *testing.T) {
 		},
 		{
 			name: "invalid auth code option",
-			args: []interface{}{
+			args: []any{
 				oidcServer.URL,               // provider/issuer
 				"",                           // client ID
 				"",                           // client secret
@@ -664,7 +664,7 @@ func TestCreateFilterOIDC(t *testing.T) {
 		},
 		{
 			name: "unparsable value of subdomainsToRemove",
-			args: []interface{}{
+			args: []any{
 				oidcServer.URL,               // provider/issuer
 				"",                           // client ID
 				"",                           // client secret
@@ -679,7 +679,7 @@ func TestCreateFilterOIDC(t *testing.T) {
 		},
 		{
 			name: "negative value of subdomainsToRemove",
-			args: []interface{}{
+			args: []any{
 				oidcServer.URL,               // provider/issuer
 				"",                           // client ID
 				"",                           // client secret
@@ -694,7 +694,7 @@ func TestCreateFilterOIDC(t *testing.T) {
 		},
 		{
 			name: "missing claims result in error",
-			args: []interface{}{
+			args: []any{
 				oidcServer.URL, // provider/issuer
 				"cliendId",
 				"clientSecret",
@@ -738,7 +738,7 @@ func TestCreateFilterOIDCWithSecretRefCredentials(t *testing.T) {
 
 	spec := NewOAuthOidcAnyClaimsWithOptions("/foo", secretsRegistry, OidcOptions{SecretsReader: sr}).(*tokenOidcSpec)
 
-	args := []interface{}{
+	args := []any{
 		oidcServer.URL,
 		"secretRef:/oidc/client-id",
 		"secretRef:/oidc/client-secret",
@@ -764,7 +764,7 @@ func TestCreateFilterOIDCWithSecretRefMissingSecretFails(t *testing.T) {
 
 	spec := NewOAuthOidcAnyClaimsWithOptions("/foo", secretsRegistry, OidcOptions{SecretsReader: sr}).(*tokenOidcSpec)
 
-	args := []interface{}{
+	args := []any{
 		oidcServer.URL,
 		"secretRef:/oidc/client-id",
 		"secretRef:/oidc/client-secret",
@@ -800,6 +800,8 @@ func TestOIDCSetup(t *testing.T) {
 		filterCookies      []string
 		extraClaims        jwt.MapClaims
 		expectCookieName   string
+		reqHeaders         map[string]string
+		expectNoRequest    string
 	}{{
 		msg:             "wrong provider",
 		filter:          `oauthOidcAnyClaims("no url", "", "", "{{ .RedirectURL }}", "", "")`,
@@ -862,6 +864,15 @@ func TestOIDCSetup(t *testing.T) {
 		extraClaims:   jwt.MapClaims{"groups": []string{"CD-Administrators", "Purchasing-Department", "AppX-Test-Users", "white space"}},
 		expected:      200,
 		expectRequest: "X-Auth-Email: someone@example.org\r\nX-Auth-Groups: AppX-Test-Users\r\nX-Auth-Something: somesub",
+	}, {
+		msg: "forged upstream identity header is stripped when claim is missing",
+		// Maps X-Auth-User to a claim that does not exist, so setHeaders takes the
+		// !match.Exists() miss path. Authorization still succeeds via "sub uid".
+		filter: `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "sub uid", "",
+			"x-auth-user:claims.does-not-exist")`,
+		reqHeaders:      map[string]string{"X-Auth-User": "attacker"},
+		expected:        200,
+		expectNoRequest: "attacker",
 	}, {
 		msg: "distributed Azure claims looked up in Microsoft Graph ",
 		filter: `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "sub uid", "",
@@ -960,6 +971,10 @@ func TestOIDCSetup(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				requestDump, _ := httputil.DumpRequest(r, false)
 				assert.Contains(t, string(requestDump), tc.expectRequest, "expected request not fulfilled")
+				if tc.expectNoRequest != "" {
+					assert.NotContains(t, string(requestDump), tc.expectNoRequest,
+						"forged inbound identity header must be stripped before reaching the backend")
+				}
 				assert.NotContains(t, string(requestDump), cmp.Or(tc.expectCookieName, oauthOidcCookieName), "oidc cookie should be dropped")
 				w.Write([]byte("OK"))
 			}))
@@ -1036,6 +1051,10 @@ func TestOIDCSetup(t *testing.T) {
 				return
 			}
 			req.Header.Set(authHeaderName, authHeaderPrefix+testToken)
+
+			for k, v := range tc.reqHeaders {
+				req.Header.Set(k, v)
+			}
 
 			for _, v := range tc.filterCookies {
 				req.Header.Set("Set-Cookie", v)
@@ -1227,7 +1246,7 @@ func Benchmark_deflatePoolCompressor(b *testing.B) {
 
 func Test_tokenOidcFilter_getMaxAge(t *testing.T) {
 	type args struct {
-		claimsMap map[string]interface{}
+		claimsMap map[string]any
 	}
 	tests := []struct {
 		name string
@@ -1237,7 +1256,7 @@ func Test_tokenOidcFilter_getMaxAge(t *testing.T) {
 		{
 			name: "Success",
 			args: args{
-				claimsMap: map[string]interface{}{
+				claimsMap: map[string]any{
 					"exp": float64(time.Now().Add(2 * time.Hour).Unix()),
 				},
 			},
@@ -1251,7 +1270,7 @@ func Test_tokenOidcFilter_getMaxAge(t *testing.T) {
 		{
 			name: "Wrong exp type",
 			args: args{
-				claimsMap: map[string]interface{}{
+				claimsMap: map[string]any{
 					"exp": int64(time.Now().Add(2 * time.Hour).Unix()),
 				},
 			},
@@ -1260,7 +1279,7 @@ func Test_tokenOidcFilter_getMaxAge(t *testing.T) {
 		{
 			name: "Exp too early",
 			args: args{
-				claimsMap: map[string]interface{}{
+				claimsMap: map[string]any{
 					"exp": float64(time.Now().Add(10 * time.Second).Unix()),
 				},
 			},

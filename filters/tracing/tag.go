@@ -47,7 +47,7 @@ func (s *tagSpec) Name() string {
 	return s.typ
 }
 
-func (s *tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *tagSpec) CreateFilter(args []any) (filters.Filter, error) {
 	var typ tagFilterType
 
 	switch s.typ {

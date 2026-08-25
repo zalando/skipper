@@ -39,7 +39,7 @@ type testRouting struct {
 
 func (cp *predicate) Name() string { return "CustomPredicate" }
 
-func (cp *predicate) Create(args []interface{}) (routing.Predicate, error) {
+func (cp *predicate) Create(args []any) (routing.Predicate, error) {
 	if len(args) != 1 {
 		return nil, errors.New("invalid number of args")
 	}
@@ -384,7 +384,7 @@ func TestProcessesFilterDefinitions(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{
 		Id:      "route1",
 		Path:    "/some-path",
-		Filters: []*eskip.Filter{{Name: "filter1", Args: []interface{}{3.14, "Hello, world!"}}},
+		Filters: []*eskip.Filter{{Name: "filter1", Args: []any{3.14, "Hello, world!"}}},
 		Backend: "https://www.example.org"}})
 	defer dc.Close()
 
@@ -1101,7 +1101,7 @@ func TestRoutingHandlerInvalidRoutesJSON(t *testing.T) {
 		t.Fatalf("invalid routes count = %v, want %v", got, want)
 	}
 
-	var entry map[string]interface{}
+	var entry map[string]any
 	if err := json.Unmarshal(invalidRoutes[0], &entry); err != nil {
 		t.Fatalf("failed to unmarshal invalid route entry: %v", err)
 	}

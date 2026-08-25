@@ -43,7 +43,7 @@ func TestTokenintrospectionSharedClientCredentials(t *testing.T) {
 			info = tokenIntrospectionInfo{
 				"active": true,
 				"sub":    "someone",
-				"claims": map[string]interface{}{"uid": "someone"},
+				"claims": map[string]any{"uid": "someone"},
 			}
 		}
 

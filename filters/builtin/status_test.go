@@ -11,7 +11,7 @@ import (
 func TestStatus(t *testing.T) {
 	for _, ti := range []struct {
 		msg          string
-		args         []interface{}
+		args         []any
 		expectedCode int
 	}{{
 		msg:          "no arguments",
@@ -19,15 +19,15 @@ func TestStatus(t *testing.T) {
 		expectedCode: http.StatusNotFound,
 	}, {
 		msg:          "too many arguments",
-		args:         []interface{}{float64(http.StatusTeapot), "something else"},
+		args:         []any{float64(http.StatusTeapot), "something else"},
 		expectedCode: http.StatusNotFound,
 	}, {
 		msg:          "invalid code argument",
-		args:         []interface{}{"418"},
+		args:         []any{"418"},
 		expectedCode: http.StatusNotFound,
 	}, {
 		msg:          "set status",
-		args:         []interface{}{float64(http.StatusTeapot)},
+		args:         []any{float64(http.StatusTeapot)},
 		expectedCode: http.StatusTeapot,
 	}} {
 		fr := make(filters.Registry)

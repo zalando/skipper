@@ -13,7 +13,7 @@ func TestAccessLogControl(t *testing.T) {
 	for _, ti := range []struct {
 		msg     string
 		state   filters.Spec
-		args    []interface{}
+		args    []any
 		result  AccessLogFilter
 		isError bool
 	}{
@@ -27,14 +27,14 @@ func TestAccessLogControl(t *testing.T) {
 		{
 			msg:     "enable-access-log-selective",
 			state:   NewEnableAccessLog(),
-			args:    []interface{}{2, 4, 300},
+			args:    []any{2, 4, 300},
 			result:  AccessLogFilter{Enable: true, Prefixes: []int{2, 4, 300}},
 			isError: false,
 		},
 		{
 			msg:     "enable-access-log-error-string",
 			state:   NewEnableAccessLog(),
-			args:    []interface{}{1, "a"},
+			args:    []any{1, "a"},
 			result:  AccessLogFilter{},
 			isError: true,
 		},
@@ -48,28 +48,28 @@ func TestAccessLogControl(t *testing.T) {
 		{
 			msg:     "disables-access-log-selective",
 			state:   NewDisableAccessLog(),
-			args:    []interface{}{1, 201, 30},
+			args:    []any{1, 201, 30},
 			result:  AccessLogFilter{Enable: false, Prefixes: []int{1, 201, 30}},
 			isError: false,
 		},
 		{
 			msg:     "disables-access-log-convert-float",
 			state:   NewDisableAccessLog(),
-			args:    []interface{}{1.0, 201},
+			args:    []any{1.0, 201},
 			result:  AccessLogFilter{Enable: false, Prefixes: []int{1, 201}},
 			isError: false,
 		},
 		{
 			msg:     "mask-access-log-query",
 			state:   NewMaskAccessLogQuery(),
-			args:    []interface{}{"key_1"},
+			args:    []any{"key_1"},
 			result:  AccessLogFilter{Enable: true, MaskedQueryParams: map[string]struct{}{"key_1": {}}},
 			isError: false,
 		},
 		{
 			msg:     "mask-access-log-query-convert-int",
 			state:   NewMaskAccessLogQuery(),
-			args:    []interface{}{1},
+			args:    []any{1},
 			result:  AccessLogFilter{},
 			isError: true,
 		},
@@ -83,7 +83,7 @@ func TestAccessLogControl(t *testing.T) {
 			}
 
 			var ctx filtertest.Context
-			ctx.FStateBag = make(map[string]interface{})
+			ctx.FStateBag = make(map[string]any)
 
 			f.Request(&ctx)
 			bag := ctx.StateBag()
@@ -138,7 +138,7 @@ func TestAccessLogMaskedParametersMerging(t *testing.T) {
 			}
 
 			bag := ctx.StateBag()
-			params := bag[AccessLogAdditionalDataKey].(map[string]interface{})[KeyMaskedQueryParams].(map[string]struct{})
+			params := bag[AccessLogAdditionalDataKey].(map[string]any)[KeyMaskedQueryParams].(map[string]struct{})
 			assert.Equal(t, params, ti.result, "access log state is not equal to expected")
 		})
 	}

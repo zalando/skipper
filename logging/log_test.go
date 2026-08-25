@@ -50,7 +50,7 @@ func TestApplicationLogJSONEnabled(t *testing.T) {
 	msg := "Hello, world!"
 	log.Info(msg)
 
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	err := json.Unmarshal(buf.Bytes(), &parsed)
 	if err != nil {
 		t.Errorf("failed to parse json log: %v", err)
@@ -94,7 +94,7 @@ func TestApplicationLogJSONWithCustomFormatter(t *testing.T) {
 	msg := "Hello, customized world!"
 	log.Info(msg)
 
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	err := json.Unmarshal(buf.Bytes(), &parsed)
 	if err != nil {
 		t.Errorf("failed to parse json log: %v", err)

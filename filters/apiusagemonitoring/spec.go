@@ -13,6 +13,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/routing"
 )
 
 const (
@@ -149,25 +150,25 @@ type apiUsageMonitoringSpec struct {
 	quitCH chan struct{}
 }
 
-func (s *apiUsageMonitoringSpec) errorf(format string, args ...interface{}) {
+func (s *apiUsageMonitoringSpec) errorf(format string, args ...any) {
 	s.sometimes.Do(func() {
 		log.Errorf(format, args...)
 	})
 }
 
-func (s *apiUsageMonitoringSpec) warnf(format string, args ...interface{}) {
+func (s *apiUsageMonitoringSpec) warnf(format string, args ...any) {
 	s.sometimes.Do(func() {
 		log.Warnf(format, args...)
 	})
 }
 
-func (s *apiUsageMonitoringSpec) infof(format string, args ...interface{}) {
+func (s *apiUsageMonitoringSpec) infof(format string, args ...any) {
 	s.sometimes.Do(func() {
 		log.Infof(format, args...)
 	})
 }
 
-func (s *apiUsageMonitoringSpec) debugf(format string, args ...interface{}) {
+func (s *apiUsageMonitoringSpec) debugf(format string, args ...any) {
 	s.sometimes.Do(func() {
 		log.Debugf(format, args...)
 	})
@@ -177,7 +178,7 @@ func (s *apiUsageMonitoringSpec) Name() string {
 	return filters.ApiUsageMonitoringName
 }
 
-func keyFromArgs(args []interface{}) (string, error) {
+func keyFromArgs(args []any) (string, error) {
 	var sb strings.Builder
 	for _, a := range args {
 		s, ok := a.(string)
@@ -195,7 +196,35 @@ func (s *apiUsageMonitoringSpec) Close() error {
 	return nil
 }
 
-func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+var _ routing.PostProcessor = &apiUsageMonitoringSpec{}
+
+// Do implements routing.PostProcessor and drops the filters cached by
+// CreateFilter that the new route table no longer uses. Without it the cache
+// keeps every filter configuration ever seen for the lifetime of the process.
+func (s *apiUsageMonitoringSpec) Do(routes []*routing.Route) []*routing.Route {
+	inUse := make(map[*apiUsageMonitoringFilter]struct{})
+
+	for _, ri := range routes {
+		for _, fi := range ri.Filters {
+			if f, ok := fi.Filter.(*apiUsageMonitoringFilter); ok {
+				inUse[f] = struct{}{}
+			}
+		}
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for key, f := range s.filterMap {
+		if _, ok := inUse[f]; !ok {
+			delete(s.filterMap, key)
+		}
+	}
+
+	return routes
+}
+
+func (s *apiUsageMonitoringSpec) CreateFilter(args []any) (filters.Filter, error) {
 	key, err := keyFromArgs(args)
 	// cache lookup
 	if err == nil {
@@ -231,7 +260,7 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filters.Filte
 	return f, nil
 }
 
-func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*apiConfig {
+func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []any) []*apiConfig {
 	apis := make([]*apiConfig, 0, len(args))
 	for i, a := range args {
 		rawJsonConfiguration, ok := a.(string)

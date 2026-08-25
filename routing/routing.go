@@ -79,7 +79,7 @@ type PredicateSpec interface {
 	Name() string
 
 	// Creates a predicate instance with concrete arguments.
-	Create([]interface{}) (Predicate, error)
+	Create([]any) (Predicate, error)
 }
 
 type WeightedPredicateSpec interface {
@@ -178,7 +178,7 @@ type LBContext struct {
 	Request     *http.Request
 	Route       *Route
 	LBEndpoints []LBEndpoint
-	Params      map[string]interface{}
+	Params      map[string]any
 }
 
 // NewLBContext is used to create a new LBContext, to pass data to the
@@ -494,10 +494,7 @@ func slice(r []*eskip.Route, offset int, limit int) []*eskip.Route {
 	if offset > len(r) {
 		offset = len(r)
 	}
-	end := offset + limit
-	if end > len(r) {
-		end = len(r)
-	}
+	end := min(offset+limit, len(r))
 	result := r[offset:end]
 	if result == nil {
 		return []*eskip.Route{}

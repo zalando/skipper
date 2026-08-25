@@ -150,7 +150,7 @@ func (l *testLog) Count(exp string) int {
 
 func (cors *preserveOriginalSpec) Name() string { return "preserveOriginal" }
 
-func (cors *preserveOriginalSpec) CreateFilter(_ []interface{}) (filters.Filter, error) {
+func (cors *preserveOriginalSpec) CreateFilter(_ []any) (filters.Filter, error) {
 	return &preserveOriginalFilter{}, nil
 }
 
@@ -516,27 +516,27 @@ func TestSetRequestUrlForDynamicBackend(t *testing.T) {
 	for _, ti := range []struct {
 		msg         string
 		expectedURL *url.URL
-		stateBag    map[string]interface{}
+		stateBag    map[string]any
 	}{{
 		"DynamicBackendURLKey is set",
 		&url.URL{Scheme: "https", Host: "example.com"},
-		map[string]interface{}{filters.DynamicBackendURLKey: "https://example.com"},
+		map[string]any{filters.DynamicBackendURLKey: "https://example.com"},
 	}, {
 		"DynamicBackendURLKey is set with not url",
 		&url.URL{},
-		map[string]interface{}{filters.DynamicBackendURLKey: "some string"},
+		map[string]any{filters.DynamicBackendURLKey: "some string"},
 	}, {
 		"DynamicBackendHostKey is set",
 		&url.URL{Host: "example.com"},
-		map[string]interface{}{filters.DynamicBackendHostKey: "example.com"},
+		map[string]any{filters.DynamicBackendHostKey: "example.com"},
 	}, {
 		"DynamicBackendSchemeKey is set",
 		&url.URL{Scheme: "http"},
-		map[string]interface{}{filters.DynamicBackendSchemeKey: "http"},
+		map[string]any{filters.DynamicBackendSchemeKey: "http"},
 	}, {
 		"All keys are set, DynamicBackendURLKey has priority",
 		&url.URL{Scheme: "https", Host: "priority.com"},
-		map[string]interface{}{
+		map[string]any{
 			filters.DynamicBackendSchemeKey: "http",
 			filters.DynamicBackendHostKey:   "example.com",
 			filters.DynamicBackendURLKey:    "https://priority.com"},
@@ -962,10 +962,10 @@ type shunter struct {
 	resp *http.Response
 }
 
-func (b *shunter) Request(c filters.FilterContext)                       { c.Serve(b.resp) }
-func (*shunter) Response(filters.FilterContext)                          {}
-func (b *shunter) CreateFilter(fc []interface{}) (filters.Filter, error) { return b, nil }
-func (*shunter) Name() string                                            { return "shunter" }
+func (b *shunter) Request(c filters.FilterContext)               { c.Serve(b.resp) }
+func (*shunter) Response(filters.FilterContext)                  {}
+func (b *shunter) CreateFilter(fc []any) (filters.Filter, error) { return b, nil }
+func (*shunter) Name() string                                    { return "shunter" }
 
 func TestBreakFilterChain(t *testing.T) {
 	s := startTestServer([]byte("Hello World!"), 0, func(r *http.Request) {
@@ -1027,8 +1027,8 @@ func TestBreakFilterChain(t *testing.T) {
 
 type nilFilterSpec struct{}
 
-func (*nilFilterSpec) Name() string                                              { return "nilFilter" }
-func (*nilFilterSpec) CreateFilter(config []interface{}) (filters.Filter, error) { return nil, nil }
+func (*nilFilterSpec) Name() string                                      { return "nilFilter" }
+func (*nilFilterSpec) CreateFilter(config []any) (filters.Filter, error) { return nil, nil }
 
 func TestFilterPanic(t *testing.T) {
 	testLog := NewTestLog()
@@ -2333,6 +2333,100 @@ func BenchmarkAccessLogEnablePrint(b *testing.B) {
 	benchmarkAccessLog(b, "enableAccessLog(1,200,3)", 200)
 }
 func BenchmarkAccessLogEnable(b *testing.B) { benchmarkAccessLog(b, "enableAccessLog(1,3)", 200) }
+
+func TestTrailerForwarding(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		backend        func(w http.ResponseWriter)
+		wantTrailers   http.Header
+		copyStreamPool bool
+	}{
+		{
+			name: "single trailer",
+			backend: func(w http.ResponseWriter) {
+				w.Header().Set("Trailer", "Grpc-Status")
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, "body")
+				w.(http.Flusher).Flush()
+				w.Header().Set("Grpc-Status", "2")
+			},
+			wantTrailers: http.Header{"Grpc-Status": {"2"}},
+		},
+		{
+			name: "multiple trailers",
+			backend: func(w http.ResponseWriter) {
+				w.Header().Set("Trailer", "Grpc-Status")
+				w.Header().Add("Trailer", "Grpc-Message")
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, "body")
+				w.(http.Flusher).Flush()
+				w.Header().Set("Grpc-Status", "2")
+				w.Header().Set("Grpc-Message", "unknown error")
+			},
+			wantTrailers: http.Header{
+				"Grpc-Status":  {"2"},
+				"Grpc-Message": {"unknown error"},
+			},
+		},
+		{
+			name: "no trailers",
+			backend: func(w http.ResponseWriter) {
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, "body")
+			},
+			wantTrailers: nil,
+		},
+		{
+			name: "trailer declared without value",
+			backend: func(w http.ResponseWriter) {
+				w.Header().Set("Trailer", "Grpc-Status")
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, "body")
+				w.(http.Flusher).Flush()
+				// Grpc-Status declared but not sent
+			},
+			wantTrailers: http.Header{"Grpc-Status": nil},
+		},
+		{
+			name:           "single trailer with copy stream pool",
+			copyStreamPool: true,
+			backend: func(w http.ResponseWriter) {
+				w.Header().Set("Trailer", "Grpc-Status")
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, "body")
+				w.(http.Flusher).Flush()
+				w.Header().Set("Grpc-Status", "2")
+			},
+			wantTrailers: http.Header{"Grpc-Status": {"2"}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				tt.backend(w)
+			}))
+			defer backend.Close()
+
+			doc := fmt.Sprintf(`r: * -> "%s"`, backend.URL)
+			tp, err := newTestProxyWithParams(doc, Params{
+				Flags:                            FlagsNone,
+				EnableCopyStreamPoolExperimental: tt.copyStreamPool,
+			})
+			require.NoError(t, err)
+			defer tp.close()
+
+			ps := httptest.NewServer(tp.proxy)
+			defer ps.Close()
+
+			rsp, err := http.DefaultClient.Get(ps.URL)
+			require.NoError(t, err)
+
+			io.Copy(io.Discard, rsp.Body)
+			rsp.Body.Close()
+
+			assert.Equal(t, tt.wantTrailers, rsp.Trailer)
+		})
+	}
+}
 
 func TestInitPassiveHealthChecker(t *testing.T) {
 	for i, ti := range []struct {

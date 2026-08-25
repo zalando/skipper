@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -94,7 +96,7 @@ func TestWebhook(t *testing.T) {
 
 			spec := NewWebhook(d)
 
-			args := []interface{}{
+			args := []any{
 				"http://" + authServer.Listener.Addr().String(),
 			}
 
@@ -153,4 +155,45 @@ func TestWebhook(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWebhookStripsForgedInboundHeader(t *testing.T) {
+	const forged = "forged-admin"
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(headerToCopy, r.Header.Get(headerToCopy))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer authServer.Close()
+
+	spec := NewWebhook(100 * time.Millisecond)
+	args := []any{
+		"http://" + authServer.Listener.Addr().String(),
+		headerToCopy,
+	}
+
+	fr := make(filters.Registry)
+	fr.Register(spec)
+	r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
+
+	proxy := proxytest.New(fr, r)
+	defer proxy.Close()
+
+	req, err := http.NewRequest("GET", proxy.URL, nil)
+	require.NoError(t, err)
+
+	req.Header.Set(authHeaderName, authHeaderPrefix+testToken)
+	req.Header.Set(headerToCopy, forged)
+
+	rsp, err := proxy.Client().Do(req)
+	require.NoError(t, err)
+	defer rsp.Body.Close()
+
+	assert.Empty(t, rsp.Header.Get(headerToCopy),
+		"forged inbound %s must be stripped before reaching the backend", headerToCopy)
 }

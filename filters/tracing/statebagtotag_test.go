@@ -20,9 +20,9 @@ func TestStateBagToTag(t *testing.T) {
 	span := tracer.StartSpan("start_span").(*tracingtest.MockSpan)
 
 	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
-	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
+	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]any{"item": "val"}}
 
-	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
+	f, err := NewStateBagToTag().CreateFilter([]any{"item", "tag"})
 	require.NoError(t, err)
 
 	f.Request(ctx)
@@ -40,9 +40,9 @@ func TestStateBagToTagAllocs(t *testing.T) {
 	defer span.Finish()
 
 	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
-	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
+	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]any{"item": "val"}}
 
-	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
+	f, err := NewStateBagToTag().CreateFilter([]any{"item", "tag"})
 	require.NoError(t, err)
 
 	allocs := testing.AllocsPerRun(100, func() {
@@ -56,36 +56,36 @@ func TestStateBagToTagAllocs(t *testing.T) {
 func TestStateBagToTag_CreateFilter(t *testing.T) {
 	for _, ti := range []struct {
 		msg      string
-		args     []interface{}
+		args     []any
 		stateBag string
 		tag      string
 		err      error
 	}{
 		{
 			msg:      "state bag and tag",
-			args:     []interface{}{"state_bag", "tag"},
+			args:     []any{"state_bag", "tag"},
 			stateBag: "state_bag",
 			tag:      "tag",
 		},
 		{
 			msg:      "only state bag",
-			args:     []interface{}{"state_bag"},
+			args:     []any{"state_bag"},
 			stateBag: "state_bag",
 			tag:      "state_bag",
 		},
 		{
 			msg:  "no args",
-			args: []interface{}{},
+			args: []any{},
 			err:  filters.ErrInvalidFilterParameters,
 		},
 		{
 			msg:  "empty arg",
-			args: []interface{}{""},
+			args: []any{""},
 			err:  filters.ErrInvalidFilterParameters,
 		},
 		{
 			msg:  "too many args",
-			args: []interface{}{"foo", "bar", "baz"},
+			args: []any{"foo", "bar", "baz"},
 			err:  filters.ErrInvalidFilterParameters,
 		},
 	} {
@@ -104,7 +104,7 @@ func TestStateBagToTag_CreateFilter(t *testing.T) {
 }
 
 func BenchmarkStateBagToTag_StringValue(b *testing.B) {
-	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
+	f, err := NewStateBagToTag().CreateFilter([]any{"item", "tag"})
 	require.NoError(b, err)
 
 	tracer := tracingtest.NewTracer()
@@ -114,7 +114,7 @@ func BenchmarkStateBagToTag_StringValue(b *testing.B) {
 	req := &http.Request{Header: http.Header{}}
 	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
 
-	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
+	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]any{"item": "val"}}
 	f.Request(ctx)
 
 	require.Equal(b, "val", span.Tag("tag"))

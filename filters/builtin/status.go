@@ -13,7 +13,7 @@ func NewStatus() filters.Spec { return new(statusSpec) }
 
 func (s *statusSpec) Name() string { return filters.StatusName }
 
-func (s *statusSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *statusSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

@@ -142,7 +142,7 @@ func benchmarkCompress(b *testing.B, n int64, encoding []string) {
 func TestCompressArgs(t *testing.T) {
 	for _, ti := range []struct {
 		msg           string
-		args          []interface{}
+		args          []any
 		err           error
 		expectedMime  []string
 		expectedLevel int
@@ -154,55 +154,55 @@ func TestCompressArgs(t *testing.T) {
 		flate.BestSpeed,
 	}, {
 		"extended set of mime types",
-		[]interface{}{"...", "x/custom-0", "x/custom-1"},
+		[]any{"...", "x/custom-0", "x/custom-1"},
 		nil,
 		append(defaultCompressMIME, "x/custom-0", "x/custom-1"),
 		flate.BestSpeed,
 	}, {
 		"reset set of mime types",
-		[]interface{}{"x/custom-0", "x/custom-1"},
+		[]any{"x/custom-0", "x/custom-1"},
 		nil,
 		[]string{"x/custom-0", "x/custom-1"},
 		flate.BestSpeed,
 	}, {
 		"invalid parameter",
-		[]interface{}{"x/custom-0", "x/custom-1", 3.14},
+		[]any{"x/custom-0", "x/custom-1", 3.14},
 		filters.ErrInvalidFilterParameters,
 		nil,
 		flate.BestSpeed,
 	}, {
 		"non integer level",
-		[]interface{}{3.14, "...", "x/custom"},
+		[]any{3.14, "...", "x/custom"},
 		filters.ErrInvalidFilterParameters,
 		nil,
 		0,
 	}, {
 		"level too small",
-		[]interface{}{-1, "...", "x/custom"},
+		[]any{-1, "...", "x/custom"},
 		filters.ErrInvalidFilterParameters,
 		nil,
 		0,
 	}, {
 		"level too big",
-		[]interface{}{10, "...", "x/custom"},
+		[]any{10, "...", "x/custom"},
 		filters.ErrInvalidFilterParameters,
 		nil,
 		0,
 	}, {
 		"set level only",
-		[]interface{}{float64(6)},
+		[]any{float64(6)},
 		nil,
 		defaultCompressMIME,
 		6,
 	}, {
 		"set level and reset mime",
-		[]interface{}{float64(6), "x/custom-0", "x/custom-1"},
+		[]any{float64(6), "x/custom-0", "x/custom-1"},
 		nil,
 		[]string{"x/custom-0", "x/custom-1"},
 		6,
 	}, {
 		"set level and extend mime",
-		[]interface{}{float64(6), "...", "x/custom-0", "x/custom-1"},
+		[]any{float64(6), "...", "x/custom-0", "x/custom-1"},
 		nil,
 		append(defaultCompressMIME, "x/custom-0", "x/custom-1"),
 		6,
@@ -289,7 +289,7 @@ func TestCompress(t *testing.T) {
 		msg            string
 		responseHeader http.Header
 		contentLength  int
-		compressArgs   []interface{}
+		compressArgs   []any
 		acceptEncoding string
 		expectedHeader http.Header
 	}{{
@@ -326,7 +326,7 @@ func TestCompress(t *testing.T) {
 		"custom content type",
 		http.Header{"Content-Type": []string{"x/custom"}},
 		3 * 8192,
-		[]interface{}{"x/custom"},
+		[]any{"x/custom"},
 		"gzip,deflate",
 		http.Header{
 			"Content-Type":     []string{"x/custom"},
@@ -359,7 +359,7 @@ func TestCompress(t *testing.T) {
 		"gzip, no compression",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(gzip.NoCompression)},
+		[]any{float64(gzip.NoCompression)},
 		"x-custom,gzip",
 		http.Header{
 			"Content-Encoding": []string{"gzip"},
@@ -368,7 +368,7 @@ func TestCompress(t *testing.T) {
 		"gzip, best speed",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(gzip.BestSpeed)},
+		[]any{float64(gzip.BestSpeed)},
 		"x-custom,gzip",
 		http.Header{
 			"Content-Encoding": []string{"gzip"},
@@ -377,7 +377,7 @@ func TestCompress(t *testing.T) {
 		"gzip, stdlib default",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(gzip.DefaultCompression)},
+		[]any{float64(gzip.DefaultCompression)},
 		"x-custom,gzip",
 		http.Header{
 			"Content-Encoding": []string{"gzip"},
@@ -386,7 +386,7 @@ func TestCompress(t *testing.T) {
 		"gzip, best compression",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(gzip.BestCompression)},
+		[]any{float64(gzip.BestCompression)},
 		"x-custom,gzip",
 		http.Header{
 			"Content-Encoding": []string{"gzip"},
@@ -395,7 +395,7 @@ func TestCompress(t *testing.T) {
 		"gzip, higher compression",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(brotli.BestCompression)},
+		[]any{float64(brotli.BestCompression)},
 		"x-custom,gzip",
 		http.Header{
 			"Content-Encoding": []string{"gzip"},
@@ -413,7 +413,7 @@ func TestCompress(t *testing.T) {
 		"deflate, no compression",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(flate.NoCompression)},
+		[]any{float64(flate.NoCompression)},
 		"x-custom,deflate",
 		http.Header{
 			"Content-Encoding": []string{"deflate"},
@@ -422,7 +422,7 @@ func TestCompress(t *testing.T) {
 		"deflate, best speed",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(flate.BestSpeed)},
+		[]any{float64(flate.BestSpeed)},
 		"x-custom,deflate",
 		http.Header{
 			"Content-Encoding": []string{"deflate"},
@@ -431,7 +431,7 @@ func TestCompress(t *testing.T) {
 		"deflate",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(flate.DefaultCompression)},
+		[]any{float64(flate.DefaultCompression)},
 		"x-custom,deflate",
 		http.Header{
 			"Content-Encoding": []string{"deflate"},
@@ -440,7 +440,7 @@ func TestCompress(t *testing.T) {
 		"deflate",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(flate.BestCompression)},
+		[]any{float64(flate.BestCompression)},
 		"x-custom,deflate",
 		http.Header{
 			"Content-Encoding": []string{"deflate"},
@@ -458,7 +458,7 @@ func TestCompress(t *testing.T) {
 		"brotli, best speed",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(brotli.BestSpeed)},
+		[]any{float64(brotli.BestSpeed)},
 		"x-custom,br",
 		http.Header{
 			"Content-Encoding": []string{"br"},
@@ -467,7 +467,7 @@ func TestCompress(t *testing.T) {
 		"brotli, mid compression level",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(6)},
+		[]any{float64(6)},
 		"x-custom,br",
 		http.Header{
 			"Content-Encoding": []string{"br"},
@@ -476,7 +476,7 @@ func TestCompress(t *testing.T) {
 		"brotli, best compression",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(brotli.BestCompression)},
+		[]any{float64(brotli.BestCompression)},
 		"x-custom,br",
 		http.Header{
 			"Content-Encoding": []string{"br"},
@@ -494,7 +494,7 @@ func TestCompress(t *testing.T) {
 		"zstd, stdlib default",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(flate.DefaultCompression)},
+		[]any{float64(flate.DefaultCompression)},
 		"x-custom,zstd",
 		http.Header{
 			"Content-Encoding": []string{"zstd"},
@@ -503,7 +503,7 @@ func TestCompress(t *testing.T) {
 		"zstd, best speed",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(flate.BestSpeed)},
+		[]any{float64(flate.BestSpeed)},
 		"x-custom,zstd",
 		http.Header{
 			"Content-Encoding": []string{"zstd"},
@@ -548,7 +548,7 @@ func TestCompress(t *testing.T) {
 		"multiple compression, priority to zstd",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(brotli.BestCompression)},
+		[]any{float64(brotli.BestCompression)},
 		"x-custom,br;q=0.8,gzip;q=0.8,zstd;q=1.0,deflate;q=0.8",
 		http.Header{
 			"Content-Encoding": []string{"zstd"},
@@ -557,7 +557,7 @@ func TestCompress(t *testing.T) {
 		"multiple compression, priority to gzip",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(brotli.BestCompression)},
+		[]any{float64(brotli.BestCompression)},
 		"x-custom,br,gzip,deflate",
 		http.Header{
 			"Content-Encoding": []string{"gzip"},
@@ -566,7 +566,7 @@ func TestCompress(t *testing.T) {
 		"multiple compression, priority to gzip",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(gzip.BestCompression)},
+		[]any{float64(gzip.BestCompression)},
 		"x-custom,gzip,deflate",
 		http.Header{
 			"Content-Encoding": []string{"gzip"},
@@ -575,14 +575,14 @@ func TestCompress(t *testing.T) {
 		"malformed accept encoding",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(gzip.BestCompression)},
+		[]any{float64(gzip.BestCompression)},
 		"x-custom, ;q=3",
 		http.Header{},
 	}, {
 		"invalid q value",
 		http.Header{},
 		3 * 8192,
-		[]interface{}{float64(gzip.BestCompression)},
+		[]any{float64(gzip.BestCompression)},
 		"x-custom;q=1.1",
 		http.Header{},
 	}} {

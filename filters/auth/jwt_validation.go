@@ -50,7 +50,7 @@ func (s *jwtValidationSpec) Name() string {
 	return filters.JwtValidationName
 }
 
-func (s *jwtValidationSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *jwtValidationSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -187,7 +187,7 @@ func (s *jwtValidationKeysSpec) Name() string {
 	return filters.JwtValidationKeysName
 }
 
-func (s *jwtValidationKeysSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *jwtValidationKeysSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -209,7 +209,7 @@ func (s *jwtValidationKeysSpec) CreateFilter(args []interface{}) (filters.Filter
 	}, nil
 }
 
-func parseToken(token string, jwksUri string) (map[string]interface{}, error) {
+func parseToken(token string, jwksUri string) (map[string]any, error) {
 	jwks := getKeyFunction(jwksUri)
 
 	var claims jwt.MapClaims

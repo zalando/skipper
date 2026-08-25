@@ -24,7 +24,7 @@ func (stateBagToTagSpec) Name() string {
 	return filters.StateBagToTagName
 }
 
-func (stateBagToTagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (stateBagToTagSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) < 1 || len(args) > 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

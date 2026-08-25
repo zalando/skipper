@@ -189,10 +189,10 @@ func TestCodaHaleProxyMetrics(t *testing.T) {
 	}
 }
 
-type serializationResult map[string]map[string]map[string]interface{}
+type serializationResult map[string]map[string]map[string]any
 
 type serializationTest struct {
-	i        interface{}
+	i        any
 	expected serializationResult
 }
 

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"go.opentelemetry.io/contrib/exporters/autoexport"
@@ -38,6 +39,37 @@ type Options struct {
 	ResourceAttributes map[string]string  `yaml:"resourceAttributes"`
 	Propagators        []string           `yaml:"propagators"`
 	BatchSpanProcessor BatchSpanProcessor `yaml:"batchSpanProcessor"`
+
+	// Sampler configures the Sampler used by the TracerProvider to decide
+	// whether a span is recorded and marked as sampled.
+	//
+	// Supported values, matching the OTEL_TRACES_SAMPLER environment variable:
+	//
+	//   - always_on
+	//   - always_off
+	//   - traceidratio
+	//   - parentbased_always_on (default)
+	//   - parentbased_always_off
+	//   - parentbased_traceidratio
+	//
+	// If empty, the sampler is taken from the OTEL_TRACES_SAMPLER (and
+	// OTEL_TRACES_SAMPLER_ARG) environment variables, falling back to the SDK
+	// default of parentbased_always_on if those are not set either.
+	//
+	// Note that "parentbased_*" samplers respect the sampled flag of an
+	// incoming traceparent header and will stop sampling (and therefore stop
+	// propagating sampled=1) for the rest of the trace once an upstream hop
+	// marks it as not sampled. Use "always_on" to make skipper always record
+	// and always propagate sampled=1 regardless of the incoming trace context.
+	Sampler string `yaml:"sampler"`
+
+	// SamplerArg configures the argument for the Sampler, if applicable.
+	// Only used by the "traceidratio" and "parentbased_traceidratio" samplers,
+	// where it is the sampling ratio in the range [0.0, 1.0].
+	//
+	// If empty, the argument is taken from the OTEL_TRACES_SAMPLER_ARG
+	// environment variable.
+	SamplerArg string `yaml:"samplerArg"`
 }
 
 type ExporterOtlp struct {
@@ -64,6 +96,8 @@ type BatchSpanProcessor struct {
 //   - OTEL_EXPORTER_OTLP_HEADERS
 //   - OTEL_RESOURCE_ATTRIBUTES
 //   - OTEL_PROPAGATORS
+//   - OTEL_TRACES_SAMPLER
+//   - OTEL_TRACES_SAMPLER_ARG
 //   - OTEL_BSP_MAX_QUEUE_SIZE
 //   - OTEL_BSP_MAX_EXPORT_BATCH_SIZE
 //   - OTEL_BSP_SCHEDULE_DELAY
@@ -88,6 +122,8 @@ func Init(ctx context.Context, o *Options) (shutdown func(context.Context) error
 		// "OTEL_EXPORTER_OTLP_HEADERS", // may contain sensitive data
 		"OTEL_RESOURCE_ATTRIBUTES",
 		"OTEL_PROPAGATORS",
+		"OTEL_TRACES_SAMPLER",
+		"OTEL_TRACES_SAMPLER_ARG",
 		"OTEL_BSP_MAX_QUEUE_SIZE",
 		"OTEL_BSP_MAX_EXPORT_BATCH_SIZE",
 		"OTEL_BSP_SCHEDULE_DELAY",
@@ -129,7 +165,12 @@ func Init(ctx context.Context, o *Options) (shutdown func(context.Context) error
 		return handleErr(err)
 	}
 
-	tracerProvider := trace.NewTracerProvider(batcherOpt, resourceOpt)
+	samplerOpt, err := withSampler(o)
+	if err != nil {
+		return handleErr(err)
+	}
+
+	tracerProvider := trace.NewTracerProvider(batcherOpt, resourceOpt, samplerOpt)
 	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
 
 	otel.SetTracerProvider(tracerProvider)
@@ -230,6 +271,71 @@ func withResource(o *Options) (trace.TracerProviderOption, error) {
 		}
 	}
 	return trace.WithResource(r), nil
+}
+
+// withSampler configures the Sampler for the TracerProvider based on the
+// provided options. If Options.Sampler is empty, trace.WithSampler(nil) is
+// returned, which is a no-op: the TracerProvider then falls back to the
+// OTEL_TRACES_SAMPLER/OTEL_TRACES_SAMPLER_ARG environment variables, or the
+// SDK default (parentbased_always_on) if those are not set either.
+func withSampler(o *Options) (trace.TracerProviderOption, error) {
+	s, err := samplerFromOptions(o)
+	if err != nil {
+		return nil, err
+	}
+	return trace.WithSampler(s), nil
+}
+
+// samplerFromOptions builds a [trace.Sampler] out of Options.Sampler and
+// Options.SamplerArg. It returns a nil Sampler and no error if Options.Sampler
+// is empty, letting the caller fall back to environment variables or the SDK
+// default.
+func samplerFromOptions(o *Options) (trace.Sampler, error) {
+	switch o.Sampler {
+	case "":
+		return nil, nil
+	case "always_on":
+		return trace.AlwaysSample(), nil
+	case "always_off":
+		return trace.NeverSample(), nil
+	case "traceidratio":
+		ratio, err := samplerRatio(o.SamplerArg)
+		if err != nil {
+			return nil, err
+		}
+		return trace.TraceIDRatioBased(ratio), nil
+	case "parentbased_always_on":
+		return trace.ParentBased(trace.AlwaysSample()), nil
+	case "parentbased_always_off":
+		return trace.ParentBased(trace.NeverSample()), nil
+	case "parentbased_traceidratio":
+		ratio, err := samplerRatio(o.SamplerArg)
+		if err != nil {
+			return nil, err
+		}
+		return trace.ParentBased(trace.TraceIDRatioBased(ratio)), nil
+	default:
+		return nil, fmt.Errorf("invalid sampler %q - should be one of "+
+			"['always_on', 'always_off', 'traceidratio', 'parentbased_always_on', "+
+			"'parentbased_always_off', 'parentbased_traceidratio']", o.Sampler)
+	}
+}
+
+// samplerRatio parses arg as the sampling ratio used by the traceidratio and
+// parentbased_traceidratio samplers. An empty arg defaults to a ratio of 1.0,
+// matching the OTEL_TRACES_SAMPLER_ARG behavior in the OTel SDK.
+func samplerRatio(arg string) (float64, error) {
+	if arg == "" {
+		return 1.0, nil
+	}
+	ratio, err := strconv.ParseFloat(arg, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid sampler argument %q: %w", arg, err)
+	}
+	if ratio < 0.0 || ratio > 1.0 {
+		return 0, fmt.Errorf("invalid sampler argument %q: trace ID ratio must be in range [0.0, 1.0]", arg)
+	}
+	return ratio, nil
 }
 
 // textMapPropagator creates a composite TextMapPropagator using

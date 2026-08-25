@@ -54,7 +54,7 @@ func (s *spec) Name() string {
 	return predicates.QueryParamName
 }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []any) (routing.Predicate, error) {
 	if len(args) == 0 || len(args) > 2 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}

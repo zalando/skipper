@@ -98,7 +98,6 @@ func ExampleClient_withTransport() {
 	d := stdlibnet.Dialer{
 		Timeout:   3 * time.Second,
 		KeepAlive: 30 * time.Second,
-		DualStack: true,
 	}
 	f := d.DialContext
 

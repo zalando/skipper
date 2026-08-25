@@ -37,7 +37,7 @@ func createEastWestRouteRG(name, ns, postfix string, r *eskip.Route) *eskip.Rout
 
 	p = append(p, &eskip.Predicate{
 		Name: "Host",
-		Args: []interface{}{hostRx},
+		Args: []any{hostRx},
 	})
 
 	ewr.Predicates = p

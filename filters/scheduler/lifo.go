@@ -88,7 +88,7 @@ func lifoStateBagKey(typ string) string {
 	}
 }
 
-func intArg(a interface{}) (int, error) {
+func intArg(a any) (int, error) {
 	switch v := a.(type) {
 	case int:
 		return v, nil
@@ -99,7 +99,7 @@ func intArg(a interface{}) (int, error) {
 	}
 }
 
-func durationArg(a interface{}) (time.Duration, error) {
+func durationArg(a any) (time.Duration, error) {
 	switch v := a.(type) {
 	case string:
 		return time.ParseDuration(v)
@@ -128,7 +128,7 @@ func (s *lifoSpec) Name() string { return s.typ }
 // Min values are 1 for MaxConcurrency and MaxQueueSize, and 1ms for
 // Timeout. All configuration that is below will be set to these min
 // values.
-func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *lifoSpec) CreateFilter(args []any) (filters.Filter, error) {
 	var l lifoFilter
 	l.typ = s.typ
 
@@ -204,7 +204,7 @@ func (s *lifoGroupSpec) Name() string { return s.typ }
 // one of them will be used as the source for the applied settings, if there
 // is accidentally a difference between the settings in the same group, a
 // warning will be logged.
-func (s *lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *lifoGroupSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) < 1 || len(args) > 4 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

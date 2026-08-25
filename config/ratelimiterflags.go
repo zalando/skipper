@@ -91,7 +91,7 @@ func (r *ratelimitFlags) Set(value string) error {
 	return nil
 }
 
-func (r *ratelimitFlags) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (r *ratelimitFlags) UnmarshalYAML(unmarshal func(any) error) error {
 	var rateLimitSettings ratelimit.Settings
 	if err := unmarshal(&rateLimitSettings); err != nil {
 		return err

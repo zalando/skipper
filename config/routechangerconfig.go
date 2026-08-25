@@ -57,7 +57,7 @@ func (rcc *routeChangerConfig) Set(value string) error {
 	return err
 }
 
-func (rcc *routeChangerConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (rcc *routeChangerConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	var value string
 	if err := unmarshal(&value); err != nil {
 		return err

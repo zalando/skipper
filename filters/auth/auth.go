@@ -83,7 +83,7 @@ func (err *requestError) Error() string {
 	return err.err.Error()
 }
 
-func requestErrorf(f string, args ...interface{}) error {
+func requestErrorf(f string, args ...any) error {
 	return &requestError{
 		err: fmt.Errorf(f, args...),
 	}
@@ -145,7 +145,7 @@ func authorized(ctx filters.FilterContext, username string) {
 	ctx.StateBag()[logfilter.AuthUserKey] = username
 }
 
-func getStrings(args []interface{}) ([]string, error) {
+func getStrings(args []any) ([]string, error) {
 	s := make([]string, len(args))
 	var ok bool
 	for i, a := range args {

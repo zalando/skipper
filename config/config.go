@@ -708,7 +708,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.TimeoutBackend, "timeout-backend", 60*time.Second, "sets the TCP client connection timeout for backend connections")
 	flag.DurationVar(&cfg.UpgradeDialTimeout, "upgrade-dial-timeout", 0, "sets the explicit connect-time ceiling for websocket/spdy upgrade backend connections. Zero falls back to the built-in 30s default; negative disables the ceiling entirely")
 	flag.DurationVar(&cfg.KeepaliveBackend, "keepalive-backend", 30*time.Second, "sets the keepalive for backend connections")
-	flag.BoolVar(&cfg.EnableDualstackBackend, "enable-dualstack-backend", true, "enables DualStack for backend connections")
+	flag.BoolVar(&cfg.EnableDualstackBackend, "enable-dualstack-backend", true, "*deprecated* and has no effect, enabled DualStack for backend connections")
 	flag.DurationVar(&cfg.TlsHandshakeTimeoutBackend, "tls-timeout-backend", 60*time.Second, "sets the TLS handshake timeout for backend connections")
 	flag.DurationVar(&cfg.ResponseHeaderTimeoutBackend, "response-header-timeout-backend", 60*time.Second, "sets the HTTP response header timeout for backend connections")
 	flag.DurationVar(&cfg.ExpectContinueTimeoutBackend, "expect-continue-timeout-backend", 30*time.Second, "sets the HTTP expect continue timeout for backend connections")
@@ -839,7 +839,7 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 		return fmt.Errorf("invalid arguments: %s", c.Flags.Args())
 	}
 
-	configKeys := make(map[string]interface{})
+	configKeys := make(map[string]any)
 	if c.ConfigFile != "" {
 		yamlFile, err := os.ReadFile(c.ConfigFile)
 		if err != nil {
@@ -1005,7 +1005,6 @@ func (c *Config) ToOptions() skipper.Options {
 		OpenTracingLogStreamEvents:          c.OpentracingLogStreamEvents,
 		OpenTracingClientTraceByTag:         c.OpenTracingClientTraceByTag,
 		OpenTracingLogFilterLifecycleEvents: c.OpentracingLogFilterLifecycleEvents,
-		MetricsListener:                     c.MetricsListener,
 		MetricsPrefix:                       c.MetricsPrefix,
 		EnableProfile:                       c.EnableProfile,
 		BlockProfileRate:                    c.BlockProfileRate,
@@ -1173,7 +1172,6 @@ func (c *Config) ToOptions() skipper.Options {
 		TimeoutBackend:               c.TimeoutBackend,
 		UpgradeDialTimeout:           c.UpgradeDialTimeout,
 		KeepAliveBackend:             c.KeepaliveBackend,
-		DualStackBackend:             c.EnableDualstackBackend,
 		TLSHandshakeTimeoutBackend:   c.TlsHandshakeTimeoutBackend,
 		ResponseHeaderTimeoutBackend: c.ResponseHeaderTimeoutBackend,
 		ExpectContinueTimeoutBackend: c.ExpectContinueTimeoutBackend,
@@ -1257,6 +1255,11 @@ func (c *Config) ToOptions() skipper.Options {
 	for _, rcci := range c.EditRoute {
 		eskipEdit := eskip.NewEditor(rcci.Reg, rcci.Repl)
 		options.EditRoute = append(options.EditRoute, eskipEdit)
+	}
+
+	if c.MetricsListener != "" && c.SupportListener == "" {
+		log.Warn("Deprecated use of -metrics-listener found, please use -support-listener instead")
+		c.SupportListener = c.MetricsListener
 	}
 
 	if c.PluginDir != "" {
@@ -1466,7 +1469,7 @@ func (c *Config) parseEnv() {
 	}
 }
 
-func (c *Config) checkDeprecated(configKeys map[string]interface{}, options ...string) {
+func (c *Config) checkDeprecated(configKeys map[string]any, options ...string) {
 	flagKeys := make(map[string]bool)
 	c.Flags.Visit(func(f *flag.Flag) { flagKeys[f.Name] = true })
 

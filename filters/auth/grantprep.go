@@ -24,7 +24,7 @@ func (p *grantPrep) Do(r []*eskip.Route) []*eskip.Route {
 		Id: id,
 		Predicates: []*eskip.Predicate{{
 			Name: "Path",
-			Args: []interface{}{
+			Args: []any{
 				p.config.CallbackPath,
 			},
 		}},

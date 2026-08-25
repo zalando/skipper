@@ -71,7 +71,7 @@ func newCtx(method, rawURL string, authHeader string) *filtertest.Context {
 	}
 	return &filtertest.Context{
 		FRequest:  req,
-		FStateBag: make(map[string]interface{}),
+		FStateBag: make(map[string]any),
 		FMetrics:  &metricstest.MockMetrics{},
 	}
 }
@@ -265,12 +265,12 @@ func TestCreateFilter_InvalidArgs(t *testing.T) {
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	cases := []struct {
 		name string
-		args []interface{}
+		args []any
 	}{
-		{"too few args", []interface{}{"5m", "15s"}},
-		{"bad ttl", []interface{}{"bad", "15s", "30s"}},
-		{"zero ttl", []interface{}{"0s", "15s", "30s"}},
-		{"non-string ttl", []interface{}{300, "15s", "30s"}},
+		{"too few args", []any{"5m", "15s"}},
+		{"bad ttl", []any{"bad", "15s", "30s"}},
+		{"zero ttl", []any{"0s", "15s", "30s"}},
+		{"non-string ttl", []any{300, "15s", "30s"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1337,7 +1337,7 @@ func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
 
 	makeFilter := func(t *testing.T) *cacheFilter {
 		t.Helper()
-		f, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
+		f, err := spec.CreateFilter([]any{"5m", "15s", "30s"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2634,17 +2634,17 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 
 	cases := []struct {
 		name    string
-		args    []interface{}
+		args    []any
 		wantRFC bool
 		wantSIE time.Duration
 		wantErr bool
 	}{
-		{"0 args pure rfc mode", []interface{}{}, true, 0, false},
-		{"3 args force mode", []interface{}{"5m", "15s", "30s"}, false, 0, false},
-		{"4 args staleIfError", []interface{}{"5m", "15s", "30s", "60s"}, false, 60 * time.Second, false},
-		{"1 arg invalid", []interface{}{"5m"}, false, 0, true},
-		{"2 args invalid", []interface{}{"5m", "15s"}, false, 0, true},
-		{"6 args too many", []interface{}{"5m", "15s", "30s", "60s", "Authorization", "extra"}, false, 0, true},
+		{"0 args pure rfc mode", []any{}, true, 0, false},
+		{"3 args force mode", []any{"5m", "15s", "30s"}, false, 0, false},
+		{"4 args staleIfError", []any{"5m", "15s", "30s", "60s"}, false, 60 * time.Second, false},
+		{"1 arg invalid", []any{"5m"}, false, 0, true},
+		{"2 args invalid", []any{"5m", "15s"}, false, 0, true},
+		{"6 args too many", []any{"5m", "15s", "30s", "60s", "Authorization", "extra"}, false, 0, true},
 	}
 
 	for _, tc := range cases {

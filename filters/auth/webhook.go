@@ -63,7 +63,7 @@ func (*webhookSpec) Name() string {
 //
 //	s.CreateFilter("https://my-auth-service.example.org/auth")
 //	s.CreateFilter("https://my-auth-service.example.org/auth", "X-Auth-User,X-Auth-User-Roles")
-func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (ws *webhookSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if l := len(args); l == 0 || l > 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -133,6 +133,9 @@ func (f *webhookFilter) Request(ctx filters.FilterContext) {
 
 	// copy required headers from webhook response into the current request
 	for _, hk := range f.forwardResponseHeaderKeys {
+		// Always drop any client-supplied inbound copy to prevent forgery,
+		// then set only the value the webhook returned.
+		ctx.Request().Header.Del(hk)
 		if h, ok := resp.Header[hk]; ok {
 			ctx.Request().Header[hk] = h
 		}

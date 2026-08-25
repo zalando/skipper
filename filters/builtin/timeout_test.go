@@ -25,25 +25,25 @@ func TestTimeoutCreateFilterEdgeCases(t *testing.T) {
 	}
 
 	ti.typ = readTimeout
-	_, err := ti.CreateFilter([]interface{}{3 * time.Microsecond})
+	_, err := ti.CreateFilter([]any{3 * time.Microsecond})
 	if err != nil {
 		t.Errorf("Failed to create filter: %v", err)
 	}
 
-	_, err = ti.CreateFilter([]interface{}{"3.1"})
+	_, err = ti.CreateFilter([]any{"3.1"})
 	if err == nil {
 		t.Error("Failed to get filter error on wrong input string")
 	}
 
-	_, err = ti.CreateFilter([]interface{}{3.5})
+	_, err = ti.CreateFilter([]any{3.5})
 	if err != filters.ErrInvalidFilterParameters {
 		t.Errorf("Failed to get filter error on wrong input: %v", err)
 	}
-	_, err = ti.CreateFilter([]interface{}{5, "5"})
+	_, err = ti.CreateFilter([]any{5, "5"})
 	if err != filters.ErrInvalidFilterParameters {
 		t.Errorf("Failed to get filter error on too many args: %v", err)
 	}
-	_, err = ti.CreateFilter([]interface{}{})
+	_, err = ti.CreateFilter([]any{})
 	if err != filters.ErrInvalidFilterParameters {
 		t.Errorf("Failed to get filter error on too few args: %v", err)
 	}
@@ -56,12 +56,12 @@ func TestBackendTimeout(t *testing.T) {
 		t.Error("wrong name")
 	}
 
-	f, err := bt.CreateFilter([]interface{}{"2s"})
+	f, err := bt.CreateFilter([]any{"2s"})
 	if err != nil {
 		t.Error("wrong id")
 	}
 
-	c := &filtertest.Context{FRequest: &http.Request{}, FStateBag: make(map[string]interface{})}
+	c := &filtertest.Context{FRequest: &http.Request{}, FStateBag: make(map[string]any)}
 	f.Request(c)
 
 	if c.FStateBag[filters.BackendTimeout] != 2*time.Second {
@@ -69,7 +69,7 @@ func TestBackendTimeout(t *testing.T) {
 	}
 
 	// second filter overwrites
-	f, _ = bt.CreateFilter([]interface{}{"5s"})
+	f, _ = bt.CreateFilter([]any{"5s"})
 	f.Request(c)
 
 	if c.FStateBag[filters.BackendTimeout] != 5*time.Second {
@@ -135,7 +135,7 @@ func TestTimeoutsFilterBackendTimeout(t *testing.T) {
 			filter := NewBackendTimeout().(*timeout)
 
 			fr.Register(filter)
-			r := &eskip.Route{Filters: []*eskip.Filter{{Name: filter.Name(), Args: []interface{}{tt.args}}}, Backend: backend.URL}
+			r := &eskip.Route{Filters: []*eskip.Filter{{Name: filter.Name(), Args: []any{tt.args}}}, Backend: backend.URL}
 
 			proxy := proxytest.New(fr, r)
 			defer proxy.Close()
@@ -317,7 +317,7 @@ func TestTimeoutsFilterWriteTimeout(t *testing.T) {
 			filter := NewWriteTimeout().(*timeout)
 
 			fr.Register(filter)
-			r := &eskip.Route{Filters: []*eskip.Filter{{Name: filter.Name(), Args: []interface{}{tt.args}}}, Backend: backend.URL}
+			r := &eskip.Route{Filters: []*eskip.Filter{{Name: filter.Name(), Args: []any{tt.args}}}, Backend: backend.URL}
 
 			proxy := proxytest.New(fr, r)
 			defer proxy.Close()

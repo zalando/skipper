@@ -50,7 +50,7 @@ func (a *basic) Request(ctx filters.FilterContext) {
 // Creates out basicAuth Filter
 // The first params specifies the used htpasswd file
 // The second is optional and defines the realm name
-func (spec *basicSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (spec *basicSpec) CreateFilter(config []any) (filters.Filter, error) {
 	if len(config) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

@@ -15,7 +15,7 @@ func (s *backendIsProxySpec) Name() string {
 	return filters.BackendIsProxyName
 }
 
-func (s *backendIsProxySpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *backendIsProxySpec) CreateFilter(args []any) (filters.Filter, error) {
 	return &backendIsProxyFilter{}, nil
 }
 

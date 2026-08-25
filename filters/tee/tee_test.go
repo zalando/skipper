@@ -22,8 +22,8 @@ import (
 
 var (
 	testTeeSpec        = NewTee()
-	teeArgsAsBackend   = []interface{}{"https://api.example.com"}
-	teeArgsWithModPath = []interface{}{"https://api.example.com", ".*", "/v1/"}
+	teeArgsAsBackend   = []any{"https://api.example.com"}
+	teeArgsWithModPath = []any{"https://api.example.com", ".*", "/v1/"}
 )
 
 type myHandler struct {
@@ -301,7 +301,7 @@ func TestTeeFollowOrNot(t *testing.T) {
 			fspec = NewTeeNoFollow()
 		}
 
-		f, err := fspec.CreateFilter([]interface{}{redirectorServer.URL})
+		f, err := fspec.CreateFilter([]any{redirectorServer.URL})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -398,52 +398,52 @@ func buildfilterContext() filters.FilterContext {
 func TestTeeArgsForFailure(t *testing.T) {
 	for _, ti := range []struct {
 		msg  string
-		args []interface{}
+		args []any
 		err  bool
 	}{
 		{
 			"error on zero args",
-			[]interface{}{},
+			[]any{},
 			true,
 		},
 		{
 			"error on non string args",
-			[]interface{}{1},
+			[]any{1},
 			true,
 		},
 
 		{
 			"error on non parsable urls",
-			[]interface{}{"%"},
+			[]any{"%"},
 			true,
 		},
 
 		{
 			"error with 2 arguments",
-			[]interface{}{"http://example.com", "test"},
+			[]any{"http://example.com", "test"},
 			true,
 		},
 
 		{
 			"error on non regexp",
-			[]interface{}{"http://example.com", 1, "replacement"},
+			[]any{"http://example.com", 1, "replacement"},
 			true,
 		},
 		{
 			"error on non replacement string",
-			[]interface{}{"http://example.com", ".*", 1},
+			[]any{"http://example.com", ".*", 1},
 			true,
 		},
 
 		{
 			"error on too many arguments",
-			[]interface{}{"http://example.com", ".*", "/api", 5, 6},
+			[]any{"http://example.com", ".*", "/api", 5, 6},
 			true,
 		},
 
 		{
 			"error on non valid regexp(trailing slash)",
-			[]interface{}{"http://example.com", `\`, "/api"},
+			[]any{"http://example.com", `\`, "/api"},
 			true,
 		},
 	} {

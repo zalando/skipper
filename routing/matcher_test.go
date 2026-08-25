@@ -16,9 +16,9 @@ import (
 
 type truePredicate struct{}
 
-func (tp *truePredicate) Name() string                                 { return "True" }
-func (tp *truePredicate) Create(args []interface{}) (Predicate, error) { return tp, nil }
-func (tp *truePredicate) Match(r *http.Request) bool                   { return true }
+func (tp *truePredicate) Name() string                         { return "True" }
+func (tp *truePredicate) Create(args []any) (Predicate, error) { return tp, nil }
+func (tp *truePredicate) Match(r *http.Request) bool           { return true }
 
 const (
 	benchmarkingCountPhase1 = 1

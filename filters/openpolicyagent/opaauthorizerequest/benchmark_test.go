@@ -94,7 +94,7 @@ func BenchmarkMinimalPolicy(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			ctx := &filtertest.Context{
-				FStateBag: map[string]interface{}{},
+				FStateBag: map[string]any{},
 				FResponse: &http.Response{},
 				FRequest: &http.Request{
 					URL: reqUrl,
@@ -147,7 +147,7 @@ func BenchmarkMinimalPolicyWithDecisionLogs(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			ctx := &filtertest.Context{
-				FStateBag: map[string]interface{}{},
+				FStateBag: map[string]any{},
 				FResponse: &http.Response{},
 				FRequest: &http.Request{
 					URL: reqUrl,
@@ -190,7 +190,7 @@ func BenchmarkAllowWithReqBody(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			ctx := &filtertest.Context{
-				FStateBag: map[string]interface{}{},
+				FStateBag: map[string]any{},
 				FResponse: &http.Response{},
 				FRequest: &http.Request{
 					Method: "POST",
@@ -295,7 +295,7 @@ func BenchmarkJwtValidation(b *testing.B) {
 
 		b.Run(bc.name, func(b *testing.B) {
 			ctx := &filtertest.Context{
-				FStateBag: map[string]interface{}{},
+				FStateBag: map[string]any{},
 				FResponse: &http.Response{},
 				FRequest: &http.Request{
 					Header: map[string][]string{
@@ -390,7 +390,7 @@ func BenchmarkJwtValidationWithVaryingTokenCounts(b *testing.B) {
 			require.NoError(b, err, "Failed to sign token")
 
 			ctxs[i] = &filtertest.Context{
-				FStateBag: map[string]interface{}{},
+				FStateBag: map[string]any{},
 				FResponse: &http.Response{},
 				FRequest: &http.Request{
 					Header: map[string][]string{
@@ -460,7 +460,7 @@ func BenchmarkMinimalPolicyBundle(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			ctx := &filtertest.Context{
-				FStateBag: map[string]interface{}{},
+				FStateBag: map[string]any{},
 				FResponse: &http.Response{},
 				FRequest: &http.Request{
 					URL:    requestUrl,
@@ -547,7 +547,7 @@ func BenchmarkSplitPolicyAndDataBundles(b *testing.B) {
 			b.RunParallel(func(pb *testing.PB) {
 				for pb.Next() {
 					ctx := &filtertest.Context{
-						FStateBag: map[string]interface{}{},
+						FStateBag: map[string]any{},
 						FResponse: &http.Response{},
 						FRequest: &http.Request{
 							URL:    requestURL,
@@ -610,7 +610,7 @@ func createOpaFilter(opts FilterOptions) (filters.Filter, error) {
 	}
 
 	spec := NewOpaAuthorizeRequestSpec(opaFactory)
-	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
+	return spec.CreateFilter([]any{opts.BundleNames[0], opts.ContextExtensions})
 }
 
 func createBodyBasedOpaFilter(opts FilterOptions) (filters.Filter, error) {
@@ -622,7 +622,7 @@ func createBodyBasedOpaFilter(opts FilterOptions) (filters.Filter, error) {
 	}
 
 	spec := NewOpaAuthorizeRequestWithBodySpec(opaFactory)
-	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
+	return spec.CreateFilter([]any{opts.BundleNames[0], opts.ContextExtensions})
 }
 
 func generateConfig(opaControlPlane string, decisionLogConsumer string, decisionPath string, decisionLogging bool, jwtCache bool) []byte {
@@ -697,7 +697,7 @@ func createOpaFilterForMultipleBundles(opts FilterOptions) (filters.Filter, erro
 
 	// Enable data pre-processing optimization by default for multiple bundles
 	spec := NewOpaAuthorizeRequestSpec(opaFactory)
-	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
+	return spec.CreateFilter([]any{opts.BundleNames[0], opts.ContextExtensions})
 }
 
 func createOpaFilterWithDataProcessingOptimization(opts FilterOptions) (filters.Filter, error) {
@@ -708,7 +708,7 @@ func createOpaFilterWithDataProcessingOptimization(opts FilterOptions) (filters.
 	}
 
 	spec := NewOpaAuthorizeRequestSpec(registry)
-	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
+	return spec.CreateFilter([]any{opts.BundleNames[0], opts.ContextExtensions})
 }
 
 func generateConfigForMultipleBundles(bundlesNames []string, opaControlPlane string, decisionLogConsumer string, decisionPath string, decisionLogging bool) []byte {

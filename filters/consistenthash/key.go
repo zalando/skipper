@@ -17,7 +17,7 @@ func (*consistentHashKey) Name() string {
 	return filters.ConsistentHashKeyName
 }
 
-func (*consistentHashKey) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (*consistentHashKey) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

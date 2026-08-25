@@ -922,7 +922,7 @@ func newFilter(opts LuaOptions, script string, params ...string) (filters.Filter
 	if err != nil {
 		return nil, err
 	}
-	args := []interface{}{script}
+	args := []any{script}
 	for _, p := range params {
 		args = append(args, p)
 	}
@@ -944,7 +944,7 @@ func runFilter(opts LuaOptions, test *testContext) (filters.FilterContext, error
 	}
 	fc := &filtertest.Context{
 		FParams:       test.pathParams,
-		FStateBag:     make(map[string]interface{}),
+		FStateBag:     make(map[string]any),
 		FRequest:      req,
 		FOutgoingHost: "www.example.com",
 	}

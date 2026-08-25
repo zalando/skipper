@@ -38,7 +38,7 @@ type revokeErrorResponse struct {
 
 func (*grantLogoutSpec) Name() string { return filters.GrantLogoutName }
 
-func (s *grantLogoutSpec) CreateFilter([]interface{}) (filters.Filter, error) {
+func (s *grantLogoutSpec) CreateFilter([]any) (filters.Filter, error) {
 	return &grantLogoutFilter{
 		config: s.config,
 	}, nil

@@ -33,7 +33,7 @@ func TestWSDLExample(t *testing.T) {
 	}
 
 	sp := New()
-	conf := []interface{}{
+	conf := []any{
 		"location=\"https?://[^/]+/ws/",
 		"location=\"https://address-service.example.org/ws/",
 	}

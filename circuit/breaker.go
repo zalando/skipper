@@ -10,7 +10,7 @@ import (
 // BreakerType defines the type of the used breaker: consecutive, rate or disabled.
 type BreakerType int
 
-func (b *BreakerType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (b *BreakerType) UnmarshalYAML(unmarshal func(any) error) error {
 	var value string
 	if err := unmarshal(&value); err != nil {
 		return err

@@ -193,7 +193,7 @@ func TestPassTLSClientCert_PEM(t *testing.T) {
 			spec := New()
 			assert.Equal(t, spec.Name(), filters.TLSName)
 
-			f, err := spec.CreateFilter([]interface{}{})
+			f, err := spec.CreateFilter([]any{})
 			require.NoError(t, err)
 
 			req, err := http.NewRequest(http.MethodGet, "http://example.com/foo", nil)

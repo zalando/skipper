@@ -295,6 +295,8 @@ type Params struct {
 	EnableCopyStreamPoolExperimental bool
 
 	// DualStack sets if the proxy TCP connections to the backend should be dual stack
+	//
+	// Deprecated: see go net.Dialer.DualStack
 	DualStack bool
 
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
@@ -622,7 +624,7 @@ func setRequestURLFromRequest(u *url.URL, r *http.Request) {
 	}
 }
 
-func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]interface{}) {
+func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]any) {
 	dbu, ok := stateBag[filters.DynamicBackendURLKey].(string)
 	if ok && dbu != "" {
 		bu, err := url.ParseRequestURI(dbu)
@@ -949,7 +951,6 @@ func newTransport(p Params) *http.Transport {
 		DialContext: newSkipperDialer(net.Dialer{
 			Timeout:   p.Timeout,
 			KeepAlive: p.KeepAlive,
-			DualStack: p.DualStack,
 		}).DialContext,
 		TLSHandshakeTimeout:   p.TLSHandshakeTimeout,
 		ResponseHeaderTimeout: p.ResponseHeaderTimeout,
@@ -1571,6 +1572,9 @@ func (p *Proxy) serveResponse(ctx *context) {
 		p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, StartEvent)
 	}
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
+	for k := range ctx.response.Trailer {
+		ctx.responseWriter.Header().Add("Trailer", k)
+	}
 
 	if err := ctx.Request().Context().Err(); err != nil {
 		// deadline exceeded or canceled in stdlib, client closed request
@@ -1600,6 +1604,12 @@ func (p *Proxy) serveResponse(ctx *context) {
 		n, err = copyStreamPooled(ctx.responseWriter, ctx.response.Body)
 	} else {
 		n, err = copyStream(ctx.responseWriter, ctx.response.Body)
+	}
+
+	for k, vs := range ctx.response.Trailer {
+		for _, v := range vs {
+			ctx.responseWriter.Header().Add(http.TrailerPrefix+k, v)
+		}
 	}
 
 	responseStopWatch.Start()
@@ -1821,7 +1831,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				AuthUser:     authUser,
 			}
 
-			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]interface{})
+			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]any)
 			if p.accessLogger != nil {
 				p.accessLogger.LogAccess(entry, additionalData)
 			}

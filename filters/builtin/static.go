@@ -33,7 +33,7 @@ func (spec *static) Name() string { return filters.StaticName }
 // prefix and file system root.
 //
 //lint:ignore ST1016 "spec" makes sense here and we reuse the type for the filter
-func (spec *static) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (spec *static) CreateFilter(config []any) (filters.Filter, error) {
 	if len(config) != 2 {
 		return nil, fmt.Errorf("invalid number of args: %d, expected 2", len(config))
 	}

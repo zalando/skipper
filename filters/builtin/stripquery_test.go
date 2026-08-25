@@ -75,7 +75,7 @@ var headerTests = []struct {
 func TestPreserveQuery(t *testing.T) {
 	sqs := NewStripQuery()
 
-	f, _ := sqs.CreateFilter([]interface{}{"true"})
+	f, _ := sqs.CreateFilter([]any{"true"})
 
 	for _, tt := range headerTests {
 		url, _ := url.ParseRequestURI(tt.uri)

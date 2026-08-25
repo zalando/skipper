@@ -375,7 +375,7 @@ func createDataClientWithUpdates(initial []*eskip.Route, updateTimeout time.Dura
 				Backend: "https://some.site",
 				Predicates: []*eskip.Predicate{{
 					Name: "Host",
-					Args: []interface{}{
+					Args: []any{
 						"no.sense",
 					},
 				}},

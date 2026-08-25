@@ -11,15 +11,15 @@ import (
 func TestQueryToHeaderFilter_Request(t *testing.T) {
 	for _, ti := range []struct {
 		msg      string
-		args     []interface{}
+		args     []any
 		expected string
 	}{{
 		msg:      "2 valid args",
-		args:     []interface{}{"foo", "X-Foo-Header"},
+		args:     []any{"foo", "X-Foo-Header"},
 		expected: "bar",
 	}, {
 		msg:      "3 valid args",
-		args:     []interface{}{"foo", "X-Foo-Header", "MyPrefix %s"},
+		args:     []any{"foo", "X-Foo-Header", "MyPrefix %s"},
 		expected: "MyPrefix bar",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {

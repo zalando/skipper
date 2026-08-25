@@ -38,7 +38,7 @@ func (*awsSigV4Spec) Name() string {
 	return filters.AWSSigV4Name
 }
 
-func (c *awsSigV4Spec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (c *awsSigV4Spec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 5 {
 		return nil, filters.ErrInvalidFilterParameters
 	}

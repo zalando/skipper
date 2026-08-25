@@ -48,7 +48,7 @@ func createToken(t *testing.T, method jwt.SigningMethod) string {
 func TestToken(t *testing.T) {
 	s := createToken(t, jwt.SigningMethodRS256)
 
-	parsedToken, err := jwt.Parse(s, func(token *jwt.Token) (interface{}, error) {
+	parsedToken, err := jwt.Parse(s, func(token *jwt.Token) (any, error) {
 		return &privateKey.PublicKey, nil
 	})
 
@@ -94,7 +94,7 @@ func TestJWTValidation(t *testing.T) {
 
 	var spec = NewJwtValidationWithOptions(TokenintrospectionOptions{})
 
-	args := []interface{}{issuerServer.URL}
+	args := []any{issuerServer.URL}
 
 	fr := make(filters.Registry)
 	fr.Register(spec)
@@ -176,19 +176,19 @@ func TestJwtValidationKeysSpec(t *testing.T) {
 	}
 
 	// No arguments
-	_, err := spec.CreateFilter([]interface{}{})
+	_, err := spec.CreateFilter([]any{})
 	if err == nil {
 		t.Error("expected error with no arguments")
 	}
 
 	// Too many arguments
-	_, err = spec.CreateFilter([]interface{}{"url1", "url2"})
+	_, err = spec.CreateFilter([]any{"url1", "url2"})
 	if err == nil {
 		t.Error("expected error with too many arguments")
 	}
 
 	// Non-string argument
-	_, err = spec.CreateFilter([]interface{}{123})
+	_, err = spec.CreateFilter([]any{123})
 	if err == nil {
 		t.Error("expected error with non-string argument")
 	}
@@ -216,7 +216,7 @@ func TestJwtValidationKeys(t *testing.T) {
 	fr.Register(spec)
 
 	r := &eskip.Route{
-		Filters: []*eskip.Filter{{Name: spec.Name(), Args: []interface{}{jwksServer.URL}}},
+		Filters: []*eskip.Filter{{Name: spec.Name(), Args: []any{jwksServer.URL}}},
 		Backend: backend.URL,
 	}
 
@@ -293,7 +293,7 @@ func TestJWTValidationJwksError(t *testing.T) {
 	testOidcConfig.JwksURI = issuerServer.URL + "/jwks"
 
 	spec := NewJwtValidationWithOptions(TokenintrospectionOptions{})
-	_, err := spec.CreateFilter([]interface{}{issuerServer.URL})
+	_, err := spec.CreateFilter([]any{issuerServer.URL})
 
 	if err == nil {
 		t.Errorf("It should not be possible to create filter")
@@ -328,7 +328,7 @@ func TestJWTValidationOpenIDConfigTimeout(t *testing.T) {
 	})
 
 	start := time.Now()
-	_, err := spec.CreateFilter([]interface{}{issuerServer.URL})
+	_, err := spec.CreateFilter([]any{issuerServer.URL})
 	if err == nil {
 		t.Fatal("expected OpenID config lookup to time out")
 	}

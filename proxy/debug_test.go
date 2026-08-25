@@ -28,10 +28,10 @@ func TestDebug(t *testing.T) {
 				Id:         "testRoute",
 				Path:       "/hello",
 				Backend:    "https://www.example.org",
-				Predicates: []*eskip.Predicate{{Name: "Test", Args: []interface{}{3.14, "hello"}}},
+				Predicates: []*eskip.Predicate{{Name: "Test", Args: []any{3.14, "hello"}}},
 				Filters: []*eskip.Filter{
-					{Name: "filter0", Args: []interface{}{float64(3.1415), "argvalue"}},
-					{Name: "filter1", Args: []interface{}{float64(-42), `ap"argvalue`}}}},
+					{Name: "filter0", Args: []any{float64(3.1415), "argvalue"}},
+					{Name: "filter1", Args: []any{float64(-42), `ap"argvalue`}}}},
 			incoming: &http.Request{
 				Method:     "OPTIONS",
 				RequestURI: "/testuri",
@@ -55,14 +55,14 @@ func TestDebug(t *testing.T) {
 			RouteId: "testRoute",
 			Route: (&eskip.Route{
 				Path: "/hello", Backend: "https://www.example.org",
-				Predicates: []*eskip.Predicate{{Name: "Test", Args: []interface{}{3.14, "hello"}}},
+				Predicates: []*eskip.Predicate{{Name: "Test", Args: []any{3.14, "hello"}}},
 				Filters: []*eskip.Filter{
-					{Name: "filter0", Args: []interface{}{float64(3.1415), "argvalue"}},
-					{Name: "filter1", Args: []interface{}{float64(-42), `ap"argvalue`}}}}).String(),
-			Predicates: []*eskip.Predicate{{Name: "Test", Args: []interface{}{3.14, "hello"}}},
+					{Name: "filter0", Args: []any{float64(3.1415), "argvalue"}},
+					{Name: "filter1", Args: []any{float64(-42), `ap"argvalue`}}}}).String(),
+			Predicates: []*eskip.Predicate{{Name: "Test", Args: []any{3.14, "hello"}}},
 			Filters: []*eskip.Filter{
-				{Name: "filter0", Args: []interface{}{float64(3.1415), "argvalue"}},
-				{Name: "filter1", Args: []interface{}{float64(-42), `ap"argvalue`}}},
+				{Name: "filter0", Args: []any{float64(3.1415), "argvalue"}},
+				{Name: "filter1", Args: []any{float64(-42), `ap"argvalue`}}},
 			Incoming: &debugRequest{
 				Method:        "OPTIONS",
 				Uri:           "/testuri",

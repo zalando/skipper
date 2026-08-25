@@ -765,7 +765,7 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 // request (If-None-Match / If-Modified-Since) when the stored entry carries
 // validators; a 304 response reuses the stored payload and merges new headers.
 func (f *cacheFilter) doRevalidate(key string, req *http.Request) {
-	f.revalSF.Do(key, func() (interface{}, error) { //nolint:errcheck
+	f.revalSF.Do(key, func() (any, error) { //nolint:errcheck
 		req.Header.Set(revalidateHeader, "1")
 		req.URL.Scheme = "http"
 		req.URL.Host = f.listenAddr
@@ -960,10 +960,7 @@ func correctedInitialAge(requestTime, responseTime time.Time, rspHeader http.Hea
 			ageValue = time.Duration(v) * time.Second
 		}
 	}
-	responseDelay := responseTime.Sub(requestTime)
-	if responseDelay < 0 {
-		responseDelay = 0
-	}
+	responseDelay := max(responseTime.Sub(requestTime), 0)
 	correctedAgeValue := ageValue + responseDelay
 	if correctedAgeValue > apparentAge {
 		return correctedAgeValue
@@ -978,20 +975,11 @@ func setAgeHeader(rsp *http.Response, entry *Entry, now time.Time) {
 	var age int64
 	if !entry.ResponseTime.IsZero() {
 		// RFC 9111 §4.2.3 precise formula.
-		residentTime := now.Sub(entry.ResponseTime)
-		if residentTime < 0 {
-			residentTime = 0
-		}
-		secs := int64((entry.CorrectedInitialAge + residentTime).Seconds())
-		if secs < 0 {
-			secs = 0
-		}
+		residentTime := max(now.Sub(entry.ResponseTime), 0)
+		secs := max(int64((entry.CorrectedInitialAge + residentTime).Seconds()), 0)
 		age = secs
 	} else {
-		elapsed := int64(now.Sub(entry.CreatedAt).Seconds())
-		if elapsed < 0 {
-			elapsed = 0
-		}
+		elapsed := max(int64(now.Sub(entry.CreatedAt).Seconds()), 0)
 		if existing := rsp.Header.Get("Age"); existing != "" {
 			if v, err := strconv.ParseInt(existing, 10, 64); err == nil {
 				elapsed += v
@@ -1178,20 +1166,14 @@ func varyKey(base string, r *http.Request, varyHeaders []string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func toDuration(v interface{}) (time.Duration, error) {
-	var d time.Duration
-	if dv, ok := v.(time.Duration); ok {
-		d = dv
-	} else {
-		s, ok := v.(string)
-		if !ok {
-			return 0, fmt.Errorf("expected string, got %T", v)
-		}
-		var err error
-		d, err = time.ParseDuration(s)
-		if err != nil {
-			return 0, err
-		}
+func toDuration(v any) (time.Duration, error) {
+	s, ok := v.(string)
+	if !ok {
+		return 0, fmt.Errorf("expected string, got %T", v)
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, err
 	}
 	if d <= 0 {
 		return 0, fmt.Errorf("duration must be positive, got %v", d)

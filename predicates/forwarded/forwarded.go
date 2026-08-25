@@ -42,7 +42,7 @@ type hostPredicate struct {
 	host *regexp.Regexp
 }
 
-func (p *hostPredicateSpec) Create(args []interface{}) (routing.Predicate, error) {
+func (p *hostPredicateSpec) Create(args []any) (routing.Predicate, error) {
 	if len(args) != 1 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
@@ -68,7 +68,7 @@ type protoPredicate struct {
 	proto string
 }
 
-func (p *protoPredicateSpec) Create(args []interface{}) (routing.Predicate, error) {
+func (p *protoPredicateSpec) Create(args []any) (routing.Predicate, error) {
 
 	if len(args) != 1 {
 		return nil, predicates.ErrInvalidPredicateParameters

@@ -10,7 +10,7 @@ import (
 func Test_originMarkerSpec_CreateFilter(t *testing.T) {
 	tests := []struct {
 		name    string
-		args    []interface{}
+		args    []any
 		wantErr bool
 		want    *OriginMarker
 	}{
@@ -20,18 +20,18 @@ func Test_originMarkerSpec_CreateFilter(t *testing.T) {
 		},
 		{
 			name:    "time not formatted correctly",
-			args:    []interface{}{"origin", "id", "wrong time"},
+			args:    []any{"origin", "id", "wrong time"},
 			wantErr: true,
 		},
 		{
 			name:    "parse time",
-			args:    []interface{}{"origin", "id", time0.Format(time.RFC3339)},
+			args:    []any{"origin", "id", time0.Format(time.RFC3339)},
 			wantErr: false,
 			want:    &OriginMarker{"origin", "id", time0},
 		},
 		{
 			name:    "pass time",
-			args:    []interface{}{"origin", "id", time0},
+			args:    []any{"origin", "id", time0},
 			wantErr: false,
 			want:    &OriginMarker{"origin", "id", time0},
 		},
