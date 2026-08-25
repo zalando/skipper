@@ -1011,10 +1011,22 @@ data. Logs can also explode in the amount of bytes, so you have to
 choose a limit. You can log request or response bodies. This filter
 has close to no overhead other than the I/O created by the logger.
 
+The optional response status code prefixes log the body only for matching
+responses, which is useful to capture the bodies of failing requests
+without logging the successful ones. They follow the same matching rules
+as [enableAccessLog](#enableaccesslog): a value below 10 matches a status
+class, below 100 a sub-class and anything larger an exact status code.
+
+The response body is still streamed in that case, but for the request
+body the status is not known while it streams, so up to limit bytes are
+buffered and logged once the response status is known. The request body
+itself is neither held back nor truncated.
+
 Parameters:
 
 * type: "request" or "response" (string)
 * limit: maximum number of bytes to log (int)
+* status code prefixes: log only for matching responses (int) - optional, variadic
 
 Example:
 
@@ -1022,6 +1034,18 @@ Example:
 * -> logBody("request", 1024) -> "https://www.example.org";
 * -> logBody("response", 1024) -> "https://www.example.org";
 * -> logBody("request", 1024) -> logBody("response", 1024) -> "https://www.example.org";
+```
+
+Log the request body only for server errors, i.e. any 5xx response:
+
+```
+* -> logBody("request", 1024, 5) -> "https://www.example.org";
+```
+
+Log the request body for 5xx responses and for 429 specifically:
+
+```
+* -> logBody("request", 1024, 5, 429) -> "https://www.example.org";
 ```
 
 ## Timeout
