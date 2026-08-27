@@ -294,12 +294,10 @@ func (vr *valkeyRing) Set(ctx context.Context, key, val string) valkey.ValkeyRes
 	shard := vr.shardForKey(key)
 	return shard.Do(ctx, shard.B().Set().Key(key).Value(val).Build())
 }
-func (vr *valkeyRing) SetWithExpire(ctx context.Context, key, val string, expire time.Duration) []valkey.ValkeyResult {
+
+func (vr *valkeyRing) SetWithExpire(ctx context.Context, key, val string, expire time.Duration) valkey.ValkeyResult {
 	shard := vr.shardForKey(key)
-	return shard.DoMulti(ctx,
-		shard.B().Set().Key(key).Value(val).Build(),
-		shard.B().Expire().Key(key).Seconds(int64(expire.Seconds())).Build(),
-	)
+	return shard.Do(ctx, shard.B().Set().Key(key).Value(val).PxMilliseconds(expire.Milliseconds()).Build())
 }
 
 func (vr *valkeyRing) ZAdd(ctx context.Context, key, val string, score float64) valkey.ValkeyResult {
@@ -544,16 +542,7 @@ func (vrc *ValkeyRingClient) Set(ctx context.Context, key, val string) (string, 
 }
 
 func (vrc *ValkeyRingClient) SetWithExpire(ctx context.Context, key string, value string, expire time.Duration) error {
-	results := vrc.ring.SetWithExpire(ctx, key, value, expire)
-	if len(results) == 0 {
-		return ErrValkeyNoResult
-	}
-	for _, res := range results {
-		if err := res.Error(); err != nil {
-			return err
-		}
-	}
-	return nil
+	return vrc.ring.SetWithExpire(ctx, key, value, expire).Error()
 }
 
 func (vrc *ValkeyRingClient) ZAdd(ctx context.Context, key, val string, score float64) (int64, error) {

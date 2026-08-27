@@ -666,6 +666,17 @@ func TestValkeyClientGetSetWithExpire(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "add one, get one, with sub-second expiration",
+			options: &ValkeyOptions{
+				Addrs: []string{valkeyAddr},
+			},
+			key:     "k1",
+			value:   "foo",
+			expire:  500 * time.Millisecond,
+			expect:  "foo",
+			wantErr: false,
+		},
+		{
 			name: "add one, get none, with expiration, wait to expire",
 			options: &ValkeyOptions{
 				Addrs: []string{valkeyAddr},
