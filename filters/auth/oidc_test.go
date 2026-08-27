@@ -587,7 +587,7 @@ func TestNewOidc(t *testing.T) {
 			args:    "/foo",
 			f:       NewOAuthOidcAnyClaimsDropRegexpWithOptions,
 			options: OidcOptions{},
-			want:    &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: "/foo", secretsRegistry: reg, dropRegexpVariant: true},
+			want:    &tokenOidcSpec{typ: checkOIDCAnyClaimsDropRegexp, SecretsFile: "/foo", secretsRegistry: reg},
 		},
 		{
 			name: "test AnyClaimsDropRegexp with options",
@@ -596,7 +596,7 @@ func TestNewOidc(t *testing.T) {
 			options: OidcOptions{
 				CookieValidity: 6 * time.Hour,
 			},
-			want: &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: "/foo", secretsRegistry: reg, dropRegexpVariant: true, options: OidcOptions{CookieValidity: 6 * time.Hour}},
+			want: &tokenOidcSpec{typ: checkOIDCAnyClaimsDropRegexp, SecretsFile: "/foo", secretsRegistry: reg, options: OidcOptions{CookieValidity: 6 * time.Hour}},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -754,13 +754,12 @@ func TestOidcAnyClaimsDropRegexpCookieName(t *testing.T) {
 	oidcServer := createOIDCServer("", "", "", nil, nil)
 	defer oidcServer.Close()
 
-	createFilter := func(t *testing.T, dropVariant bool, args []any) *tokenOidcFilter {
+	createFilter := func(t *testing.T, typ roleCheckType, args []any) *tokenOidcFilter {
 		t.Helper()
 		spec := &tokenOidcSpec{
-			typ:               checkOIDCAnyClaims,
-			SecretsFile:       "/foo",
-			secretsRegistry:   secrettest.NewTestRegistry(),
-			dropRegexpVariant: dropVariant,
+			typ:             typ,
+			SecretsFile:     "/foo",
+			secretsRegistry: secrettest.NewTestRegistry(),
 		}
 		f, err := spec.CreateFilter(args)
 		if err != nil {
@@ -787,16 +786,16 @@ func TestOidcAnyClaimsDropRegexpCookieName(t *testing.T) {
 	}
 
 	t.Run("different regexp produces different cookie name", func(t *testing.T) {
-		f1 := createFilter(t, true, baseArgs("groups", "^LEGACY-"))
-		f2 := createFilter(t, true, baseArgs("groups", "^OTHER-"))
+		f1 := createFilter(t, checkOIDCAnyClaimsDropRegexp, baseArgs("groups", "^LEGACY-"))
+		f2 := createFilter(t, checkOIDCAnyClaimsDropRegexp, baseArgs("groups", "^OTHER-"))
 		if f1.cookiename == f2.cookiename {
 			t.Errorf("expected different cookie names for different regexps, both got %q", f1.cookiename)
 		}
 	})
 
 	t.Run("different claim name produces different cookie name", func(t *testing.T) {
-		f1 := createFilter(t, true, baseArgs("groups", "^LEGACY-"))
-		f2 := createFilter(t, true, baseArgs("roles", "^LEGACY-"))
+		f1 := createFilter(t, checkOIDCAnyClaimsDropRegexp, baseArgs("groups", "^LEGACY-"))
+		f2 := createFilter(t, checkOIDCAnyClaimsDropRegexp, baseArgs("roles", "^LEGACY-"))
 		if f1.cookiename == f2.cookiename {
 			t.Errorf("expected different cookie names for different claim names, both got %q", f1.cookiename)
 		}
@@ -815,8 +814,8 @@ func TestOidcAnyClaimsDropRegexpCookieName(t *testing.T) {
 			"",                           // subdomains to remove
 			"",                           // cookie name
 		}
-		plainFilter := createFilter(t, false, plainArgs)
-		dropFilter := createFilter(t, true, baseArgs("groups", "^LEGACY-"))
+		plainFilter := createFilter(t, checkOIDCAnyClaims, plainArgs)
+		dropFilter := createFilter(t, checkOIDCAnyClaimsDropRegexp, baseArgs("groups", "^LEGACY-"))
 		if plainFilter.cookiename == dropFilter.cookiename {
 			t.Errorf("plain and drop-regexp filters must have different cookie names, both got %q", plainFilter.cookiename)
 		}
@@ -851,8 +850,8 @@ func TestOidcAnyClaimsDropRegexpCookieName(t *testing.T) {
 			"roles",                      // different claim name
 			"^OTHER-",                    // different regexp
 		}
-		f1 := createFilter(t, true, args1)
-		f2 := createFilter(t, true, args2)
+		f1 := createFilter(t, checkOIDCAnyClaimsDropRegexp, args1)
+		f2 := createFilter(t, checkOIDCAnyClaimsDropRegexp, args2)
 		if f1.cookiename != "my-custom-cookie" {
 			t.Errorf("expected explicit cookie name %q, got %q", "my-custom-cookie", f1.cookiename)
 		}
@@ -1016,10 +1015,9 @@ func TestCreateFilterOIDCAnyClaimsDropRegexp(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := &tokenOidcSpec{
-				typ:               checkOIDCAnyClaims,
-				SecretsFile:       "/foo",
-				secretsRegistry:   secrettest.NewTestRegistry(),
-				dropRegexpVariant: true,
+				typ:             checkOIDCAnyClaimsDropRegexp,
+				SecretsFile:     "/foo",
+				secretsRegistry: secrettest.NewTestRegistry(),
 			}
 
 			got, err := spec.CreateFilter(tt.args)

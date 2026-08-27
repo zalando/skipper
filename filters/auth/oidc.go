@@ -110,11 +110,10 @@ const oidcSecretRefPrefix = "secretRef:"
 
 type (
 	tokenOidcSpec struct {
-		typ               roleCheckType
-		SecretsFile       string
-		secretsRegistry   secrets.EncrypterCreator
-		options           OidcOptions
-		dropRegexpVariant bool
+		typ             roleCheckType
+		SecretsFile     string
+		secretsRegistry secrets.EncrypterCreator
+		options         OidcOptions
 	}
 
 	tokenOidcFilter struct {
@@ -185,7 +184,7 @@ func NewOAuthOidcAllClaimsWithOptions(secretsFile string, secretsRegistry secret
 // oauthOidcAnyClaims but removes matching values from one configured claim before
 // serializing the session cookie.
 func NewOAuthOidcAnyClaimsDropRegexpWithOptions(secretsFile string, secretsRegistry secrets.EncrypterCreator, o OidcOptions) filters.Spec {
-	return &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, options: o, dropRegexpVariant: true}
+	return &tokenOidcSpec{typ: checkOIDCAnyClaimsDropRegexp, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, options: o}
 }
 
 func (s *tokenOidcSpec) resolveClientCredential(v string) (string, error) {
@@ -378,7 +377,7 @@ func (s *tokenOidcSpec) CreateFilter(args []any) (filters.Filter, error) {
 		log.Debugf("Upstream Headers: %v", f.upstreamHeaders)
 	}
 
-	if s.dropRegexpVariant {
+	if s.typ == checkOIDCAnyClaimsDropRegexp {
 		if len(sargs) != paramDropClaimValueRegexp+1 {
 			return nil, fmt.Errorf("%w: oauthOidcAnyClaimsDropRegexp requires exactly 12 arguments", filters.ErrInvalidFilterParameters)
 		}
@@ -406,10 +405,9 @@ func (s *tokenOidcSpec) Name() string {
 	case checkOIDCUserInfo:
 		return filters.OAuthOidcUserInfoName
 	case checkOIDCAnyClaims:
-		if s.dropRegexpVariant {
-			return filters.OAuthOidcAnyClaimsDropRegexpName
-		}
 		return filters.OAuthOidcAnyClaimsName
+	case checkOIDCAnyClaimsDropRegexp:
+		return filters.OAuthOidcAnyClaimsDropRegexpName
 	case checkOIDCAllClaims:
 		return filters.OAuthOidcAllClaimsName
 	}
@@ -794,7 +792,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 			f.callbackUnauthorized(ctx, r.Host, fmt.Sprintf("Failed to get claims: %v.", err))
 			return
 		}
-	case checkOIDCAnyClaims, checkOIDCAllClaims:
+	case checkOIDCAnyClaims, checkOIDCAnyClaimsDropRegexp, checkOIDCAllClaims:
 		oidcIDToken, err = f.getidtoken(oauth2Token)
 		if err != nil {
 			if _, ok := err.(*requestError); !ok {
@@ -920,7 +918,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		if container.OAuth2Token.Valid() && container.UserInfo != nil {
 			allowed = f.validateAllClaims(container.Claims)
 		}
-	case checkOIDCAnyClaims:
+	case checkOIDCAnyClaims, checkOIDCAnyClaimsDropRegexp:
 		allowed = f.validateAnyClaims(container.Claims)
 	case checkOIDCAllClaims:
 		allowed = f.validateAllClaims(container.Claims)
