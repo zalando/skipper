@@ -40,6 +40,7 @@ type ValkeyStorage struct {
 //   - valkey_miss          — clean cache miss (key not found in Valkey)
 //   - valkey_get_error     — Valkey error on Get; treated as a cache miss
 //   - valkey_set_fallback  — Valkey error on Set; L1 was written instead
+//   - l2_hit               — successful Valkey Get (entry returned from L2)
 //
 // Pass metrics.Default when no test-scoped metrics collector is needed.
 func NewValkeyStorage(ring *skpnet.ValkeyRingClient, l1 *LRUStorage, m metrics.Metrics, l1TTL time.Duration) *ValkeyStorage {
@@ -68,6 +69,7 @@ func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
 	if err := json.Unmarshal([]byte(data), &e); err != nil {
 		return nil, fmt.Errorf("cache: decode valkey entry: %w", err)
 	}
+	s.metrics.IncCounter("cache.l2_hit")
 	// Write-through: warm L1 so subsequent requests on this process avoid Valkey round-trips.
 	// Use remaining freshness to avoid extending L1 beyond Valkey's actual expiry.
 	if s.l1TTL > 0 && e.TTL > 0 {
@@ -76,7 +78,6 @@ func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
 			warmed.TTL = min(s.l1TTL, remaining)
 			warmed.CreatedAt = time.Now()
 			_ = s.l1.Set(ctx, key, &warmed)
-			s.metrics.IncCounter("cache.l1_warm_from_valkey")
 		}
 	}
 	return &e, nil

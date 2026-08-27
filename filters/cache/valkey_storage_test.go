@@ -367,6 +367,35 @@ func TestValkeyStorage_L1TTL_Zero_DisablesWarming(t *testing.T) {
 	}
 }
 
+func TestValkeyStorage_RecordsL2Hit(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &testMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := &ValkeyStorage{ring: stub, l1: lru, metrics: m, l1TTL: 0} // write-around: no L1 warming
+
+	ctx := context.Background()
+	key := "l2-hit-key"
+	entry := &Entry{StatusCode: 200, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}
+
+	if err := s.Set(ctx, key, entry); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	// L1 is not warmed (l1TTL=0), so Get must go to Valkey — a real L2 hit.
+	got, err := s.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected entry from Valkey, got nil")
+	}
+	if m.counter("cache.l2_hit") != 1 {
+		t.Errorf("expected l2_hit=1, got %d", m.counter("cache.l2_hit"))
+	}
+	if m.counter("cache.l1_hit") != 0 {
+		t.Errorf("expected l1_hit=0 (write-around), got %d", m.counter("cache.l1_hit"))
+	}
+}
+
 func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	// Uses a broken stub — no Docker or live Valkey needed.
 	// Set triggers valkey_set_fallback, which writes the entry to L1.

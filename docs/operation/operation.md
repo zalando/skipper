@@ -2036,7 +2036,7 @@ falling back to 2 GB if the limit is unreadable. Override with
 - `cache.valkey_miss`: Counter, Valkey misses that proceeded to an upstream fetch
 - `cache.valkey_get_error`: Counter, Valkey Get errors — request treated as a cache miss, fetched from origin
 - `cache.valkey_set_fallback`: Counter, Valkey Set errors — entry written to L1 as fallback
-- `cache.l1_warm_from_valkey`: Counter, entries written into L1 after a successful Valkey Get (write-through on read path)
+- `cache.l2_hit`: Counter, successful Valkey Get (entry returned from L2); L1 is warmed as a side-effect when `--cache-l1-ttl > 0`
 
 **OpenTracing span tags (set on every request when a span is active):**
 
