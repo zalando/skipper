@@ -38,7 +38,7 @@ type ValkeyStorage struct {
 //
 //   - l1_hit               — L1 returned a warm entry; Valkey not consulted
 //   - valkey_miss          — clean cache miss (key not found in Valkey)
-//   - valkey_get_fallback  — Valkey error on Get; treated as a cache miss
+//   - valkey_get_error     — Valkey error on Get; treated as a cache miss
 //   - valkey_set_fallback  — Valkey error on Set; L1 was written instead
 //
 // Pass metrics.Default when no test-scoped metrics collector is needed.
@@ -60,7 +60,7 @@ func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
 			s.metrics.IncCounter("cache.valkey_miss")
 			return nil, nil
 		}
-		s.metrics.IncCounter("cache.valkey_get_fallback")
+		s.metrics.IncCounter("cache.valkey_get_error")
 		log.WithError(err).Warn("cache: valkey Get failed, treating as miss")
 		return nil, nil
 	}

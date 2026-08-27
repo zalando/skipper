@@ -1975,15 +1975,15 @@ remaining freshness (`entry.TTL - age`) is used rather than the original TTL to
 prevent L1 from serving the entry beyond Valkey's actual expiry. The default is
 60 seconds, bounding how long Skipper serves a locally-cached entry before
 re-consulting Valkey. Set `--cache-l1-ttl=0` to disable L1 warming and
-restore write-around behaviour (on Valkey write errors (`valkey_set_fallback`), L1 is
-used as a fallback; Valkey read errors (`valkey_get_fallback`) are treated as misses
-and do not consult L1).
+restore write-around behaviour. Note: on Valkey write errors (`valkey_set_fallback`), L1
+is always used as a fallback regardless of `--cache-l1-ttl`; Valkey read errors
+(`valkey_get_error`) are treated as cache misses.
 
 When an upstream responds successfully to an unsafe method (`POST`, `PUT`, `DELETE`, `PATCH`),
 the filter removes the cached entry for that URL from both Valkey and the local L1.
 Only the local process's L1 is cleared — other Skipper processes in the fleet retain their
-own L1 copies until `--cache-l1-ttl` expires. Set `--cache-l1-ttl` accordingly to bound
-the stale window after an invalidation.
+own L1 copies until each entry's warmed TTL (bounded by `--cache-l1-ttl`) expires naturally.
+Set `--cache-l1-ttl` accordingly to bound the stale window after an invalidation.
 
 There is no out-of-band operator invalidation API. To clear the cache outside the normal
 unsafe-method path, options are: wait for TTL expiry, restart the Skipper process (clears L1 in-memory cache only; Valkey data persists), or
@@ -1996,8 +1996,8 @@ route ID is part of the cache key. This protection is also process-local: a flee
 instances may still issue up to N simultaneous origin requests on a cold miss.
 
 The L1 memory budget defaults to 25% of the container's cgroup memory limit,
-falling back to 2 GB if the limit is unreadable. Override it programmatically
-via `skipper.Options.ResponseCacheMaxMemoryBytes`.
+falling back to 2 GB if the limit is unreadable. Override with
+`--cache-l1-max-memory-bytes` (or programmatically via `skipper.Options.ResponseCacheMaxMemoryBytes`).
 
 !!! note
     An in-process LRU (L1) is shared across all `cache()` filter instances in the same process.
@@ -2005,7 +2005,7 @@ via `skipper.Options.ResponseCacheMaxMemoryBytes`.
     second request is served whatever the first stored. Ensure the cache key includes all
     dimensions that distinguish responses (e.g. add `Authorization` to `keyHeaders` for
     per-user routes). The L1 storage budget is divided evenly across 256 internal shards; a
-    single entry larger than one shard's budget is dropped with a warning log.
+    single entry larger than one shard's budget is dropped with a warning log and increments `cache.lru_oversized`.
 
 ### Metrics
 
@@ -2019,8 +2019,8 @@ via `skipper.Options.ResponseCacheMaxMemoryBytes`.
 **LRU (always active):**
 
 - `cache.lru_eviction`: Counter, incremented each time an L1 entry is evicted due to memory pressure
-- `cache.lru_bytes`: Gauge, current L1 usage in bytes
-- `cache.lru_oversized`: Counter, incremented when an entry is too large for any shard and silently dropped
+- `cache.lru_bytes`: Gauge, current L1 usage in bytes (sampled every 10s)
+- `cache.lru_oversized`: Counter, incremented when an entry is too large for any shard and dropped
 
 **Revalidation (always active):**
 
@@ -2034,7 +2034,7 @@ via `skipper.Options.ResponseCacheMaxMemoryBytes`.
 
 - `cache.l1_hit`: Counter, L1 hits that bypassed Valkey
 - `cache.valkey_miss`: Counter, Valkey misses that proceeded to an upstream fetch
-- `cache.valkey_get_fallback`: Counter, Valkey Get errors — request treated as a cache miss, fetched from origin
+- `cache.valkey_get_error`: Counter, Valkey Get errors — request treated as a cache miss, fetched from origin
 - `cache.valkey_set_fallback`: Counter, Valkey Set errors — entry written to L1 as fallback
 - `cache.l1_warm_from_valkey`: Counter, entries written into L1 after a successful Valkey Get (write-through on read path)
 
