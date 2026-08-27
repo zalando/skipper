@@ -354,8 +354,8 @@ type Config struct {
 	SwarmStaticOther                  string        `yaml:"swarm-static-other"`
 
 	// cache
-	CacheL1TTL           time.Duration `yaml:"cache-l1-ttl"`
-	CacheL1MaxMemoryBytes int64        `yaml:"cache-l1-max-memory-bytes"`
+	CacheL1TTL            time.Duration `yaml:"cache-l1-ttl"`
+	CacheL1MaxMemoryBytes int64         `yaml:"cache-l1-max-memory-bytes"`
 
 	ClusterRatelimitMaxGroupShards int `yaml:"cluster-ratelimit-max-group-shards"`
 
@@ -1219,7 +1219,7 @@ func (c *Config) ToOptions() skipper.Options {
 		SwarmStaticOther: c.SwarmStaticOther,
 
 		// cache
-		CacheL1TTL:               c.CacheL1TTL,
+		CacheL1TTL:                  c.CacheL1TTL,
 		ResponseCacheMaxMemoryBytes: c.CacheL1MaxMemoryBytes,
 
 		ClusterRatelimitMaxGroupShards: c.ClusterRatelimitMaxGroupShards,
