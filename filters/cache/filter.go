@@ -538,6 +538,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		if shouldStore {
 			if err := f.storage.Set(context.Background(), key, entry); err != nil {
 				log.WithError(err).Warn("cache: Set failed (cold-miss store)")
+				f.metrics.IncCounter("cache.storage_error")
 			}
 		}
 		return &coalesceResult{entry: entry, stored: sieStored}, nil
@@ -611,6 +612,7 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 			}
 			if err := f.storage.Set(ctx.Request().Context(), key, stored); err != nil {
 				log.WithError(err).Warn("cache: Set failed (HEAD freshen)")
+				f.metrics.IncCounter("cache.storage_error")
 			}
 		}
 		return
@@ -626,18 +628,22 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	if isUnsafeMethod(ctx.Request().Method) && rsp.StatusCode < 400 {
 		if err := f.storage.Delete(ctx.Request().Context(), key); err != nil {
 			log.WithError(err).Warn("cache: Delete failed (unsafe method invalidation)")
+			f.metrics.IncCounter("cache.storage_error")
 		}
 		if err := f.storage.Delete(ctx.Request().Context(), "vary:"+key); err != nil {
 			log.WithError(err).Warn("cache: Delete failed (vary sentinel invalidation)")
+			f.metrics.IncCounter("cache.storage_error")
 		}
 		for _, hdrName := range []string{"Location", "Content-Location"} {
 			if loc := rsp.Header.Get(hdrName); loc != "" && sameOrigin(ctx.Request(), loc) {
 				if locKey := cacheKeyForURL(ctx.RouteId(), ctx.Request(), loc, f.keyHeaders); locKey != "" {
 					if err := f.storage.Delete(ctx.Request().Context(), locKey); err != nil {
 						log.WithError(err).Warn("cache: Delete failed (Location invalidation)")
+						f.metrics.IncCounter("cache.storage_error")
 					}
 					if err := f.storage.Delete(ctx.Request().Context(), "vary:"+locKey); err != nil {
 						log.WithError(err).Warn("cache: Delete failed (vary sentinel for Location)")
+						f.metrics.IncCounter("cache.storage_error")
 					}
 				}
 			}
@@ -704,6 +710,7 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 		}
 		if err := f.storage.Set(ctx.Request().Context(), "vary:"+baseKey, sentinel); err != nil {
 			log.WithError(err).Warn("cache: Set failed (vary sentinel)")
+			f.metrics.IncCounter("cache.storage_error")
 		}
 	}
 
@@ -737,6 +744,7 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	}
 	if err := f.storage.Set(ctx.Request().Context(), storeKey, entry); err != nil {
 		log.WithError(err).Warn("cache: Set failed (response store)")
+		f.metrics.IncCounter("cache.storage_error")
 	}
 }
 
@@ -852,6 +860,7 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request) {
 		}
 		if err := f.storage.Set(context.Background(), key, entry); err != nil {
 			log.WithError(err).Warn("cache: Set failed (background revalidation)")
+			f.metrics.IncCounter("cache.storage_error")
 		}
 		return nil, nil
 	})

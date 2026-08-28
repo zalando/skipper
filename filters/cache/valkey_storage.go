@@ -128,6 +128,7 @@ func (s *ValkeyStorage) Delete(ctx context.Context, key string) error {
 	// fleet retain their own L1 copies until --cache-l1-ttl expires naturally.
 	if _, err := s.ring.Del(ctx, key); err != nil {
 		log.WithError(err).Warn("cache: valkey Delete failed")
+		s.metrics.IncCounter("cache.storage_error")
 	}
 	return s.l1.Delete(ctx, key)
 }
