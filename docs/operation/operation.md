@@ -1968,6 +1968,9 @@ When `--swarm-valkey-urls` is configured, Valkey serves as a shared backing
 store (L2) accessible by all Skipper instances via a client-side consistent hash ring. Every
 read checks L1 first; an L1 hit returns without contacting Valkey.
 
+Note: `--swarm-valkey-urls` wires Valkey into both ratelimit and cache — there is currently
+no flag to enable L2 cache independently of ratelimit.
+
 On every successful Valkey write the entry is also written to L1
 (write-through) with a TTL of `min(--cache-l1-ttl, entry.TTL)`. On a Valkey
 read hit, L1 is warmed with `min(--cache-l1-ttl, remaining freshness)` —
