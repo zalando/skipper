@@ -44,15 +44,23 @@ type ValkeyStorage struct {
 //
 // Pass metrics.Default when no test-scoped metrics collector is needed.
 func NewValkeyStorage(ring *skpnet.ValkeyRingClient, l1 *LRUStorage, m metrics.Metrics, l1TTL time.Duration) *ValkeyStorage {
+	if l1TTL < 0 {
+		panic("cache: NewValkeyStorage: l1TTL must be >= 0")
+	}
 	return &ValkeyStorage{ring: ring, l1: l1, metrics: m, l1TTL: l1TTL}
 }
 
 func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
 	// L1-first: serve from local memory when the write-through warming populated it.
-	// LRUStorage.Get returns nil, nil for expired entries — a miss falls through.
+	// LRUStorage.Get returns entries within TTL + max(StaleIfError, StaleWhileRevalidate).
+	// Only serve fresh L1 hits; stale entries fall through to Valkey so a fresher copy
+	// written by another instance is not bypassed.
 	if e, err := s.l1.Get(ctx, key); err == nil && e != nil {
-		s.metrics.IncCounter("cache.l1_hit")
-		return e, nil
+		if !e.IsStale(time.Now()) {
+			s.metrics.IncCounter("cache.l1_hit")
+			return e, nil
+		}
+		// Stale L1 entry — fall through to Valkey.
 	}
 
 	data, err := s.ring.Get(ctx, key)
