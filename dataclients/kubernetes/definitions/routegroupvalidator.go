@@ -74,13 +74,9 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 	var errs []error
 	for _, r := range item.Spec.Routes {
 		for _, f := range r.Filters {
-			parsedFilters, err := eskip.ParseFilters(f)
+			parsedFilter, err := item.Spec.ParseFilter(f)
 			if err != nil {
 				errs = append(errs, err)
-				continue
-			}
-			if len(parsedFilters) != 1 {
-				errs = append(errs, fmt.Errorf("%w at %q", errSingleFilterExpected, f))
 				continue
 			}
 			if rgv.EnableAdvancedValidation {
@@ -88,7 +84,7 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 					Namespace:    item.Metadata.Namespace,
 					Name:         item.Metadata.Name,
 					ResourceType: ResourceTypeRouteGroup,
-				}, rgv.RoutingOptions, parsedFilters); err != nil {
+				}, rgv.RoutingOptions, []*eskip.Filter{parsedFilter}); err != nil {
 					errs = append(errs, fmt.Errorf("invalid filter %q: %w", f, err))
 				}
 			}
@@ -100,18 +96,19 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
 	var errs []error
 	for _, r := range item.Spec.Routes {
-		routePredicates := make([]*eskip.Predicate, 0, len(r.Predicates))
+		var routePredicates []*eskip.Predicate
+		if rgv.EnableAdvancedValidation {
+			routePredicates = make([]*eskip.Predicate, 0, len(r.Predicates))
+		}
 		for _, p := range r.Predicates {
-			parsedPredicates, err := eskip.ParsePredicates(p)
+			parsedPredicate, err := item.Spec.ParsePredicate(p)
 			if err != nil {
 				errs = append(errs, err)
 				continue
 			}
-			if len(parsedPredicates) != 1 {
-				errs = append(errs, fmt.Errorf("%w at %q", errSinglePredicateExpected, p))
-				continue
+			if rgv.EnableAdvancedValidation {
+				routePredicates = append(routePredicates, parsedPredicate)
 			}
-			routePredicates = append(routePredicates, parsedPredicates[0])
 		}
 		if rgv.EnableAdvancedValidation {
 			if err := validatePredicates(ResourceContext{

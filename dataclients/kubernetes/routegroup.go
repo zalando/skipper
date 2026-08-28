@@ -55,14 +55,6 @@ type routeContext struct {
 	backend    *definitions.SkipperBackend
 }
 
-func eskipError(typ, e string, err error) error {
-	if len(e) > 48 {
-		e = e[:48]
-	}
-
-	return fmt.Errorf("[eskip] %s, '%s'; %w", typ, e, err)
-}
-
 func targetPortNotFound(serviceName string, servicePort int) error {
 	return fmt.Errorf("target port not found: %s:%d", serviceName, servicePort)
 }
@@ -410,22 +402,22 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 	}
 
 	for _, pi := range gr.Predicates {
-		ppi, err := eskip.ParsePredicates(pi)
+		ppi, err := ctx.group.routeGroup.Spec.ParsePredicate(pi)
 		if err != nil {
-			return nil, eskipError("predicate", pi, err)
+			return nil, err
 		}
 
-		r.Predicates = append(r.Predicates, ppi...)
+		r.Predicates = append(r.Predicates, ppi)
 	}
 
 	var f []*eskip.Filter
 	for _, fi := range gr.Filters {
-		ffi, err := eskip.ParseFilters(fi)
+		ffi, err := ctx.group.routeGroup.Spec.ParseFilter(fi)
 		if err != nil {
-			return nil, eskipError("filter", fi, err)
+			return nil, err
 		}
 
-		f = append(f, ffi...)
+		f = append(f, ffi)
 	}
 
 	r.Filters = f

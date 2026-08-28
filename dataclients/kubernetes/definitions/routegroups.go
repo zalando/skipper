@@ -63,6 +63,55 @@ type RouteGroupSpec struct {
 	// TLS specifies the list of Kubernetes TLS secrets to
 	// be used to terminate the TLS connection
 	TLS []*RouteTLSSpec `json:"tls,omitempty"`
+
+	// parsedFilters and parsedPredicates cache the result of parsing a filter or
+	// predicate definition string, keyed by that string. Because the same strings
+	// repeat across the routes of a RouteGroup, validation and conversion parse
+	// each distinct string at most once per RouteGroup. The parsed objects are
+	// shared by every route that references the string and MUST NOT be mutated in
+	// place.
+	parsedFilters    map[string]*eskip.Filter
+	parsedPredicates map[string]*eskip.Predicate
+}
+
+func (rg *RouteGroupSpec) ParseFilter(s string) (*eskip.Filter, error) {
+	if f, ok := rg.parsedFilters[s]; ok {
+		return f, nil
+	}
+
+	filters, err := eskip.ParseFilters(s)
+	if err != nil {
+		return nil, err
+	}
+	if len(filters) != 1 {
+		return nil, fmt.Errorf("%w at %q", errSingleFilterExpected, s)
+	}
+
+	if rg.parsedFilters == nil {
+		rg.parsedFilters = make(map[string]*eskip.Filter)
+	}
+	rg.parsedFilters[s] = filters[0]
+	return filters[0], nil
+}
+
+func (rg *RouteGroupSpec) ParsePredicate(s string) (*eskip.Predicate, error) {
+	if p, ok := rg.parsedPredicates[s]; ok {
+		return p, nil
+	}
+
+	predicates, err := eskip.ParsePredicates(s)
+	if err != nil {
+		return nil, err
+	}
+	if len(predicates) != 1 {
+		return nil, fmt.Errorf("%w at %q", errSinglePredicateExpected, s)
+	}
+
+	if rg.parsedPredicates == nil {
+		rg.parsedPredicates = make(map[string]*eskip.Predicate)
+	}
+	rg.parsedPredicates[s] = predicates[0]
+	return predicates[0], nil
 }
 
 // SkipperBackend is the type safe version of skipperBackendParser
