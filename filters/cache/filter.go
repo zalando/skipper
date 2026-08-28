@@ -440,7 +440,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	setAgeHeader(rsp, entry, time.Now())
 	f.metrics.IncCounter("cache.hit")
 	method := ctx.Request().Method
-	if (method == http.MethodGet || method == http.MethodHead) && evaluateConditionals(ctx.Request(), entry) {
+	if isCacheableMethod(method) && evaluateConditionals(ctx.Request(), entry) {
 		notModified := &http.Response{
 			StatusCode: http.StatusNotModified,
 			Header:     rsp.Header.Clone(),
