@@ -65,11 +65,13 @@ type RouteGroupSpec struct {
 	TLS []*RouteTLSSpec `json:"tls,omitempty"`
 
 	// parsedFilters and parsedPredicates cache the result of parsing a filter or
-	// predicate definition string, keyed by that string. Because the same strings
-	// repeat across the routes of a RouteGroup, validation and conversion parse
-	// each distinct string at most once per RouteGroup. The parsed objects are
-	// shared by every route that references the string and MUST NOT be mutated in
-	// place.
+	// predicate definition string, keyed by that string, so that validation and
+	// conversion parse each distinct string at most once. The same maps can be
+	// shared across the RouteGroups of a single load via
+	// RouteGroupList.ShareParseCache, so a string that repeats across RouteGroups
+	// (for example Method("GET")) is parsed once per load rather than once per
+	// RouteGroup. The parsed objects are shared by every route that references the
+	// string and MUST NOT be mutated in place.
 	parsedFilters    map[string]*eskip.Filter
 	parsedPredicates map[string]*eskip.Predicate
 }
@@ -112,6 +114,23 @@ func (rg *RouteGroupSpec) ParsePredicate(s string) (*eskip.Predicate, error) {
 	}
 	rg.parsedPredicates[s] = predicates[0]
 	return predicates[0], nil
+}
+
+// ShareParseCache makes every RouteGroup in the list share one filter and one
+// predicate parse cache, so a definition string that repeats across RouteGroups
+// is parsed once per load instead of once per RouteGroup. It must be called
+// before the RouteGroups are validated or converted. As with the per-RouteGroup
+// cache it replaces, the RouteGroups must be validated and converted from a
+// single goroutine, and the cached objects must not be mutated in place.
+func (l *RouteGroupList) ShareParseCache() {
+	parsedFilters := make(map[string]*eskip.Filter)
+	parsedPredicates := make(map[string]*eskip.Predicate)
+	for _, item := range l.Items {
+		if item.Spec != nil {
+			item.Spec.parsedFilters = parsedFilters
+			item.Spec.parsedPredicates = parsedPredicates
+		}
+	}
 }
 
 // SkipperBackend is the type safe version of skipperBackendParser
