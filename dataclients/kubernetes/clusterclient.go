@@ -422,6 +422,11 @@ func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error)
 	}
 	log.Debugf("all routegroups received: %d", len(rgl.Items))
 
+	// Share a single filter/predicate parse cache across all RouteGroups so a
+	// definition string repeated across them (e.g. Method("GET")) is parsed once
+	// per load instead of once per RouteGroup.
+	rgl.ShareParseCache()
+
 	rgs := make([]*definitions.RouteGroupItem, 0, len(rgl.Items))
 	for _, i := range rgl.Items {
 		// Validate RouteGroup item.
