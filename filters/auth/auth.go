@@ -30,6 +30,7 @@ const (
 	checkOIDCAnyClaims
 	checkOIDCAllClaims
 	checkOIDCQueryClaims
+	checkOIDCAnyClaimsDropRegexp
 )
 
 type rejectReason string

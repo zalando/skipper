@@ -2210,6 +2210,51 @@ Skipper arguments:
 | -------- | --------- | ----------- |
 | `-oidc-cookie-remove-subdomains` | no | Default number of subdomains to remove from the request hostname to derive OIDC cookie domain. The filter parameter overwrites the default when provided. Default: `1`. Example: `-oidc-cookie-remove-subdomains="0"` |
 
+#### oauthOidcAnyClaimsDropRegexp
+
+```
+oauthOidcAnyClaimsDropRegexp("https://oidc-provider.example.com", "client_id", "client_secret",
+    "http://target.example.com/subpath/callback", "email profile", "groups",
+    "", "x-auth-groups:claims.groups", "", "",
+    "groups", "^(LEGACY-|UNRELATED-)")
+```
+
+This filter inherits all `oauthOidcAnyClaims` behavior (provider discovery, authorization-code flow, token validation, distributed-claim resolution, cookie pipeline, and upstream-header mapping). It additionally removes matching values from one configured JSON array claim before serializing the session cookie.
+
+The filter requires exactly 12 string arguments. The first 10 are identical to `oauthOidcAnyClaims`:
+
+* **OpenID Connect Provider URL**
+* **Client ID**
+* **Client Secret**
+* **Callback URL**
+* **Scopes**
+* **Claims** to check for authorization
+* **Auth Code Options** (optional, may be empty)
+* **Upstream Headers** (optional, may be empty)
+* **SubdomainsToRemove** (optional, may be empty)
+* **Cookie Name** (optional, may be empty for auto-generated name)
+* **Claim Name** (required) The name of the JSON array claim to prune, e.g. `"groups"`.
+* **Regexp** (required) A Go regular expression. String values in the claim array for which `regexp.MatchString` returns true are removed. Matching is unanchored unless the expression contains `^` or `$`.
+
+Behavior:
+
+* Only JSON array claims are pruned. A missing claim or a non-array claim is a no-op and does not cause authentication failure.
+* Non-string elements in the array are retained unchanged.
+* Original element order is preserved.
+* When every value is removed, the claim key remains with an empty array. This preserves `oauthOidcAnyClaims` authorization semantics, which check claim-key presence.
+* Pruning applies to both direct ID-token claims and distributed claims (e.g. Azure AD paginated groups).
+* The pruned claims map is used for cookies, StateBag, and upstream headers. The raw signed ID token is not modified.
+
+Cookie name and rollout:
+
+* The claim name and regexp participate in the default cookie-name hash. Changing either forces reauthentication.
+* All route occurrences participating in one OIDC flow must use byte-identical arguments.
+* An explicit custom cookie name (parameter 10) bypasses hash isolation.
+
+Interaction with `oidcClaimsQuery`:
+
+* A subsequent `oidcClaimsQuery` filter will see the pruned values. Do not remove values required by downstream authorization.
+
 #### oauthOidcAllClaims
 
 ```

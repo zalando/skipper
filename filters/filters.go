@@ -323,6 +323,7 @@ const (
 	JwtMetricsName                             = "jwtMetrics"
 	OAuthOidcUserInfoName                      = "oauthOidcUserInfo"
 	OAuthOidcAnyClaimsName                     = "oauthOidcAnyClaims"
+	OAuthOidcAnyClaimsDropRegexpName           = "oauthOidcAnyClaimsDropRegexp"
 	OAuthOidcAllClaimsName                     = "oauthOidcAllClaims"
 	OidcClaimsQueryName                        = "oidcClaimsQuery"
 	DropRequestCookieName                      = "dropRequestCookie"

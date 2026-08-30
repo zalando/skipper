@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -86,6 +87,8 @@ const (
 	paramUpstrHeaders
 	paramSubdomainsToRemove
 	paramCookieName
+	paramDropClaimName
+	paramDropClaimValueRegexp
 )
 
 type OidcOptions struct {
@@ -114,21 +117,23 @@ type (
 	}
 
 	tokenOidcFilter struct {
-		typ                roleCheckType
-		config             *oauth2.Config
-		provider           *oidc.Provider
-		verifier           *oidc.IDTokenVerifier
-		claims             []string
-		validity           time.Duration
-		cookiename         string
-		redirectPath       string
-		encrypter          secrets.Encryption
-		authCodeOptions    []oauth2.AuthCodeOption
-		queryParams        []string
-		compressor         cookieCompression
-		upstreamHeaders    map[string]string
-		subdomainsToRemove int
-		oidcOptions        OidcOptions
+		typ                  roleCheckType
+		config               *oauth2.Config
+		provider             *oidc.Provider
+		verifier             *oidc.IDTokenVerifier
+		claims               []string
+		validity             time.Duration
+		cookiename           string
+		redirectPath         string
+		encrypter            secrets.Encryption
+		authCodeOptions      []oauth2.AuthCodeOption
+		queryParams          []string
+		compressor           cookieCompression
+		upstreamHeaders      map[string]string
+		subdomainsToRemove   int
+		oidcOptions          OidcOptions
+		dropClaimName        string
+		dropClaimValueRegexp *regexp.Regexp
 	}
 
 	tokenContainer struct {
@@ -173,6 +178,13 @@ func NewOAuthOidcAnyClaims(secretsFile string, secretsRegistry secrets.Encrypter
 // has all the claims specified
 func NewOAuthOidcAllClaimsWithOptions(secretsFile string, secretsRegistry secrets.EncrypterCreator, o OidcOptions) filters.Spec {
 	return &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, options: o}
+}
+
+// NewOAuthOidcAnyClaimsDropRegexpWithOptions creates a filter spec that behaves like
+// oauthOidcAnyClaims but removes matching values from one configured claim before
+// serializing the session cookie.
+func NewOAuthOidcAnyClaimsDropRegexpWithOptions(secretsFile string, secretsRegistry secrets.EncrypterCreator, o OidcOptions) filters.Spec {
+	return &tokenOidcSpec{typ: checkOIDCAnyClaimsDropRegexp, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, options: o}
 }
 
 func (s *tokenOidcSpec) resolveClientCredential(v string) (string, error) {
@@ -365,6 +377,26 @@ func (s *tokenOidcSpec) CreateFilter(args []any) (filters.Filter, error) {
 		log.Debugf("Upstream Headers: %v", f.upstreamHeaders)
 	}
 
+	if s.typ == checkOIDCAnyClaimsDropRegexp {
+		if len(sargs) != paramDropClaimValueRegexp+1 {
+			return nil, fmt.Errorf("%w: oauthOidcAnyClaimsDropRegexp requires exactly 12 arguments", filters.ErrInvalidFilterParameters)
+		}
+		claimName := sargs[paramDropClaimName]
+		if claimName == "" {
+			return nil, fmt.Errorf("%w: claim name must not be empty", filters.ErrInvalidFilterParameters)
+		}
+		exprStr := sargs[paramDropClaimValueRegexp]
+		if exprStr == "" {
+			return nil, fmt.Errorf("%w: claim value regexp must not be empty", filters.ErrInvalidFilterParameters)
+		}
+		re, err := regexp.Compile(exprStr)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid claim value regexp %q: %v", filters.ErrInvalidFilterParameters, exprStr, err)
+		}
+		f.dropClaimName = claimName
+		f.dropClaimValueRegexp = re
+	}
+
 	return f, nil
 }
 
@@ -374,6 +406,8 @@ func (s *tokenOidcSpec) Name() string {
 		return filters.OAuthOidcUserInfoName
 	case checkOIDCAnyClaims:
 		return filters.OAuthOidcAnyClaimsName
+	case checkOIDCAnyClaimsDropRegexp:
+		return filters.OAuthOidcAnyClaimsDropRegexpName
 	case checkOIDCAllClaims:
 		return filters.OAuthOidcAllClaimsName
 	}
@@ -411,6 +445,32 @@ func (f *tokenOidcFilter) validateAllClaims(h map[string]any) bool {
 		}
 	}
 	return true
+}
+
+// dropMatchingClaimValues removes string values matching the configured regexp
+// from the specified claim in the decoded claims map.
+func (f *tokenOidcFilter) dropMatchingClaimValues(claims map[string]any) {
+	if f.dropClaimValueRegexp == nil {
+		return
+	}
+	v, ok := claims[f.dropClaimName]
+	if !ok {
+		return
+	}
+	arr, ok := v.([]any)
+	if !ok {
+		log.Debugf("Claim %q exists but is not an array, skipping pruning", f.dropClaimName)
+		return
+	}
+	result := make([]any, 0, len(arr))
+	for _, elem := range arr {
+		s, ok := elem.(string)
+		if ok && f.dropClaimValueRegexp.MatchString(s) {
+			continue
+		}
+		result = append(result, elem)
+	}
+	claims[f.dropClaimName] = result
 }
 
 type OauthState struct {
@@ -732,7 +792,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 			f.callbackUnauthorized(ctx, r.Host, fmt.Sprintf("Failed to get claims: %v.", err))
 			return
 		}
-	case checkOIDCAnyClaims, checkOIDCAllClaims:
+	case checkOIDCAnyClaims, checkOIDCAnyClaimsDropRegexp, checkOIDCAllClaims:
 		oidcIDToken, err = f.getidtoken(oauth2Token)
 		if err != nil {
 			if _, ok := err.(*requestError); !ok {
@@ -858,7 +918,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		if container.OAuth2Token.Valid() && container.UserInfo != nil {
 			allowed = f.validateAllClaims(container.Claims)
 		}
-	case checkOIDCAnyClaims:
+	case checkOIDCAnyClaims, checkOIDCAnyClaimsDropRegexp:
 		allowed = f.validateAnyClaims(container.Claims)
 	case checkOIDCAllClaims:
 		allowed = f.validateAllClaims(container.Claims)
@@ -939,6 +999,8 @@ func (f *tokenOidcFilter) tokenClaims(ctx filters.FilterContext, oauth2Token *oa
 	if err = f.handleDistributedClaims(idToken, oauth2Token, tokenMap); err != nil {
 		return nil, "", requestErrorf("failed to handle distributed claims: %v", err)
 	}
+
+	f.dropMatchingClaimValues(tokenMap)
 
 	return tokenMap, sub, nil
 }

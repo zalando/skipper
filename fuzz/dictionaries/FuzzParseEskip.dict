@@ -94,6 +94,7 @@
 "oauthGrant"
 "oauthOidcAllClaims"
 "oauthOidcAnyClaims"
+"oauthOidcAnyClaimsDropRegexp"
 "oauthOidcUserInfo"
 "oauthTokeninfoAllKV"
 "oauthTokeninfoAllScope"
