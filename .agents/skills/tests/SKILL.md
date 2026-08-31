@@ -47,36 +47,36 @@ Create meaningful tests. Skipper is a proxy, so a client connects to the proxy a
 
 ```go
 func TestSetRequestHeader(t *testing.T) {
-			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			    // inspect request. Test: request was correctly modified.
-				if v := r.Header.Get("Foo"); v == "bar" {
-					t.Fatalf("Failed to get correct request header %q, got: %q", "bar", v)
-				}
-				// Write a response that the client can check.
-				w.WriteHeader(200)
-				w.Write([]byte("OK"))
-			}))
-			defer backend.Close()
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	    // inspect request. Test: request was correctly modified.
+		if v := r.Header.Get("Foo"); v == "bar" {
+			t.Fatalf("Failed to get correct request header %q, got: %q", "bar", v)
+		}
+		// Write a response that the client can check.
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	}))
+	defer backend.Close()
 
-			spec := builtin.NewSetRequestHeader()
-			fr := make(filters.Registry)
-			fr.Register(spec)
-			r := eskip.MustParse(fmt.Sprintf(`* -> setRequestHeader("Foo", "bar") -> "%s"`, backend.URL))
-			proxy := proxytest.WithParams(fr, proxy.Params{}, r...)
-			defer proxy.Close()
+	spec := builtin.NewSetRequestHeader()
+	fr := make(filters.Registry)
+	fr.Register(spec)
+	r := eskip.MustParse(fmt.Sprintf(`* -> setRequestHeader("Foo", "bar") -> "%s"`, backend.URL))
+	proxy := proxytest.WithParams(fr, proxy.Params{}, r...)
+	defer proxy.Close()
 
-			req, err := http.NewRequest("GET", proxy.URL, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+	req, err := http.NewRequest("GET", proxy.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-			rsp, err := proxy.Client().Transport.RoundTrip(req)
-			if err != nil {
-				t.Fatalf("Failed to get response: %v", err)
-			}
+	rsp, err := proxy.Client().Transport.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("Failed to get response: %v", err)
+	}
 
-			if rsp.StatusCode != 200 {
-				t.Fatalf("Failed to get correct status code 200, got: %d", rsp.StatusCode)
-			}
+	if rsp.StatusCode != 200 {
+		t.Fatalf("Failed to get correct status code 200, got: %d", rsp.StatusCode)
+	}
 }
 ```
