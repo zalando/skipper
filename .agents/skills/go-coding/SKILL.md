@@ -1,5 +1,5 @@
 ---
-name: Go coding
+name: go-coding
 description: Create or modify Go skipper code
 license: MIT
 compatibility: opencode, claude
