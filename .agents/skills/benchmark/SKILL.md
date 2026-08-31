@@ -1,5 +1,5 @@
 ---
-name: Benchmark
+name: benchmark
 description: Create or modify hot-path code or optimizations should be validated by a Go Benchmark
 license: MIT
 compatibility: opencode, claude

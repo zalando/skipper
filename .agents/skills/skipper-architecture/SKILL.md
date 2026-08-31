@@ -1,6 +1,6 @@
 ---
 name: skipper-architecture
-description: Skipper architecture reference: routing table lifecycle, request processing pipeline, and package layout
+description: "Skipper architecture reference: routing table lifecycle, request processing pipeline, and package layout"
 license: MIT
 compatibility: opencode, claude
 metadata:
