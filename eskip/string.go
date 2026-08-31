@@ -38,7 +38,11 @@ func appendFmt(s []string, format string, args ...interface{}) []string {
 func appendFmtEscape(s []string, format string, escapeChars string, args ...interface{}) []string {
 	eargs := make([]interface{}, len(args))
 	for i, arg := range args {
-		eargs[i] = escape(fmt.Sprintf("%v", arg), escapeChars)
+		str, ok := arg.(string)
+		if !ok {
+			str = fmt.Sprintf("%v", arg)
+		}
+		eargs[i] = escape(str, escapeChars)
 	}
 
 	return appendFmt(s, format, eargs...)
