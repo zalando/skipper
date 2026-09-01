@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"sync"
@@ -17,9 +18,10 @@ import (
 // stubValkeyClient is an in-memory valkeyClient stub for unit tests that
 // should not depend on a running Valkey instance or Docker.
 type stubValkeyClient struct {
-	mu     sync.Mutex
-	data   map[string]string
-	broken bool // if true, all operations return an error
+	mu         sync.Mutex
+	data       map[string]string
+	broken     bool          // if true, all operations return an error
+	lastExpire time.Duration // records the expire arg of the last SetWithExpire call
 }
 
 func newStubValkeyClient() *stubValkeyClient {
@@ -43,13 +45,14 @@ func (s *stubValkeyClient) Get(_ context.Context, key string) (string, error) {
 	return v, nil
 }
 
-func (s *stubValkeyClient) SetWithExpire(_ context.Context, key, value string, _ time.Duration) error {
+func (s *stubValkeyClient) SetWithExpire(_ context.Context, key, value string, expire time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.broken {
 		return errors.New("stub: broken")
 	}
 	s.data[key] = value
+	s.lastExpire = expire
 	return nil
 }
 
@@ -453,5 +456,117 @@ func TestValkeyStorage_DeleteCleansL1EvenOnValkeyError(t *testing.T) {
 	got, _ = lru.Get(ctx, "k")
 	if got != nil {
 		t.Error("expected L1 to be empty after Delete, but entry still present")
+	}
+}
+
+func TestL2Storage_NewL2Storage_NegativeL1TTL_ClampsToDefault(t *testing.T) {
+	stub := newStubValkeyClient()
+	lru := NewLRUStorage(64<<20, nil, &testMetrics{})
+	s := NewL2Storage(stub, lru, &testMetrics{}, -time.Second, valkey.IsValkeyNil)
+	if s.l1TTL != defaultMinTTL {
+		t.Errorf("expected l1TTL clamped to %v, got %v", defaultMinTTL, s.l1TTL)
+	}
+}
+
+func TestL2Storage_Get_CorruptJSON_ReturnsError(t *testing.T) {
+	stub := newStubValkeyClient()
+	lru := NewLRUStorage(64<<20, nil, &testMetrics{})
+	s := NewL2Storage(stub, lru, &testMetrics{}, 0, valkey.IsValkeyNil)
+
+	// Write corrupt JSON directly into the stub, bypassing Set.
+	stub.mu.Lock()
+	stub.data["bad-key"] = "not json {"
+	stub.mu.Unlock()
+
+	_, err := s.Get(context.Background(), "bad-key")
+	if err == nil {
+		t.Fatal("expected error for corrupt JSON in L2, got nil")
+	}
+}
+
+func TestL2Storage_Get_L2Hit_WarmsL1(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &testMetrics{}
+	lru := NewLRUStorage(64<<20, nil, m)
+	s := NewL2Storage(stub, lru, m, 60*time.Second, valkey.IsValkeyNil)
+
+	ctx := context.Background()
+	key := "warm-key"
+	entry := &Entry{StatusCode: 200, Payload: []byte("v"), TTL: 2 * time.Minute, CreatedAt: time.Now()}
+
+	// Write directly to L2 stub (bypass Set so L1 stays cold).
+	data, _ := json.Marshal(entry)
+	stub.mu.Lock()
+	stub.data[key] = string(data)
+	stub.mu.Unlock()
+
+	// First Get: L2 hit, must warm L1.
+	got, err := s.Get(ctx, key)
+	if err != nil || got == nil {
+		t.Fatalf("expected L2 hit: err=%v, got=%v", err, got)
+	}
+	if m.counter("cache.l2_hit") != 1 {
+		t.Errorf("expected l2_hit=1, got %d", m.counter("cache.l2_hit"))
+	}
+
+	// Break L2 — second Get must come from L1 (write-through warmed it).
+	stub.broken = true
+	got2, err := s.Get(ctx, key)
+	if err != nil || got2 == nil {
+		t.Fatalf("expected L1 hit after warming: err=%v, got=%v", err, got2)
+	}
+	if m.counter("cache.l1_hit") != 1 {
+		t.Errorf("expected l1_hit=1 after L1 warming, got %d", m.counter("cache.l1_hit"))
+	}
+}
+
+func TestL2Storage_Get_L2Hit_ExpiredEntry_SkipsL1Warming(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &testMetrics{}
+	lru := NewLRUStorage(64<<20, nil, m)
+	s := NewL2Storage(stub, lru, m, 60*time.Second, valkey.IsValkeyNil)
+
+	ctx := context.Background()
+	key := "expired-key"
+	// CreatedAt 10 min ago, TTL 1 min → remaining = -9 min → L1 warming must be skipped.
+	entry := &Entry{StatusCode: 200, Payload: []byte("stale"), TTL: time.Minute, CreatedAt: time.Now().Add(-10 * time.Minute)}
+
+	data, _ := json.Marshal(entry)
+	stub.mu.Lock()
+	stub.data[key] = string(data)
+	stub.mu.Unlock()
+
+	// L2 hit — but warming must be skipped because remaining <= 0.
+	got, err := s.Get(ctx, key)
+	if err != nil || got == nil {
+		t.Fatalf("expected L2 hit for expired entry: err=%v, got=%v", err, got)
+	}
+
+	// Break L2 — if L1 was accidentally warmed, Get would still return the entry.
+	stub.broken = true
+	got2, _ := s.Get(ctx, key)
+	if got2 != nil {
+		t.Error("L1 must NOT be warmed when remaining TTL <= 0, but entry was found in L1")
+	}
+}
+
+func TestL2Storage_Set_ZeroTTL_UsesDefaultMinTTL(t *testing.T) {
+	stub := newStubValkeyClient()
+	lru := NewLRUStorage(64<<20, nil, &testMetrics{})
+	s := NewL2Storage(stub, lru, &testMetrics{}, 0, valkey.IsValkeyNil)
+
+	ctx := context.Background()
+	// TTL=0, StaleIfError=0, StaleWhileRevalidate=0 → l2TTL=0 → must use defaultMinTTL.
+	entry := &Entry{StatusCode: 200, Payload: []byte("x"), TTL: 0, CreatedAt: time.Now()}
+	if err := s.Set(ctx, "zero-ttl-key", entry); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	stub.mu.Lock()
+	gotExpire := stub.lastExpire
+	stub.mu.Unlock()
+
+	if gotExpire != defaultMinTTL {
+		t.Errorf("expected SetWithExpire called with %v, got %v", defaultMinTTL, gotExpire)
 	}
 }
