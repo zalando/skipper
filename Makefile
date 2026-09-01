@@ -149,7 +149,7 @@ clean: ## clean temporary files and directories
 deps: ## install dependencies to run everything
 	go env
 	./etcd/install.sh $(TEST_ETCD_VERSION) $(TEST_ETCD_CHECKSUM)
-	@go install honnef.co/go/tools/cmd/staticcheck@v0.8.0-rc.1
+	@go install honnef.co/go/tools/cmd/staticcheck@latest
 	@go install github.com/securego/gosec/v2/cmd/gosec@latest
 	@go install golang.org/x/vuln/cmd/govulncheck@latest
 	@go install github.com/google/osv-scanner/cmd/osv-scanner@v1
