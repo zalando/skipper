@@ -24,6 +24,7 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"github.com/valkey-io/valkey-go"
 	"go.opentelemetry.io/otel"
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/trace"
@@ -89,6 +90,8 @@ const (
 )
 
 const DefaultPluginDir = "./plugins"
+
+var _ cache.L2Client = (*skpnet.ValkeyRingClient)(nil)
 
 // Options to start skipper.
 type Options struct {
@@ -2321,8 +2324,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 					OpentracingSpanName:     "cache_revalidation",
 					OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
 				},
-				ValkeyRing: valkeyForCache,
-				L1TTL:      o.CacheL1TTL,
+				L2Client:  valkeyForCache,
+				IsNoL2Err: valkey.IsValkeyNil,
+				L1TTL:     o.CacheL1TTL,
 			},
 		)
 		defer cacheSpec.(io.Closer).Close()

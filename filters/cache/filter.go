@@ -51,12 +51,13 @@ const (
 
 // Options configures the cache filter.
 type Options struct {
-	MaxBytes   int64                    // maximum number of bytes the in-process LRU (L1) is allowed to hold across all cached entries
-	ListenAddr string                   // Skipper's own address; revalidation requests loop back through it so the full filter chain runs
-	NetOpts    skpnet.Options           // HTTP client options for background worker that re-fetches stale entries from origin
-	ValkeyRing *skpnet.ValkeyRingClient // optional L2 cache; nil = in-process LRU only
-	L1TTL      time.Duration            // max TTL for write-through L1 warming; 0 = write-around
-	Metrics    metrics.Metrics          // nil defaults to metrics.Default
+	MaxBytes   int64            // maximum number of bytes the in-process LRU (L1) is allowed to hold across all cached entries
+	ListenAddr string           // Skipper's own address; revalidation requests loop back through it so the full filter chain runs
+	NetOpts    skpnet.Options   // HTTP client options for background worker that re-fetches stale entries from origin
+	L2Client   L2Client         // optional L2 cache; nil = in-process LRU only
+	IsNoL2Err  func(error) bool // returns true if no L2Client error
+	L1TTL      time.Duration    // max TTL for write-through L1 warming; 0 = write-around
+	Metrics    metrics.Metrics  // nil defaults to metrics.Default
 }
 
 // filterCacheKey identifies a unique cache filter configuration for registry lookup.
@@ -75,7 +76,7 @@ type cacheSpec struct {
 	listenAddr string
 	client     *skpnet.Client
 	storage    Storage     // shared across all filter instances
-	lruStorage *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
+	lruStorage *LRUStorage // always non-nil; direct reference to L1, even when storage is L2Storage
 	metrics    metrics.Metrics
 	revalJobs  chan revalJob
 	ctx        context.Context
@@ -110,8 +111,8 @@ func NewCacheFilter(opts Options) filters.Spec {
 	}, m)
 
 	var store Storage = lru
-	if opts.ValkeyRing != nil {
-		store = NewValkeyStorage(opts.ValkeyRing, lru, m, opts.L1TTL)
+	if opts.L2Client != nil {
+		store = NewL2Storage(opts.L2Client, lru, m, opts.L1TTL, opts.IsNoL2Err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -286,7 +287,7 @@ type revalJob struct {
 // would be destructive. Lifecycle is managed exclusively by cacheSpec.Close().
 type cacheFilter struct {
 	storage      Storage
-	lruStorage   *LRUStorage // always non-nil; direct reference to L1, even when storage is ValkeyStorage
+	lruStorage   *LRUStorage // always non-nil; direct reference to L1, even when storage is L2Storage
 	listenAddr   string
 	ttl          time.Duration
 	errorTTL     time.Duration
