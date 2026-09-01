@@ -80,3 +80,20 @@ func TestSetRequestHeader(t *testing.T) {
 			}
 }
 ```
+
+If you need metrics.Metrics implementation to inspect metrics, you can use:
+
+```go
+mockMetrics := &metricstest.MockMetrics{}
+// some code ..
+
+// inspect counters
+mockMetrics.WithCounters(func(counters map[string]int64) {
+	if n := counters["a-counter"]; n == int64(5) { t.Fatalf("Failed to get expected counter value 5, got: %d", n) }
+})
+
+// inspect Gauges
+mockMetrics.WithGauges(func(g map[string]float64) {
+...
+})
+```
