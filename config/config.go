@@ -43,6 +43,7 @@ type Config struct {
 	MaxTCPListenerQueue                   int            `yaml:"max-tcp-listener-queue"`
 	EnableCopyStreamPoolExperimental      bool           `yaml:"enable-copy-stream-pool"`
 	IgnoreTrailingSlash                   bool           `yaml:"ignore-trailing-slash"`
+	UseHostTree                           bool           `yaml:"use-host-tree"`
 	Insecure                              bool           `yaml:"insecure"`
 	AllowInsecureBackends                 bool           `yaml:"allow-insecure-backends"`
 	ProxyPreserveHost                     bool           `yaml:"proxy-preserve-host"`
@@ -453,6 +454,7 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.MaxTCPListenerQueue, "max-tcp-listener-queue", 0, "sets hardcoded max queue size for TCP listener, normally calculated 10x concurrency with max TODO:50k")
 	flag.BoolVar(&cfg.EnableCopyStreamPoolExperimental, "enable-copy-stream-pool", false, "flag to use a pooled copy stream in the proxy. This is an optimization that is experimental and this option might disappear in the future")
 	flag.BoolVar(&cfg.IgnoreTrailingSlash, "ignore-trailing-slash", false, "flag indicating to ignore trailing slashes in paths when routing")
+	flag.BoolVar(&cfg.UseHostTree, "use-host-tree", false, "enable two-level host+path routing trie for routes using HostAny predicates")
 	flag.BoolVar(&cfg.Insecure, "insecure", false, "flag indicating to ignore the verification of the TLS certificates of the backend services")
 	flag.BoolVar(&cfg.AllowInsecureBackends, "allow-insecure-backends", false, "enables the per-route proxySSLVerifyOff() filter that skips TLS certificate verification for individual backends; disabled by default")
 	flag.BoolVar(&cfg.ProxyPreserveHost, "proxy-preserve-host", false, "flag indicating to preserve the incoming request 'Host' header in the outgoing requests")
@@ -995,6 +997,7 @@ func (c *Config) ToOptions() skipper.Options {
 		MaxTCPListenerQueue:                   c.MaxTCPListenerQueue,
 		EnableCopyStreamPoolExperimental:      c.EnableCopyStreamPoolExperimental,
 		IgnoreTrailingSlash:                   c.IgnoreTrailingSlash,
+		UseHostTree:                           c.UseHostTree,
 		DevMode:                               c.DevMode,
 		SupportListener:                       c.SupportListener,
 		DebugListener:                         c.DebugListener,

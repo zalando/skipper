@@ -44,3 +44,9 @@ func (*anySpec) Create(args []any) (routing.Predicate, error) {
 func (ap *AnyPredicate) Match(r *http.Request) bool {
 	return slices.Contains(ap.hosts, r.Host)
 }
+
+// MatchHosts returns the list of hostnames this predicate matches exactly.
+// It is used by the routing package to build a host-keyed index.
+func (ap *AnyPredicate) MatchHosts() []string {
+	return ap.hosts
+}

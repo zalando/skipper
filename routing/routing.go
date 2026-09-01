@@ -42,10 +42,19 @@ const (
 
 	// IgnoreTrailingSlash indicates that trailing slashes in paths are ignored.
 	IgnoreTrailingSlash MatchingOptions = 1 << iota
+
+	// UseHostTree enables a two-level routing trie that first matches by exact
+	// hostname (from HostAny predicates) then by path. This reduces candidate
+	// leaf evaluation for workloads dominated by host-partitioned routes.
+	UseHostTree
 )
 
 func (o MatchingOptions) ignoreTrailingSlash() bool {
 	return o&IgnoreTrailingSlash > 0
+}
+
+func (o MatchingOptions) useHostTree() bool {
+	return o&UseHostTree > 0
 }
 
 // DataClient instances provide data sources for
