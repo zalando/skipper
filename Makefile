@@ -134,7 +134,7 @@ fuzz: ## run all fuzz tests
 	$(MAKE) -C fuzz $(MAKECMDGOALS)
 
 .PHONY: lint
-lint: build staticcheck ## run all linters
+lint: build vet staticcheck ## run all linters
 
 .PHONY: clean
 clean: ## clean temporary files and directories
