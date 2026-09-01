@@ -1977,9 +1977,9 @@ remaining freshness (`entry.TTL - age`) is used rather than the original TTL to
 prevent L1 from serving the entry beyond Valkey's actual expiry. The default is
 60 seconds, bounding how long Skipper serves a locally-cached entry before
 re-consulting Valkey. Set `--cache-l1-ttl=0` to disable L1 warming and
-restore write-around behaviour. Note: on Valkey write errors (`valkey_set_fallback`), L1
+restore write-around behaviour. Note: on Valkey write errors (`l2_set_fallback`), L1
 is always used as a fallback regardless of `--cache-l1-ttl`; Valkey read errors
-(`valkey_get_error`) are treated as cache misses.
+(`l2_get_error`) are treated as cache misses.
 
 When an upstream responds successfully to an unsafe method (`POST`, `PUT`, `DELETE`, `PATCH`),
 the filter removes the cached entry for that URL from both Valkey and the local L1.
@@ -2035,9 +2035,9 @@ falling back to 2 GB if the limit is unreadable. Override with
 **Valkey (when Valkey is configured):**
 
 - `cache.l1_hit`: Counter, L1 hits that bypassed Valkey
-- `cache.valkey_miss`: Counter, Valkey misses that proceeded to an upstream fetch
-- `cache.valkey_get_error`: Counter, Valkey Get errors — request treated as a cache miss, fetched from origin
-- `cache.valkey_set_fallback`: Counter, Valkey Set errors — entry written to L1 as fallback
+- `cache.l2_miss`: Counter, Valkey misses that proceeded to an upstream fetch
+- `cache.l2_get_error`: Counter, Valkey Get errors — request treated as a cache miss, fetched from origin
+- `cache.l2_set_fallback`: Counter, Valkey Set errors — entry written to L1 only (not L2)
 - `cache.l2_hit`: Counter, successful Valkey Get (entry returned from L2); L1 is warmed as a side-effect when `--cache-l1-ttl > 0`
 - `cache.storage_error`: Counter, any storage operation (Set or Delete) failed — covers both L2 Valkey failures and L1 eviction-path errors; the request is still served correctly
 

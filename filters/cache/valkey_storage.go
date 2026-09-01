@@ -37,9 +37,9 @@ type ValkeyStorage struct {
 // fallback in-memory cache. m is used to record per-operation counters:
 //
 //   - l1_hit               — L1 returned a warm entry; Valkey not consulted
-//   - valkey_miss          — clean cache miss (key not found in Valkey)
-//   - valkey_get_error     — Valkey error on Get; treated as a cache miss
-//   - valkey_set_fallback  — Valkey error on Set; L1 was written instead
+//   - l2_miss          — clean cache miss (key not found in Valkey)
+//   - l2_get_error     — Valkey error on Get; treated as a cache miss
+//   - l2_set_fallback  — Valkey error on Set; entry written to L1 only (not L2)
 //   - l2_hit               — successful Valkey Get (entry returned from L2)
 //
 // Pass metrics.Default when no test-scoped metrics collector is needed.
@@ -66,10 +66,10 @@ func (s *ValkeyStorage) Get(ctx context.Context, key string) (*Entry, error) {
 	data, err := s.ring.Get(ctx, key)
 	if err != nil {
 		if valkey.IsValkeyNil(err) {
-			s.metrics.IncCounter("cache.valkey_miss")
+			s.metrics.IncCounter("cache.l2_miss")
 			return nil, nil
 		}
-		s.metrics.IncCounter("cache.valkey_get_error")
+		s.metrics.IncCounter("cache.l2_get_error")
 		log.WithError(err).Warn("cache: valkey Get failed, treating as miss")
 		return nil, nil
 	}
@@ -103,7 +103,7 @@ func (s *ValkeyStorage) Set(ctx context.Context, key string, entry *Entry) error
 	}
 
 	if err := s.ring.SetWithExpire(ctx, key, string(data), valkeyTTL); err != nil {
-		s.metrics.IncCounter("cache.valkey_set_fallback")
+		s.metrics.IncCounter("cache.l2_set_fallback")
 		log.WithError(err).Warn("cache: valkey Set failed, falling back to L1")
 		return s.l1.Set(ctx, key, entry)
 	}
