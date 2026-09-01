@@ -156,9 +156,14 @@ type Options struct {
 	// Set to 0 to disable write-through (write-around behaviour). Default: 60s.
 	CacheL1TTL time.Duration
 
-	// EnableL2Cache enables Valkey as the L2 backing store for the cache() filter
-	// when SwarmValkeyURLs is configured. Without this flag, only in-process LRU (L1) is used.
+	// EnableL2Cache enables the L2 Cache. You need to pass
+	// L2CacheClient, which defaults to a valkey.Ring if not
+	// passed. Without enabling L2 cache, only in-process LRU (L1)
+	// is used.
 	EnableL2Cache bool
+
+	// L2CacheClient, defaults to valkey github.com/zalando/skipper/net.ValkeyRingClient
+	L2CacheClient cache.L2Client
 
 	// ReadMemoryLimit, when set, is called by the cache() filter initialiser
 	// to determine the container memory limit. Defaults to reading cgroup files.
@@ -2310,7 +2315,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	if !slices.Contains(o.DisabledFilters, cache.Name) {
 		var l2Client cache.L2Client
 		if o.EnableL2Cache {
-			l2Client = valkeyRing
+			l2Client = o.L2CacheClient
+			if l2Client == nil {
+				l2Client = valkeyRing
+			}
 		}
 		cacheSpec := cache.NewCacheFilter(
 			cache.Options{
