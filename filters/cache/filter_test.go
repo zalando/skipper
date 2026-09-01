@@ -26,7 +26,7 @@ import (
 func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) *cacheFilter {
 	t.Helper()
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
-	args := []interface{}{
+	args := []any{
 		ttl.String(),
 		errorTTL.String(),
 		swrWindow.String(),
@@ -57,7 +57,7 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *cacheFilter {
 	t.Helper()
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
-	f, err := spec.CreateFilter([]interface{}{})
+	f, err := spec.CreateFilter([]any{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestCacheFilter_MissAndHit(t *testing.T) {
 
 func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
-	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m", "0s", "Authorization"})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m", "0s", "Authorization"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -510,7 +510,7 @@ func TestCacheFilter_ColdMissCoalescing_FetchError_CoalesceErrorMetric(t *testin
 	// coalesce_error must be incremented when the upstream fetch fails during coalescing.
 	mockMetrics := &metricstest.MockMetrics{}
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second, Metrics: mockMetrics})
-	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m"})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -717,7 +717,7 @@ func TestCacheFilter_Metrics(t *testing.T) {
 	// Metrics passed via Options so f.metrics captures hit/miss/stale counters.
 	mockMetrics := &metricstest.MockMetrics{}
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second, Metrics: mockMetrics})
-	fi, err := spec.CreateFilter([]interface{}{time.Millisecond.String(), (15 * time.Second).String(), time.Hour.String()})
+	fi, err := spec.CreateFilter([]any{time.Millisecond.String(), (15 * time.Second).String(), time.Hour.String()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2682,7 +2682,7 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
-	f, err := spec.CreateFilter([]interface{}{})
+	f, err := spec.CreateFilter([]any{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -2717,7 +2717,7 @@ func TestCacheFilter_LRUBytesGaugeUpdatesWithoutEviction(t *testing.T) {
 		spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 		t.Cleanup(spec.(*cacheSpec).client.Close)
 		t.Cleanup(func() { spec.(*cacheSpec).Close() })
-		f, err := spec.CreateFilter([]interface{}{"5m", "15s", "5m"})
+		f, err := spec.CreateFilter([]any{"5m", "15s", "5m"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2762,7 +2762,7 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testi
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
-	f, err := spec.CreateFilter([]interface{}{})
+	f, err := spec.CreateFilter([]any{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -2881,13 +2881,13 @@ func TestCacheSpec_FilterRegistry(t *testing.T) {
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	// Same args — should return same *cacheFilter pointer (registry hit)
-	f1, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
+	f1, err := spec.CreateFilter([]any{"5m", "15s", "30s"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	cf1 := f1.(*cacheFilter)
 
-	f2, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
+	f2, err := spec.CreateFilter([]any{"5m", "15s", "30s"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2898,7 +2898,7 @@ func TestCacheSpec_FilterRegistry(t *testing.T) {
 	}
 
 	// Different args — should return different *cacheFilter pointer
-	f3, err := spec.CreateFilter([]interface{}{"10m", "15s", "30s"})
+	f3, err := spec.CreateFilter([]any{"10m", "15s", "30s"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2909,13 +2909,13 @@ func TestCacheSpec_FilterRegistry(t *testing.T) {
 	}
 
 	// Different keyHeaders order should normalize to same instance
-	f4, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s", "60s", "X-Foo,X-Bar"})
+	f4, err := spec.CreateFilter([]any{"5m", "15s", "30s", "60s", "X-Foo,X-Bar"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	cf4 := f4.(*cacheFilter)
 
-	f5, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s", "60s", "X-Bar,X-Foo"})
+	f5, err := spec.CreateFilter([]any{"5m", "15s", "30s", "60s", "X-Bar,X-Foo"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2937,7 +2937,7 @@ func TestCacheSpec_FilterRegistry_InFlightJobsSurviveRebuild(t *testing.T) {
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	// Create initial filter with blocking fetch stub (same pattern as TestCacheFilter_RevalDropped_WhenQueueFull).
-	f1, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
+	f1, err := spec.CreateFilter([]any{"5m", "15s", "30s"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2987,7 +2987,7 @@ func TestCacheSpec_FilterRegistry_InFlightJobsSurviveRebuild(t *testing.T) {
 
 	// Simulate a route rebuild: call CreateFilter again with identical args.
 	// The registry should return the same cf instance.
-	f2, err := spec.CreateFilter([]interface{}{"5m", "15s", "30s"})
+	f2, err := spec.CreateFilter([]any{"5m", "15s", "30s"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3232,7 +3232,7 @@ func TestCacheFilter_RFC_Private_NotCached_Coalesce(t *testing.T) {
 func TestCacheFilter_CoalesceSetFailure_Served(t *testing.T) {
 	mockMetrics := &metricstest.MockMetrics{}
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
-	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m"})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3308,7 +3308,7 @@ func TestCacheFilter_HEAD_Freshen_BodyHeaderSkipped(t *testing.T) {
 func TestCacheFilter_HEAD_Freshen_SetError(t *testing.T) {
 	mockMetrics := &metricstest.MockMetrics{}
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
-	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m"})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3378,7 +3378,7 @@ func TestCacheFilter_Response_ServedFromCache_IsNoop(t *testing.T) {
 func TestCacheFilter_UnsafeMethod_DeleteError_ContinuesSilently(t *testing.T) {
 	mockMetrics := &metricstest.MockMetrics{}
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
-	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m"})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3447,7 +3447,7 @@ func TestCacheFilter_Response_BodyReadError_NotCached(t *testing.T) {
 func TestCacheFilter_Response_VarySentinelSetError(t *testing.T) {
 	mockMetrics := &metricstest.MockMetrics{}
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
-	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m"})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3476,7 +3476,7 @@ func TestCacheFilter_Response_VarySentinelSetError(t *testing.T) {
 func TestCacheFilter_Response_StorageSetError(t *testing.T) {
 	mockMetrics := &metricstest.MockMetrics{}
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
-	fi, err := spec.CreateFilter([]interface{}{"1m", "15s", "1m"})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3638,7 +3638,7 @@ func TestCacheFilter_Revalidate_SetError_MetricIncremented(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		mockMetrics := &metricstest.MockMetrics{}
 		spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
-		fi, err := spec.CreateFilter([]interface{}{time.Millisecond.String(), "15s", time.Hour.String()})
+		fi, err := spec.CreateFilter([]any{time.Millisecond.String(), "15s", time.Hour.String()})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3857,7 +3857,7 @@ func TestCacheKeyForURL_RelativeURL_UsesBaseHost(t *testing.T) {
 // the cache filter. backendURL is the httptest backend.
 func newProxyCacheRoute(t *testing.T, backendURL string, spec filters.Spec, args ...string) *eskip.Route {
 	t.Helper()
-	var filterArgs []interface{}
+	var filterArgs []any
 	for _, a := range args {
 		filterArgs = append(filterArgs, a)
 	}
@@ -3989,7 +3989,7 @@ func TestProxy_L1Cache_UnsafeMethod_Invalidates(t *testing.T) {
 	route := &eskip.Route{
 		Id:          "invalidate-route",
 		PathRegexps: []string{".*"},
-		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []interface{}{"5m", "15s", "30s"}}},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []any{"5m", "15s", "30s"}}},
 		Backend:     backend.URL,
 	}
 
@@ -4043,7 +4043,7 @@ func TestProxy_L1Cache_NoCache_RequestBypasses(t *testing.T) {
 	route := &eskip.Route{
 		Id:          "nocache-route",
 		PathRegexps: []string{".*"},
-		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []interface{}{"5m", "15s", "30s"}}},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []any{"5m", "15s", "30s"}}},
 		Backend:     backend.URL,
 	}
 
@@ -4082,7 +4082,7 @@ func TestProxy_L1Cache_VaryStar_NeverCached(t *testing.T) {
 	route := &eskip.Route{
 		Id:          "vary-star-route",
 		PathRegexps: []string{".*"},
-		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []interface{}{"5m", "15s", "30s"}}},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []any{"5m", "15s", "30s"}}},
 		Backend:     backend.URL,
 	}
 
@@ -4145,7 +4145,7 @@ func TestProxy_L2Cache_HitAfterL1Eviction(t *testing.T) {
 	route := &eskip.Route{
 		Id:          "l2-route",
 		PathRegexps: []string{".*"},
-		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []interface{}{"5m", "15s", "30s"}}},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []any{"5m", "15s", "30s"}}},
 		Backend:     backend.URL,
 	}
 
@@ -4208,7 +4208,7 @@ func TestProxy_L2Cache_FallsBackToL1OnL2Failure(t *testing.T) {
 	route := &eskip.Route{
 		Id:          "l2-fallback-route",
 		PathRegexps: []string{".*"},
-		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []interface{}{"5m", "15s", "30s"}}},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []any{"5m", "15s", "30s"}}},
 		Backend:     backend.URL,
 	}
 
@@ -4265,7 +4265,7 @@ func TestProxy_L2Cache_MissWhenBothMiss(t *testing.T) {
 	route := &eskip.Route{
 		Id:          "both-miss-route",
 		PathRegexps: []string{".*"},
-		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []interface{}{"5m", "15s", "30s"}}},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []any{"5m", "15s", "30s"}}},
 		Backend:     backend.URL,
 	}
 

@@ -150,7 +150,7 @@ func (s *cacheSpec) Close() error {
 	return nil
 }
 
-func (s *cacheSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *cacheSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if len(args) != 0 && (len(args) < 3 || len(args) > 5) {
 		return nil, fmt.Errorf("cache: expected 0 or 3-5 args (ttl, errorTTL, swrWindow[, staleIfError[, keyHeaders]]), got %d: %w", len(args), filters.ErrInvalidFilterParameters)
 	}
@@ -471,7 +471,7 @@ type coalesceResult struct {
 func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 	req := ctx.Request().Clone(context.Background())
 
-	ch := f.coldSF.DoChan(key, func() (interface{}, error) {
+	ch := f.coldSF.DoChan(key, func() (any, error) {
 		// Capture any existing stale-if-error eligible entry before fetching, so that a
 		// subsequent 5xx response cannot overwrite it in storage before we read it.
 		var sieStored *Entry
