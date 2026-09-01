@@ -153,6 +153,10 @@ type Options struct {
 	// Set to 0 to disable write-through (write-around behaviour). Default: 60s.
 	CacheL1TTL time.Duration
 
+	// EnableL2Cache enables Valkey as the L2 backing store for the cache() filter
+	// when SwarmValkeyURLs is configured. Without this flag, only in-process LRU (L1) is used.
+	EnableL2Cache bool
+
 	// ReadMemoryLimit, when set, is called by the cache() filter initialiser
 	// to determine the container memory limit. Defaults to reading cgroup files.
 	// Override in tests or on non-standard platforms.
@@ -2301,6 +2305,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	if !slices.Contains(o.DisabledFilters, cache.Name) {
+		valkeyForCache := valkeyRing
+		if !o.EnableL2Cache {
+			valkeyForCache = nil
+		}
 		cacheSpec := cache.NewCacheFilter(
 			cache.Options{
 				MaxBytes:   o.cacheBudget(),
@@ -2313,7 +2321,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 					OpentracingSpanName:     "cache_revalidation",
 					OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
 				},
-				ValkeyRing: valkeyRing,
+				ValkeyRing: valkeyForCache,
 				L1TTL:      o.CacheL1TTL,
 			},
 		)

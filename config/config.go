@@ -356,6 +356,7 @@ type Config struct {
 	// cache
 	CacheL1TTL            time.Duration `yaml:"cache-l1-ttl"`
 	CacheL1MaxMemoryBytes int64         `yaml:"cache-l1-max-memory-bytes"`
+	EnableL2Cache         bool          `yaml:"enable-l2-cache"`
 
 	ClusterRatelimitMaxGroupShards int `yaml:"cluster-ratelimit-max-group-shards"`
 
@@ -752,6 +753,7 @@ func NewConfig() *Config {
 	// cache
 	flag.DurationVar(&cfg.CacheL1TTL, "cache-l1-ttl", 60*time.Second, "maximum TTL for write-through L1 warming in the cache() filter when Valkey is configured; set to 0 to disable (write-around)")
 	flag.Int64Var(&cfg.CacheL1MaxMemoryBytes, "cache-l1-max-memory-bytes", 0, "maximum memory budget in bytes for the cache() filter's in-process LRU (L1); defaults to 25% of cgroup memory limit or 2 GB if unreadable")
+	flag.BoolVar(&cfg.EnableL2Cache, "enable-l2-cache", false, "enable Valkey as L2 backing store for the cache() filter when --swarm-valkey-urls is configured; by default only in-process LRU (L1) is used")
 
 	flag.IntVar(&cfg.ClusterRatelimitMaxGroupShards, "cluster-ratelimit-max-group-shards", 1, "sets the maximum number of group shards for the clusterRatelimit filter")
 
@@ -1221,6 +1223,7 @@ func (c *Config) ToOptions() skipper.Options {
 		// cache
 		CacheL1TTL:                  c.CacheL1TTL,
 		ResponseCacheMaxMemoryBytes: c.CacheL1MaxMemoryBytes,
+		EnableL2Cache:               c.EnableL2Cache,
 
 		ClusterRatelimitMaxGroupShards: c.ClusterRatelimitMaxGroupShards,
 

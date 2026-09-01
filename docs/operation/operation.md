@@ -1964,12 +1964,11 @@ r: SourceFromLast("9.0.0.0/24","2001:67c:20a0::/48") -> ...`
 ## Cache
 
 By default entries are stored in an in-process LRU (L1) local to each Skipper process.
-When `--swarm-valkey-urls` is configured, Valkey serves as a shared backing
-store (L2) accessible by all Skipper instances via a client-side consistent hash ring. Every
-read checks L1 first; an L1 hit returns without contacting Valkey.
-
-Note: `--swarm-valkey-urls` wires Valkey into both ratelimit and cache — there is currently
-no flag to enable L2 cache independently of ratelimit.
+When `--swarm-valkey-urls` is configured and `--enable-l2-cache` is set, Valkey serves as a
+shared backing store (L2) accessible by all Skipper instances via a client-side consistent
+hash ring; every read checks L1 first and an L1 hit returns without contacting Valkey.
+Without `--enable-l2-cache`, `--swarm-valkey-urls` wires Valkey into ratelimit only and the
+`cache()` filter uses L1 exclusively.
 
 On every successful Valkey write the entry is also written to L1
 (write-through) with a TTL of `min(--cache-l1-ttl, entry.TTL)`. On a Valkey
