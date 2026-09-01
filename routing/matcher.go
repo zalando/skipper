@@ -10,8 +10,17 @@ import (
 	"strings"
 
 	"github.com/dimfeld/httppath"
+	"github.com/zalando/skipper/hostpathmux"
 	"github.com/zalando/skipper/pathmux"
 )
+
+// hostKeyedPredicate is satisfied by predicates that expose an exact list of
+// hostnames they match (e.g. *host.AnyPredicate). The routing package uses
+// this interface to build a host-keyed outer index without importing
+// predicates/host, which imports routing.
+type hostKeyedPredicate interface {
+	MatchHosts() []string
+}
 
 type leafRequestMatcher struct {
 	r         *http.Request
@@ -73,6 +82,7 @@ type pathMatcher struct {
 // root structure representing the routing tree.
 type matcher struct {
 	paths           *pathmux.Tree
+	hostPaths       *hostpathmux.Tree // non-nil when UseHostTree is set
 	rootLeaves      leafMatchers
 	matchingOptions MatchingOptions
 }
@@ -273,6 +283,30 @@ func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher) [
 	return errors
 }
 
+// addHostTreeMatchers adds all path matchers for a given host to the host+path tree.
+func addHostTreeMatchers(hostTree *hostpathmux.Tree, host string, matchers map[string]*pathMatcher) []*definitionError {
+	var errors []*definitionError
+	for p, m := range matchers {
+		sort.Stable(m.leaves)
+		if err := hostTree.Add(host, p, m); err != nil {
+			errors = append(errors, &definitionError{Index: -1, Original: err})
+		}
+	}
+	return errors
+}
+
+// extractHostKeys scans preds for a hostKeyedPredicate. If found, it returns
+// its host list and a copy of preds with that entry removed. Otherwise it
+// returns nil hosts and the original preds slice unchanged.
+func extractHostKeys(preds []Predicate) (hosts []string, remaining []Predicate) {
+	for i, p := range preds {
+		if hkp, ok := p.(hostKeyedPredicate); ok {
+			return hkp.MatchHosts(), slices.Delete(slices.Clone(preds), i, i+1)
+		}
+	}
+	return nil, preds
+}
+
 func addLeafToPath(pms map[string]*pathMatcher, path string, l *leafMatcher) {
 	pm, ok := pms[path]
 	if !ok {
@@ -318,6 +352,13 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	pathMatchers := make(map[string]*pathMatcher)
 	compiledRxs := make(map[string]*regexp.Regexp)
 
+	// hostPathMatchers holds per-host path matchers when UseHostTree is enabled.
+	// Keyed by hostname → normalized path → pathMatcher.
+	var hostPathMatchers map[string]map[string]*pathMatcher
+	if o.useHostTree() {
+		hostPathMatchers = make(map[string]map[string]*pathMatcher)
+	}
+
 	for i, r := range rs {
 		l, err := newLeaf(r, compiledRxs)
 		if err != nil {
@@ -333,6 +374,18 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 
 		if r.pathSubtree != "" {
 			addSubtreeLeafsToPath(pathMatchers, path, l, o)
+			if hostPathMatchers != nil {
+				if hosts, remaining := extractHostKeys(l.predicates); len(hosts) > 0 {
+					lh := *l
+					lh.predicates = remaining
+					for _, h := range hosts {
+						if hostPathMatchers[h] == nil {
+							hostPathMatchers[h] = make(map[string]*pathMatcher)
+						}
+						addSubtreeLeafsToPath(hostPathMatchers[h], path, &lh, o)
+					}
+				}
+			}
 			continue
 		}
 
@@ -341,10 +394,24 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 			continue
 		}
 
+		p := path
 		if o.ignoreTrailingSlash() {
-			path = trimTrailingSlash(path)
+			p = trimTrailingSlash(p)
 		}
-		addLeafToPath(pathMatchers, path, l)
+		addLeafToPath(pathMatchers, p, l)
+
+		if hostPathMatchers != nil {
+			if hosts, remaining := extractHostKeys(l.predicates); len(hosts) > 0 {
+				lh := *l
+				lh.predicates = remaining
+				for _, h := range hosts {
+					if hostPathMatchers[h] == nil {
+						hostPathMatchers[h] = make(map[string]*pathMatcher)
+					}
+					addLeafToPath(hostPathMatchers[h], p, &lh)
+				}
+			}
+		}
 	}
 
 	pathTree := &pathmux.Tree{}
@@ -353,7 +420,41 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	// sort root leaves during construction time, based on their priority
 	sort.Stable(rootLeaves)
 
-	return &matcher{pathTree, rootLeaves, o}, errors
+	var hostTree *hostpathmux.Tree
+	if hostPathMatchers != nil {
+		hostTree = hostpathmux.New()
+		for h, pms := range hostPathMatchers {
+			errors = append(errors, addHostTreeMatchers(hostTree, h, pms)...)
+		}
+	}
+
+	return &matcher{
+		paths:           pathTree,
+		hostPaths:       hostTree,
+		rootLeaves:      rootLeaves,
+		matchingOptions: o,
+	}, errors
+}
+
+// buildParamsMap converts a raw params slice from pathmux into a named map using
+// the leaf's wildcard parameter names.
+func buildParamsMap(lm *leafMatcher, params []string) map[string]string {
+	if len(lm.wildcardParamNames) == len(params)+1 {
+		// prepend an empty string for the path subtree match
+		params = append([]string{""}, params...)
+	}
+
+	l := min(len(params), len(lm.wildcardParamNames))
+
+	paramsMap := make(map[string]string)
+	for i := range l {
+		paramsMap[lm.wildcardParamNames[i]] = params[i]
+	}
+	if l > 0 && lm.hasFreeWildcardParam {
+		paramsMap[lm.wildcardParamNames[0]] = "/" + params[0]
+	}
+
+	return paramsMap
 }
 
 // matches a path in the path trie structure.
@@ -364,23 +465,7 @@ func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (ma
 	}
 
 	lm := value.(*leafMatcher)
-
-	if len(lm.wildcardParamNames) == len(params)+1 {
-		// prepend an empty string for the path subtree match
-		params = append([]string{""}, params...)
-	}
-
-	l := min(len(params), len(lm.wildcardParamNames))
-
-	paramsMap := make(map[string]string)
-	for i := 0; i < l; i += 1 {
-		paramsMap[lm.wildcardParamNames[i]] = params[i]
-	}
-	if l > 0 && lm.hasFreeWildcardParam {
-		paramsMap[lm.wildcardParamNames[0]] = "/" + params[0]
-	}
-
-	return paramsMap, lm
+	return buildParamsMap(lm, params), lm
 }
 
 // matches the path regexp conditions in a leaf matcher.
@@ -486,6 +571,15 @@ func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 		path = trimTrailingSlash(path)
 	}
 	lrm := &leafRequestMatcher{r: r, path: path, exactPath: exact}
+
+	// two-level host+path lookup when UseHostTree is enabled
+	if m.hostPaths != nil {
+		lv, params, value := m.hostPaths.Lookup(r.Host, path, lrm)
+		if lv != nil {
+			lm := value.(*leafMatcher)
+			return lm.route, buildParamsMap(lm, params)
+		}
+	}
 
 	// first match fixed and wildcard paths
 	params, l := matchPathTree(m.paths, path, lrm)

@@ -521,6 +521,11 @@ type Options struct {
 	// lookup.
 	IgnoreTrailingSlash bool
 
+	// UseHostTree enables a two-level routing trie that first matches by exact
+	// hostname (from HostAny predicates) then by path, reducing candidate leaf
+	// evaluation for workloads dominated by host-partitioned routes.
+	UseHostTree bool
+
 	// Priority routes that are matched against the requests before
 	// the standard routes from the data clients.
 	PriorityRoutes []proxy.PriorityRoute
@@ -2513,7 +2518,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// create the proxy instance
 	var mo routing.MatchingOptions
 	if o.IgnoreTrailingSlash {
-		mo = routing.IgnoreTrailingSlash
+		mo |= routing.IgnoreTrailingSlash
+	}
+	if o.UseHostTree {
+		mo |= routing.UseHostTree
 	}
 
 	// ensure a non-zero poll timeout
