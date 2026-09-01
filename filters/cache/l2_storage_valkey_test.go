@@ -251,7 +251,7 @@ func TestValkeyStorage_RecordsValkeyMiss(t *testing.T) {
 	stub := newStubValkeyClient()
 	m := &testMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	s := &L2Storage{l2client: stub, l1: lru, metrics: m, l1TTL: 0}
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
 
 	got, err := s.Get(context.Background(), "nonexistent-key")
 	if err != nil {
@@ -272,7 +272,7 @@ func TestValkeyStorage_WriteThroughWarmsL1(t *testing.T) {
 	stub := newStubValkeyClient()
 	m := &testMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	s := &L2Storage{l2client: stub, l1: lru, metrics: m, l1TTL: 60 * time.Second}
+	s := NewL2Storage(stub, lru, m, 60*time.Second, valkey.IsValkeyNil)
 
 	ctx := context.Background()
 	key := "wt-key"
@@ -308,7 +308,7 @@ func TestValkeyStorage_WriteThroughWarmsL1(t *testing.T) {
 func TestValkeyStorage_L1TTLBoundedToEntryTTL(t *testing.T) {
 	stub := newStubValkeyClient()
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	s := &L2Storage{l2client: stub, l1: lru, metrics: &testMetrics{}, l1TTL: 60 * time.Second}
+	s := NewL2Storage(stub, lru, &testMetrics{}, 60*time.Second, valkey.IsValkeyNil)
 
 	ctx := context.Background()
 	key := "bounded-key"
@@ -340,7 +340,7 @@ func TestValkeyStorage_L1TTL_Zero_DisablesWarming(t *testing.T) {
 	stub := newStubValkeyClient()
 	m := &testMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	s := &L2Storage{l2client: stub, l1: lru, metrics: m, l1TTL: 0} // write-around
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
 
 	ctx := context.Background()
 	key := "no-warm-key"
@@ -371,7 +371,7 @@ func TestValkeyStorage_RecordsL2Hit(t *testing.T) {
 	stub := newStubValkeyClient()
 	m := &testMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	s := &L2Storage{l2client: stub, l1: lru, metrics: m, l1TTL: 0} // write-around: no L1 warming
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
 
 	ctx := context.Background()
 	key := "l2-hit-key"
@@ -404,7 +404,7 @@ func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	stub := newBrokenStubValkeyClient()
 	m := &testMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	s := &L2Storage{l2client: stub, l1: lru, metrics: m, l1TTL: 0}
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
 
 	ctx := context.Background()
 	entry := &Entry{StatusCode: 200, Payload: []byte("x"), TTL: time.Minute, CreatedAt: time.Now()}
@@ -436,7 +436,7 @@ func TestValkeyStorage_DeleteCleansL1EvenOnValkeyError(t *testing.T) {
 	// regardless of the Expire error from Valkey.
 	stub := newBrokenStubValkeyClient()
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	s := &L2Storage{l2client: stub, l1: lru, metrics: &testMetrics{}, l1TTL: 0}
+	s := NewL2Storage(stub, lru, &testMetrics{}, 0, valkey.IsValkeyNil)
 
 	ctx := context.Background()
 	entry := &Entry{StatusCode: 200, Payload: []byte("body"), TTL: time.Minute, CreatedAt: time.Now()}

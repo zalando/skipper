@@ -717,7 +717,7 @@ func TestCacheFilter_Metrics(t *testing.T) {
 	}
 	f := fi.(*cacheFilter)
 	f.fetch = func(*http.Request) (*http.Response, error) { return nil, errors.New("no fetch stub set") }
-	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	defer spec.(*cacheSpec).Close()
 	url := "https://cdn.contentful.com/spaces/abc/entries/metrics"
 
 	synctest.Test(t, func(t *testing.T) {
