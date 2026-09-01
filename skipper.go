@@ -2308,9 +2308,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	if !slices.Contains(o.DisabledFilters, cache.Name) {
-		valkeyForCache := valkeyRing
-		if !o.EnableL2Cache {
-			valkeyForCache = nil
+		var l2Client cache.L2Client
+		if o.EnableL2Cache {
+			l2Client = valkeyRing
 		}
 		cacheSpec := cache.NewCacheFilter(
 			cache.Options{
@@ -2324,7 +2324,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 					OpentracingSpanName:     "cache_revalidation",
 					OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
 				},
-				L2Client:  valkeyForCache,
+				L2Client:  l2Client,
 				IsNoL2Err: valkey.IsValkeyNil,
 				L1TTL:     o.CacheL1TTL,
 			},
