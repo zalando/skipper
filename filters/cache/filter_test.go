@@ -230,13 +230,13 @@ func TestCacheFilter_NonCacheableStatusNotStored(t *testing.T) {
 }
 
 func TestCacheFilter_TTLExpiry(t *testing.T) {
-	// swrWindow=1ms so hard expiry is at TTL+1ms; advancing 2min exceeds both.
-	// Filter created outside the bubble so sknet.Client's transport goroutine
-	// does not get trapped inside the synctest bubble.
-	f := newTestFilter(t, time.Minute, 15*time.Second, time.Millisecond)
-	url := "https://cdn.contentful.com/spaces/abc/entries"
-
 	synctest.Test(t, func(t *testing.T) {
+		// swrWindow=1ms so hard expiry is at TTL+1ms; advancing 2min exceeds both.
+		// Filter created outside the bubble so sknet.Client's transport goroutine
+		// does not get trapped inside the synctest bubble.
+		f := newTestFilter(t, time.Minute, 15*time.Second, time.Millisecond)
+		url := "https://cdn.contentful.com/spaces/abc/entries"
+
 		// Populate cache.
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
@@ -295,11 +295,12 @@ func TestCreateFilter_InvalidArgs(t *testing.T) {
 }
 
 func TestCacheFilter_ErrorStatus_NoSWR(t *testing.T) {
-	// 404 entries must hard-expire at errorTTL with no SWR window
-	f := newTestFilter(t, time.Minute, time.Millisecond, time.Hour)
-	url := "https://cdn.contentful.com/spaces/abc/entries/missing"
 
 	synctest.Test(t, func(t *testing.T) {
+		// 404 entries must hard-expire at errorTTL with no SWR window
+		f := newTestFilter(t, time.Minute, time.Millisecond, time.Hour)
+		url := "https://cdn.contentful.com/spaces/abc/entries/missing"
+
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		ctx1.FResponse = upstreamResponse(http.StatusNotFound, `{"message":"not found"}`)
@@ -317,11 +318,11 @@ func TestCacheFilter_ErrorStatus_NoSWR(t *testing.T) {
 }
 
 func TestCacheFilter_SWR_StaleServedAndRevalidated(t *testing.T) {
-	// ttl=1ms, swrWindow=1h — entry expires quickly but SWR window is huge.
-	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
-	url := "https://cdn.contentful.com/spaces/abc/entries/swr"
-
 	synctest.Test(t, func(t *testing.T) {
+		// ttl=1ms, swrWindow=1h — entry expires quickly but SWR window is huge.
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		url := "https://cdn.contentful.com/spaces/abc/entries/swr"
+
 		// Populate cache.
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
@@ -349,11 +350,11 @@ func TestCacheFilter_SWR_StaleServedAndRevalidated(t *testing.T) {
 }
 
 func TestCacheFilter_SWR_HardExpiry_Miss(t *testing.T) {
-	// ttl=1ms, swrWindow=1ms — hard expiry at 2ms.
-	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Millisecond)
-	url := "https://cdn.contentful.com/spaces/abc/entries/hard-expired"
-
 	synctest.Test(t, func(t *testing.T) {
+		// ttl=1ms, swrWindow=1ms — hard expiry at 2ms.
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Millisecond)
+		url := "https://cdn.contentful.com/spaces/abc/entries/hard-expired"
+
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		ctx1.FResponse = upstreamResponse(http.StatusOK, `{"data":"old"}`)
@@ -611,13 +612,13 @@ func TestCacheFilter_RequestOnlyIfCached_Hit_ServesFromCache(t *testing.T) {
 }
 
 func TestCacheFilter_RequestOnlyIfCached_StaleWhileRevalidate_ServesStale(t *testing.T) {
-	// RFC 9111 §5.2.1.7: only-if-cached should return a stored response if it is
-	// "usable" — entries in the SWR window are still being served as stale to
-	// other clients, so they are usable and must not return 504.
-	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Minute)
-	url := "https://cdn.contentful.com/spaces/abc/entries/oic-swr"
-
 	synctest.Test(t, func(t *testing.T) {
+		// RFC 9111 §5.2.1.7: only-if-cached should return a stored response if it is
+		// "usable" — entries in the SWR window are still being served as stale to
+		// other clients, so they are usable and must not return 504.
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Minute)
+		url := "https://cdn.contentful.com/spaces/abc/entries/oic-swr"
+
 		// Populate cache.
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
@@ -644,10 +645,10 @@ func TestCacheFilter_RequestOnlyIfCached_StaleWhileRevalidate_ServesStale(t *tes
 }
 
 func TestCacheFilter_AgeHeader_HIT(t *testing.T) {
-	f := newTestFilter(t, time.Minute, 15*time.Second, time.Hour)
-	url := "https://cdn.contentful.com/spaces/abc/entries/age"
-
 	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, time.Minute, 15*time.Second, time.Hour)
+		url := "https://cdn.contentful.com/spaces/abc/entries/age"
+
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
@@ -671,10 +672,10 @@ func TestCacheFilter_AgeHeader_HIT(t *testing.T) {
 }
 
 func TestCacheFilter_AgeHeader_STALE(t *testing.T) {
-	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
-	url := "https://cdn.contentful.com/spaces/abc/entries/age-stale"
-
 	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		url := "https://cdn.contentful.com/spaces/abc/entries/age-stale"
+
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"old"}`, "max-age=300")
@@ -695,10 +696,10 @@ func TestCacheFilter_AgeHeader_STALE(t *testing.T) {
 }
 
 func TestCacheFilter_AgeHeader_UpstreamAgeAdded(t *testing.T) {
-	f := newTestFilter(t, time.Minute, 15*time.Second, time.Hour)
-	url := "https://cdn.contentful.com/spaces/abc/entries/upstream-age"
-
 	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, time.Minute, 15*time.Second, time.Hour)
+		url := "https://cdn.contentful.com/spaces/abc/entries/upstream-age"
+
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		rsp := upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
@@ -721,22 +722,21 @@ func TestCacheFilter_AgeHeader_UpstreamAgeAdded(t *testing.T) {
 }
 
 func TestCacheFilter_Metrics(t *testing.T) {
-	// ttl=1ms, swrWindow=1h — entry expires quickly, SWR window is huge.
-	// Filter created outside the bubble so sknet.Client's transport goroutine
-	// does not get trapped inside the synctest bubble.
-	// Metrics passed via Options so f.metrics captures hit/miss/stale counters.
-	mockMetrics := &metricstest.MockMetrics{}
-	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second, Metrics: mockMetrics})
-	fi, err := spec.CreateFilter([]any{time.Millisecond.String(), (15 * time.Second).String(), time.Hour.String()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	f := fi.(*cacheFilter)
-	f.fetch = func(*http.Request) (*http.Response, error) { return nil, errors.New("no fetch stub set") }
-	defer spec.(*cacheSpec).Close()
-	url := "https://cdn.contentful.com/spaces/abc/entries/metrics"
-
 	synctest.Test(t, func(t *testing.T) {
+		// ttl=1ms, swrWindow=1h — entry expires quickly, SWR window is huge.
+		// Filter created outside the bubble so sknet.Client's transport goroutine
+		// does not get trapped inside the synctest bubble.
+		// Metrics passed via Options so f.metrics captures hit/miss/stale counters.
+		mockMetrics := &metricstest.MockMetrics{}
+		spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second, Metrics: mockMetrics})
+		fi, err := spec.CreateFilter([]any{time.Millisecond.String(), (15 * time.Second).String(), time.Hour.String()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		f := fi.(*cacheFilter)
+		f.fetch = func(*http.Request) (*http.Response, error) { return nil, errors.New("no fetch stub set") }
+		defer spec.(*cacheSpec).Close()
+		url := "https://cdn.contentful.com/spaces/abc/entries/metrics"
 
 		// MISS: populate via Response() path
 		miss := newCtx("GET", url, "")
@@ -862,11 +862,11 @@ func TestCacheFilter_Vary_Star_NotCached(t *testing.T) {
 }
 
 func TestCacheFilter_ConditionalRevalidation_ETag_304(t *testing.T) {
-	url := "https://cdn.contentful.com/spaces/abc/entries/etag"
-
-	var revalReq *http.Request
-
 	synctest.Test(t, func(t *testing.T) {
+		url := "https://cdn.contentful.com/spaces/abc/entries/etag"
+
+		var revalReq *http.Request
+
 		f, cleanup := newTestFilterWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
 		defer cleanup()
 		ctx1 := newCtx("GET", url, "")
@@ -912,11 +912,11 @@ func TestCacheFilter_ConditionalRevalidation_ETag_304(t *testing.T) {
 }
 
 func TestCacheFilter_ConditionalRevalidation_LastModified_304(t *testing.T) {
-	url := "https://cdn.contentful.com/spaces/abc/entries/lastmod"
-
-	var revalReq *http.Request
-
 	synctest.Test(t, func(t *testing.T) {
+		url := "https://cdn.contentful.com/spaces/abc/entries/lastmod"
+
+		var revalReq *http.Request
+
 		f, cleanup := newTestFilterWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
 		defer cleanup()
 		ctx1 := newCtx("GET", url, "")
@@ -950,9 +950,9 @@ func TestCacheFilter_ConditionalRevalidation_LastModified_304(t *testing.T) {
 }
 
 func TestCacheFilter_RevalidationError_MetricIncremented(t *testing.T) {
-	url := "https://cdn.contentful.com/spaces/abc/entries/reval-err"
-
 	synctest.Test(t, func(t *testing.T) {
+		url := "https://cdn.contentful.com/spaces/abc/entries/reval-err"
+
 		f, cleanup := newTestFilterWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
 		defer cleanup()
 		mockMetrics := &metricstest.MockMetrics{}
@@ -985,14 +985,14 @@ func TestCacheFilter_RevalidationError_MetricIncremented(t *testing.T) {
 }
 
 func TestCacheFilter_ExpiresHeader_CapsOperatorTTL(t *testing.T) {
-	// Expires without max-age/s-maxage: TTL must be capped by Expires (RFC 9111 §5.3).
-	// No Cache-Control so max-age/s-maxage are absent; Expires must be honoured.
-	// Also need Last-Modified for the heuristic branch to not short-circuit storage.
-	// RFC mode required: force mode ignores Expires and uses operator TTL directly.
-	f := newTestFilterRFC(t, time.Minute, 15*time.Second, time.Millisecond)
-	url := "https://cdn.contentful.com/spaces/abc/entries/expires"
-
 	synctest.Test(t, func(t *testing.T) {
+		// Expires without max-age/s-maxage: TTL must be capped by Expires (RFC 9111 §5.3).
+		// No Cache-Control so max-age/s-maxage are absent; Expires must be honoured.
+		// Also need Last-Modified for the heuristic branch to not short-circuit storage.
+		// RFC mode required: force mode ignores Expires and uses operator TTL directly.
+		f := newTestFilterRFC(t, time.Minute, 15*time.Second, time.Millisecond)
+		url := "https://cdn.contentful.com/spaces/abc/entries/expires"
+
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		rsp := upstreamResponse(http.StatusOK, `{"data":"expires-soon"}`)
@@ -1232,22 +1232,22 @@ func TestCacheFilter_NoCacheResponse_ForceRevalidation(t *testing.T) {
 }
 
 func TestCacheFilter_ProxyRevalidate_BlocksStale(t *testing.T) {
-	// proxy-revalidate has the same effect as must-revalidate for shared caches:
-	// stale entries MUST NOT be served without revalidation (RFC 9111 §5.2.2.8).
-	f := newTestFilter(t, 100*time.Millisecond, 15*time.Second, time.Hour)
-	url := "https://cdn.contentful.com/spaces/abc/entries/pr"
-
-	fetchCount := 0
-	f.fetch = func(req *http.Request) (*http.Response, error) {
-		fetchCount++
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     http.Header{"Cache-Control": {"proxy-revalidate"}, "Content-Type": {"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(`{"v":1}`)),
-		}, nil
-	}
-
 	synctest.Test(t, func(t *testing.T) {
+		// proxy-revalidate has the same effect as must-revalidate for shared caches:
+		// stale entries MUST NOT be served without revalidation (RFC 9111 §5.2.2.8).
+		f := newTestFilter(t, 100*time.Millisecond, 15*time.Second, time.Hour)
+		url := "https://cdn.contentful.com/spaces/abc/entries/pr"
+
+		fetchCount := 0
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			fetchCount++
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Cache-Control": {"proxy-revalidate"}, "Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"v":1}`)),
+			}, nil
+		}
+
 		// First request: cold miss → fetch → store.
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
@@ -1273,22 +1273,22 @@ func TestCacheFilter_ProxyRevalidate_BlocksStale(t *testing.T) {
 }
 
 func TestCacheFilter_SMaxAge_ImpliesProxyRevalidate(t *testing.T) {
-	// RFC 9111 §5.2.2.10: s-maxage implies proxy-revalidate for shared caches.
-	// Stale entries stored under s-maxage MUST NOT be served without revalidation.
-	f := newTestFilter(t, 100*time.Millisecond, 15*time.Second, time.Hour)
-	url := "https://cdn.contentful.com/spaces/abc/entries/smaxage-pr"
-
-	fetchCount := 0
-	f.fetch = func(req *http.Request) (*http.Response, error) {
-		fetchCount++
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     http.Header{"Cache-Control": {"s-maxage=1"}, "Content-Type": {"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(`{"v":1}`)),
-		}, nil
-	}
-
 	synctest.Test(t, func(t *testing.T) {
+		// RFC 9111 §5.2.2.10: s-maxage implies proxy-revalidate for shared caches.
+		// Stale entries stored under s-maxage MUST NOT be served without revalidation.
+		f := newTestFilter(t, 100*time.Millisecond, 15*time.Second, time.Hour)
+		url := "https://cdn.contentful.com/spaces/abc/entries/smaxage-pr"
+
+		fetchCount := 0
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			fetchCount++
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Cache-Control": {"s-maxage=1"}, "Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"v":1}`)),
+			}, nil
+		}
+
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		if ctx1.FResponse.Header.Get("X-Cache-Status") != "MISS" {
@@ -1308,23 +1308,23 @@ func TestCacheFilter_SMaxAge_ImpliesProxyRevalidate(t *testing.T) {
 }
 
 func TestCacheFilter_MustRevalidate_ForcesCoalesceWhenStale(t *testing.T) {
-	// RFC 9111 §5.2.2.2: must-revalidate forbids serving a stale response.
-	// Once the entry is past TTL, coalesce() must contact the origin even if the
-	// entry is inside a stale-while-revalidate window.
-	f := newTestFilter(t, 100*time.Millisecond, 15*time.Second, time.Hour)
-	url := "https://cdn.contentful.com/spaces/abc/entries/must-reval"
-
-	var fetchCount int64
-	f.fetch = func(req *http.Request) (*http.Response, error) {
-		atomic.AddInt64(&fetchCount, 1)
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     http.Header{"Cache-Control": {"must-revalidate"}, "Content-Type": {"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(`{"v":1}`)),
-		}, nil
-	}
-
 	synctest.Test(t, func(t *testing.T) {
+		// RFC 9111 §5.2.2.2: must-revalidate forbids serving a stale response.
+		// Once the entry is past TTL, coalesce() must contact the origin even if the
+		// entry is inside a stale-while-revalidate window.
+		f := newTestFilter(t, 100*time.Millisecond, 15*time.Second, time.Hour)
+		url := "https://cdn.contentful.com/spaces/abc/entries/must-reval"
+
+		var fetchCount atomic.Int64
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			fetchCount.Add(1)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Cache-Control": {"must-revalidate"}, "Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"v":1}`)),
+			}, nil
+		}
+
 		// First request: cold miss → fetch → store.
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
@@ -1340,8 +1340,8 @@ func TestCacheFilter_MustRevalidate_ForcesCoalesceWhenStale(t *testing.T) {
 		ctx2 := newCtx("GET", url, "")
 		f.Request(ctx2)
 		synctest.Wait()
-		if atomic.LoadInt64(&fetchCount) < 2 {
-			t.Fatalf("must-revalidate must block stale serve and trigger upstream fetch; fetchCount=%d", atomic.LoadInt64(&fetchCount))
+		if fetchCount.Load() < 2 {
+			t.Fatalf("must-revalidate must block stale serve and trigger upstream fetch; fetchCount=%d", fetchCount.Load())
 		}
 		if status := ctx2.FResponse.Header.Get("X-Cache-Status"); status == "HIT" || status == "STALE" {
 			t.Errorf("expected origin fetch, but got X-Cache-Status: %s", status)
@@ -1485,10 +1485,10 @@ func TestCacheFilter_UnsafeMethod_ContentLocation_Invalidates(t *testing.T) {
 }
 
 func TestCacheFilter_AgeHeader_RFC9111_CorrectFormula(t *testing.T) {
-	f := newTestFilter(t, time.Minute, 15*time.Second, time.Hour)
-	url := "https://cdn.contentful.com/spaces/abc/entries/age-rfc9111"
-
 	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, time.Minute, 15*time.Second, time.Hour)
+		url := "https://cdn.contentful.com/spaces/abc/entries/age-rfc9111"
+
 		now := time.Now()
 		ctx1 := newCtx("GET", url, "")
 		// NOTE: for this test we need the response to go through the coalesce
@@ -1518,10 +1518,10 @@ func TestCacheFilter_AgeHeader_RFC9111_CorrectFormula(t *testing.T) {
 }
 
 func TestCacheFilter_AgeHeader_RFC9111_ResponseDelay(t *testing.T) {
-	f := newTestFilter(t, time.Minute, 15*time.Second, time.Hour)
-	url := "https://cdn.contentful.com/spaces/abc/entries/age-delay"
-
 	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, time.Minute, 15*time.Second, time.Hour)
+		url := "https://cdn.contentful.com/spaces/abc/entries/age-delay"
+
 		ctx1 := newCtx("GET", url, "")
 		f.fetch = func(r *http.Request) (*http.Response, error) {
 			// Simulate 5s of response delay (inside synctest, time.Sleep is instant).
@@ -1663,12 +1663,12 @@ func TestCacheFilter_HEAD_200_FreshensStoredEntry(t *testing.T) {
 }
 
 func TestCacheFilter_HeuristicFreshness_NoExplicitTTL(t *testing.T) {
-	// f.ttl=5m; heuristic TTL = 0.1 * 1000s = 100s < 5m so not capped.
-	// RFC mode required: force mode ignores Last-Modified and uses operator TTL directly.
-	f := newTestFilterRFC(t, 5*time.Minute, 15*time.Second, time.Millisecond)
-	url := "https://cdn.contentful.com/spaces/abc/entries/heuristic"
-
 	synctest.Test(t, func(t *testing.T) {
+		// f.ttl=5m; heuristic TTL = 0.1 * 1000s = 100s < 5m so not capped.
+		// RFC mode required: force mode ignores Last-Modified and uses operator TTL directly.
+		f := newTestFilterRFC(t, 5*time.Minute, 15*time.Second, time.Millisecond)
+		url := "https://cdn.contentful.com/spaces/abc/entries/heuristic"
+
 		now := time.Now()
 		ctx1 := newCtx("GET", url, "")
 		f.fetch = func(r *http.Request) (*http.Response, error) {
@@ -1766,11 +1766,11 @@ func TestCacheFilter_HeuristicFreshness_NoLastModified_NotCached(t *testing.T) {
 }
 
 func TestCacheFilter_HeuristicFreshness_Capped(t *testing.T) {
-	// f.ttl=5m; heuristic = 0.1 * 36000s = 3600s, but capped to 5m.
-	f := newTestFilter(t, 5*time.Minute, 15*time.Second, time.Millisecond)
-	url := "https://cdn.contentful.com/spaces/abc/entries/heuristic-cap"
-
 	synctest.Test(t, func(t *testing.T) {
+		// f.ttl=5m; heuristic = 0.1 * 36000s = 3600s, but capped to 5m.
+		f := newTestFilter(t, 5*time.Minute, 15*time.Second, time.Millisecond)
+		url := "https://cdn.contentful.com/spaces/abc/entries/heuristic-cap"
+
 		now := time.Now()
 		ctx1 := newCtx("GET", url, "")
 		f.fetch = func(r *http.Request) (*http.Response, error) {
@@ -2061,11 +2061,12 @@ func TestCacheFilter_Expires_NonGMT_TreatedAsInvalid(t *testing.T) {
 }
 
 func TestCacheFilter_AgeHeader_NonGMT_Date_Ignored(t *testing.T) {
-	// RFC 9111 §4.2: RFC 850 date with non-GMT zone (EST) in Date header must be
-	// rejected. apparent_age falls back to 0. After 10s resident time, Age must be
-	// ~10 (from ResponseTime only), not inflated by a wrong apparent_age.
-	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
 	synctest.Test(t, func(t *testing.T) {
+		// RFC 9111 §4.2: RFC 850 date with non-GMT zone (EST) in Date header must be
+		// rejected. apparent_age falls back to 0. After 10s resident time, Age must be
+		// ~10 (from ResponseTime only), not inflated by a wrong apparent_age.
+		f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+
 		rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
 		rsp.Header.Set("Date", "Monday, 01-Jan-24 12:00:00 EST")
 		f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
@@ -2090,10 +2091,11 @@ func TestCacheFilter_AgeHeader_NonGMT_Date_Ignored(t *testing.T) {
 }
 
 func TestCacheFilter_AgeHeader_InvalidAge_Ignored(t *testing.T) {
-	// RFC 9111 §5.1: invalid Age field value must be ignored; only resident time
-	// should contribute to the Age header on a HIT response.
-	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
 	synctest.Test(t, func(t *testing.T) {
+		// RFC 9111 §5.1: invalid Age field value must be ignored; only resident time
+		// should contribute to the Age header on a HIT response.
+		f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+
 		rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
 		rsp.Header.Set("Age", "bogus")
 		f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
@@ -2120,11 +2122,12 @@ func TestCacheFilter_AgeHeader_InvalidAge_Ignored(t *testing.T) {
 }
 
 func TestCacheFilter_AgeHeader_Zero_IsValid(t *testing.T) {
-	// RFC 9111 §5.1: Age: 0 is a valid non-negative integer and must be accepted
-	// (not discarded by a v > 0 guard). ageValue = 0 so corrected_initial_age
-	// is unchanged, but the field must not cause a parse error.
-	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
 	synctest.Test(t, func(t *testing.T) {
+		// RFC 9111 §5.1: Age: 0 is a valid non-negative integer and must be accepted
+		// (not discarded by a v > 0 guard). ageValue = 0 so corrected_initial_age
+		// is unchanged, but the field must not cause a parse error.
+		f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+
 		rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
 		rsp.Header.Set("Age", "0")
 		f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
@@ -2308,12 +2311,12 @@ func TestCacheFilter_ConditionalRequest_Stale_IfNoneMatch_304_AndRevalidates(t *
 // RFC 9111 §5.2.1 max-stale and min-fresh request directive tests.
 
 func TestCacheFilter_MaxStale_ExceedsWindow_Bypasses(t *testing.T) {
-	// ttl=1ms, swrWindow=1h — entry expires immediately, SWR keeps it alive in storage.
-	// max-stale=0: even 2ms of staleness exceeds the 0s window → bypass (miss).
-	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
-	url := "https://cdn.contentful.com/spaces/abc/entries/max-stale-exceed"
-
 	synctest.Test(t, func(t *testing.T) {
+		// ttl=1ms, swrWindow=1h — entry expires immediately, SWR keeps it alive in storage.
+		// max-stale=0: even 2ms of staleness exceeds the 0s window → bypass (miss).
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		url := "https://cdn.contentful.com/spaces/abc/entries/max-stale-exceed"
+
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=0")
@@ -2333,12 +2336,12 @@ func TestCacheFilter_MaxStale_ExceedsWindow_Bypasses(t *testing.T) {
 }
 
 func TestCacheFilter_MaxStale_WithinWindow_ServesStale(t *testing.T) {
-	// ttl=1ms, swrWindow=1h — entry is stale after 1ms, SWR keeps it.
-	// max-stale=1 (1000ms): 2ms stale < 1000ms window → serve stale.
-	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
-	url := "https://cdn.contentful.com/spaces/abc/entries/max-stale-within"
-
 	synctest.Test(t, func(t *testing.T) {
+		// ttl=1ms, swrWindow=1h — entry is stale after 1ms, SWR keeps it.
+		// max-stale=1 (1000ms): 2ms stale < 1000ms window → serve stale.
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		url := "https://cdn.contentful.com/spaces/abc/entries/max-stale-within"
+
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=0")
@@ -2379,12 +2382,12 @@ func TestCacheFilter_MinFresh_SufficientFreshness_HIT(t *testing.T) {
 }
 
 func TestCacheFilter_MinFresh_InsufficientFreshness_Bypasses(t *testing.T) {
-	// ttl=100ms, swrWindow=1ms — after 80ms only 20ms remain.
-	// min-fresh=1 (1000ms required): 20ms remaining < 1000ms → bypass.
-	f := newTestFilter(t, 100*time.Millisecond, 15*time.Second, time.Millisecond)
-	url := "https://cdn.contentful.com/spaces/abc/entries/min-fresh-bypass"
-
 	synctest.Test(t, func(t *testing.T) {
+		// ttl=100ms, swrWindow=1ms — after 80ms only 20ms remain.
+		// min-fresh=1 (1000ms required): 20ms remaining < 1000ms → bypass.
+		f := newTestFilter(t, 100*time.Millisecond, 15*time.Second, time.Millisecond)
+		url := "https://cdn.contentful.com/spaces/abc/entries/min-fresh-bypass"
+
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
@@ -2404,18 +2407,18 @@ func TestCacheFilter_MinFresh_InsufficientFreshness_Bypasses(t *testing.T) {
 }
 
 func TestCacheFilter_StaleIfError_Serves_On_5xx(t *testing.T) {
-	// ttl=1ms, errorTTL=10s, swrWindow=1ms, staleIfError=60s
-	// Entry expires after 1ms; staleIfError=60s keeps it in storage.
-	// A 503 upstream via coalesce should cause the stale entry to be served.
-	//
-	// Regression: the stale-if-error block in Response() was dead code — coalesce() always calls
-	// ctx.Serve() (even on 5xx), so Response() returned early before reaching it.
-	// stale-if-error logic must live inside coalesce() with the pre-fetch snapshot captured
-	// before f.fetch runs, preventing the 5xx from overwriting the stored entry.
-	f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond, 60*time.Second)
-	url := "http://example.com/sie-5xx"
-
 	synctest.Test(t, func(t *testing.T) {
+		// ttl=1ms, errorTTL=10s, swrWindow=1ms, staleIfError=60s
+		// Entry expires after 1ms; staleIfError=60s keeps it in storage.
+		// A 503 upstream via coalesce should cause the stale entry to be served.
+		//
+		// Regression: the stale-if-error block in Response() was dead code — coalesce() always calls
+		// ctx.Serve() (even on 5xx), so Response() returned early before reaching it.
+		// stale-if-error logic must live inside coalesce() with the pre-fetch snapshot captured
+		// before f.fetch runs, preventing the 5xx from overwriting the stored entry.
+		f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond, 60*time.Second)
+		url := "http://example.com/sie-5xx"
+
 		ctx := newCtx(http.MethodGet, url, "")
 		f.Request(ctx)
 		ctx.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"cached"}`, "max-age=0")
@@ -2448,14 +2451,14 @@ func TestCacheFilter_StaleIfError_Serves_On_5xx(t *testing.T) {
 }
 
 func TestCacheFilter_StaleIfError_Expired_NotServed(t *testing.T) {
-	// ttl=1ms, errorTTL=10s, swrWindow=1ms, staleIfError=100ms
-	// Sleep 200ms — past TTL + staleIfError window. Entry too old for stale-if-error.
-	// Uses f.fetch returning 503 via coalesce (the same path as the positive stale-if-error case)
-	// to confirm the 503 is passed through when the stale-if-error window has already elapsed.
-	f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond, 100*time.Millisecond)
-	url := "http://example.com/sie-expired"
-
 	synctest.Test(t, func(t *testing.T) {
+		// ttl=1ms, errorTTL=10s, swrWindow=1ms, staleIfError=100ms
+		// Sleep 200ms — past TTL + staleIfError window. Entry too old for stale-if-error.
+		// Uses f.fetch returning 503 via coalesce (the same path as the positive stale-if-error case)
+		// to confirm the 503 is passed through when the stale-if-error window has already elapsed.
+		f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond, 100*time.Millisecond)
+		url := "http://example.com/sie-expired"
+
 		ctx := newCtx(http.MethodGet, url, "")
 		f.Request(ctx)
 		ctx.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"cached"}`, "max-age=0")
@@ -2484,11 +2487,11 @@ func TestCacheFilter_StaleIfError_Expired_NotServed(t *testing.T) {
 }
 
 func TestCacheFilter_StaleIfError_Disabled_When_Zero(t *testing.T) {
-	// No 4th arg — staleIfError defaults to 0. Upstream 503 must pass through.
-	f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond)
-	url := "http://example.com/sie-disabled"
-
 	synctest.Test(t, func(t *testing.T) {
+		// No 4th arg — staleIfError defaults to 0. Upstream 503 must pass through.
+		f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond)
+		url := "http://example.com/sie-disabled"
+
 		ctx := newCtx(http.MethodGet, url, "")
 		f.Request(ctx)
 		ctx.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"cached"}`, "max-age=0")
