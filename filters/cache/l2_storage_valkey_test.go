@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/valkey-io/valkey-go"
 	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/metrics/metricstest"
 	skpnet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/net/valkeytest"
 )
@@ -88,58 +88,6 @@ func (s *stubValkeyClient) Del(_ context.Context, key string) (int64, error) {
 	return 1, nil
 }
 
-// testMetrics is a minimal metrics.Metrics stub for testing.
-// Only IncCounter does real work; all other methods are no-ops.
-type testMetrics struct {
-	mu       sync.Mutex
-	counters map[string]int
-}
-
-var _ metrics.Metrics = (*testMetrics)(nil)
-
-func (m *testMetrics) IncCounter(key string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.counters == nil {
-		m.counters = make(map[string]int)
-	}
-	m.counters[key]++
-}
-
-func (m *testMetrics) counter(key string) int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.counters[key]
-}
-
-// metrics.Metrics no-op implementations
-func (m *testMetrics) MeasureSince(key string, start time.Time)                                 {}
-func (m *testMetrics) IncCounterBy(key string, value int64)                                     {}
-func (m *testMetrics) IncFloatCounterBy(key string, value float64)                              {}
-func (m *testMetrics) MeasureRouteLookup(start time.Time)                                       {}
-func (m *testMetrics) MeasureFilterCreate(filterName string, start time.Time)                   {}
-func (m *testMetrics) MeasureFilterRequest(filterName string, start time.Time)                  {}
-func (m *testMetrics) MeasureAllFiltersRequest(routeId string, start time.Time)                 {}
-func (m *testMetrics) MeasureBackendRequestHeader(host string, size int)                        {}
-func (m *testMetrics) MeasureBackend(routeId string, start time.Time)                           {}
-func (m *testMetrics) MeasureBackendHost(routeBackendHost string, start time.Time)              {}
-func (m *testMetrics) MeasureBackendZone(zone string, start time.Time)                          {}
-func (m *testMetrics) MeasureFilterResponse(filterName string, start time.Time)                 {}
-func (m *testMetrics) MeasureAllFiltersResponse(routeId string, start time.Time)                {}
-func (m *testMetrics) MeasureResponse(code int, method string, routeId string, start time.Time) {}
-func (m *testMetrics) MeasureResponseSize(host string, size int64)                              {}
-func (m *testMetrics) MeasureProxy(requestDuration, responseDuration time.Duration)             {}
-func (m *testMetrics) MeasureServe(routeId, host, method string, code int, start time.Time)     {}
-func (m *testMetrics) IncRoutingFailures()                                                      {}
-func (m *testMetrics) IncErrorsBackend(routeId string)                                          {}
-func (m *testMetrics) MeasureBackend5xx(t time.Time)                                            {}
-func (m *testMetrics) IncErrorsStreaming(routeId string)                                        {}
-func (m *testMetrics) RegisterHandler(path string, handler *http.ServeMux)                      {}
-func (m *testMetrics) UpdateGauge(key string, value float64)                                    {}
-func (m *testMetrics) SetInvalidRoute(routeId, reason string)                                   {}
-func (m *testMetrics) Close()                                                                   {}
-func (m *testMetrics) String() string                                                           { return "testMetrics" }
-
 func TestValkeyStorage_GetSetDelete(t *testing.T) {
 	addr, done := valkeytest.NewTestValkey(t)
 	defer done()
@@ -153,7 +101,7 @@ func TestValkeyStorage_GetSetDelete(t *testing.T) {
 	defer ring.Close()
 
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	s := NewL2Storage(ring, lru, &testMetrics{}, 0, valkey.IsValkeyNil)
+	s := NewL2Storage(ring, lru, &metricstest.MockMetrics{}, 0, valkey.IsValkeyNil)
 
 	ctx := context.Background()
 	key := "test-key"
@@ -205,7 +153,7 @@ func TestValkeyStorage_FallsBackToL1OnValkeyUnavailable(t *testing.T) {
 	defer ring.Close()
 
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	m := &testMetrics{}
+	m := &metricstest.MockMetrics{}
 	s := NewL2Storage(ring, lru, m, 0, valkey.IsValkeyNil)
 
 	// Stop valkey before exercising fallback paths.
@@ -231,11 +179,13 @@ func TestValkeyStorage_FallsBackToL1OnValkeyUnavailable(t *testing.T) {
 	if got == nil {
 		t.Fatal("expected L1 fallback hit, got nil")
 	}
-	if m.counter("cache.l1_hit") == 0 {
+	if v, _ := m.Counter("cache.l1_hit"); v == 0 {
 		t.Error("expected l1_hit to be incremented: Set fallback warmed L1, Get should serve from it")
 	}
-	if m.counter("cache.l2_get_error") != 0 {
-		t.Errorf("expected l2_get_error=0 (L1 served before Valkey was contacted), got %d", m.counter("cache.l2_get_error"))
+
+	l2Error, _ := m.Counter("cache.l2_get_error")
+	if l2Error != 0 {
+		t.Errorf("expected l2_get_error=0 (L1 served before Valkey was contacted), got %d", l2Error)
 	}
 
 	// Confirm the entry was physically written to L1 — not just returned via some
@@ -252,7 +202,7 @@ func TestValkeyStorage_FallsBackToL1OnValkeyUnavailable(t *testing.T) {
 func TestValkeyStorage_RecordsValkeyMiss(t *testing.T) {
 	// Uses a stub client — no Docker or live Valkey needed.
 	stub := newStubValkeyClient()
-	m := &testMetrics{}
+	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
 	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
 
@@ -263,17 +213,19 @@ func TestValkeyStorage_RecordsValkeyMiss(t *testing.T) {
 	if got != nil {
 		t.Fatalf("expected nil on miss, got %+v", got)
 	}
-	if m.counter("cache.l2_miss") != 1 {
-		t.Errorf("expected l2_miss=1, got %d", m.counter("cache.l2_miss"))
+	l2Miss, _ := m.Counter("cache.l2_miss")
+	if l2Miss != 1 {
+		t.Errorf("expected l2_miss=1, got %d", l2Miss)
 	}
-	if m.counter("cache.l2_get_error") != 0 {
-		t.Errorf("expected l2_get_error=0 on clean miss, got %d", m.counter("cache.l2_get_error"))
+	l2Error, _ := m.Counter("cache.l2_get_error")
+	if l2Error != 0 {
+		t.Errorf("expected l2_get_error=0 on clean miss, got %d", l2Error)
 	}
 }
 
 func TestValkeyStorage_WriteThroughWarmsL1(t *testing.T) {
 	stub := newStubValkeyClient()
-	m := &testMetrics{}
+	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
 	s := NewL2Storage(stub, lru, m, 60*time.Second, valkey.IsValkeyNil)
 
@@ -303,15 +255,16 @@ func TestValkeyStorage_WriteThroughWarmsL1(t *testing.T) {
 	if string(got.Payload) != "warm" {
 		t.Errorf("payload: got %q, want %q", string(got.Payload), "warm")
 	}
-	if m.counter("cache.l1_hit") != 1 {
-		t.Errorf("expected l1_hit=1, got %d", m.counter("cache.l1_hit"))
+	l1hit, _ := m.Counter("cache.l1_hit")
+	if l1hit != 1 {
+		t.Errorf("expected l1_hit=1, got %d", l1hit)
 	}
 }
 
 func TestValkeyStorage_L1TTLBoundedToEntryTTL(t *testing.T) {
 	stub := newStubValkeyClient()
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	s := NewL2Storage(stub, lru, &testMetrics{}, 60*time.Second, valkey.IsValkeyNil)
+	s := NewL2Storage(stub, lru, &metricstest.MockMetrics{}, 60*time.Second, valkey.IsValkeyNil)
 
 	ctx := context.Background()
 	key := "bounded-key"
@@ -341,7 +294,7 @@ func TestValkeyStorage_L1TTLBoundedToEntryTTL(t *testing.T) {
 
 func TestValkeyStorage_L1TTL_Zero_DisablesWarming(t *testing.T) {
 	stub := newStubValkeyClient()
-	m := &testMetrics{}
+	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
 	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
 
@@ -372,7 +325,7 @@ func TestValkeyStorage_L1TTL_Zero_DisablesWarming(t *testing.T) {
 
 func TestValkeyStorage_RecordsL2Hit(t *testing.T) {
 	stub := newStubValkeyClient()
-	m := &testMetrics{}
+	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
 	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
 
@@ -391,11 +344,13 @@ func TestValkeyStorage_RecordsL2Hit(t *testing.T) {
 	if got == nil {
 		t.Fatal("expected entry from Valkey, got nil")
 	}
-	if m.counter("cache.l2_hit") != 1 {
-		t.Errorf("expected l2_hit=1, got %d", m.counter("cache.l2_hit"))
+	l2Hit, _ := m.Counter("cache.l2_hit")
+	if l2Hit != 1 {
+		t.Errorf("expected l2_hit=1, got %d", l2Hit)
 	}
-	if m.counter("cache.l1_hit") != 0 {
-		t.Errorf("expected l1_hit=0 (write-around), got %d", m.counter("cache.l1_hit"))
+	l1Hit, _ := m.Counter("cache.l1_hit")
+	if l1Hit != 0 {
+		t.Errorf("expected l1_hit=0 (write-around), got %d", l1Hit)
 	}
 }
 
@@ -405,7 +360,7 @@ func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	// Get checks L1 first (L1-first reads) and finds the entry — incrementing l1_hit,
 	// not l2_get_error.
 	stub := newBrokenStubValkeyClient()
-	m := &testMetrics{}
+	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
 	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
 
@@ -413,24 +368,30 @@ func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	entry := &Entry{StatusCode: 200, Payload: []byte("x"), TTL: time.Minute, CreatedAt: time.Now()}
 
 	_ = s.Set(ctx, "k", entry)
-	if m.counter("cache.l2_set_fallback") != 1 {
-		t.Errorf("expected l2_set_fallback=1, got %d", m.counter("cache.l2_set_fallback"))
+	l2SetFallback, _ := m.Counter("cache.l2_set_fallback")
+	if l2SetFallback != 1 {
+		t.Errorf("expected l2_set_fallback=1, got %d", l2SetFallback)
 	}
-	if m.counter("cache.l2_get_error") != 0 {
-		t.Errorf("expected l2_get_error=0 after Set, got %d", m.counter("cache.l2_get_error"))
+	l2GetError, _ := m.Counter("cache.l2_get_error")
+	if l2GetError != 0 {
+		t.Errorf("expected l2_get_error=0 after Set, got %d", l2GetError)
 	}
 
 	// L1-first: the entry was written to L1 by the Set fallback path, so Get returns
 	// it from L1 without ever touching (broken) Valkey.
 	_, _ = s.Get(ctx, "k")
-	if m.counter("cache.l1_hit") != 1 {
-		t.Errorf("expected l1_hit=1, got %d", m.counter("cache.l1_hit"))
+	l1Hit, _ := m.Counter("cache.l1_hit")
+	if l1Hit != 1 {
+		t.Errorf("expected l1_hit=1, got %d", l1Hit)
 	}
-	if m.counter("cache.l2_get_error") != 0 {
-		t.Errorf("expected l2_get_error=0 (L1 served before Valkey check), got %d", m.counter("cache.l2_get_error"))
+
+	l2GetError, _ = m.Counter("cache.l2_get_error")
+	if l2GetError != 0 {
+		t.Errorf("expected l2_get_error=0 (L1 served before Valkey check), got %d", l2GetError)
 	}
-	if m.counter("cache.l2_set_fallback") != 1 {
-		t.Errorf("l2_set_fallback should still be 1, got %d", m.counter("cache.l2_set_fallback"))
+	l2SetFallback, _ = m.Counter("cache.l2_set_fallback")
+	if l2SetFallback != 1 {
+		t.Errorf("l2_set_fallback should still be 1, got %d", l2SetFallback)
 	}
 }
 
@@ -439,7 +400,7 @@ func TestValkeyStorage_DeleteCleansL1EvenOnValkeyError(t *testing.T) {
 	// regardless of the Expire error from Valkey.
 	stub := newBrokenStubValkeyClient()
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
-	s := NewL2Storage(stub, lru, &testMetrics{}, 0, valkey.IsValkeyNil)
+	s := NewL2Storage(stub, lru, &metricstest.MockMetrics{}, 0, valkey.IsValkeyNil)
 
 	ctx := context.Background()
 	entry := &Entry{StatusCode: 200, Payload: []byte("body"), TTL: time.Minute, CreatedAt: time.Now()}
@@ -461,8 +422,8 @@ func TestValkeyStorage_DeleteCleansL1EvenOnValkeyError(t *testing.T) {
 
 func TestL2Storage_NewL2Storage_NegativeL1TTL_ClampsToDefault(t *testing.T) {
 	stub := newStubValkeyClient()
-	lru := NewLRUStorage(64<<20, nil, &testMetrics{})
-	s := NewL2Storage(stub, lru, &testMetrics{}, -time.Second, valkey.IsValkeyNil)
+	lru := NewLRUStorage(64<<20, nil, &metricstest.MockMetrics{})
+	s := NewL2Storage(stub, lru, &metricstest.MockMetrics{}, -time.Second, valkey.IsValkeyNil)
 	if s.l1TTL != defaultMinTTL {
 		t.Errorf("expected l1TTL clamped to %v, got %v", defaultMinTTL, s.l1TTL)
 	}
@@ -470,8 +431,8 @@ func TestL2Storage_NewL2Storage_NegativeL1TTL_ClampsToDefault(t *testing.T) {
 
 func TestL2Storage_Get_CorruptJSON_ReturnsError(t *testing.T) {
 	stub := newStubValkeyClient()
-	lru := NewLRUStorage(64<<20, nil, &testMetrics{})
-	s := NewL2Storage(stub, lru, &testMetrics{}, 0, valkey.IsValkeyNil)
+	lru := NewLRUStorage(64<<20, nil, &metricstest.MockMetrics{})
+	s := NewL2Storage(stub, lru, &metricstest.MockMetrics{}, 0, valkey.IsValkeyNil)
 
 	// Write corrupt JSON directly into the stub, bypassing Set.
 	stub.mu.Lock()
@@ -486,7 +447,7 @@ func TestL2Storage_Get_CorruptJSON_ReturnsError(t *testing.T) {
 
 func TestL2Storage_Get_L2Hit_WarmsL1(t *testing.T) {
 	stub := newStubValkeyClient()
-	m := &testMetrics{}
+	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(64<<20, nil, m)
 	s := NewL2Storage(stub, lru, m, 60*time.Second, valkey.IsValkeyNil)
 
@@ -505,8 +466,9 @@ func TestL2Storage_Get_L2Hit_WarmsL1(t *testing.T) {
 	if err != nil || got == nil {
 		t.Fatalf("expected L2 hit: err=%v, got=%v", err, got)
 	}
-	if m.counter("cache.l2_hit") != 1 {
-		t.Errorf("expected l2_hit=1, got %d", m.counter("cache.l2_hit"))
+	l2Hit, _ := m.Counter("cache.l2_hit")
+	if l2Hit != 1 {
+		t.Errorf("expected l2_hit=1, got %d", l2Hit)
 	}
 
 	// Break L2 — second Get must come from L1 (write-through warmed it).
@@ -515,14 +477,15 @@ func TestL2Storage_Get_L2Hit_WarmsL1(t *testing.T) {
 	if err != nil || got2 == nil {
 		t.Fatalf("expected L1 hit after warming: err=%v, got=%v", err, got2)
 	}
-	if m.counter("cache.l1_hit") != 1 {
-		t.Errorf("expected l1_hit=1 after L1 warming, got %d", m.counter("cache.l1_hit"))
+	l1Hit, _ := m.Counter("cache.l1_hit")
+	if l1Hit != 1 {
+		t.Errorf("expected l1_hit=1 after L1 warming, got %d", l1Hit)
 	}
 }
 
 func TestL2Storage_Get_L2Hit_ExpiredEntry_SkipsL1Warming(t *testing.T) {
 	stub := newStubValkeyClient()
-	m := &testMetrics{}
+	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(64<<20, nil, m)
 	s := NewL2Storage(stub, lru, m, 60*time.Second, valkey.IsValkeyNil)
 
@@ -552,8 +515,8 @@ func TestL2Storage_Get_L2Hit_ExpiredEntry_SkipsL1Warming(t *testing.T) {
 
 func TestL2Storage_Set_ZeroTTL_UsesDefaultMinTTL(t *testing.T) {
 	stub := newStubValkeyClient()
-	lru := NewLRUStorage(64<<20, nil, &testMetrics{})
-	s := NewL2Storage(stub, lru, &testMetrics{}, 0, valkey.IsValkeyNil)
+	lru := NewLRUStorage(64<<20, nil, &metricstest.MockMetrics{})
+	s := NewL2Storage(stub, lru, &metricstest.MockMetrics{}, 0, valkey.IsValkeyNil)
 
 	ctx := context.Background()
 	// TTL=0, StaleIfError=0, StaleWhileRevalidate=0 → l2TTL=0 → must use defaultMinTTL.
