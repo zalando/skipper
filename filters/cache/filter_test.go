@@ -23,7 +23,7 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
-func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) *cacheFilter {
+func newTestFilterWithCleanup(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) (*cacheFilter, func()) {
 	t.Helper()
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	args := []any{
@@ -44,8 +44,12 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 	cf.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
 	}
-	t.Cleanup(spec.(*cacheSpec).client.Close)
-	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	return cf, func() { spec.(*cacheSpec).Close() }
+}
+
+func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) *cacheFilter {
+	cf, cleanup := newTestFilterWithCleanup(t, ttl, errorTTL, swrWindow, extra...)
+	t.Cleanup(cleanup)
 	return cf
 }
 
@@ -54,7 +58,7 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 // Expires capping, heuristic freshness, or other RFC 9111 TTL logic.
 // The ttl/errorTTL/swrWindow args are accepted for call-site compatibility
 // but are ignored — pure RFC mode has no operator TTL.
-func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *cacheFilter {
+func newTestFilterRFCWithCleanup(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) (*cacheFilter, func()) {
 	t.Helper()
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	f, err := spec.CreateFilter([]any{})
@@ -65,8 +69,12 @@ func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *
 	cf.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
 	}
-	t.Cleanup(spec.(*cacheSpec).client.Close)
-	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	return cf, func() { spec.(*cacheSpec).Close() }
+}
+
+func newTestFilterRFC(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) *cacheFilter {
+	cf, cleanup := newTestFilterRFCWithCleanup(t, ttl, errorTTL, swrWindow, extra...) // dummy values
+	t.Cleanup(cleanup)
 	return cf
 }
 
@@ -142,7 +150,7 @@ func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := fi.(*cacheFilter)
-	t.Cleanup(spec.(*cacheSpec).client.Close)
+
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	f.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
@@ -267,7 +275,6 @@ func TestCacheFilter_Response_NoopIfStateBagKeyMissing(t *testing.T) {
 
 func TestCreateFilter_InvalidArgs(t *testing.T) {
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
-	t.Cleanup(spec.(*cacheSpec).client.Close)
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	cases := []struct {
 		name string
@@ -860,7 +867,8 @@ func TestCacheFilter_ConditionalRevalidation_ETag_304(t *testing.T) {
 	var revalReq *http.Request
 
 	synctest.Test(t, func(t *testing.T) {
-		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		f, cleanup := newTestFilterWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
+		defer cleanup()
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		rsp := upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
@@ -909,7 +917,8 @@ func TestCacheFilter_ConditionalRevalidation_LastModified_304(t *testing.T) {
 	var revalReq *http.Request
 
 	synctest.Test(t, func(t *testing.T) {
-		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		f, cleanup := newTestFilterWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
+		defer cleanup()
 		ctx1 := newCtx("GET", url, "")
 		f.Request(ctx1)
 		rsp := upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
@@ -944,7 +953,8 @@ func TestCacheFilter_RevalidationError_MetricIncremented(t *testing.T) {
 	url := "https://cdn.contentful.com/spaces/abc/entries/reval-err"
 
 	synctest.Test(t, func(t *testing.T) {
-		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		f, cleanup := newTestFilterWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
+		defer cleanup()
 		mockMetrics := &metricstest.MockMetrics{}
 		f.metrics = mockMetrics
 		ctx1 := newCtx("GET", url, "")
@@ -1341,7 +1351,6 @@ func TestCacheFilter_MustRevalidate_ForcesCoalesceWhenStale(t *testing.T) {
 
 func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
-	t.Cleanup(spec.(*cacheSpec).client.Close)
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	makeFilter := func(t *testing.T) *cacheFilter {
@@ -1868,7 +1877,8 @@ func TestCacheFilter_HopByHop_NotStored(t *testing.T) {
 
 func TestCacheFilter_304Merge_HopByHop_NotMerged(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		f := newTestFilter(t, 5*time.Minute, 10*time.Second, 10*time.Minute)
+		f, cleanup := newTestFilterWithCleanup(t, 5*time.Minute, 10*time.Second, 10*time.Minute)
+		defer cleanup()
 		// 1. First request populates cache
 		rsp1 := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
 		rsp1.Header.Set("ETag", `"v1"`)
@@ -1910,7 +1920,8 @@ func TestCacheFilter_304Merge_HopByHop_NotMerged(t *testing.T) {
 
 func TestCacheFilter_Revalidate200_HopByHop_NotStored(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		f := newTestFilter(t, 5*time.Minute, 10*time.Second, 10*time.Minute)
+		f, cleanup := newTestFilterWithCleanup(t, 5*time.Minute, 10*time.Second, 10*time.Minute)
+		defer cleanup()
 		// 1. First request populates cache
 		rsp1 := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
 		rsp1.Header.Set("ETag", `"v1"`)
@@ -2254,7 +2265,8 @@ func TestCacheFilter_ConditionalRequest_Stale_IfNoneMatch_304_AndRevalidates(t *
 	// Stale entries must also honour client If-None-Match per RFC 9111 §4.3.2.
 	// Background revalidation must still fire even when a 304 is served to the client.
 	synctest.Test(t, func(t *testing.T) {
-		f := newTestFilter(t, 100*time.Millisecond, time.Second, 500*time.Millisecond)
+		f, cleanup := newTestFilterWithCleanup(t, 100*time.Millisecond, time.Second, 500*time.Millisecond)
+		defer cleanup()
 		var revalFired atomic.Bool
 
 		// Prime the cache via Request+Response so the entry is stored with ETag "v1".
@@ -2638,7 +2650,6 @@ func TestCacheFilter_SMaxAge_CapsRouteTTL(t *testing.T) {
 
 func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
-	t.Cleanup(spec.(*cacheSpec).client.Close)
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	cases := []struct {
@@ -2683,7 +2694,6 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 	// cache() with no args: pure RFC mode, upstream max-age is fully authoritative,
 	// no operator ceiling. TTL should equal upstream max-age exactly.
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
-	t.Cleanup(spec.(*cacheSpec).client.Close)
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	f, err := spec.CreateFilter([]any{})
 	if err != nil {
@@ -2718,8 +2728,7 @@ func TestCacheFilter_LRUBytesGaugeUpdatesWithoutEviction(t *testing.T) {
 	// being inside the bubble is safe (it never actually dials out).
 	synctest.Test(t, func(t *testing.T) {
 		spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
-		t.Cleanup(spec.(*cacheSpec).client.Close)
-		t.Cleanup(func() { spec.(*cacheSpec).Close() })
+		defer spec.(*cacheSpec).Close()
 		f, err := spec.CreateFilter([]any{"5m", "15s", "5m"})
 		if err != nil {
 			t.Fatal(err)
@@ -2763,7 +2772,6 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testi
 	// cache() with no args: when upstream sends no Cache-Control, no Expires,
 	// and no Last-Modified, nothing should be cached (no heuristic without Last-Modified).
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
-	t.Cleanup(spec.(*cacheSpec).client.Close)
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	f, err := spec.CreateFilter([]any{})
 	if err != nil {
@@ -2880,7 +2888,6 @@ func TestCacheFilter_RevalDropped_WhenQueueFull(t *testing.T) {
 
 func TestCacheSpec_FilterRegistry(t *testing.T) {
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
-	t.Cleanup(spec.(*cacheSpec).client.Close)
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	// Same args — should return same *cacheFilter pointer (registry hit)
@@ -2936,7 +2943,6 @@ func TestCacheSpec_FilterRegistry_InFlightJobsSurviveRebuild(t *testing.T) {
 	// targeting that instance are unaffected by the rebuild.
 
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
-	t.Cleanup(spec.(*cacheSpec).client.Close)
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	// Create initial filter with blocking fetch stub (same pattern as TestCacheFilter_RevalDropped_WhenQueueFull).
@@ -3502,7 +3508,8 @@ func TestCacheFilter_Response_StorageSetError(t *testing.T) {
 
 func TestCacheFilter_Revalidate_304_EntryEvicted(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		f, cleanup := newTestFilterWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
+		defer cleanup()
 		url := "https://cdn.example.com/reval-304-evicted"
 
 		ctx1 := newCtx("GET", url, "")
@@ -3557,7 +3564,8 @@ func TestCacheFilter_Revalidate_304_EntryEvicted(t *testing.T) {
 
 func TestCacheFilter_Revalidate_BodyReadError(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		f, cleanup := newTestFilterWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
+		defer cleanup()
 		mockMetrics := &metricstest.MockMetrics{}
 		f.metrics = mockMetrics
 		url := "https://cdn.example.com/reval-body-err"
@@ -3595,7 +3603,8 @@ func TestCacheFilter_Revalidate_BodyReadError(t *testing.T) {
 
 func TestCacheFilter_Revalidate_RFC_NoStore_NotStored(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		f := newTestFilterRFC(t, time.Millisecond, 15*time.Second, time.Hour)
+		f, cleanup := newTestFilterRFCWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
+		defer cleanup()
 		url := "https://cdn.example.com/reval-rfc-nostore"
 
 		// Seed a cacheable entry first
@@ -3646,7 +3655,7 @@ func TestCacheFilter_Revalidate_SetError_MetricIncremented(t *testing.T) {
 			t.Fatal(err)
 		}
 		f := fi.(*cacheFilter)
-		t.Cleanup(func() { spec.(*cacheSpec).Close() })
+		defer spec.(*cacheSpec).Close()
 
 		url := "https://cdn.example.com/reval-set-err"
 
