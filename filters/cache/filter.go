@@ -116,6 +116,7 @@ func NewCacheFilter(opts Options) filters.Spec {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	_ = ctx.Done()
 	spec := &cacheSpec{
 		maxBytes:   opts.MaxBytes,
 		listenAddr: opts.ListenAddr,
