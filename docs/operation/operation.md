@@ -1960,3 +1960,110 @@ will be changed to
 ```
 r: SourceFromLast("9.0.0.0/24","2001:67c:20a0::/48") -> ...`
 ```
+
+## Cache
+
+By default entries are stored in an in-process LRU (L1) local to each Skipper process.
+When `--swarm-valkey-urls` is configured and `--enable-l2-cache` is set, Valkey serves as a
+shared backing store (L2) accessible by all Skipper instances via a client-side consistent
+hash ring; every read checks L1 first and an L1 hit returns without contacting L2 cache.
+Without `--enable-l2-cache`, `--swarm-valkey-urls` wires Valkey into ratelimit only and the
+`cache()` filter uses L1 exclusively.
+
+On every successful L2 write the entry is also written to L1
+(write-through) with a TTL of `min(--cache-l1-ttl, entry.TTL)`. On a L2
+read hit, L1 is warmed with `min(--cache-l1-ttl, remaining freshness)` —
+remaining freshness (`entry.TTL - age`) is used rather than the original TTL to
+prevent L1 from serving the entry beyond L2's actual expiry. The default is
+60 seconds, bounding how long Skipper serves a locally-cached entry before
+re-consulting L2. Set `--cache-l1-ttl=0` to disable L1 warming and
+restore write-around behaviour. Note: on L2 write errors (`l2_set_fallback`), L1
+is always used as a fallback regardless of `--cache-l1-ttl`; L2 read errors
+(`l2_get_error`) are treated as cache misses.
+
+When an upstream responds successfully to an unsafe method (`POST`, `PUT`, `DELETE`, `PATCH`),
+the filter removes the cached entry for that URL from both L2 and the local L1.
+Only the local process's L1 is cleared — other Skipper processes in the fleet retain their
+own L1 copies until each entry's warmed TTL (bounded by `--cache-l1-ttl`) expires naturally.
+Set `--cache-l1-ttl` accordingly to bound the stale window after an invalidation.
+
+There is no out-of-band operator invalidation API. To clear the cache outside the normal
+unsafe-method path, options are: wait for TTL expiry, restart the Skipper process (clears L1 in-memory cache only; L2 data persists), or
+delete the key directly in L2.
+
+Concurrent cold-miss requests for the same route and key within one Skipper process are
+coalesced into a single upstream fetch (thundering-herd protection). Requests arriving via
+different routes are not coalesced even if they target the same upstream URL, because the
+route ID is part of the cache key. This protection is also process-local: a fleet of N
+instances may still issue up to N simultaneous origin requests on a cold miss.
+
+The L1 memory budget defaults to 25% of the container's cgroup memory limit,
+falling back to 2 GB if the limit is unreadable. Override with
+`--cache-l1-max-memory-bytes` (or programmatically via `skipper.Options.ResponseCacheMaxMemoryBytes`).
+
+!!! note
+    An in-process LRU (L1) is shared across all `cache()` filter instances in the same process.
+    Two routes or two users that produce the same cache key will share the cached entry — the
+    second request is served whatever the first stored. Ensure the cache key includes all
+    dimensions that distinguish responses (e.g. add `Authorization` to `keyHeaders` for
+    per-user routes). The L1 storage budget is divided evenly across 256 internal shards; a
+    single entry larger than one shard's budget is dropped with a warning log and increments `cache.lru_oversized`.
+
+### Storage architecture
+
+- L1 implementation is in-memory (25% of memory set by cgroup or 2GB fix size)
+- L2 implementation is for example skpnet.ValkeyRingClient, reusing Valkey ring shards if available.
+
+```mermaid
+flowchart TD
+    A[Incoming Request] --> B["Skipper cache() filter"]
+    B --> C{L1 LRUStorage}
+    C -->|cache.l1_hit — fresh hit| S[Entry Served]
+    C -->|cache.l2_miss| D{L2Storage}
+    C -->|cache.stale hit — no l1_hit| D
+    D -->|cache.l2_hit — key found| S
+    D -->|cache.l2_miss — key absent| E[Origin Fetch\n CDN]
+    D -->|cache.l2_get_error — error / timeout| E
+    E -->|write back: Set warms L2 + L1<br/>min TTL: cache-l1-ttl vs entry.TTL| S
+```
+
+**Write path:** successful L2 Set warms L1 with min(--cache-l1-ttl, entry.TTL) (default 60s). L2 Get hit warms L1 with min(--cache-l1-ttl, remaining freshness). L1 is also populated on L2 Set errors (fallback). Set --cache-l1-ttl=0 for write-around.
+
+**Read path:** L1 checked first. Fresh L1 hit → returns immediately (increments `cache.l1_hit`), no L2 call. Stale L1 hit (past TTL but within the stale retention window) → falls through to L2 without incrementing `cache.l1_hit`. L1 miss → L2. L2 hit → increments `cache.l2_hit`, warms L1 with `min(--cache-l1-ttl, remaining freshness)` when `--cache-l1-ttl > 0`, returns entry. L2 miss (nil) → cold miss (increments `cache.l2_miss`). L2 error → increments `cache.l2_get_error`, treated as a cold miss.
+
+### Metrics
+
+**Cache outcomes (always active):**
+
+- `cache.hit`: Counter, request served from cache without contacting the upstream
+- `cache.miss`: Counter, request not in cache; upstream was contacted
+- `cache.stale`: Counter, stale entry served while background revalidation was enqueued
+- `cache.coalesce_error`: Counter, singleflight cold-miss fetch returned an error
+
+**LRU (always active):**
+
+- `cache.lru_eviction`: Counter, incremented each time an L1 entry is evicted due to memory pressure
+- `cache.lru_bytes`: Gauge, current L1 usage in bytes (sampled every 10s)
+- `cache.lru_oversized`: Counter, incremented when an entry is too large for any shard and dropped
+
+**Revalidation (always active):**
+
+- `cache.reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
+- `cache.reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
+- `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
+- `cache.reval_error`: Counter, background revalidation fetch failures
+- `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
+
+**L2 (for example if Valkey is configured):**
+
+- `cache.l1_hit`: Counter, L1 hits that bypassed L2
+- `cache.l2_miss`: Counter, L2 misses that proceeded to an upstream fetch
+- `cache.l2_get_error`: Counter, L2 Get errors — request treated as a cache miss, fetched from origin
+- `cache.l2_set_fallback`: Counter, L2 Set errors — entry written to L1 only (not L2)
+- `cache.l2_hit`: Counter, successful L2 Get (entry returned from L2); L1 is warmed as a side-effect when `--cache-l1-ttl > 0`
+- `cache.storage_error`: Counter, any storage operation (Set or Delete) failed — covers both L2 failures and L1 eviction-path errors; the request is still served correctly
+
+**OpenTracing span tags (set on every request when a span is active):**
+
+- `cache_status`: `"hit"`, `"miss"`, or `"stale"`
+- `cache_ttl_remaining_ms`: remaining freshness in milliseconds (only set on hits)

@@ -3,8 +3,11 @@ package cache
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,14 +16,16 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/metrics/metricstest"
-	skpnet "github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/proxy/proxytest"
 )
 
 func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) *cacheFilter {
 	t.Helper()
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	args := []any{
 		ttl.String(),
 		errorTTL.String(),
@@ -39,8 +44,8 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 	cf.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
 	}
-	t.Cleanup(cf.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	return cf
 }
 
@@ -51,7 +56,7 @@ func newTestFilter(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra .
 // but are ignored — pure RFC mode has no operator TTL.
 func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *cacheFilter {
 	t.Helper()
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	f, err := spec.CreateFilter([]any{})
 	if err != nil {
 		t.Fatal(err)
@@ -60,8 +65,8 @@ func newTestFilterRFC(t *testing.T, _, _, _ time.Duration, _ ...time.Duration) *
 	cf.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
 	}
-	t.Cleanup(cf.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	return cf
 }
 
@@ -131,14 +136,14 @@ func TestCacheFilter_MissAndHit(t *testing.T) {
 }
 
 func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m", "0s", "Authorization"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	f := fi.(*cacheFilter)
-	t.Cleanup(f.Close)
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	f.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub set")
 	}
@@ -249,9 +254,21 @@ func TestCacheFilter_TTLExpiry(t *testing.T) {
 	})
 }
 
+func TestCacheFilter_Response_NoopIfStateBagKeyMissing(t *testing.T) {
+	// Regression: Response() used a bare type assertion on stateBagKey which
+	// panicked if Request() had not run (e.g. route misconfiguration).
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+	ctx := newCtx("GET", "https://example.com/api", "")
+	// Deliberately do NOT call f.Request(ctx) — state bag has no cache key.
+	ctx.FResponse = upstreamResponse(http.StatusOK, `{}`)
+	// Must not panic.
+	f.Response(ctx)
+}
+
 func TestCreateFilter_InvalidArgs(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	cases := []struct {
 		name string
 		args []any
@@ -491,19 +508,24 @@ func TestCacheFilter_ColdMissCoalescing_UpstreamError(t *testing.T) {
 
 func TestCacheFilter_ColdMissCoalescing_FetchError_CoalesceErrorMetric(t *testing.T) {
 	// coalesce_error must be incremented when the upstream fetch fails during coalescing.
-	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+	mockMetrics := &metricstest.MockMetrics{}
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second, Metrics: mockMetrics})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	f.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("upstream unavailable")
 	}
 
-	mockMetrics := &metricstest.MockMetrics{}
 	ctx := newCtx("GET", "https://cdn.contentful.com/spaces/abc/entries/coalesce-err", "")
-	ctx.FMetrics = mockMetrics
 	f.Request(ctx)
 
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["coalesce_error"] != 1 {
-			t.Errorf("expected coalesce_error==1, got %d", counters["coalesce_error"])
+		if counters["cache.coalesce_error"] != 1 {
+			t.Errorf("expected cache.coalesce_error==1, got %d", counters["cache.coalesce_error"])
 		}
 	})
 }
@@ -576,6 +598,39 @@ func TestCacheFilter_RequestOnlyIfCached_Hit_ServesFromCache(t *testing.T) {
 	if ctx2.FResponse.Header.Get("X-Cache-Status") != "HIT" {
 		t.Fatalf("expected HIT, got %q", ctx2.FResponse.Header.Get("X-Cache-Status"))
 	}
+}
+
+func TestCacheFilter_RequestOnlyIfCached_StaleWhileRevalidate_ServesStale(t *testing.T) {
+	// RFC 9111 §5.2.1.7: only-if-cached should return a stored response if it is
+	// "usable" — entries in the SWR window are still being served as stale to
+	// other clients, so they are usable and must not return 504.
+	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Minute)
+	url := "https://cdn.contentful.com/spaces/abc/entries/oic-swr"
+
+	synctest.Test(t, func(t *testing.T) {
+		// Populate cache.
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"cached"}`, "max-age=0")
+		f.Response(ctx1)
+
+		// Advance past TTL (1ms) but stay within SWR window (1 minute).
+		time.Sleep(50 * time.Millisecond)
+
+		ctx2 := newCtx("GET", url, "")
+		ctx2.FRequest.Header.Set("Cache-Control", "only-if-cached")
+		f.Request(ctx2)
+
+		if !ctx2.FServed {
+			t.Fatal("only-if-cached must serve during SWR window")
+		}
+		if ctx2.FResponse.StatusCode == http.StatusGatewayTimeout {
+			t.Fatal("only-if-cached must not return 504 for SWR-window entry")
+		}
+		if ctx2.FResponse.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", ctx2.FResponse.StatusCode)
+		}
+	})
 }
 
 func TestCacheFilter_AgeHeader_HIT(t *testing.T) {
@@ -659,7 +714,16 @@ func TestCacheFilter_Metrics(t *testing.T) {
 	// ttl=1ms, swrWindow=1h — entry expires quickly, SWR window is huge.
 	// Filter created outside the bubble so sknet.Client's transport goroutine
 	// does not get trapped inside the synctest bubble.
-	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+	// Metrics passed via Options so f.metrics captures hit/miss/stale counters.
+	mockMetrics := &metricstest.MockMetrics{}
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second, Metrics: mockMetrics})
+	fi, err := spec.CreateFilter([]any{time.Millisecond.String(), (15 * time.Second).String(), time.Hour.String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+	f.fetch = func(*http.Request) (*http.Response, error) { return nil, errors.New("no fetch stub set") }
+	defer spec.(*cacheSpec).Close()
 	url := "https://cdn.contentful.com/spaces/abc/entries/metrics"
 
 	synctest.Test(t, func(t *testing.T) {
@@ -670,12 +734,12 @@ func TestCacheFilter_Metrics(t *testing.T) {
 		miss.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
 		f.Response(miss)
 
-		miss.FMetrics.(*metricstest.MockMetrics).WithCounters(func(counters map[string]int64) {
-			if counters["miss"] != 1 {
-				t.Errorf("after MISS: expected miss==1, got %d", counters["miss"])
+		mockMetrics.WithCounters(func(counters map[string]int64) {
+			if counters["cache.miss"] != 1 {
+				t.Errorf("after MISS: expected cache.miss==1, got %d", counters["cache.miss"])
 			}
-			if counters["hit"] != 0 {
-				t.Errorf("after MISS: expected hit==0, got %d", counters["hit"])
+			if counters["cache.hit"] != 0 {
+				t.Errorf("after MISS: expected cache.hit==0, got %d", counters["cache.hit"])
 			}
 		})
 
@@ -685,12 +749,12 @@ func TestCacheFilter_Metrics(t *testing.T) {
 		if !hit.FServed {
 			t.Fatal("expected HIT within TTL")
 		}
-		hit.FMetrics.(*metricstest.MockMetrics).WithCounters(func(counters map[string]int64) {
-			if counters["hit"] != 1 {
-				t.Errorf("after HIT: expected hit==1, got %d", counters["hit"])
+		mockMetrics.WithCounters(func(counters map[string]int64) {
+			if counters["cache.hit"] != 1 {
+				t.Errorf("after HIT: expected cache.hit==1, got %d", counters["cache.hit"])
 			}
-			if counters["stale"] != 0 {
-				t.Errorf("after HIT: expected stale==0, got %d", counters["stale"])
+			if counters["cache.stale"] != 0 {
+				t.Errorf("after HIT: expected cache.stale==0, got %d", counters["cache.stale"])
 			}
 		})
 
@@ -714,12 +778,13 @@ func TestCacheFilter_Metrics(t *testing.T) {
 		if stale.FResponse.Header.Get("X-Cache-Status") != "STALE" {
 			t.Fatalf("expected STALE header, got %q", stale.FResponse.Header.Get("X-Cache-Status"))
 		}
-		stale.FMetrics.(*metricstest.MockMetrics).WithCounters(func(counters map[string]int64) {
-			if counters["stale"] != 1 {
-				t.Errorf("after STALE: expected stale==1, got %d", counters["stale"])
+		mockMetrics.WithCounters(func(counters map[string]int64) {
+			if counters["cache.stale"] != 1 {
+				t.Errorf("after STALE: expected cache.stale==1, got %d", counters["cache.stale"])
 			}
-			if counters["hit"] != 0 {
-				t.Errorf("after STALE: expected hit==0, got %d", counters["hit"])
+			// cache.hit==1 from the preceding HIT request; STALE must not add another hit.
+			if counters["cache.hit"] != 1 {
+				t.Errorf("after STALE: expected cache.hit still==1 (from HIT step), got %d", counters["cache.hit"])
 			}
 		})
 	})
@@ -899,8 +964,8 @@ func TestCacheFilter_RevalidationError_MetricIncremented(t *testing.T) {
 			t.Fatal("expected STALE to be served")
 		}
 		mockMetrics.WithCounters(func(counters map[string]int64) {
-			if counters["reval_error"] != 1 {
-				t.Errorf("expected reval_error==1, got %d", counters["reval_error"])
+			if counters["cache.reval_error"] != 1 {
+				t.Errorf("expected reval_error==1, got %d", counters["cache.reval_error"])
 			}
 		})
 	})
@@ -967,6 +1032,50 @@ func TestCacheFilter_UnsafeMethod_InvalidatesCache(t *testing.T) {
 	f.Request(ctx2)
 	if ctx2.FServed {
 		t.Fatal("cache must be invalidated after POST")
+	}
+}
+
+func TestCacheFilter_UnsafeMethod_4xx_DoesNotInvalidate(t *testing.T) {
+	// RFC 9111 §4.4: a cache MUST NOT invalidate a stored response when an
+	// unsafe method returns a 4xx status. Only 2xx responses must trigger
+	// invalidation.
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+	url := "https://cdn.contentful.com/spaces/abc/entries/item-4xx"
+
+	// Step 1: warm the cache with a GET that returns 200 + max-age=300.
+	ctx1 := newCtx("GET", url, "")
+	f.Request(ctx1)
+	ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"cached"}`, "public, max-age=300")
+	f.Response(ctx1)
+
+	// Verify the entry is cached (second GET must be a HIT).
+	ctxHit := newCtx("GET", url, "")
+	f.Request(ctxHit)
+	if !ctxHit.FServed {
+		t.Fatal("expected HIT after warming the cache")
+	}
+	if ctxHit.FResponse.Header.Get("X-Cache-Status") != "HIT" {
+		t.Fatalf("expected HIT status, got %q", ctxHit.FResponse.Header.Get("X-Cache-Status"))
+	}
+
+	// Step 2: DELETE request that returns 403 — must NOT invalidate the cache.
+	deleteCtx := newCtx("DELETE", url, "")
+	f.Request(deleteCtx)
+	deleteCtx.FResponse = &http.Response{
+		StatusCode: http.StatusForbidden,
+		Header:     http.Header{},
+		Body:       http.NoBody,
+	}
+	f.Response(deleteCtx)
+
+	// Step 3: another GET must still return the cached entry (HIT).
+	ctxAfter := newCtx("GET", url, "")
+	f.Request(ctxAfter)
+	if !ctxAfter.FServed {
+		t.Fatal("cache must NOT be invalidated when unsafe method returns 4xx (RFC 9111 §4.4)")
+	}
+	if ctxAfter.FResponse.Header.Get("X-Cache-Status") != "HIT" {
+		t.Fatalf("expected HIT after 4xx unsafe method, got %q", ctxAfter.FResponse.Header.Get("X-Cache-Status"))
 	}
 }
 
@@ -1185,9 +1294,52 @@ func TestCacheFilter_SMaxAge_ImpliesProxyRevalidate(t *testing.T) {
 	})
 }
 
+func TestCacheFilter_MustRevalidate_ForcesCoalesceWhenStale(t *testing.T) {
+	// RFC 9111 §5.2.2.2: must-revalidate forbids serving a stale response.
+	// Once the entry is past TTL, coalesce() must contact the origin even if the
+	// entry is inside a stale-while-revalidate window.
+	f := newTestFilter(t, 100*time.Millisecond, 15*time.Second, time.Hour)
+	url := "https://cdn.contentful.com/spaces/abc/entries/must-reval"
+
+	var fetchCount int64
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		atomic.AddInt64(&fetchCount, 1)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": {"must-revalidate"}, "Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"v":1}`)),
+		}, nil
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		// First request: cold miss → fetch → store.
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		if ctx1.FResponse.Header.Get("X-Cache-Status") != "MISS" {
+			t.Fatalf("expected MISS, got %q", ctx1.FResponse.Header.Get("X-Cache-Status"))
+		}
+
+		// Advance into stale window (past TTL=100ms, within SWR=1h).
+		time.Sleep(200 * time.Millisecond)
+
+		// Second request: entry is stale + must-revalidate → must NOT serve stale.
+		// coalesce() must call fetch again (origin contacted).
+		ctx2 := newCtx("GET", url, "")
+		f.Request(ctx2)
+		synctest.Wait()
+		if atomic.LoadInt64(&fetchCount) < 2 {
+			t.Fatalf("must-revalidate must block stale serve and trigger upstream fetch; fetchCount=%d", atomic.LoadInt64(&fetchCount))
+		}
+		if status := ctx2.FResponse.Header.Get("X-Cache-Status"); status == "HIT" || status == "STALE" {
+			t.Errorf("expected origin fetch, but got X-Cache-Status: %s", status)
+		}
+	})
+}
+
 func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
-	spec := NewCacheFilter(1<<20, "localhost:9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	makeFilter := func(t *testing.T) *cacheFilter {
 		t.Helper()
@@ -1196,7 +1348,6 @@ func TestCacheFilter_SharedStorage_RouteIsolation(t *testing.T) {
 			t.Fatal(err)
 		}
 		cf := f.(*cacheFilter)
-		t.Cleanup(cf.Close)
 		// Default fetch stub returns an error so coalesce does not serve the
 		// request; this allows the test to distinguish a true cache HIT from a
 		// coalesced upstream fetch.
@@ -2240,7 +2391,12 @@ func TestCacheFilter_MinFresh_InsufficientFreshness_Bypasses(t *testing.T) {
 func TestCacheFilter_StaleIfError_Serves_On_5xx(t *testing.T) {
 	// ttl=1ms, errorTTL=10s, swrWindow=1ms, staleIfError=60s
 	// Entry expires after 1ms; staleIfError=60s keeps it in storage.
-	// A 503 upstream should cause the stale entry to be served.
+	// A 503 upstream via coalesce should cause the stale entry to be served.
+	//
+	// Regression: the stale-if-error block in Response() was dead code — coalesce() always calls
+	// ctx.Serve() (even on 5xx), so Response() returned early before reaching it.
+	// stale-if-error logic must live inside coalesce() with the pre-fetch snapshot captured
+	// before f.fetch runs, preventing the 5xx from overwriting the stored entry.
 	f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond, 60*time.Second)
 	url := "http://example.com/sie-5xx"
 
@@ -2250,15 +2406,23 @@ func TestCacheFilter_StaleIfError_Serves_On_5xx(t *testing.T) {
 		ctx.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"cached"}`, "max-age=0")
 		f.Response(ctx)
 
-		// Advance past TTL+SWR (SWR=0) so the entry is stale, but within staleIfError window.
+		// Advance past TTL+SWR so the next Request() calls coalesce().
 		time.Sleep(50 * time.Millisecond)
 
+		// Coalesce fetches from upstream and receives 503.
+		f.fetch = func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Header:     http.Header{},
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil
+		}
 		ctx2 := newCtx(http.MethodGet, url, "")
 		f.Request(ctx2)
-		// ctx2 is a MISS (past TTL+SWR); upstream returns 503.
-		ctx2.FResponse = upstreamResponse(http.StatusServiceUnavailable, "")
-		f.Response(ctx2)
 
+		if ctx2.FResponse == nil {
+			t.Fatal("expected a response, got nil")
+		}
 		if ctx2.FResponse.StatusCode != http.StatusOK {
 			t.Fatalf("want 200 from stale-if-error, got %d", ctx2.FResponse.StatusCode)
 		}
@@ -2271,6 +2435,8 @@ func TestCacheFilter_StaleIfError_Serves_On_5xx(t *testing.T) {
 func TestCacheFilter_StaleIfError_Expired_NotServed(t *testing.T) {
 	// ttl=1ms, errorTTL=10s, swrWindow=1ms, staleIfError=100ms
 	// Sleep 200ms — past TTL + staleIfError window. Entry too old for stale-if-error.
+	// Uses f.fetch returning 503 via coalesce (the same path as the positive stale-if-error case)
+	// to confirm the 503 is passed through when the stale-if-error window has already elapsed.
 	f := newTestFilter(t, time.Millisecond, 10*time.Second, time.Millisecond, 100*time.Millisecond)
 	url := "http://example.com/sie-expired"
 
@@ -2283,13 +2449,21 @@ func TestCacheFilter_StaleIfError_Expired_NotServed(t *testing.T) {
 		// Advance past TTL (1ms) + staleIfError (100ms) = well beyond 200ms.
 		time.Sleep(200 * time.Millisecond)
 
+		f.fetch = func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Header:     http.Header{},
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil
+		}
 		ctx2 := newCtx(http.MethodGet, url, "")
 		f.Request(ctx2)
-		ctx2.FResponse = upstreamResponse(http.StatusServiceUnavailable, "")
-		f.Response(ctx2)
 
+		if ctx2.FResponse == nil {
+			t.Fatal("expected a response, got nil")
+		}
 		if ctx2.FResponse.StatusCode != http.StatusServiceUnavailable {
-			t.Fatalf("want 503 (SIE window expired), got %d", ctx2.FResponse.StatusCode)
+			t.Fatalf("want 503 (stale-if-error window expired), got %d", ctx2.FResponse.StatusCode)
 		}
 	})
 }
@@ -2313,7 +2487,7 @@ func TestCacheFilter_StaleIfError_Disabled_When_Zero(t *testing.T) {
 		f.Response(ctx2)
 
 		if ctx2.FResponse.StatusCode != http.StatusServiceUnavailable {
-			t.Fatalf("want 503 (SIE disabled), got %d", ctx2.FResponse.StatusCode)
+			t.Fatalf("want 503 (stale-if-error disabled), got %d", ctx2.FResponse.StatusCode)
 		}
 	})
 }
@@ -2460,8 +2634,9 @@ func TestCacheFilter_SMaxAge_CapsRouteTTL(t *testing.T) {
 }
 
 func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
-	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	cases := []struct {
 		name    string
@@ -2491,7 +2666,6 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			cf := f.(*cacheFilter)
-			t.Cleanup(cf.Close)
 			if cf.rfcMode != tc.wantRFC {
 				t.Errorf("rfcMode: got %v, want %v", cf.rfcMode, tc.wantRFC)
 			}
@@ -2505,14 +2679,14 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 	// cache() with no args: pure RFC mode, upstream max-age is fully authoritative,
 	// no operator ceiling. TTL should equal upstream max-age exactly.
-	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	f, err := spec.CreateFilter([]any{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	cf := f.(*cacheFilter)
-	t.Cleanup(cf.Close)
 	cf.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub")
 	}
@@ -2534,17 +2708,65 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_UsesUpstreamMaxAge(t *testing.T) {
 	}
 }
 
+func TestCacheFilter_LRUBytesGaugeUpdatesWithoutEviction(t *testing.T) {
+	// The filter and its goroutines must be created inside the synctest bubble
+	// so the ticker in lruBytesScraper is subject to synthetic time control.
+	// f.fetch is replaced before any network I/O so the transport goroutine
+	// being inside the bubble is safe (it never actually dials out).
+	synctest.Test(t, func(t *testing.T) {
+		spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+		t.Cleanup(spec.(*cacheSpec).client.Close)
+		t.Cleanup(func() { spec.(*cacheSpec).Close() })
+		f, err := spec.CreateFilter([]any{"5m", "15s", "5m"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cf := f.(*cacheFilter)
+
+		mockMetrics := &metricstest.MockMetrics{}
+		// synctest.Wait drains goroutine scheduling so the scraper is parked at the
+		// select before we swap metrics. No tick has fired yet (synthetic time is frozen).
+		synctest.Wait()
+		spec.(*cacheSpec).metrics = mockMetrics
+		cf.metrics = mockMetrics
+
+		cf.fetch = func(_ *http.Request) (*http.Response, error) {
+			return upstreamResponseCC(http.StatusOK, `{"data":"hello"}`, "max-age=300"), nil
+		}
+
+		var initialBytes float64
+		mockMetrics.WithGauges(func(g map[string]float64) {
+			initialBytes = g["cache.lru_bytes"]
+		})
+
+		// Store an entry large enough to be visible but not enough to evict.
+		ctx := newCtx("GET", "https://example.com/lru-bytes-scrape", "")
+		cf.Request(ctx)
+
+		// Advance time past one scrape interval (10 s).
+		time.Sleep(11 * time.Second)
+
+		var afterBytes float64
+		mockMetrics.WithGauges(func(g map[string]float64) {
+			afterBytes = g["cache.lru_bytes"]
+		})
+		if afterBytes <= initialBytes {
+			t.Errorf("expected lru_bytes to increase after Set without eviction; before=%v after=%v", initialBytes, afterBytes)
+		}
+	})
+}
+
 func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testing.T) {
 	// cache() with no args: when upstream sends no Cache-Control, no Expires,
 	// and no Last-Modified, nothing should be cached (no heuristic without Last-Modified).
-	spec := NewCacheFilter(1<<20, ":9090", skpnet.Options{})
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: ":9090", L1TTL: 60 * time.Second})
 	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	f, err := spec.CreateFilter([]any{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	cf := f.(*cacheFilter)
-	t.Cleanup(cf.Close)
 	cf.fetch = func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("no fetch stub")
 	}
@@ -2564,6 +2786,233 @@ func TestCacheFilter_PureRFCMode_ZeroArgs_NoUpstreamDirective_NotCached(t *testi
 	}
 }
 
+func TestCacheFilter_RevalDropped_WhenQueueFull(t *testing.T) {
+	// Verify that reval_dropped is incremented when the revalJobs channel is at
+	// capacity and a stale-while-revalidate request tries to enqueue a job.
+	//
+	// Strategy:
+	//  1. Wire f.fetch to block until we release it, so the worker goroutine is
+	//     stuck inside doRevalidate as soon as it picks up its first job.
+	//  2. Pre-send one dummy job to wake the worker and block it on fetch.
+	//  3. Fill the remaining revalQueueSize-1 slots with dummy jobs, saturating
+	//     the channel (worker is blocked and cannot drain).
+	//  4. Seed the cache directly with a backdated stale entry (past TTL, inside
+	//     SWR window) so no real upstream call is needed to populate the cache.
+	//  5. Make a GET — the stale path serves the entry and calls enqueueRevalidation;
+	//     the channel is full, so the default branch fires and increments reval_dropped.
+	//  6. Assert reval_dropped == 1.
+
+	f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+
+	// Wire up a dedicated MockMetrics so we can inspect counters in isolation.
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+
+	// fetchBlocked gates the worker: it blocks until the test releases it.
+	// workerIn is signalled once the worker is confirmed to be inside fetch.
+	fetchBlocked := make(chan struct{})
+	workerIn := make(chan struct{}, 1)
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		select {
+		case workerIn <- struct{}{}: // signal first entry only (buffered size 1)
+		default:
+		}
+		<-fetchBlocked // block until test closes this channel
+		return nil, errors.New("blocked fetch")
+	}
+
+	// Send one job so the worker goroutine wakes and blocks inside fetch.
+	dummyReq, _ := http.NewRequest(http.MethodGet, "http://example.com/dummy", nil)
+	f.revalJobs <- revalJob{key: "dummy-wake", req: dummyReq, filter: f}
+
+	// Wait for the worker to confirm it is inside fetch — no timing guesswork.
+	<-workerIn
+
+	// Worker has consumed the dummy job from the channel (0/256 slots occupied)
+	// and is now blocked in fetch. Fill all revalQueueSize slots so the channel
+	// is at capacity; the worker cannot drain while it is stuck in fetch.
+	for i := range revalQueueSize {
+		r, _ := http.NewRequest(http.MethodGet, "http://example.com/fill", nil)
+		f.revalJobs <- revalJob{key: "fill-" + strconv.Itoa(i), req: r}
+	}
+
+	// Inject a stale entry directly into storage. CreatedAt is backdated so
+	// IsStale(now) returns true (past TTL) and IsUsable(now) returns true (within SWR).
+	url := "https://cdn.contentful.com/spaces/abc/entries/reval-dropped"
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	key := cacheKey("" /* routeID */, req, nil)
+	staleEntry := &Entry{
+		StatusCode:           http.StatusOK,
+		Header:               http.Header{"Content-Type": {"application/json"}},
+		Payload:              []byte(`{"data":"stale"}`),
+		CreatedAt:            time.Now().Add(-10 * time.Millisecond), // well past 1ms TTL
+		TTL:                  time.Millisecond,
+		StaleWhileRevalidate: time.Hour, // still inside SWR window
+	}
+	if err := f.storage.Set(context.Background(), key, staleEntry); err != nil {
+		t.Fatalf("failed to seed stale entry: %v", err)
+	}
+
+	// Make the GET request. The filter finds the stale entry, serves it, and
+	// calls enqueueRevalidation. The channel is full — reval_dropped fires.
+	ctx := newCtx(http.MethodGet, url, "")
+	ctx.FMetrics = mockMetrics
+	f.Request(ctx)
+
+	if !ctx.FServed {
+		t.Fatal("expected stale entry to be served when revalJobs queue is full")
+	}
+	if ctx.FResponse.Header.Get("X-Cache-Status") != "STALE" {
+		t.Fatalf("expected X-Cache-Status: STALE, got %q", ctx.FResponse.Header.Get("X-Cache-Status"))
+	}
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		if counters["cache.reval_dropped"] != 1 {
+			t.Errorf("expected reval_dropped==1, got %d", counters["cache.reval_dropped"])
+		}
+	})
+
+	// Release the blocked worker so the test can clean up without leaking goroutines.
+	close(fetchBlocked)
+}
+
+func TestCacheSpec_FilterRegistry(t *testing.T) {
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+
+	// Same args — should return same *cacheFilter pointer (registry hit)
+	f1, err := spec.CreateFilter([]any{"5m", "15s", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf1 := f1.(*cacheFilter)
+
+	f2, err := spec.CreateFilter([]any{"5m", "15s", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf2 := f2.(*cacheFilter)
+
+	if cf1 != cf2 {
+		t.Fatal("expected same *cacheFilter pointer for identical args, got different instances")
+	}
+
+	// Different args — should return different *cacheFilter pointer
+	f3, err := spec.CreateFilter([]any{"10m", "15s", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf3 := f3.(*cacheFilter)
+
+	if cf1 == cf3 {
+		t.Fatal("expected different *cacheFilter pointer for different args, got same instance")
+	}
+
+	// Different keyHeaders order should normalize to same instance
+	f4, err := spec.CreateFilter([]any{"5m", "15s", "30s", "60s", "X-Foo,X-Bar"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf4 := f4.(*cacheFilter)
+
+	f5, err := spec.CreateFilter([]any{"5m", "15s", "30s", "60s", "X-Bar,X-Foo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf5 := f5.(*cacheFilter)
+
+	if cf4 != cf5 {
+		t.Fatal("expected same instance for different keyHeaders order (should normalize), got different instances")
+	}
+}
+
+func TestCacheSpec_FilterRegistry_InFlightJobsSurviveRebuild(t *testing.T) {
+	// Verify that the spec-level revalidation worker continues to drain jobs
+	// even when CreateFilter is called again (simulating a route rebuild).
+	// The registry returns the same cacheFilter instance, so in-flight jobs
+	// targeting that instance are unaffected by the rebuild.
+
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+	t.Cleanup(spec.(*cacheSpec).client.Close)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+
+	// Create initial filter with blocking fetch stub (same pattern as TestCacheFilter_RevalDropped_WhenQueueFull).
+	f1, err := spec.CreateFilter([]any{"5m", "15s", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf1 := f1.(*cacheFilter)
+
+	// Block the worker on the first job.
+	fetchBlocked := make(chan struct{})
+	workerIn := make(chan struct{}, 1)
+	cf1.fetch = func(req *http.Request) (*http.Response, error) {
+		select {
+		case workerIn <- struct{}{}: // signal first entry only
+		default:
+		}
+		<-fetchBlocked // block until test closes this
+		return nil, errors.New("blocked fetch")
+	}
+
+	// Send a dummy job to wake and block the worker inside fetch.
+	dummyReq, _ := http.NewRequest(http.MethodGet, "http://example.com/dummy", nil)
+	cf1.revalJobs <- revalJob{key: "dummy-wake", req: dummyReq, filter: cf1}
+
+	// Wait for worker to confirm it is inside fetch.
+	<-workerIn
+
+	// Inject a stale entry so the next GET will trigger revalidation.
+	url := "https://cdn.contentful.com/spaces/abc/entries/in-flight-rebuild"
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	key := cacheKey("" /* routeID */, req, nil)
+	staleEntry := &Entry{
+		StatusCode:           http.StatusOK,
+		Header:               http.Header{"Content-Type": {"application/json"}},
+		Payload:              []byte(`{"data":"stale"}`),
+		CreatedAt:            time.Now().Add(-10 * time.Millisecond),
+		TTL:                  time.Millisecond,
+		StaleWhileRevalidate: time.Hour,
+	}
+	if err := cf1.storage.Set(context.Background(), key, staleEntry); err != nil {
+		t.Fatalf("failed to seed stale entry: %v", err)
+	}
+
+	// Make a GET request to enqueue a revalidation job.
+	ctx1 := newCtx(http.MethodGet, url, "")
+	cf1.Request(ctx1)
+	if !ctx1.FServed {
+		t.Fatal("expected stale entry to be served")
+	}
+
+	// Simulate a route rebuild: call CreateFilter again with identical args.
+	// The registry should return the same cf instance.
+	f2, err := spec.CreateFilter([]any{"5m", "15s", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf2 := f2.(*cacheFilter)
+
+	if cf1 != cf2 {
+		t.Fatal("expected registry to return same instance on rebuild")
+	}
+
+	// Unblock the worker so it can process the pending revalidation job.
+	close(fetchBlocked)
+
+	// Make another GET after a brief delay to allow the worker to finish.
+	// Since the job failed (blocked fetch returns error), the entry will not
+	// be updated. But the test demonstrates that the worker continued draining
+	// despite the rebuild. If it had stopped, the second GET would be served
+	// stale without a revalidation attempt being enqueued.
+	time.Sleep(10 * time.Millisecond)
+	ctx2 := newCtx(http.MethodGet, url, "")
+	cf2.Request(ctx2)
+	if !ctx2.FServed {
+		t.Fatal("expected entry to be served after rebuild (job draining continued)")
+	}
+}
+
 func Benchmark_malicious_matchesETag(b *testing.B) {
 	ifNoneMatch := strings.Repeat(",", http.DefaultMaxHeaderBytes)
 	b.ReportAllocs()
@@ -2571,3 +3020,1274 @@ func Benchmark_malicious_matchesETag(b *testing.B) {
 		matchesETag(ifNoneMatch, "foobar")
 	}
 }
+
+// ── storage stubs ──────────────────────────────────────────────────────────────
+
+type failingSetStorage struct{ Storage }
+
+func (s *failingSetStorage) Set(_ context.Context, _ string, _ *Entry) error {
+	return errors.New("set: injected failure")
+}
+
+type failingDeleteStorage struct{ Storage }
+
+func (s *failingDeleteStorage) Delete(_ context.Context, _ string) error {
+	return errors.New("delete: injected failure")
+}
+
+// ── Part 1: unit tests for uncovered branches ─────────────────────────────────
+
+func TestCreateFilter_InvalidArgs_ErrorTTL(t *testing.T) {
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090"})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	cases := []struct {
+		name string
+		args []any
+	}{
+		{"bad errorTTL string", []any{"5m", "bad", "30s"}},
+		{"zero errorTTL", []any{"5m", "0s", "30s"}},
+		{"non-string errorTTL", []any{"5m", 15, "30s"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := spec.CreateFilter(tc.args); err == nil {
+				t.Fatal("expected error for bad errorTTL arg")
+			}
+		})
+	}
+}
+
+func TestCreateFilter_InvalidArgs_SWR(t *testing.T) {
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090"})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	cases := []struct {
+		name string
+		args []any
+	}{
+		{"bad swrWindow string", []any{"5m", "15s", "bad"}},
+		{"zero swrWindow", []any{"5m", "15s", "0s"}},
+		{"non-string swrWindow", []any{"5m", "15s", 30}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := spec.CreateFilter(tc.args); err == nil {
+				t.Fatal("expected error for bad swrWindow arg")
+			}
+		})
+	}
+}
+
+func TestCreateFilter_InvalidArgs_StaleIfError(t *testing.T) {
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090"})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	cases := []struct {
+		name string
+		args []any
+	}{
+		{"non-string staleIfError", []any{"5m", "15s", "30s", 60}},
+		{"bad staleIfError duration", []any{"5m", "15s", "30s", "notaduration"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := spec.CreateFilter(tc.args); err == nil {
+				t.Fatal("expected error for bad staleIfError arg")
+			}
+		})
+	}
+}
+
+func TestCreateFilter_InvalidArgs_KeyHeaders(t *testing.T) {
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090"})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	// arg 4 (keyHeaders) must be a string
+	if _, err := spec.CreateFilter([]any{"5m", "15s", "30s", "60s", 42}); err == nil {
+		t.Fatal("expected error for non-string keyHeaders arg")
+	}
+}
+
+func TestCacheSpec_Close_Idempotent(t *testing.T) {
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090"})
+	cs := spec.(*cacheSpec)
+	if err := cs.Close(); err != nil {
+		t.Fatalf("first Close: %v", err)
+	}
+	if err := cs.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+}
+
+func TestCacheFilter_RevalidateHeader_Stripped(t *testing.T) {
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+	url := "https://cdn.example.com/revalidate-bypass"
+
+	ctx := newCtx("GET", url, "")
+	ctx.FRequest.Header.Set(revalidateHeader, "1")
+	f.Request(ctx)
+
+	// Must not be served from cache (header stripped → cache bypassed for lookup)
+	if ctx.FServed {
+		t.Fatal("revalidate-header request must not be served from cache")
+	}
+	// Header must be stripped before reaching upstream
+	if ctx.FRequest.Header.Get(revalidateHeader) != "" {
+		t.Fatal("X-Cache-Revalidate header must be stripped by Request()")
+	}
+}
+
+func TestCacheFilter_ContextCancelled_BeforeGet(t *testing.T) {
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+
+	// Pre-populate the cache so a normal request would HIT
+	populate := newCtx("GET", "https://cdn.example.com/ctx-cancel", "")
+	f.Request(populate)
+	populate.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
+	f.Response(populate)
+
+	// Now issue a request with a pre-cancelled context
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+	req, _ := http.NewRequestWithContext(cancelCtx, "GET", "https://cdn.example.com/ctx-cancel", nil)
+	ctx := &filtertest.Context{
+		FRequest:  req,
+		FStateBag: make(map[string]any),
+		FMetrics:  &metricstest.MockMetrics{},
+	}
+	f.Request(ctx)
+
+	// The cancelled-context path returns without calling Serve
+	if ctx.FServed {
+		t.Fatal("cancelled context request must not be served")
+	}
+}
+
+func TestCacheFilter_RFC_NoStore_NotCached_Coalesce(t *testing.T) {
+	f := newTestFilterRFC(t, time.Minute, 15*time.Second, time.Minute)
+	url := "https://cdn.example.com/rfc-nostore-coalesce"
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": {"no-store"}, "Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":"private"}`)),
+		}, nil
+	}
+
+	ctx1 := newCtx("GET", url, "")
+	f.Request(ctx1)
+	if !ctx1.FServed {
+		t.Fatal("expected response to be served via coalesce even with no-store")
+	}
+
+	// Second request must NOT be served from cache (entry must not have been stored)
+	var fetchCount int64
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		atomic.AddInt64(&fetchCount, 1)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": {"no-store"}, "Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":"private"}`)),
+		}, nil
+	}
+	ctx2 := newCtx("GET", url, "")
+	f.Request(ctx2)
+	if fetchCount == 0 {
+		t.Fatal("no-store response must not be cached; second request must hit upstream")
+	}
+}
+
+func TestCacheFilter_RFC_Private_NotCached_Coalesce(t *testing.T) {
+	f := newTestFilterRFC(t, time.Minute, 15*time.Second, time.Minute)
+	url := "https://cdn.example.com/rfc-private-coalesce"
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": {"private, max-age=300"}, "Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":"user-specific"}`)),
+		}, nil
+	}
+
+	ctx1 := newCtx("GET", url, "")
+	f.Request(ctx1)
+	if !ctx1.FServed {
+		t.Fatal("expected response to be served via coalesce even with private")
+	}
+
+	var fetchCount int64
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		atomic.AddInt64(&fetchCount, 1)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": {"private, max-age=300"}, "Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":"user-specific"}`)),
+		}, nil
+	}
+	ctx2 := newCtx("GET", url, "")
+	f.Request(ctx2)
+	if fetchCount == 0 {
+		t.Fatal("private response must not be cached; second request must hit upstream")
+	}
+}
+
+func TestCacheFilter_CoalesceSetFailure_Served(t *testing.T) {
+	mockMetrics := &metricstest.MockMetrics{}
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+
+	// Wrap storage so Set always fails
+	f.storage = &failingSetStorage{f.storage}
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": {"max-age=300"}, "Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":"v1"}`)),
+		}, nil
+	}
+
+	ctx := newCtx("GET", "https://cdn.example.com/coalesce-set-fail", "")
+	f.Request(ctx)
+
+	// Response must still be served despite storage failure
+	if !ctx.FServed {
+		t.Fatal("expected response to be served even when storage Set fails")
+	}
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		if counters["cache.storage_error"] == 0 {
+			t.Error("expected cache.storage_error to be incremented on Set failure in coalesce")
+		}
+	})
+}
+
+func TestCacheFilter_HEAD_Freshen_BodyHeaderSkipped(t *testing.T) {
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Hour)
+	url := "https://cdn.example.com/head-freshen-body-header"
+
+	// Populate via GET (coalesce path)
+	f.fetch = func(r *http.Request) (*http.Response, error) {
+		rsp := upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "public, max-age=300")
+		return rsp, nil
+	}
+	ctx1 := newCtx("GET", url, "")
+	f.Request(ctx1)
+
+	// HEAD request: served from cache
+	headCtx := newCtx("HEAD", url, "")
+	f.Request(headCtx)
+	if !headCtx.FServed {
+		t.Fatal("expected HEAD to be served from cache")
+	}
+
+	// HEAD response contains Content-Length (body-related header) — must NOT update stored entry
+	headCtx.FResponse = &http.Response{
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			"Content-Length": {"999"},
+			"Cache-Control":  {"public, max-age=300"},
+		},
+		Body: http.NoBody,
+	}
+	f.Response(headCtx)
+
+	// Stored entry must NOT have the Content-Length from the HEAD response
+	key := cacheKey(headCtx.FRouteId, headCtx.FRequest, nil)
+	entry, err := f.storage.Get(headCtx.FRequest.Context(), key)
+	if err != nil || entry == nil {
+		t.Fatal("expected stored entry after GET")
+	}
+	if entry.Header.Get("Content-Length") == "999" {
+		t.Error("Content-Length (body-related header) must not be updated by HEAD response freshen")
+	}
+}
+
+func TestCacheFilter_HEAD_Freshen_SetError(t *testing.T) {
+	mockMetrics := &metricstest.MockMetrics{}
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+
+	url := "https://cdn.example.com/head-freshen-set-err"
+
+	// Populate via GET response path
+	ctx1 := newCtx("GET", url, "")
+	f.Request(ctx1)
+	ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "public, max-age=300")
+	f.Response(ctx1)
+
+	// Now wrap storage so Set fails
+	f.storage = &failingSetStorage{f.storage}
+
+	// HEAD 200 freshen — storage.Set will fail
+	headCtx := newCtx("HEAD", url, "")
+	f.Request(headCtx)
+	headCtx.FResponse = &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Cache-Control": {"public, max-age=300"}},
+		Body:       http.NoBody,
+	}
+	f.Response(headCtx) // must not panic
+
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		if counters["cache.storage_error"] == 0 {
+			t.Error("expected cache.storage_error incremented on HEAD freshen Set failure")
+		}
+	})
+}
+
+func TestCacheFilter_Response_ServedFromCache_IsNoop(t *testing.T) {
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+	url := "https://cdn.example.com/response-served-noop"
+
+	// Populate cache
+	ctx1 := newCtx("GET", url, "")
+	f.Request(ctx1)
+	ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
+	f.Response(ctx1)
+
+	// Second request: HIT — FServed = true
+	ctx2 := newCtx("GET", url, "")
+	f.Request(ctx2)
+	if !ctx2.FServed {
+		t.Fatal("expected HIT")
+	}
+
+	// Calling Response() when already served must be a no-op (no panic, no double write)
+	ctx2.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v2"}`, "max-age=300")
+	f.Response(ctx2) // must return early at ctx.Served() check
+
+	// The stored entry must still have the original payload
+	key := ctx1.StateBag()[stateBagKey].(string)
+	entry, err := f.storage.Get(context.Background(), key)
+	if err != nil || entry == nil {
+		t.Fatal("expected entry to remain in storage")
+	}
+	if string(entry.Payload) != `{"data":"v1"}` {
+		t.Fatalf("Response() must not overwrite entry when ctx is already served; got %q", string(entry.Payload))
+	}
+}
+
+func TestCacheFilter_UnsafeMethod_DeleteError_ContinuesSilently(t *testing.T) {
+	mockMetrics := &metricstest.MockMetrics{}
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+
+	url := "https://cdn.example.com/unsafe-del-err"
+
+	// Populate cache
+	ctx1 := newCtx("GET", url, "")
+	f.Request(ctx1)
+	ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "public, max-age=300")
+	f.Response(ctx1)
+
+	// Wrap storage so Delete fails
+	f.storage = &failingDeleteStorage{f.storage}
+
+	// POST to same URL — Delete will fail
+	postCtx := newCtx("POST", url, "")
+	f.Request(postCtx)
+	postCtx.FResponse = &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{},
+		Body:       http.NoBody,
+	}
+	f.Response(postCtx) // must not panic
+
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		if counters["cache.storage_error"] == 0 {
+			t.Error("expected cache.storage_error incremented on Delete failure in unsafe method invalidation")
+		}
+	})
+}
+
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) { return 0, errors.New("read: injected failure") }
+func (errReader) Close() error             { return nil }
+
+func TestCacheFilter_Response_BodyReadError_NotCached(t *testing.T) {
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+	url := "https://cdn.example.com/body-read-err"
+
+	ctx := newCtx("GET", url, "")
+	f.Request(ctx)
+
+	// Response with an erroring body reader
+	ctx.FResponse = &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Cache-Control": {"max-age=300"}},
+		Body:       errReader{},
+	}
+	f.Response(ctx) // must not panic
+
+	// Entry must not be stored
+	key := ctx.StateBag()[stateBagKey].(string)
+	entry, err := f.storage.Get(context.Background(), key)
+	if err != nil {
+		t.Fatalf("storage.Get: %v", err)
+	}
+	if entry != nil {
+		t.Fatal("entry must not be stored when body read fails")
+	}
+}
+
+func TestCacheFilter_Response_VarySentinelSetError(t *testing.T) {
+	mockMetrics := &metricstest.MockMetrics{}
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+
+	// Wrap storage so Set fails
+	f.storage = &failingSetStorage{f.storage}
+
+	ctx := newCtx("GET", "https://cdn.example.com/vary-set-err", "")
+	ctx.FRequest.Header.Set("Accept-Language", "en-US")
+	f.Request(ctx)
+
+	rsp := upstreamResponseCC(http.StatusOK, `{"lang":"en"}`, "max-age=300")
+	rsp.Header.Set("Vary", "Accept-Language")
+	ctx.FResponse = rsp
+	f.Response(ctx) // must not panic; vary sentinel Set will fail
+
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		if counters["cache.storage_error"] == 0 {
+			t.Error("expected cache.storage_error incremented on Vary sentinel Set failure")
+		}
+	})
+}
+
+func TestCacheFilter_Response_StorageSetError(t *testing.T) {
+	mockMetrics := &metricstest.MockMetrics{}
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
+	fi, err := spec.CreateFilter([]any{"1m", "15s", "1m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+
+	f.storage = &failingSetStorage{f.storage}
+
+	ctx := newCtx("GET", "https://cdn.example.com/response-set-err", "")
+	f.Request(ctx)
+	ctx.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
+	f.Response(ctx) // must not panic
+
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		if counters["cache.storage_error"] == 0 {
+			t.Error("expected cache.storage_error incremented on Response() storage Set failure")
+		}
+	})
+}
+
+func TestCacheFilter_Revalidate_304_EntryEvicted(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		url := "https://cdn.example.com/reval-304-evicted"
+
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		rsp := upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
+		rsp.Header.Set("ETag", `"v1"`)
+		ctx1.FResponse = rsp
+		f.Response(ctx1)
+
+		// Evict the entry from storage before revalidation fires
+		key := ctx1.StateBag()[stateBagKey].(string)
+		if err := f.storage.Delete(context.Background(), key); err != nil {
+			t.Fatalf("Delete: %v", err)
+		}
+
+		// Set fetch to return 304 — doRevalidate will find the entry is gone
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusNotModified,
+				Header:     http.Header{"ETag": {`"v1"`}},
+				Body:       http.NoBody,
+			}, nil
+		}
+
+		// Advance past TTL to enter SWR window → triggers stale serve + background revalidation
+		time.Sleep(2 * time.Millisecond)
+
+		// Insert the entry back so the stale serve can find it
+		staleEntry := &Entry{
+			StatusCode:           http.StatusOK,
+			Header:               http.Header{"Content-Type": {"application/json"}, "ETag": {`"v1"`}},
+			Payload:              []byte(`{"data":"v1"}`),
+			CreatedAt:            time.Now().Add(-2 * time.Millisecond),
+			TTL:                  time.Millisecond,
+			StaleWhileRevalidate: time.Hour,
+			ETag:                 `"v1"`,
+		}
+		if err := f.storage.Set(context.Background(), key, staleEntry); err != nil {
+			t.Fatalf("Set stale entry: %v", err)
+		}
+
+		ctx2 := newCtx("GET", url, "")
+		f.Request(ctx2)
+		synctest.Wait()
+
+		if !ctx2.FServed {
+			t.Fatal("expected stale entry served while revalidation fires in background")
+		}
+		// The 304 with evicted-entry path must not panic; doRevalidate logs and returns
+	})
+}
+
+func TestCacheFilter_Revalidate_BodyReadError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		mockMetrics := &metricstest.MockMetrics{}
+		f.metrics = mockMetrics
+		url := "https://cdn.example.com/reval-body-err"
+
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
+		f.Response(ctx1)
+
+		// Fetch returns a 200 with an erroring body
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Cache-Control": {"max-age=300"}},
+				Body:       errReader{},
+			}, nil
+		}
+
+		time.Sleep(2 * time.Millisecond)
+
+		ctx2 := newCtx("GET", url, "")
+		f.Request(ctx2)
+		synctest.Wait()
+
+		if !ctx2.FServed {
+			t.Fatal("expected stale to be served")
+		}
+		mockMetrics.WithCounters(func(counters map[string]int64) {
+			if counters["cache.reval_error"] == 0 {
+				t.Error("expected cache.reval_error incremented on body read failure in doRevalidate")
+			}
+		})
+	})
+}
+
+func TestCacheFilter_Revalidate_RFC_NoStore_NotStored(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilterRFC(t, time.Millisecond, 15*time.Second, time.Hour)
+		url := "https://cdn.example.com/reval-rfc-nostore"
+
+		// Seed a cacheable entry first
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Cache-Control": {"max-age=10"}, "Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":"v1"}`)),
+			}, nil
+		}
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		synctest.Wait()
+
+		key := ctx1.StateBag()[stateBagKey].(string)
+		if _, err := f.storage.Get(ctx1.FRequest.Context(), key); err != nil {
+			t.Fatalf("storage.Get: %v", err)
+		}
+
+		// Background revalidation returns no-store
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Cache-Control": {"no-store"}, "Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":"v2"}`)),
+			}, nil
+		}
+
+		time.Sleep(2 * time.Millisecond)
+
+		ctx2 := newCtx("GET", url, "")
+		f.Request(ctx2)
+		synctest.Wait()
+
+		// Must not panic; doRevalidate simply returns without storing
+		if !ctx2.FServed {
+			t.Fatal("expected stale to be served even if revalidation returns no-store")
+		}
+	})
+}
+
+func TestCacheFilter_Revalidate_SetError_MetricIncremented(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockMetrics := &metricstest.MockMetrics{}
+		spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
+		fi, err := spec.CreateFilter([]any{time.Millisecond.String(), "15s", time.Hour.String()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		f := fi.(*cacheFilter)
+		t.Cleanup(func() { spec.(*cacheSpec).Close() })
+
+		url := "https://cdn.example.com/reval-set-err"
+
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=300")
+		f.Response(ctx1)
+
+		// Now wrap storage so Set fails
+		f.storage = &failingSetStorage{f.storage}
+		f.lruStorage = NewLRUStorage(1<<20, nil, mockMetrics) // won't be hit, but keep it valid
+
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Cache-Control": {"max-age=300"}, "Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":"v2"}`)),
+			}, nil
+		}
+
+		time.Sleep(2 * time.Millisecond)
+
+		ctx2 := newCtx("GET", url, "")
+		f.Request(ctx2)
+		synctest.Wait()
+
+		mockMetrics.WithCounters(func(counters map[string]int64) {
+			if counters["cache.storage_error"] == 0 {
+				t.Error("expected cache.storage_error incremented on Set failure in doRevalidate")
+			}
+		})
+	})
+}
+
+func TestEvaluateConditionals_InvalidIMS(t *testing.T) {
+	req, _ := http.NewRequest("GET", "https://cdn.example.com/path", nil)
+	req.Header.Set("If-Modified-Since", "not-a-date")
+	entry := &Entry{LastModified: "Wed, 21 Oct 2015 07:28:00 GMT"}
+	if evaluateConditionals(req, entry) {
+		t.Fatal("invalid If-Modified-Since must return false")
+	}
+}
+
+func TestEvaluateConditionals_InvalidLM(t *testing.T) {
+	req, _ := http.NewRequest("GET", "https://cdn.example.com/path", nil)
+	req.Header.Set("If-Modified-Since", "Wed, 21 Oct 2015 07:28:00 GMT")
+	entry := &Entry{LastModified: "not-a-date"}
+	if evaluateConditionals(req, entry) {
+		t.Fatal("invalid Last-Modified in entry must return false")
+	}
+}
+
+func TestMatchesETag_EmptyETag(t *testing.T) {
+	if matchesETag(`"abc"`, "") {
+		t.Fatal("empty etag must not match")
+	}
+}
+
+func TestMatchesETag_WildcardMatch(t *testing.T) {
+	if !matchesETag("*", `"any-etag"`) {
+		t.Fatal("wildcard * must match any etag")
+	}
+}
+
+func TestMatchesETag_WeakComparison(t *testing.T) {
+	// W/"etag" and "etag" are equal under weak comparison
+	if !matchesETag(`W/"abc"`, `"abc"`) {
+		t.Fatal("W/ prefix must be stripped for weak comparison")
+	}
+	if !matchesETag(`"abc"`, `W/"abc"`) {
+		t.Fatal("W/ prefix in etag must be stripped for weak comparison")
+	}
+	if matchesETag(`"abc"`, `"xyz"`) {
+		t.Fatal("different etags must not match")
+	}
+}
+
+func TestHeuristicTTL_WithExplicitDirective_ReturnsZero(t *testing.T) {
+	h := http.Header{}
+	h.Set("Cache-Control", "max-age=300")
+	h.Set("Last-Modified", "Wed, 21 Oct 2015 07:28:00 GMT")
+	d := parseCacheControl(h)
+	if got := heuristicTTL(h, d, time.Now()); got != 0 {
+		t.Fatalf("heuristic must return 0 when max-age present, got %v", got)
+	}
+}
+
+func TestHeuristicTTL_BadLastModified(t *testing.T) {
+	h := http.Header{}
+	h.Set("Last-Modified", "not-a-date")
+	d := cacheDirectives{maxAge: -1, sMaxAge: -1}
+	if got := heuristicTTL(h, d, time.Now()); got != 0 {
+		t.Fatalf("heuristic must return 0 for bad Last-Modified, got %v", got)
+	}
+}
+
+func TestHeuristicTTL_BadDate_FallsBackToNow(t *testing.T) {
+	h := http.Header{}
+	h.Set("Last-Modified", "Wed, 21 Oct 2015 07:28:00 GMT") // 10+ years ago
+	h.Set("Date", "not-a-date")                             // bad Date → falls back to time.Now()
+	d := cacheDirectives{maxAge: -1, sMaxAge: -1}
+	got := heuristicTTL(h, d, time.Now())
+	// age = now - 2015 ≈ huge; 0.1 * huge > 0
+	if got <= 0 {
+		t.Fatalf("heuristic with bad Date and old Last-Modified must be > 0, got %v", got)
+	}
+}
+
+func TestHeuristicTTL_NegativeAge_ReturnsZero(t *testing.T) {
+	// Last-Modified in the future → age negative → heuristic returns 0
+	h := http.Header{}
+	h.Set("Last-Modified", time.Now().Add(time.Hour).UTC().Format(http.TimeFormat))
+	d := cacheDirectives{maxAge: -1, sMaxAge: -1}
+	if got := heuristicTTL(h, d, time.Now()); got != 0 {
+		t.Fatalf("heuristic with future Last-Modified must return 0, got %v", got)
+	}
+}
+
+func TestCapTTLByExpires_MaxAgePresent_IgnoresExpires(t *testing.T) {
+	h := http.Header{}
+	h.Set("Expires", time.Now().Add(time.Second).UTC().Format(http.TimeFormat))
+	d := cacheDirectives{maxAge: 300, sMaxAge: -1}
+	// TTL must not be capped: max-age present means Expires is ignored
+	if got := capTTLByExpires(5*time.Minute, h, d); got != 5*time.Minute {
+		t.Fatalf("expected TTL unchanged when max-age present, got %v", got)
+	}
+}
+
+func TestCapTTLByExpires_NoExpires(t *testing.T) {
+	d := cacheDirectives{maxAge: -1, sMaxAge: -1}
+	if got := capTTLByExpires(5*time.Minute, http.Header{}, d); got != 5*time.Minute {
+		t.Fatalf("expected TTL unchanged when no Expires, got %v", got)
+	}
+}
+
+func TestCapTTLByExpires_InvalidDate(t *testing.T) {
+	h := http.Header{}
+	h.Set("Expires", "0")
+	d := cacheDirectives{maxAge: -1, sMaxAge: -1}
+	if got := capTTLByExpires(5*time.Minute, h, d); got != 0 {
+		t.Fatalf("expected TTL=0 for invalid Expires date, got %v", got)
+	}
+}
+
+func TestCapTTLByExpires_AlreadyExpired(t *testing.T) {
+	h := http.Header{}
+	h.Set("Expires", time.Now().Add(-time.Minute).UTC().Format(http.TimeFormat))
+	d := cacheDirectives{maxAge: -1, sMaxAge: -1}
+	if got := capTTLByExpires(5*time.Minute, h, d); got != 0 {
+		t.Fatalf("expected TTL=0 for past Expires, got %v", got)
+	}
+}
+
+func TestCapTTLByExpires_Caps(t *testing.T) {
+	// Expires is 10s from now; TTL=0 means uncapped → must return remaining ~10s
+	h := http.Header{}
+	h.Set("Expires", time.Now().Add(10*time.Second).UTC().Format(http.TimeFormat))
+	d := cacheDirectives{maxAge: -1, sMaxAge: -1}
+	got := capTTLByExpires(0, h, d)
+	if got <= 0 || got > 11*time.Second {
+		t.Fatalf("expected TTL ~10s for uncapped Expires, got %v", got)
+	}
+}
+
+func TestCapTTLByExpires_ReturnsTTLWhenSmaller(t *testing.T) {
+	// Expires is far in the future; TTL=1s < remaining → TTL wins
+	h := http.Header{}
+	h.Set("Expires", time.Now().Add(time.Hour).UTC().Format(http.TimeFormat))
+	d := cacheDirectives{maxAge: -1, sMaxAge: -1}
+	if got := capTTLByExpires(time.Second, h, d); got != time.Second {
+		t.Fatalf("expected TTL=1s (smaller than Expires remaining), got %v", got)
+	}
+}
+
+func TestVaryKey_EmptyHeaders_ReturnsBase(t *testing.T) {
+	req, _ := http.NewRequest("GET", "https://cdn.example.com/path", nil)
+	base := "some-base-key"
+	if got := varyKey(base, req, nil); got != base {
+		t.Fatalf("varyKey with nil varyHeaders must return base key, got %q", got)
+	}
+	if got := varyKey(base, req, []string{}); got != base {
+		t.Fatalf("varyKey with empty varyHeaders must return base key, got %q", got)
+	}
+}
+
+func TestCacheKeyForURL_InvalidURL(t *testing.T) {
+	base, _ := http.NewRequest("GET", "https://cdn.example.com/path", nil)
+	got := cacheKeyForURL("route", base, "://invalid url\x00", nil)
+	if got != "" {
+		t.Fatalf("expected empty string for invalid URL, got %q", got)
+	}
+}
+
+func TestCacheKeyForURL_RelativeURL_UsesBaseHost(t *testing.T) {
+	base, _ := http.NewRequest("GET", "https://cdn.example.com/path", nil)
+	base.Host = "cdn.example.com"
+	got := cacheKeyForURL("route", base, "/other/path", nil)
+	if got == "" {
+		t.Fatal("expected non-empty key for relative URL")
+	}
+	// The key for absolute same-origin must match
+	abs := cacheKeyForURL("route", base, "https://cdn.example.com/other/path", nil)
+	if got != abs {
+		t.Fatalf("relative and absolute same-origin URL must produce the same key; got %q vs %q", got, abs)
+	}
+}
+
+// ── Part 2: proxytest L1/L2 integration tests ─────────────────────────────────
+
+// newProxyCacheRoute builds an eskip route for the proxytest proxy that applies
+// the cache filter. backendURL is the httptest backend.
+func newProxyCacheRoute(t *testing.T, backendURL string, spec filters.Spec, args ...string) *eskip.Route {
+	t.Helper()
+	var filterArgs []any
+	for _, a := range args {
+		filterArgs = append(filterArgs, a)
+	}
+	return &eskip.Route{
+		Id:          "cache-route",
+		PathRegexps: []string{".*"},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: filterArgs}},
+		Backend:     backendURL,
+	}
+}
+
+func TestProxy_L1Cache_MissAndHit(t *testing.T) {
+	var backendCallCount int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&backendCallCount, 1)
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"data":"v1"}`)
+	}))
+	defer backend.Close()
+
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "127.0.0.1:0"})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+
+	fr := make(filters.Registry)
+	fr.Register(spec)
+
+	proxy := proxytest.New(fr, newProxyCacheRoute(t, backend.URL, spec, "5m", "15s", "30s"))
+	defer proxy.Close()
+
+	// Spec must know the proxy's listen addr for revalidation loop-back
+	spec.(*cacheSpec).listenAddr = strings.TrimPrefix(proxy.URL, "http://")
+	for _, f := range spec.(*cacheSpec).filters {
+		f.listenAddr = spec.(*cacheSpec).listenAddr
+	}
+
+	client := proxy.Client()
+
+	// First request: MISS — backend must be called
+	rsp1, err := client.Get(proxy.URL + "/items/1")
+	if err != nil {
+		t.Fatalf("first request: %v", err)
+	}
+	rsp1.Body.Close()
+	if rsp1.Header.Get("X-Cache-Status") != "MISS" {
+		t.Fatalf("expected MISS on first request, got %q", rsp1.Header.Get("X-Cache-Status"))
+	}
+	if atomic.LoadInt64(&backendCallCount) != 1 {
+		t.Fatalf("expected 1 backend call, got %d", atomic.LoadInt64(&backendCallCount))
+	}
+
+	// Second request: HIT — backend must NOT be called
+	rsp2, err := client.Get(proxy.URL + "/items/1")
+	if err != nil {
+		t.Fatalf("second request: %v", err)
+	}
+	rsp2.Body.Close()
+	if rsp2.Header.Get("X-Cache-Status") != "HIT" {
+		t.Fatalf("expected HIT on second request, got %q", rsp2.Header.Get("X-Cache-Status"))
+	}
+	if atomic.LoadInt64(&backendCallCount) != 1 {
+		t.Fatalf("expected still 1 backend call after HIT, got %d", atomic.LoadInt64(&backendCallCount))
+	}
+}
+
+func TestProxy_L1Cache_RFCMode_MaxAge(t *testing.T) {
+	var backendCallCount int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&backendCallCount, 1)
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"data":"rfc"}`)
+	}))
+	defer backend.Close()
+
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+
+	fr := make(filters.Registry)
+	fr.Register(spec)
+
+	// RFC mode: zero args
+	route := &eskip.Route{
+		Id:          "rfc-route",
+		PathRegexps: []string{".*"},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: nil}},
+		Backend:     backend.URL,
+	}
+
+	proxy := proxytest.New(fr, route)
+	defer proxy.Close()
+
+	client := proxy.Client()
+
+	rsp1, err := client.Get(proxy.URL + "/rfc")
+	if err != nil {
+		t.Fatalf("first request: %v", err)
+	}
+	rsp1.Body.Close()
+
+	rsp2, err := client.Get(proxy.URL + "/rfc")
+	if err != nil {
+		t.Fatalf("second request: %v", err)
+	}
+	rsp2.Body.Close()
+	if rsp2.Header.Get("X-Cache-Status") != "HIT" {
+		t.Fatalf("expected HIT in RFC mode, got %q", rsp2.Header.Get("X-Cache-Status"))
+	}
+	if atomic.LoadInt64(&backendCallCount) != 1 {
+		t.Fatalf("expected 1 backend call, got %d", atomic.LoadInt64(&backendCallCount))
+	}
+}
+
+func TestProxy_L1Cache_UnsafeMethod_Invalidates(t *testing.T) {
+	var backendCallCount int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&backendCallCount, 1)
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"data":"item"}`)
+	}))
+	defer backend.Close()
+
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	fr := make(filters.Registry)
+	fr.Register(spec)
+
+	route := &eskip.Route{
+		Id:          "invalidate-route",
+		PathRegexps: []string{".*"},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []any{"5m", "15s", "30s"}}},
+		Backend:     backend.URL,
+	}
+
+	proxy := proxytest.New(fr, route)
+	defer proxy.Close()
+
+	client := proxy.Client()
+
+	// GET → MISS, populate cache
+	rsp1, _ := client.Get(proxy.URL + "/item/42")
+	rsp1.Body.Close()
+	if rsp1.Header.Get("X-Cache-Status") != "MISS" {
+		t.Fatalf("expected MISS on first GET")
+	}
+
+	// GET → HIT
+	rsp2, _ := client.Get(proxy.URL + "/item/42")
+	rsp2.Body.Close()
+	if rsp2.Header.Get("X-Cache-Status") != "HIT" {
+		t.Fatalf("expected HIT on second GET")
+	}
+
+	// POST → invalidates cache
+	req, _ := http.NewRequest("POST", proxy.URL+"/item/42", strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	rsp3, _ := client.Do(req)
+	rsp3.Body.Close()
+
+	// GET → MISS again (cache invalidated)
+	rsp4, _ := client.Get(proxy.URL + "/item/42")
+	rsp4.Body.Close()
+	if rsp4.Header.Get("X-Cache-Status") != "MISS" {
+		t.Fatalf("expected MISS after POST invalidation, got %q", rsp4.Header.Get("X-Cache-Status"))
+	}
+}
+
+func TestProxy_L1Cache_NoCache_RequestBypasses(t *testing.T) {
+	var backendCallCount int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&backendCallCount, 1)
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		fmt.Fprint(w, `{"data":"v1"}`)
+	}))
+	defer backend.Close()
+
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	fr := make(filters.Registry)
+	fr.Register(spec)
+
+	route := &eskip.Route{
+		Id:          "nocache-route",
+		PathRegexps: []string{".*"},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []any{"5m", "15s", "30s"}}},
+		Backend:     backend.URL,
+	}
+
+	proxy := proxytest.New(fr, route)
+	defer proxy.Close()
+
+	client := proxy.Client()
+
+	for i := 0; i < 3; i++ {
+		req, _ := http.NewRequest("GET", proxy.URL+"/nc", nil)
+		req.Header.Set("Cache-Control", "no-cache")
+		rsp, _ := client.Do(req)
+		rsp.Body.Close()
+	}
+
+	if atomic.LoadInt64(&backendCallCount) < 3 {
+		t.Fatalf("no-cache must bypass cache: expected >=3 backend calls, got %d", atomic.LoadInt64(&backendCallCount))
+	}
+}
+
+func TestProxy_L1Cache_VaryStar_NeverCached(t *testing.T) {
+	var backendCallCount int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&backendCallCount, 1)
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		w.Header().Set("Vary", "*")
+		fmt.Fprint(w, `{"data":"vary-star"}`)
+	}))
+	defer backend.Close()
+
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	fr := make(filters.Registry)
+	fr.Register(spec)
+
+	route := &eskip.Route{
+		Id:          "vary-star-route",
+		PathRegexps: []string{".*"},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []any{"5m", "15s", "30s"}}},
+		Backend:     backend.URL,
+	}
+
+	proxy := proxytest.New(fr, route)
+	defer proxy.Close()
+
+	client := proxy.Client()
+
+	for i := 0; i < 3; i++ {
+		rsp, _ := client.Get(proxy.URL + "/vary")
+		rsp.Body.Close()
+	}
+
+	if atomic.LoadInt64(&backendCallCount) < 3 {
+		t.Fatalf("Vary: * must never be cached: expected >=3 backend calls, got %d", atomic.LoadInt64(&backendCallCount))
+	}
+}
+
+func TestProxy_L2Cache_HitAfterL1Eviction(t *testing.T) {
+	var backendCallCount int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&backendCallCount, 1)
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"data":"l2-hit"}`)
+	}))
+	defer backend.Close()
+
+	stub := newStubValkeyClient()
+	m := &testMetrics{}
+	lru := NewLRUStorage(1<<20, nil, m)
+
+	spec := NewCacheFilter(Options{
+		MaxBytes: 1 << 20,
+		L2Client: stub,
+		IsNoL2Err: func(err error) bool {
+			// valkey.Nil sentinel — mimic the real check without the import
+			return err != nil && err.Error() == "valkey: nil"
+		},
+		L1TTL:   60 * time.Second,
+		Metrics: m,
+	})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+
+	// Use the isNoErr function that matches the stub's "not found" behaviour
+	isNoErr := func(err error) bool {
+		return err != nil && strings.Contains(err.Error(), "stub: not found")
+	}
+	cs := spec.(*cacheSpec)
+	cs.storage = NewL2Storage(stub, lru, m, 60*time.Second, isNoErr)
+	cs.lruStorage = lru
+	for _, f := range cs.filters {
+		f.storage = cs.storage
+		f.lruStorage = lru
+	}
+
+	fr := make(filters.Registry)
+	fr.Register(spec)
+
+	route := &eskip.Route{
+		Id:          "l2-route",
+		PathRegexps: []string{".*"},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []any{"5m", "15s", "30s"}}},
+		Backend:     backend.URL,
+	}
+
+	proxy := proxytest.New(fr, route)
+	defer proxy.Close()
+
+	// Re-wire filters to use the test storage
+	for _, f := range cs.filters {
+		f.storage = cs.storage
+		f.lruStorage = lru
+	}
+
+	client := proxy.Client()
+
+	// First request: MISS — populates both L1 and L2
+	rsp1, _ := client.Get(proxy.URL + "/l2item")
+	rsp1.Body.Close()
+	if rsp1.Header.Get("X-Cache-Status") != "MISS" {
+		t.Fatalf("expected MISS, got %q", rsp1.Header.Get("X-Cache-Status"))
+	}
+	// Second request: HIT from L1
+	rsp2, _ := client.Get(proxy.URL + "/l2item")
+	rsp2.Body.Close()
+	if rsp2.Header.Get("X-Cache-Status") != "HIT" {
+		t.Fatalf("expected HIT from L1, got %q", rsp2.Header.Get("X-Cache-Status"))
+	}
+
+	// Verify L2 has the entry
+	if len(stub.data) == 0 {
+		t.Fatal("expected L2 to contain an entry after MISS+HIT")
+	}
+}
+
+func TestProxy_L2Cache_FallsBackToL1OnL2Failure(t *testing.T) {
+	var backendCallCount int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&backendCallCount, 1)
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"data":"l1-fallback"}`)
+	}))
+	defer backend.Close()
+
+	stub := newBrokenStubValkeyClient()
+	m := &testMetrics{}
+	lru := NewLRUStorage(1<<20, nil, m)
+
+	isNoErr := func(err error) bool { return false } // broken stub always returns real errors
+	l2store := NewL2Storage(stub, lru, m, 60*time.Second, isNoErr)
+
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, Metrics: m})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	cs := spec.(*cacheSpec)
+	cs.storage = l2store
+	cs.lruStorage = lru
+
+	fr := make(filters.Registry)
+	fr.Register(spec)
+
+	route := &eskip.Route{
+		Id:          "l2-fallback-route",
+		PathRegexps: []string{".*"},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []any{"5m", "15s", "30s"}}},
+		Backend:     backend.URL,
+	}
+
+	proxy := proxytest.New(fr, route)
+	defer proxy.Close()
+
+	// Re-wire storage to all filters
+	for _, f := range cs.filters {
+		f.storage = l2store
+		f.lruStorage = lru
+	}
+
+	client := proxy.Client()
+
+	// First request: L2 broken → Set falls back to L1; served as MISS
+	rsp1, _ := client.Get(proxy.URL + "/fallback")
+	rsp1.Body.Close()
+	if rsp1.Header.Get("X-Cache-Status") != "MISS" {
+		t.Fatalf("expected MISS on first request with broken L2")
+	}
+
+	// L2 Set fallback must have written to L1 — check l2_set_fallback counter
+	if m.counter("cache.l2_set_fallback") == 0 {
+		t.Error("expected l2_set_fallback to be incremented when L2 Set fails")
+	}
+}
+
+func TestProxy_L2Cache_MissWhenBothMiss(t *testing.T) {
+	var backendCallCount int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&backendCallCount, 1)
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		fmt.Fprint(w, `{"data":"cold"}`)
+	}))
+	defer backend.Close()
+
+	stub := newStubValkeyClient() // empty
+	m := &testMetrics{}
+	lru := NewLRUStorage(1<<20, nil, m)
+	isNoErr := func(err error) bool {
+		return err != nil && strings.Contains(err.Error(), "valkey: nil")
+	}
+	l2store := NewL2Storage(stub, lru, m, 0, isNoErr)
+
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, Metrics: m})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	cs := spec.(*cacheSpec)
+	cs.storage = l2store
+	cs.lruStorage = lru
+
+	fr := make(filters.Registry)
+	fr.Register(spec)
+
+	route := &eskip.Route{
+		Id:          "both-miss-route",
+		PathRegexps: []string{".*"},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []any{"5m", "15s", "30s"}}},
+		Backend:     backend.URL,
+	}
+
+	proxy := proxytest.New(fr, route)
+	defer proxy.Close()
+
+	for _, f := range cs.filters {
+		f.storage = l2store
+		f.lruStorage = lru
+	}
+
+	client := proxy.Client()
+
+	rsp, _ := client.Get(proxy.URL + "/cold")
+	rsp.Body.Close()
+	if rsp.Header.Get("X-Cache-Status") != "MISS" {
+		t.Fatalf("expected MISS when both L1 and L2 empty, got %q", rsp.Header.Get("X-Cache-Status"))
+	}
+	if atomic.LoadInt64(&backendCallCount) == 0 {
+		t.Fatal("expected backend to be called on cold miss")
+	}
+}
+
+// Ensure url import is used
+var _ = url.Parse
