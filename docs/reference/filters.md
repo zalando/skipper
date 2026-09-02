@@ -2407,7 +2407,7 @@ The difference is that if the decision in (3) is equivalent to false, the respon
 
 Headers both to the upstream and the downstream service can be manipulated the same way this works for [Envoy external authorization](https://www.openpolicyagent.org/docs/envoy/primer#example-policy-with-additional-controls)
 
-This allows both to add and remove unwanted headers in allow/deny cases.
+This allows both to add and remove unwanted headers in allow/deny cases. When adding headers, any client-supplied value for the same header key is deleted first, so the policy-set value always takes precedence.
 
 #### opaAuthorizeRequestWithBody
 

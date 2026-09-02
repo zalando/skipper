@@ -202,8 +202,11 @@ func removeRequestHeaders(fc filters.FilterContext, headersToRemove []string) {
 
 func addRequestHeaders(fc filters.FilterContext, headers http.Header) {
 	for key, values := range headers {
+		// Delete any client-supplied value first so the policy-set value wins.
+		// Keeps the default behavior of
+		// https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/auth/v3/external_auth.proto#service-auth-v3-okhttpresponse
+		fc.Request().Header.Del(key)
 		for _, value := range values {
-			// This is the default behavior from https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/core/v3/base.proto#config-core-v3-headervalueoption
 			fc.Request().Header.Add(key, value)
 		}
 	}
