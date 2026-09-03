@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/metrics/metricstest"
 )
 
 func makeEntry(payload string, ttl time.Duration) *Entry {
@@ -179,7 +180,7 @@ func TestLRUStorage_OversizedEntry(t *testing.T) {
 	// With 256 shards and 1 KB total capacity, each shard holds 4 bytes.
 	// A payload larger than 4 bytes exceeds every shard's maxBytes.
 	const totalBytes = 1024 // 1 KB → 4 bytes per shard
-	m := &testMetrics{}
+	m := &metricstest.MockMetrics{}
 	s := NewLRUStorage(totalBytes, nil, m)
 
 	ctx := context.Background()
@@ -191,7 +192,7 @@ func TestLRUStorage_OversizedEntry(t *testing.T) {
 	}
 
 	// The lru_oversized counter must have been incremented exactly once.
-	if got := m.counter("cache.lru_oversized"); got != 1 {
+	if got, _ := m.Counter("cache.lru_oversized"); got != 1 {
 		t.Errorf("lru_oversized counter: got %d, want 1", got)
 	}
 

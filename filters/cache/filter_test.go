@@ -4127,7 +4127,7 @@ func TestProxy_L2Cache_HitAfterL1Eviction(t *testing.T) {
 	defer backend.Close()
 
 	stub := newStubValkeyClient()
-	m := &testMetrics{}
+	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(1<<20, nil, m)
 
 	spec := NewCacheFilter(Options{
@@ -4205,7 +4205,7 @@ func TestProxy_L2Cache_FallsBackToL1OnL2Failure(t *testing.T) {
 	defer backend.Close()
 
 	stub := newBrokenStubValkeyClient()
-	m := &testMetrics{}
+	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(1<<20, nil, m)
 
 	isNoErr := func(err error) bool { return false } // broken stub always returns real errors
@@ -4246,7 +4246,7 @@ func TestProxy_L2Cache_FallsBackToL1OnL2Failure(t *testing.T) {
 	}
 
 	// L2 Set fallback must have written to L1 — check l2_set_fallback counter
-	if m.counter("cache.l2_set_fallback") == 0 {
+	if v, ok := m.Counter("cache.l2_set_fallback"); ok && v == 0 {
 		t.Error("expected l2_set_fallback to be incremented when L2 Set fails")
 	}
 }
@@ -4261,7 +4261,7 @@ func TestProxy_L2Cache_MissWhenBothMiss(t *testing.T) {
 	defer backend.Close()
 
 	stub := newStubValkeyClient() // empty
-	m := &testMetrics{}
+	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(1<<20, nil, m)
 	isNoErr := func(err error) bool {
 		return err != nil && strings.Contains(err.Error(), "valkey: nil")

@@ -227,6 +227,13 @@ func (m *MockMetrics) RegisterHandler(path string, handler *http.ServeMux) {
 	// implement me
 }
 
+func (m *MockMetrics) Counter(key string) (v int64, ok bool) {
+	m.WithCounters(func(counters map[string]int64) {
+		v, ok = counters[key]
+	})
+	return
+}
+
 func (m *MockMetrics) UpdateGauge(key string, value float64) {
 	m.WithGauges(func(g map[string]float64) {
 		g[key] = value
