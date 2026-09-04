@@ -1,145 +1,128 @@
 /*
-Package etcdtest implements an easy startup script to start a local etcd
-instance for testing purpose.
+Package etcdtest implements test utilities to start a local etcd
+instance using testcontainers for testing purposes.
 */
 package etcdtest
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
-	"log"
-	"math/rand"
 	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strconv"
-	"strings"
+	"sync"
 	"time"
+
+	"github.com/docker/go-connections/nat"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-var Urls []string
+var (
+	Urls      []string
+	mu        sync.Mutex
+	container testcontainers.Container
+)
 
-var etcd *exec.Cmd
-var etcdDataDir string
+const (
+	etcdImage = "gcr.io/etcd-development/etcd:v3.5.18"
+	etcdPort  = "2379/tcp"
+)
 
-func makeLocalUrls(ports ...int) []string {
-	urls := make([]string, len(ports))
-	for i, p := range ports {
-		urls[i] = fmt.Sprintf("http://0.0.0.0:%d", p)
-	}
-
-	return urls
-}
-
-func randPort() int {
-	return (1 << 15) + rand.Intn(1<<15) // #nosec
-}
-
-// Starts an etcd server.
+// Start starts an etcd testcontainer with v2 API enabled.
 func Start() error {
-	return StartProjectRoot("")
-}
+	mu.Lock()
+	defer mu.Unlock()
 
-// StartProjectRoot starts an etcd server. If projectRoot is not empty, then it checks
-// if the .bin/etcd binary exists, and uses that instead of the one in the path.
-func StartProjectRoot(projectRoot string) error {
-	// assuming that the tests won't try to start it concurrently,
-	// fix this only when it turns out to be a wrong assumption
-	if etcd != nil {
+	if container != nil {
 		return nil
 	}
 
-	Urls = makeLocalUrls(randPort(), randPort())
-	clientUrlsString := strings.Join(Urls, ",")
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
 
-	dir, err := os.MkdirTemp("", "etcdtest")
+	port, err := nat.NewPort("tcp", "2379")
 	if err != nil {
-		return err
-	}
-	etcdDataDir = dir
-
-	var binary string
-	if projectRoot != "" {
-		binary = filepath.Join(projectRoot, ".bin/etcd")
-		_, err := os.Stat(binary)
-		if os.IsNotExist(err) {
-			binary = ""
-		}
+		return fmt.Errorf("invalid port: %w", err)
 	}
 
-	if binary == "" {
-		binary = "etcd"
-	}
-
-	/* #nosec */
-	e := exec.Command(binary,
-		"-data-dir", etcdDataDir,
-		"-listen-client-urls", clientUrlsString,
-		"-advertise-client-urls", clientUrlsString)
-	stderr, err := e.StderrPipe()
+	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image: etcdImage,
+			Cmd: []string{
+				"/usr/local/bin/etcd",
+				"--enable-v2=true",
+				"--listen-client-urls=http://0.0.0.0:2379",
+				"--advertise-client-urls=http://0.0.0.0:2379",
+			},
+			ExposedPorts: []string{etcdPort},
+			WaitingFor: wait.ForAll(
+				wait.ForHTTP("/v2/keys").
+					WithPort(port.Port()).
+					WithStatusCodeMatcher(func(status int) bool {
+						return status == http.StatusOK
+					}),
+				wait.NewHostPortStrategy(port.Port()),
+			),
+		},
+		Started: true,
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to start etcd container: %w", err)
 	}
-	stdout, err := e.StdoutPipe()
+
+	endpointCtx, endpointCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer endpointCancel()
+
+	endpoint, err := c.Endpoint(endpointCtx, "")
 	if err != nil {
-		return err
-	}
-	err = e.Start()
-	if err != nil {
-		return err
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		_ = c.Terminate(cleanupCtx)
+		return fmt.Errorf("failed to get etcd endpoint: %w", err)
 	}
 
-	// wait for started:
-	wait := make(chan int)
-	go func() {
-		for {
-			rsp, err := http.Get(Urls[0] + "/v2/keys")
-			if err == nil {
-				rsp.Body.Close()
-				close(wait)
-				return
-			}
-
-			time.Sleep(30 * time.Millisecond)
-		}
-	}()
-
-	select {
-	case <-wait:
-		etcd = e
-		return nil
-	case <-time.After(6 * time.Second):
-		bout, _ := io.ReadAll(stdout)
-		berr, _ := io.ReadAll(stderr)
-		log.Panicf("ETCD timeout: Failed to start etcd\netcd log output\nSTDOUT: %s\nSTDERR: %s", string(bout), string(berr))
-		return fmt.Errorf("etcd timeout")
-	}
+	Urls = []string{"http://" + endpoint}
+	container = c
+	return nil
 }
 
+// Stop terminates the running etcd container.
 func Stop() error {
-	if etcd == nil {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if container == nil {
 		return nil
 	}
 
-	defer func() {
-		os.RemoveAll(etcdDataDir)
-		etcdDataDir = ""
-	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	return etcd.Process.Kill()
+	err := container.Terminate(ctx)
+	container = nil
+	Urls = nil
+	return err
 }
 
-// Deletes the 'routes' directory from etcd with the prefix '/skippertest'.
+// StartProjectRoot starts an etcd server. Deprecated: delegates to Start.
+func StartProjectRoot(_ string) error {
+	return Start()
+}
+
+// DeleteAll deletes the 'routes' directory from etcd with the prefix '/skippertest'.
 func DeleteAll() error {
 	return DeleteAllFrom("/skippertest")
 }
 
-// Deletes the 'routes' directory with the specified prefix.
+// DeleteAllFrom deletes the 'routes' directory with the specified prefix.
 func DeleteAllFrom(prefix string) error {
+	if len(Urls) == 0 {
+		return errors.New("etcd container not running")
+	}
 	req, err := http.NewRequest("DELETE", Urls[0]+"/v2/keys"+prefix+"/routes?recursive=true", nil)
 	if err != nil {
 		return err
@@ -149,21 +132,21 @@ func DeleteAllFrom(prefix string) error {
 	if err != nil {
 		return err
 	}
-
-	rsp.Body.Close()
+	defer rsp.Body.Close()
 	return nil
 }
 
-// Deletes a route from etcd with the prefix '/skippertest'.
+// DeleteData deletes a route from etcd with the prefix '/skippertest'.
 func DeleteData(key string) error {
 	return DeleteDataFrom("/skippertest", key)
 }
 
-// Deletes a route from etcd with the specified prefix.
+// DeleteDataFrom deletes a route from etcd with the specified prefix.
 func DeleteDataFrom(prefix, key string) error {
-	req, err := http.NewRequest("DELETE",
-		Urls[0]+"/v2/keys"+prefix+"/routes/"+key,
-		nil)
+	if len(Urls) == 0 {
+		return errors.New("etcd container not running")
+	}
+	req, err := http.NewRequest("DELETE", Urls[0]+"/v2/keys"+prefix+"/routes/"+key, nil)
 	if err != nil {
 		return err
 	}
@@ -171,31 +154,31 @@ func DeleteDataFrom(prefix, key string) error {
 	if err != nil {
 		return err
 	}
-
 	defer rsp.Body.Close()
 	return nil
 }
 
-// Saves a route in etcd with the prefix '/skippertest'.
+// PutData saves a route in etcd with the prefix '/skippertest'.
 func PutData(key, data string) error {
 	return PutDataTo("/skippertest", key, data)
 }
 
-// Saves a route in etcd with the specified prefix.
+// PutDataTo saves a route in etcd with the specified prefix.
 func PutDataTo(prefix, key, data string) error {
 	return PutDataToTTL(prefix, key, data, 0)
 }
 
-// Saves a route with TTL in etcd with the specified prefix.
+// PutDataToTTL saves a route with TTL in etcd with the specified prefix.
 func PutDataToTTL(prefix, key, data string, ttl int) error {
+	if len(Urls) == 0 {
+		return errors.New("etcd container not running")
+	}
 	v := make(url.Values)
 	v.Add("value", data)
 	if ttl > 0 {
 		v.Add("ttl", strconv.Itoa(ttl))
 	}
-	req, err := http.NewRequest("PUT",
-		Urls[0]+"/v2/keys/skippertest/routes/"+key,
-		bytes.NewBufferString(v.Encode()))
+	req, err := http.NewRequest("PUT", Urls[0]+"/v2/keys"+prefix+"/routes/"+key, bytes.NewBufferString(v.Encode()))
 	if err != nil {
 		return err
 	}
@@ -204,19 +187,16 @@ func PutDataToTTL(prefix, key, data string, ttl int) error {
 	if err != nil {
 		return err
 	}
-
 	defer rsp.Body.Close()
 	return nil
 }
 
-// Deletes all routes in etcd and creates a test route under
-// the prefix '/skippertest'.
+// ResetData deletes all routes and creates a test route under '/skippertest'.
 func ResetData() error {
 	return ResetDataIn("/skippertest")
 }
 
-// Deletes all routes in etcd and creates a test route under
-// the specified prefix.
+// ResetDataIn deletes all routes and creates a test route under the specified prefix.
 func ResetDataIn(prefix string) error {
 	const testRoute = `
 		PathRegexp(".*\\.html") ->
@@ -232,18 +212,20 @@ func ResetDataIn(prefix string) error {
 	return PutDataTo(prefix, "pdp", testRoute)
 }
 
-// Loads an etcd route node from the prefix '/skippertest'.
+// GetNode loads an etcd route node from the prefix '/skippertest'.
 func GetNode(key string) (string, error) {
 	return GetNodeFrom("/skippertest", key)
 }
 
-// Loads an etcd route node from the specified prefix.
+// GetNodeFrom loads an etcd route node from the specified prefix.
 func GetNodeFrom(prefix, key string) (string, error) {
+	if len(Urls) == 0 {
+		return "", errors.New("etcd container not running")
+	}
 	rsp, err := http.Get(Urls[0] + "/v2/keys" + prefix + "/routes/" + key)
 	if err != nil {
 		return "", err
 	}
-
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode < http.StatusOK || rsp.StatusCode >= http.StatusMultipleChoices {
