@@ -1069,6 +1069,12 @@ type Options struct {
 	// CredentialsUpdateInterval sets the interval to update secrets
 	CredentialsUpdateInterval time.Duration
 
+	// RFC9421KeyFile path to the key file for RFC 9421 HTTP Message Signatures
+	RFC9421KeyFile string
+
+	// RFC9421KeyID key ID for RFC 9421 HTTP Message Signatures
+	RFC9421KeyID string
+
 	// API Monitoring feature is active (feature toggle)
 	ApiUsageMonitoringEnable                bool
 	ApiUsageMonitoringRealmKeys             string
@@ -2053,6 +2059,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		block.NewBlockHex(o.MaxMatcherBufferSize),
 		auth.NewBearerInjector(sp),
 		auth.NewSetRequestHeaderFromSecret(sp),
+		auth.NewRFC9421(o.RFC9421KeyFile, o.RFC9421KeyID, sp),
 		auth.NewJwtValidationWithOptions(tio),
 		auth.NewJwtValidationKeys(),
 		auth.NewJwtMetrics(),
