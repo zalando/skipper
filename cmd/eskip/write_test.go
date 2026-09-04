@@ -15,6 +15,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/url"
 	"os"
@@ -26,13 +27,12 @@ import (
 var testEtcdUrls []*url.URL
 
 func TestMain(m *testing.M) {
-	for _, arg := range os.Args {
-		if arg == "-test.short=true" {
-			return
-		}
+	flag.Parse()
+	if testing.Short() {
+		os.Exit(m.Run())
 	}
 
-	err := etcdtest.StartProjectRoot("../..")
+	err := etcdtest.Start()
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -3,6 +3,7 @@ package etcd
 import (
 	"encoding/base64"
 	"errors"
+	"flag"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -16,13 +17,12 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	for _, arg := range os.Args {
-		if arg == "-test.short=true" {
-			return
-		}
+	flag.Parse()
+	if testing.Short() {
+		os.Exit(m.Run())
 	}
 
-	err := etcdtest.StartProjectRoot("..")
+	err := etcdtest.Start()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -392,7 +392,7 @@ func TestReceiveDelete(t *testing.T) {
 }
 
 func TestUpsertNoId(t *testing.T) {
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
+	c, err := New(Options{[]string{"http://127.0.0.1:2379"}, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return
@@ -473,7 +473,7 @@ func TestUpsertExisting(t *testing.T) {
 }
 
 func TestDeleteNoId(t *testing.T) {
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
+	c, err := New(Options{[]string{"http://127.0.0.1:2379"}, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return

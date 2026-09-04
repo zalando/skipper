@@ -5,8 +5,6 @@ CURRENT_VERSION     = $(shell git describe --tags --always --dirty)
 VERSION            ?= $(CURRENT_VERSION)
 COMMIT_HASH         = $(shell git rev-parse --short HEAD)
 LIMIT_FDS           = $(shell ulimit -n)
-TEST_ETCD_VERSION  ?= v3.6.14
-TEST_ETCD_CHECKSUM ?= ffe840ff9295808e88cce2794a18a5ac87f12a5203c8314d0bf6aa119b41bac5
 TEST_PLUGINS       = _test_plugins/filter_noop.so \
 		     _test_plugins/predicate_match_none.so \
 		     _test_plugins/dataclient_noop.so \
@@ -148,7 +146,6 @@ clean: ## clean temporary files and directories
 .PHONY: deps
 deps: ## install dependencies to run everything
 	go env
-	./etcd/install.sh $(TEST_ETCD_VERSION) $(TEST_ETCD_CHECKSUM)
 	@go install honnef.co/go/tools/cmd/staticcheck@latest
 	@go install github.com/securego/gosec/v2/cmd/gosec@latest
 	@go install golang.org/x/vuln/cmd/govulncheck@latest
