@@ -28,8 +28,10 @@ var (
 )
 
 const (
-	etcdImage = "gcr.io/etcd-development/etcd:v3.5.18"
-	etcdPort  = "2379/tcp"
+	etcdImage       = "gcr.io/etcd-development/etcd:v3.5.18"
+	etcdPort        = "2379/tcp"
+	startupTimeout  = 2 * time.Minute
+	endpointTimeout = time.Minute
 )
 
 // Start starts an etcd testcontainer with v2 API enabled.
@@ -41,7 +43,7 @@ func Start() error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), startupTimeout)
 	defer cancel()
 
 	port, err := nat.NewPort("tcp", "2379")
@@ -74,12 +76,12 @@ func Start() error {
 		return fmt.Errorf("failed to start etcd container: %w", err)
 	}
 
-	endpointCtx, endpointCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	endpointCtx, endpointCancel := context.WithTimeout(context.Background(), endpointTimeout)
 	defer endpointCancel()
 
 	endpoint, err := c.Endpoint(endpointCtx, "")
 	if err != nil {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), endpointTimeout)
 		defer cleanupCancel()
 		_ = c.Terminate(cleanupCtx)
 		return fmt.Errorf("failed to get etcd endpoint: %w", err)
@@ -99,7 +101,7 @@ func Stop() error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), endpointTimeout)
 	defer cancel()
 
 	err := container.Terminate(ctx)
