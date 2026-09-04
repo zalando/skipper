@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -18,6 +19,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/filters/filtertest"
 	nethttptest "github.com/zalando/skipper/net/httptest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/tracing/tracingtest"
@@ -1490,4 +1492,77 @@ func assertDecisionLogJSON(t *testing.T, body []byte) {
 	assert.NotNil(t, decisionLog["decision_id"])
 	assert.NotNil(t, decisionLog["input"])
 	assert.NotNil(t, decisionLog["result"])
+}
+
+func makeHeaderValueOption(key, value string, action ext_authz_v3_core.HeaderValueOption_HeaderAppendAction) *ext_authz_v3_core.HeaderValueOption {
+	return &ext_authz_v3_core.HeaderValueOption{
+		Header:       &ext_authz_v3_core.HeaderValue{Key: key, Value: value},
+		AppendAction: action,
+	}
+}
+
+func TestAddResponseHeaders(t *testing.T) {
+	for _, tc := range []struct {
+		msg            string
+		upstream       http.Header
+		headersToAdd   []*ext_authz_v3_core.HeaderValueOption
+		expectedHeader http.Header
+	}{
+		{
+			msg:      "APPEND_IF_EXISTS_OR_ADD appends to existing upstream value",
+			upstream: http.Header{"X-Foo": {"upstream"}},
+			headersToAdd: []*ext_authz_v3_core.HeaderValueOption{
+				makeHeaderValueOption("X-Foo", "policy", ext_authz_v3_core.HeaderValueOption_APPEND_IF_EXISTS_OR_ADD),
+			},
+			expectedHeader: http.Header{"X-Foo": {"upstream", "policy"}},
+		},
+		{
+			msg:      "APPEND_IF_EXISTS_OR_ADD adds when key absent",
+			upstream: http.Header{},
+			headersToAdd: []*ext_authz_v3_core.HeaderValueOption{
+				makeHeaderValueOption("X-Foo", "policy", ext_authz_v3_core.HeaderValueOption_APPEND_IF_EXISTS_OR_ADD),
+			},
+			expectedHeader: http.Header{"X-Foo": {"policy"}},
+		},
+		{
+			msg:      "OVERWRITE_IF_EXISTS_OR_ADD replaces existing upstream value",
+			upstream: http.Header{"X-Foo": {"upstream"}},
+			headersToAdd: []*ext_authz_v3_core.HeaderValueOption{
+				makeHeaderValueOption("X-Foo", "policy", ext_authz_v3_core.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD),
+			},
+			expectedHeader: http.Header{"X-Foo": {"policy"}},
+		},
+		{
+			msg:      "OVERWRITE_IF_EXISTS_OR_ADD adds when key absent",
+			upstream: http.Header{},
+			headersToAdd: []*ext_authz_v3_core.HeaderValueOption{
+				makeHeaderValueOption("X-Foo", "policy", ext_authz_v3_core.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD),
+			},
+			expectedHeader: http.Header{"X-Foo": {"policy"}},
+		},
+		{
+			msg:      "OVERWRITE_IF_EXISTS replaces existing upstream value",
+			upstream: http.Header{"X-Foo": {"upstream"}},
+			headersToAdd: []*ext_authz_v3_core.HeaderValueOption{
+				makeHeaderValueOption("X-Foo", "policy", ext_authz_v3_core.HeaderValueOption_OVERWRITE_IF_EXISTS),
+			},
+			expectedHeader: http.Header{"X-Foo": {"policy"}},
+		},
+		{
+			msg:      "multiple headers with mixed actions",
+			upstream: http.Header{"X-Overwrite": {"old"}, "X-Append": {"existing"}},
+			headersToAdd: []*ext_authz_v3_core.HeaderValueOption{
+				makeHeaderValueOption("X-Overwrite", "new", ext_authz_v3_core.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD),
+				makeHeaderValueOption("X-Append", "appended", ext_authz_v3_core.HeaderValueOption_APPEND_IF_EXISTS_OR_ADD),
+			},
+			expectedHeader: http.Header{"X-Overwrite": {"new"}, "X-Append": {"existing", "appended"}},
+		},
+	} {
+		t.Run(tc.msg, func(t *testing.T) {
+			resp := &http.Response{Header: tc.upstream.Clone()}
+			fc := &filtertest.Context{FResponse: resp}
+			addResponseHeaders(fc, tc.headersToAdd)
+			assert.Equal(t, tc.expectedHeader, fc.Response().Header)
+		})
+	}
 }

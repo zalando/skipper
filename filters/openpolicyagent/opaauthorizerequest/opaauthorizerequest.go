@@ -220,7 +220,16 @@ func (f *opaAuthorizeRequestFilter) Response(fc filters.FilterContext) {
 func addResponseHeaders(fc filters.FilterContext, headersToAdd []*ext_authz_v3_core.HeaderValueOption) {
 	for _, headerToAdd := range headersToAdd {
 		header := headerToAdd.GetHeader()
-		fc.Response().Header.Add(header.GetKey(), header.GetValue())
+		key := header.GetKey()
+		value := header.GetValue()
+		switch headerToAdd.GetAppendAction() {
+		case ext_authz_v3_core.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD,
+			ext_authz_v3_core.HeaderValueOption_OVERWRITE_IF_EXISTS:
+			fc.Response().Header.Del(key)
+			fc.Response().Header.Set(key, value)
+		default:
+			fc.Response().Header.Add(key, value)
+		}
 	}
 }
 
