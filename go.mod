@@ -5,12 +5,12 @@ require (
 	github.com/MicahParks/keyfunc v1.9.0
 	github.com/abbot/go-http-auth v0.4.0
 	github.com/aryszka/jobqueue v0.0.3
-	github.com/bombsimon/logrusr/v4 v4.1.0
+	github.com/bombsimon/logrusr/v4 v4.2.0
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cjoudrey/gluahttp v0.0.0-20201111170219-25003d9adfa9
 	github.com/cjoudrey/gluaurl v0.0.0-20161028222611-31cbb9bef199
-	github.com/coreos/go-oidc/v3 v3.20.0
+	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/dchest/siphash v1.2.3
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0
 	github.com/dgryski/go-mpchash v0.0.0-20200819201138-7382f34c4cd1
@@ -18,13 +18,13 @@ require (
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598
 	github.com/docker/go-connections v0.8.1
 	github.com/envoyproxy/go-control-plane/envoy v1.39.0
-	github.com/go-jose/go-jose/v4 v4.1.4
+	github.com/go-jose/go-jose/v4 v4.1.5
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/memberlist v0.6.0
-	github.com/instana/go-sensor v1.75.1
-	github.com/klauspost/compress v1.19.2
+	github.com/instana/go-sensor v1.75.2
+	github.com/klauspost/compress v1.20.0
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.73
 	github.com/molecule-man/go-brrr v1.0.1
@@ -36,7 +36,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus/client_golang v1.24.1
-	github.com/prometheus/client_model v0.6.2
+	github.com/prometheus/client_model v0.6.3
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/sarslanhan/cronmask v0.0.0-20230801193303-54e29300a091
