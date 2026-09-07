@@ -1964,11 +1964,11 @@ r: SourceFromLast("9.0.0.0/24","2001:67c:20a0::/48") -> ...`
 ## Cache
 
 By default entries are stored in an in-process LRU (L1) local to each Skipper process.
-When `--swarm-valkey-urls` is configured and `--enable-l2-cache` is set, Valkey serves as a
-shared backing store (L2) accessible by all Skipper instances via a client-side consistent
-hash ring; every read checks L1 first and an L1 hit returns without contacting L2 cache.
-Without `--enable-l2-cache`, `--swarm-valkey-urls` wires Valkey into ratelimit only and the
-`cache()` filter uses L1 exclusively.
+When `--enable-swarm` and `--enable-l2-cache` are set, a configured Valkey
+(`--swarm-valkey-urls`) or Redis (`--swarm-redis-urls`) ring serves as a shared backing store
+(L2) accessible by all Skipper instances via client-side consistent hashing; every read checks
+L1 first and an L1 hit returns without contacting L2 cache. Without `--enable-l2-cache`, the
+configured ring is not used by the `cache()` filter, which uses L1 exclusively.
 
 On every successful L2 write the entry is also written to L1
 (write-through) with a TTL of `min(--cache-l1-ttl, entry.TTL)`. On a L2
@@ -2012,7 +2012,7 @@ falling back to 2 GB if the limit is unreadable. Override with
 ### Storage architecture
 
 - L1 implementation is in-memory (25% of memory set by cgroup or 2GB fix size)
-- L2 implementation is for example skpnet.ValkeyRingClient, reusing Valkey ring shards if available.
+- L2 implementation uses skpnet.ValkeyRingClient or skpnet.RedisRingClient, reusing the configured ring shards.
 
 ```mermaid
 flowchart TD
@@ -2054,7 +2054,7 @@ flowchart TD
 - `cache.reval_error`: Counter, background revalidation fetch failures
 - `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
 
-**L2 (for example if Valkey is configured):**
+**L2 (if Valkey or Redis is configured):**
 
 - `cache.l1_hit`: Counter, L1 hits that bypassed L2
 - `cache.l2_miss`: Counter, L2 misses that proceeded to an upstream fetch

@@ -397,7 +397,7 @@ func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 
 func TestValkeyStorage_DeleteCleansL1EvenOnValkeyError(t *testing.T) {
 	// Valkey is broken, so Set falls back to L1. Delete must still clean L1
-	// regardless of the Expire error from Valkey.
+	// regardless of the Delete error from Valkey.
 	stub := newBrokenStubValkeyClient()
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
 	s := NewL2Storage(stub, lru, &metricstest.MockMetrics{}, 0, valkey.IsValkeyNil)
@@ -412,7 +412,7 @@ func TestValkeyStorage_DeleteCleansL1EvenOnValkeyError(t *testing.T) {
 		t.Fatal("expected entry in L1 after Set fallback")
 	}
 
-	_ = s.Delete(ctx, "k") // Valkey Expire will error; L1 must still be cleaned
+	_ = s.Delete(ctx, "k") // Valkey Delete will error; L1 must still be cleaned
 
 	got, _ = lru.Get(ctx, "k")
 	if got != nil {

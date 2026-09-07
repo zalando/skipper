@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -23,6 +24,7 @@ import (
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
 	"github.com/valkey-io/valkey-go"
 	"go.opentelemetry.io/otel"
@@ -91,7 +93,10 @@ const (
 
 const DefaultPluginDir = "./plugins"
 
-var _ cache.L2Client = (*skpnet.ValkeyRingClient)(nil)
+var (
+	_ cache.L2Client = (*skpnet.RedisRingClient)(nil)
+	_ cache.L2Client = (*skpnet.ValkeyRingClient)(nil)
+)
 
 // Options to start skipper.
 type Options struct {
@@ -151,18 +156,17 @@ type Options struct {
 	// using a fixed 25% fraction. Set explicitly to override that behaviour.
 	ResponseCacheMaxMemoryBytes int64
 
-	// CacheL1TTL sets the maximum TTL for write-through L1 warming in ValkeyStorage.
-	// On a successful Valkey Set, L1 is warmed with min(CacheL1TTL, entry.TTL).
+	// CacheL1TTL sets the maximum TTL for write-through L1 warming in L2Storage.
+	// On a successful L2 Set, L1 is warmed with min(CacheL1TTL, entry.TTL).
 	// Set to 0 to disable write-through (write-around behaviour). Default: 60s.
 	CacheL1TTL time.Duration
 
-	// EnableL2Cache enables the L2 Cache. You need to pass
-	// L2CacheClient, which defaults to a valkey.Ring if not
-	// passed. Without enabling L2 cache, only in-process LRU (L1)
-	// is used.
+	// EnableL2Cache enables the L2 cache. L2CacheClient defaults to the
+	// configured Valkey or Redis ring. Without enabling L2 cache, only the
+	// in-process LRU (L1) is used.
 	EnableL2Cache bool
 
-	// L2CacheClient, defaults to valkey github.com/zalando/skipper/net.ValkeyRingClient
+	// L2CacheClient defaults to the configured ValkeyRingClient or RedisRingClient.
 	L2CacheClient cache.L2Client
 
 	// ReadMemoryLimit, when set, is called by the cache() filter initialiser
@@ -1455,6 +1459,26 @@ func (o *Options) cacheBudget() int64 {
 	return limit / cgroupFraction
 }
 
+func selectL2CacheClient(enabled bool, configured cache.L2Client, valkeyRing *skpnet.ValkeyRingClient, redisRing *skpnet.RedisRingClient) cache.L2Client {
+	if !enabled {
+		return nil
+	}
+	if configured != nil {
+		return configured
+	}
+	if valkeyRing != nil {
+		return valkeyRing
+	}
+	if redisRing != nil {
+		return redisRing
+	}
+	return nil
+}
+
+func isL2CacheMiss(err error) bool {
+	return valkey.IsValkeyNil(err) || errors.Is(err, redis.Nil)
+}
+
 // filterRegistry creates a filter registry with the builtin and
 // custom filter specs registered excluding disabled filters.
 // If [Options.RegisterFilters] callback is set, it will be called.
@@ -2260,6 +2284,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		defer valkeyRing.Close()
 	}
 
+	var redisRing *skpnet.RedisRingClient
+	if redisOptions != nil {
+		if redisOptions.MetricsPrefix == "" {
+			redisOptions.MetricsPrefix = ratelimit.RedisMetricsPrefix
+		}
+		redisRing = skpnet.NewRedisRingClient(redisOptions)
+		defer redisRing.Close()
+	}
+
 	var (
 		ratelimitRegistry                *ratelimit.Registry
 		failClosedRatelimitPostProcessor *ratelimitfilters.FailClosedPostProcessor
@@ -2271,13 +2304,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		case valkeyRing != nil:
 			ratelimitRegistry = ratelimit.NewRatelimitRegistryValkey(valkeyRing, o.RatelimitSettings...)
 
-		case redisOptions != nil:
-			if redisOptions.MetricsPrefix == "" {
-				redisOptions.MetricsPrefix = ratelimit.RedisMetricsPrefix
-			}
-			redisRing := skpnet.NewRedisRingClient(redisOptions)
+		case redisRing != nil:
 			ratelimitRegistry = ratelimit.NewRatelimitRegistryRedis(redisRing, o.RatelimitSettings...)
-			defer redisRing.Close()
 
 		default:
 			// swim based Swarmer (deprecated)
@@ -2314,13 +2342,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	if !slices.Contains(o.DisabledFilters, cache.Name) {
-		var l2Client cache.L2Client
-		if o.EnableL2Cache {
-			l2Client = o.L2CacheClient
-			if l2Client == nil {
-				l2Client = valkeyRing
-			}
-		}
+		l2Client := selectL2CacheClient(o.EnableL2Cache, o.L2CacheClient, valkeyRing, redisRing)
 		cacheSpec := cache.NewCacheFilter(
 			cache.Options{
 				MaxBytes:   o.cacheBudget(),
@@ -2334,7 +2356,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 					OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
 				},
 				L2Client:  l2Client,
-				IsNoL2Err: valkey.IsValkeyNil,
+				IsNoL2Err: isL2CacheMiss,
 				L1TTL:     o.CacheL1TTL,
 			},
 		)

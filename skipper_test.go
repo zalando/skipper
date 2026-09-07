@@ -15,16 +15,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
+	"github.com/valkey-io/valkey-go"
 
 	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/filters"
 	flog "github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/filters/cache"
 	fscheduler "github.com/zalando/skipper/filters/scheduler"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/metrics/metricstest"
+	skpnet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
@@ -143,6 +147,54 @@ func TestOptionsFilterRegistry(t *testing.T) {
 		assert.Contains(t, fr, filters.BearerInjectorName)
 		assert.Contains(t, fr, filters.WebhookName)
 	})
+}
+
+func TestSelectL2CacheClient(t *testing.T) {
+	configured := &skpnet.RedisRingClient{}
+	valkeyRing := &skpnet.ValkeyRingClient{}
+	redisRing := &skpnet.RedisRingClient{}
+
+	for _, tt := range []struct {
+		name       string
+		enabled    bool
+		configured cache.L2Client
+		valkeyRing *skpnet.ValkeyRingClient
+		redisRing  *skpnet.RedisRingClient
+		want       any
+	}{
+		{name: "disabled", configured: configured, valkeyRing: valkeyRing, redisRing: redisRing},
+		{name: "configured client", enabled: true, configured: configured, valkeyRing: valkeyRing, redisRing: redisRing, want: configured},
+		{name: "valkey ring", enabled: true, valkeyRing: valkeyRing, redisRing: redisRing, want: valkeyRing},
+		{name: "redis ring", enabled: true, redisRing: redisRing, want: redisRing},
+		{name: "no client", enabled: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := selectL2CacheClient(tt.enabled, tt.configured, tt.valkeyRing, tt.redisRing)
+			if any(got) != tt.want {
+				t.Errorf("selectL2CacheClient() = %T %p, want %T %p", got, got, tt.want, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsL2CacheMiss(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil"},
+		{name: "valkey miss", err: valkey.Nil, want: true},
+		{name: "redis miss", err: redis.Nil, want: true},
+		{name: "wrapped redis miss", err: fmt.Errorf("wrapped: %w", redis.Nil), want: true},
+		{name: "other error", err: fmt.Errorf("connection failed")},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isL2CacheMiss(tt.err); got != tt.want {
+				t.Errorf("isL2CacheMiss() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
 
 func TestOptionsOpenTracingTracerInstanceOverridesOpenTracing(t *testing.T) {
