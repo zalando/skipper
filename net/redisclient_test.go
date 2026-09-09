@@ -2,12 +2,14 @@ package net
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/redis/go-redis/v9"
 	"github.com/zalando/skipper/net/redistest"
 	"github.com/zalando/skipper/tracing/tracers/basic"
 )
@@ -316,6 +318,60 @@ func TestRedisClientGetSet(t *testing.T) {
 				t.Errorf("Failed to get correct Get value, want '%v', got '%v'", tt.expect, val)
 			}
 		})
+	}
+}
+
+func TestRedisClientL2Operations(t *testing.T) {
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
+
+	cli := NewRedisRingClient(&RedisOptions{Addrs: []string{redisAddr}})
+	defer func() {
+		if !cli.closed {
+			t.Error("Redis client was not closed")
+		}
+	}()
+	defer cli.Close()
+
+	ctx := context.Background()
+	if err := cli.SetWithExpire(ctx, "expiring", "value", 100*time.Millisecond); err != nil {
+		t.Fatalf("SetWithExpire: %v", err)
+	}
+	got, err := cli.Get(ctx, "expiring")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got != "value" {
+		t.Fatalf("Get: got %q, want %q", got, "value")
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		_, err = cli.Get(ctx, "expiring")
+		if errors.Is(err, redis.Nil) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("Get while waiting for expiry: %v", err)
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("key did not expire")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if err := cli.SetWithExpire(ctx, "deleted", "value", time.Minute); err != nil {
+		t.Fatalf("SetWithExpire before Del: %v", err)
+	}
+	deleted, err := cli.Del(ctx, "deleted")
+	if err != nil {
+		t.Fatalf("Del: %v", err)
+	}
+	if deleted != 1 {
+		t.Fatalf("Del: got %d deleted keys, want 1", deleted)
+	}
+	if _, err := cli.Get(ctx, "deleted"); !errors.Is(err, redis.Nil) {
+		t.Fatalf("Get after Del: got error %v, want redis.Nil", err)
 	}
 }
 

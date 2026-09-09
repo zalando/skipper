@@ -419,6 +419,16 @@ func (r *RedisRingClient) Set(ctx context.Context, key string, value any, expira
 	return res.Result()
 }
 
+// SetWithExpire stores a string value and applies the provided expiration.
+func (r *RedisRingClient) SetWithExpire(ctx context.Context, key string, value string, expire time.Duration) error {
+	return r.ring.Set(ctx, key, value, expire).Err()
+}
+
+// Del deletes a key and returns the number of keys removed.
+func (r *RedisRingClient) Del(ctx context.Context, key string) (int64, error) {
+	return r.ring.Del(ctx, key).Result()
+}
+
 func (r *RedisRingClient) ZAdd(ctx context.Context, key string, val int64, score float64) (int64, error) {
 	res := r.ring.ZAdd(ctx, key, redis.Z{Member: val, Score: score})
 	return res.Val(), res.Err()

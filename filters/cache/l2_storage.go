@@ -12,10 +12,10 @@ import (
 
 const defaultMinTTL = time.Minute
 
+// L2Client provides the key-value operations required by L2Storage.
 type L2Client interface {
 	Get(ctx context.Context, key string) (string, error)
 	SetWithExpire(ctx context.Context, key string, value string, expire time.Duration) error
-	Expire(ctx context.Context, key string, d time.Duration) (int64, error)
 	Del(ctx context.Context, key string) (int64, error)
 }
 

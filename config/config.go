@@ -751,9 +751,9 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.SwarmStaticOther, "swarm-static-other", "", "set static swarm all nodes, for example 127.0.0.1:9002,127.0.0.1:9003")
 
 	// cache
-	flag.DurationVar(&cfg.CacheL1TTL, "cache-l1-ttl", 60*time.Second, "maximum TTL for write-through L1 warming in the cache() filter when Valkey is configured; set to 0 to disable (write-around)")
+	flag.DurationVar(&cfg.CacheL1TTL, "cache-l1-ttl", 60*time.Second, "maximum TTL for write-through L1 warming in the cache() filter when Valkey or Redis is configured; set to 0 to disable (write-around)")
 	flag.Int64Var(&cfg.CacheL1MaxMemoryBytes, "cache-l1-max-memory-bytes", 0, "maximum memory budget in bytes for the cache() filter's in-process LRU (L1); defaults to 25% of cgroup memory limit or 2 GB if unreadable")
-	flag.BoolVar(&cfg.EnableL2Cache, "enable-l2-cache", false, "enable Valkey as L2 backing store for the cache() filter when --swarm-valkey-urls is configured; by default only in-process LRU (L1) is used")
+	flag.BoolVar(&cfg.EnableL2Cache, "enable-l2-cache", false, "enable Valkey or Redis as L2 backing store for the cache() filter when a corresponding swarm backend is configured; by default only in-process LRU (L1) is used")
 
 	flag.IntVar(&cfg.ClusterRatelimitMaxGroupShards, "cluster-ratelimit-max-group-shards", 1, "sets the maximum number of group shards for the clusterRatelimit filter")
 
