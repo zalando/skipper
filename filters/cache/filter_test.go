@@ -203,19 +203,10 @@ func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
 	}
 }
 
-// TestCacheFilter_RFC_KeyHeaders_DifferentTokens verifies that in RFC mode with
-// "Authorization" in keyHeaders, concurrent requests carrying different tokens
-// never cross-coalesce — each token maps to its own cache key, so a request
-// can only ever be served its own token's response.
-//
-// Uses a large N per token (mirrors TestCacheFilter_ColdMissCoalescing) rather
-// than pinning exact timing between two goroutines: the scheduler-opaque gap
-// between the storage.Get miss and the DoChan call means a fixed sleep to
-// "let the other request reach DoChan" is not a reliable barrier under CI
-// throttling. fetchCount>=2 is a deterministic invariant here (token-A and
-// token-B are different singleflight keys, so they can never fully collapse
-// into one fetch); the upper bound tolerates a few late-arriving goroutines
-// per token racing past an already-completed singleflight call.
+// TestCacheFilter_RFC_KeyHeaders_DifferentTokens verifies that different
+// tokens in keyHeaders never cross-coalesce. Uses a large N per token
+// (mirrors TestCacheFilter_ColdMissCoalescing) instead of a sleep-based
+// barrier between two goroutines.
 func TestCacheFilter_RFC_KeyHeaders_DifferentTokens(t *testing.T) {
 	const perToken = 25
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
@@ -306,12 +297,9 @@ func TestCacheFilter_RFC_KeyHeaders_DifferentTokens(t *testing.T) {
 	}
 }
 
-// TestCacheFilter_RFC_KeyHeaders_SameToken verifies that in RFC mode with
-// "Authorization" in keyHeaders, concurrent requests carrying the same token
-// are still coalesced — same identity, one shared cache key, coalescing
-// preserved. Uses a large N and a tolerant upper bound (mirrors
-// TestCacheFilter_ColdMissCoalescing) instead of pinning exact timing between
-// two goroutines with a sleep.
+// TestCacheFilter_RFC_KeyHeaders_SameToken verifies that requests sharing the
+// same token still coalesce. Uses a large N and tolerant bound (mirrors
+// TestCacheFilter_ColdMissCoalescing) instead of a sleep-based barrier.
 func TestCacheFilter_RFC_KeyHeaders_SameToken(t *testing.T) {
 	const N = 50
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
