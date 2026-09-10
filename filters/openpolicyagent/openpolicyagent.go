@@ -821,8 +821,11 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 }
 
 func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ...string) bool {
+	if len(pluginNames) == 0 {
+		return true
+	}
 	for pluginName, status := range allPluginsStatus {
-		if pluginNames != nil && !slices.Contains(pluginNames, pluginName) {
+		if !slices.Contains(pluginNames, pluginName) {
 			continue
 		}
 
