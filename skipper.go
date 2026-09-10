@@ -1527,15 +1527,17 @@ func (o *Options) TLSConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		// - GetCertificate
 		// - NextProtos
 		tlsConfig = o.Letsencrypt.TLSConfig()
-	}
-
-	if o.Letsencrypt == nil && cr != nil {
+	} else if cr != nil {
 		tlsConfig = &tls.Config{
 			// sets GetCertificate which was already set by Letsencrypt.TLSConfig()
 			GetCertificate: cr.GetCertFromHello,
 		}
-	} else if tlsConfig == nil {
-		return nil, nil
+	} else {
+		if o.CertPathTLS == "" && o.KeyPathTLS == "" {
+			return nil, nil
+		}
+
+		tlsConfig = &tls.Config{}
 	}
 
 	tlsConfig.MinVersion = o.TLSMinVersion
