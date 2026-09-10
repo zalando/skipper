@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"fmt"
+	"net/http"
 	"regexp"
 	"slices"
 	"strings"
@@ -253,8 +254,9 @@ func (spec *headerFilter) CreateFilter(config []any) (filters.Filter, error) {
 			return nil, fmt.Errorf("filter expects valid regex: %w", filters.ErrInvalidFilterParameters)
 		}
 		return &headerFilter{
-			typ:         spec.typ,
-			key:         key,
+			typ: spec.typ,
+			// filter writes the remaining values back into the header map directly
+			key:         http.CanonicalHeaderKey(key),
 			value:       value,
 			valueRegexp: re,
 		}, nil
