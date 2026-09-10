@@ -241,7 +241,9 @@ func TestCacheFilter_RFC_KeyHeaders_DifferentTokens(t *testing.T) {
 		}, nil
 	}
 
-	const url = "https://cdn.contentful.com/spaces/abc/entries/me"
+	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
+	defer backend.Close()
+	url := backend.URL + "/spaces/abc/entries/me"
 	results := make([]*filtertest.Context, 2*perToken)
 	tokens := make([]string, 2*perToken)
 
@@ -334,7 +336,9 @@ func TestCacheFilter_RFC_KeyHeaders_SameToken(t *testing.T) {
 		}, nil
 	}
 
-	const url = "https://cdn.contentful.com/spaces/abc/entries/shared"
+	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
+	defer backend.Close()
+	url := backend.URL + "/spaces/abc/entries/shared"
 	const token = "service-account-token"
 	results := make([]*filtertest.Context, N)
 
