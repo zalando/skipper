@@ -1515,38 +1515,45 @@ func (o *Options) filterRegistry() filters.Registry {
 	return registry
 }
 
-func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
-
-	// TODO(sszuecs): does it make sense or do we want to chain TLSConfigs?
-	if o.Letsencrypt != nil {
-		return o.Letsencrypt.TLSConfig(), nil
-	}
+func (o *Options) TLSConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
+	var tlsConfig *tls.Config
 
 	if o.ProxyTLS != nil {
-		return o.ProxyTLS, nil
+		tlsConfig = o.ProxyTLS
 	}
 
-	if o.CertPathTLS == "" && o.KeyPathTLS == "" && cr == nil {
-		return nil, nil
+	if o.Letsencrypt != nil {
+		// sets:
+		// - GetCertificate
+		// - NextProtos
+		tlsConfig = o.Letsencrypt.TLSConfig()
 	}
 
-	config := &tls.Config{
-		MinVersion:       o.TLSMinVersion,
-		ClientAuth:       o.TLSClientAuth,
-		KeyLogWriter:     o.KeyLogWriter,
-		VerifyConnection: o.VerifyConnection,
+	if tlsConfig != nil {
+		tlsConfig.MinVersion = o.TLSMinVersion
+		tlsConfig.ClientAuth = o.TLSClientAuth
+		tlsConfig.KeyLogWriter = o.KeyLogWriter
+		tlsConfig.VerifyConnection = o.VerifyConnection
+	} else {
+		tlsConfig = &tls.Config{
+			MinVersion:       o.TLSMinVersion,
+			ClientAuth:       o.TLSClientAuth,
+			KeyLogWriter:     o.KeyLogWriter,
+			VerifyConnection: o.VerifyConnection,
+		}
 	}
 
 	if o.CipherSuites != nil {
-		config.CipherSuites = o.CipherSuites
+		tlsConfig.CipherSuites = o.CipherSuites
 	}
 
-	if cr != nil {
-		config.GetCertificate = cr.GetCertFromHello
+	if o.Letsencrypt == nil && cr != nil {
+		// sets GetCertificate which was already set by Letsencrypt.TLSConfig()
+		tlsConfig.GetCertificate = cr.GetCertFromHello
 	}
 
 	if o.CertPathTLS == "" && o.KeyPathTLS == "" {
-		return config, nil
+		return tlsConfig, nil
 	}
 
 	crts := strings.Split(o.CertPathTLS, ",")
@@ -1562,9 +1569,9 @@ func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		if err != nil {
 			return nil, fmt.Errorf("failed to load X509 keypair from %s and %s: %w", crt, key, err)
 		}
-		config.Certificates = append(config.Certificates, keypair)
+		tlsConfig.Certificates = append(tlsConfig.Certificates, keypair)
 	}
-	return config, nil
+	return tlsConfig, nil
 }
 
 func (o *Options) openTracingTracerInstance() (ot.Tracer, error) {
@@ -1635,7 +1642,7 @@ func listenAndServeQuit(
 	mtr metrics.Metrics,
 	cr *certregistry.CertRegistry,
 ) error {
-	tlsConfig, err := o.TlsConfig(cr)
+	tlsConfig, err := o.TLSConfig(cr)
 	if err != nil {
 		return err
 	}

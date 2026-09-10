@@ -239,45 +239,45 @@ func TestOptionsTLSConfig(t *testing.T) {
 
 	// empty without registry
 	o := &Options{}
-	c, err := o.TlsConfig(nil)
+	c, err := o.TLSConfig(nil)
 	require.NoError(t, err)
 	require.Nil(t, c)
 
 	// empty with registry
 	o = &Options{}
-	c, err = o.TlsConfig(cr)
+	c, err = o.TLSConfig(cr)
 	require.NoError(t, err)
 	require.NotNil(t, c.GetCertificate)
 
 	// proxy tls config
 	o = &Options{ProxyTLS: proxyTLS}
-	c, err = o.TlsConfig(cr)
+	c, err = o.TLSConfig(cr)
 	require.NoError(t, err)
 	require.Same(t, proxyTLS, c)
 
 	// proxy tls config priority
 	o = &Options{ProxyTLS: proxyTLS, CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test.key"}
-	c, err = o.TlsConfig(cr)
+	c, err = o.TLSConfig(cr)
 	require.NoError(t, err)
 	require.Same(t, proxyTLS, c)
 
 	// cert key path
 	o = &Options{TLSMinVersion: tls.VersionTLS12, CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test.key"}
-	c, err = o.TlsConfig(cr)
+	c, err = o.TLSConfig(cr)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS12), c.MinVersion)
 	require.Equal(t, []tls.Certificate{cert}, c.Certificates)
 
 	// multiple cert key paths
 	o = &Options{TLSMinVersion: tls.VersionTLS13, CertPathTLS: "fixtures/test.crt,fixtures/test2.crt", KeyPathTLS: "fixtures/test.key,fixtures/test2.key"}
-	c, err = o.TlsConfig(cr)
+	c, err = o.TLSConfig(cr)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), c.MinVersion)
 	require.Equal(t, []tls.Certificate{cert, cert2}, c.Certificates)
 
 	// TLS Cipher Suites
 	o = &Options{CipherSuites: []uint16{1}}
-	c, err = o.TlsConfig(cr)
+	c, err = o.TLSConfig(cr)
 	require.NoError(t, err)
 	assert.Equal(t, len(c.CipherSuites), 1)
 
@@ -291,7 +291,7 @@ func TestOptionsTLSConfig(t *testing.T) {
 		KeyLogWriter:     keyLogWriter,
 		VerifyConnection: verifyConnection,
 	}
-	c, err = o.TlsConfig(cr)
+	c, err = o.TLSConfig(cr)
 	require.NoError(t, err)
 	require.NotNil(t, c)
 	assert.Same(t, keyLogWriter, c.KeyLogWriter)
@@ -315,7 +315,7 @@ func TestOptionsTLSConfigInvalidPaths(t *testing.T) {
 		{"multiple cert key mismatch", &Options{CertPathTLS: "fixtures/test.crt,fixtures/test2.crt", KeyPathTLS: "fixtures/test2.key,fixtures/test.key"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := tt.options.TlsConfig(cr)
+			_, err := tt.options.TLSConfig(cr)
 			t.Logf("tlsConfig error: %v", err)
 			require.Error(t, err)
 		})
