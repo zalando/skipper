@@ -205,8 +205,19 @@ func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
 
 // TestCacheFilter_RFC_KeyHeaders_DifferentTokens verifies that in RFC mode with
 // "Authorization" in keyHeaders, concurrent requests carrying different tokens
-// are never coalesced — each gets its own upstream fetch and its own response.
+// never cross-coalesce — each token maps to its own cache key, so a request
+// can only ever be served its own token's response.
+//
+// Uses a large N per token (mirrors TestCacheFilter_ColdMissCoalescing) rather
+// than pinning exact timing between two goroutines: the scheduler-opaque gap
+// between the storage.Get miss and the DoChan call means a fixed sleep to
+// "let the other request reach DoChan" is not a reliable barrier under CI
+// throttling. fetchCount>=2 is a deterministic invariant here (token-A and
+// token-B are different singleflight keys, so they can never fully collapse
+// into one fetch); the upper bound tolerates a few late-arriving goroutines
+// per token racing past an already-completed singleflight call.
 func TestCacheFilter_RFC_KeyHeaders_DifferentTokens(t *testing.T) {
+	const perToken = 25
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	fi, err := spec.CreateFilter([]any{"Authorization"})
@@ -216,7 +227,7 @@ func TestCacheFilter_RFC_KeyHeaders_DifferentTokens(t *testing.T) {
 	f := fi.(*cacheFilter)
 
 	mc := &missCounting{Storage: f.storage}
-	mc.wg.Add(2)
+	mc.wg.Add(2 * perToken)
 	f.storage = mc
 
 	var fetchCount atomic.Int64
@@ -227,7 +238,7 @@ func TestCacheFilter_RFC_KeyHeaders_DifferentTokens(t *testing.T) {
 	f.fetch = func(req *http.Request) (*http.Response, error) {
 		fetchCount.Add(1)
 		fetchStartedOnce.Do(func() { close(fetchStarted) })
-		mc.wg.Wait()
+		mc.wg.Wait() // block until every goroutine has confirmed a cache miss
 		<-releaseAll
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -240,39 +251,69 @@ func TestCacheFilter_RFC_KeyHeaders_DifferentTokens(t *testing.T) {
 	}
 
 	const url = "https://cdn.contentful.com/spaces/abc/entries/me"
+	results := make([]*filtertest.Context, 2*perToken)
+	tokens := make([]string, 2*perToken)
 
 	var wg sync.WaitGroup
-	ctxA := newCtx("GET", url, "token-user-a")
-	ctxB := newCtx("GET", url, "token-user-b")
+	for i := range 2 * perToken {
+		token := "token-user-a"
+		if i%2 == 1 {
+			token = "token-user-b"
+		}
+		tokens[i] = token
+		wg.Add(1)
+		i, token := i, token
+		go func() {
+			defer wg.Done()
+			ctx := newCtx("GET", url, token)
+			f.Request(ctx)
+			results[i] = ctx
+		}()
+	}
 
-	wg.Add(2)
-	go func() { defer wg.Done(); f.Request(ctxA) }()
-	<-fetchStarted
-	go func() { defer wg.Done(); f.Request(ctxB) }()
-	time.Sleep(50 * time.Millisecond) // let user-b reach DoChan
+	<-fetchStarted // fetch is running; all misses will be counted before it returns
 	close(releaseAll)
 	wg.Wait()
 
-	if got := fetchCount.Load(); got != 2 {
-		t.Fatalf("expected 2 upstream fetches (one per token), got %d", got)
+	// Two distinct keys (one per token) can never fully collapse into a single
+	// fetch — this bound holds regardless of goroutine scheduling.
+	if got := fetchCount.Load(); got < 2 {
+		t.Fatalf("expected at least 2 upstream fetches (different tokens are different keys), got %d", got)
 	}
-	bodyA, _ := io.ReadAll(ctxA.FResponse.Body)
-	bodyB, _ := io.ReadAll(ctxB.FResponse.Body)
-	if !strings.Contains(string(bodyA), "token-user-a") {
-		t.Errorf("user-a got wrong response: %q", string(bodyA))
+	// Coalescing should still reduce fetches well below 2*perToken; allow a
+	// generous tolerance for late-arriving goroutines racing past a completed
+	// singleflight call, same as TestCacheFilter_ColdMissCoalescing.
+	if got := fetchCount.Load(); got > 10 {
+		t.Fatalf("expected coalescing per token to keep fetches low, got %d", got)
 	}
-	if !strings.Contains(string(bodyB), "token-user-b") {
-		t.Errorf("user-b got wrong response: %q", string(bodyB))
-	}
-	if strings.Contains(string(bodyB), "token-user-a") {
-		t.Errorf("cross-user disclosure: user-b received user-a's response: %q", string(bodyB))
+
+	for i, ctx := range results {
+		if !ctx.FServed {
+			t.Fatalf("goroutine %d: expected ctx to be served", i)
+		}
+		body, _ := io.ReadAll(ctx.FResponse.Body)
+		wantToken := tokens[i]
+		if !strings.Contains(string(body), wantToken) {
+			t.Errorf("goroutine %d: expected %q in response, got %q", i, wantToken, body)
+		}
+		otherToken := "token-user-b"
+		if wantToken == "token-user-b" {
+			otherToken = "token-user-a"
+		}
+		if strings.Contains(string(body), otherToken) {
+			t.Errorf("cross-user disclosure: goroutine %d (token %q) received %q: %q", i, wantToken, otherToken, body)
+		}
 	}
 }
 
 // TestCacheFilter_RFC_KeyHeaders_SameToken verifies that in RFC mode with
 // "Authorization" in keyHeaders, concurrent requests carrying the same token
-// are still coalesced — same identity, one upstream fetch.
+// are still coalesced — same identity, one shared cache key, coalescing
+// preserved. Uses a large N and a tolerant upper bound (mirrors
+// TestCacheFilter_ColdMissCoalescing) instead of pinning exact timing between
+// two goroutines with a sleep.
 func TestCacheFilter_RFC_KeyHeaders_SameToken(t *testing.T) {
+	const N = 50
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 	fi, err := spec.CreateFilter([]any{"Authorization"})
@@ -282,7 +323,7 @@ func TestCacheFilter_RFC_KeyHeaders_SameToken(t *testing.T) {
 	f := fi.(*cacheFilter)
 
 	mc := &missCounting{Storage: f.storage}
-	mc.wg.Add(2)
+	mc.wg.Add(N)
 	f.storage = mc
 
 	var fetchCount atomic.Int64
@@ -307,29 +348,39 @@ func TestCacheFilter_RFC_KeyHeaders_SameToken(t *testing.T) {
 
 	const url = "https://cdn.contentful.com/spaces/abc/entries/shared"
 	const token = "service-account-token"
+	results := make([]*filtertest.Context, N)
 
 	var wg sync.WaitGroup
-	ctxA := newCtx("GET", url, token)
-	ctxB := newCtx("GET", url, token)
+	for i := range N {
+		wg.Add(1)
+		i := i
+		go func() {
+			defer wg.Done()
+			ctx := newCtx("GET", url, token)
+			f.Request(ctx)
+			results[i] = ctx
+		}()
+	}
 
-	wg.Add(2)
-	go func() { defer wg.Done(); f.Request(ctxA) }()
 	<-fetchStarted
-	go func() { defer wg.Done(); f.Request(ctxB) }()
-	time.Sleep(50 * time.Millisecond)
 	close(releaseAll)
 	wg.Wait()
 
-	if got := fetchCount.Load(); got != 1 {
-		t.Fatalf("expected 1 upstream fetch (same token coalesced), got %d", got)
+	// Same token → same key → coalescing should reduce fetches dramatically,
+	// allowing a small number of late-arriving goroutines to race past a
+	// completed singleflight call, same tolerance as TestCacheFilter_ColdMissCoalescing.
+	if got := fetchCount.Load(); got > 5 {
+		t.Fatalf("expected coalescing to reduce fetches significantly, got %d (N=%d)", got, N)
 	}
-	bodyA, _ := io.ReadAll(ctxA.FResponse.Body)
-	bodyB, _ := io.ReadAll(ctxB.FResponse.Body)
-	if string(bodyA) != `{"data":"shared"}` {
-		t.Errorf("user-a got wrong response: %q", string(bodyA))
-	}
-	if string(bodyB) != `{"data":"shared"}` {
-		t.Errorf("user-b got wrong response: %q", string(bodyB))
+
+	for i, ctx := range results {
+		if !ctx.FServed {
+			t.Fatalf("goroutine %d: expected ctx to be served", i)
+		}
+		body, _ := io.ReadAll(ctx.FResponse.Body)
+		if string(body) != `{"data":"shared"}` {
+			t.Errorf("goroutine %d: got wrong response: %q", i, body)
+		}
 	}
 }
 

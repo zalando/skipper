@@ -4244,6 +4244,16 @@ matching the same key. It has no awareness of other filters in the chain.
   `Cache-Control: public` if you want authenticated responses cached.
 * **`Cache-Control: private` is ignored in force mode.** Audit the upstream
   response before enabling force mode on any authenticated route.
+* **Coalescing is not gated by `private`/`no-store`.** In RFC mode, concurrent
+  cold-miss requests to the same key are coalesced into a single upstream
+  fetch, and every one of those concurrent requests receives that same
+  response — including `private`/`no-store` responses that are never
+  persisted to the cache. This
+  coalescing uses the same key as storage, so it is also scoped by
+  `keyHeaders`: without the identity header included, two different users'
+  concurrent requests to the same path can share one upstream fetch and
+  receive each other's response, even though nothing is ever written to the
+  cache.
 
 !!! note
     `s-maxage` implies `proxy-revalidate` per [RFC 9111 §5.2.2.10](https://www.rfc-editor.org/rfc/rfc9111#section-5.2.2.10): stale entries
