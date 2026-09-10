@@ -1519,7 +1519,7 @@ func (o *Options) TLSConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 	var tlsConfig *tls.Config
 
 	if o.ProxyTLS != nil {
-		tlsConfig = o.ProxyTLS
+		return o.ProxyTLS, nil
 	}
 
 	if o.Letsencrypt != nil {
@@ -1529,27 +1529,22 @@ func (o *Options) TLSConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		tlsConfig = o.Letsencrypt.TLSConfig()
 	}
 
-	if tlsConfig != nil {
-		tlsConfig.MinVersion = o.TLSMinVersion
-		tlsConfig.ClientAuth = o.TLSClientAuth
-		tlsConfig.KeyLogWriter = o.KeyLogWriter
-		tlsConfig.VerifyConnection = o.VerifyConnection
-	} else {
+	if o.Letsencrypt == nil && cr != nil {
 		tlsConfig = &tls.Config{
-			MinVersion:       o.TLSMinVersion,
-			ClientAuth:       o.TLSClientAuth,
-			KeyLogWriter:     o.KeyLogWriter,
-			VerifyConnection: o.VerifyConnection,
+			// sets GetCertificate which was already set by Letsencrypt.TLSConfig()
+			GetCertificate: cr.GetCertFromHello,
 		}
+	} else if tlsConfig == nil {
+		return nil, nil
 	}
+
+	tlsConfig.MinVersion = o.TLSMinVersion
+	tlsConfig.ClientAuth = o.TLSClientAuth
+	tlsConfig.KeyLogWriter = o.KeyLogWriter
+	tlsConfig.VerifyConnection = o.VerifyConnection
 
 	if o.CipherSuites != nil {
 		tlsConfig.CipherSuites = o.CipherSuites
-	}
-
-	if o.Letsencrypt == nil && cr != nil {
-		// sets GetCertificate which was already set by Letsencrypt.TLSConfig()
-		tlsConfig.GetCertificate = cr.GetCertFromHello
 	}
 
 	if o.CertPathTLS == "" && o.KeyPathTLS == "" {
