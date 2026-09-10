@@ -1522,6 +1522,10 @@ func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		return o.ProxyTLS, nil
 	}
 
+	if o.CertPathTLS == "" && o.KeyPathTLS == "" && cr == nil && o.Letsencrypt == nil {
+		return nil, nil
+	}
+
 	if o.Letsencrypt != nil {
 		// sets:
 		// - GetCertificate
@@ -1533,10 +1537,6 @@ func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 			GetCertificate: cr.GetCertFromHello,
 		}
 	} else {
-		if o.CertPathTLS == "" && o.KeyPathTLS == "" {
-			return nil, nil
-		}
-
 		config = &tls.Config{}
 	}
 
