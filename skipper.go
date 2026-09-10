@@ -1515,7 +1515,7 @@ func (o *Options) filterRegistry() filters.Registry {
 	return registry
 }
 
-func (o *Options) TLSConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
+func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
 	var config *tls.Config
 
 	if o.ProxyTLS != nil {
@@ -1639,7 +1639,7 @@ func listenAndServeQuit(
 	mtr metrics.Metrics,
 	cr *certregistry.CertRegistry,
 ) error {
-	tlsConfig, err := o.TLSConfig(cr)
+	tlsConfig, err := o.TlsConfig(cr)
 	if err != nil {
 		return err
 	}

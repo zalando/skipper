@@ -154,7 +154,7 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	var tlsConfig *tls.Config
 	if opts.EnableMTLS {
 		cr := certregistry.NewCertRegistry()
-		tlsConfig, err = opts.TLSConfig(cr)
+		tlsConfig, err = opts.TlsConfig(cr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create tls config: %w", err)
 		}
