@@ -4143,7 +4143,7 @@ consistentHashBalanceFactor(3)
 Caches HTTP responses in a shared in-memory LRU store. Operates in two modes
 selected by the number of arguments.
 
-**RFC mode** (zero arguments): upstream `Cache-Control` is fully authoritative.
+**RFC mode** (zero or one argument): upstream `Cache-Control` is fully authoritative.
 Freshness, `no-store`, `private`, `Vary`, `s-maxage`, heuristic TTL
 ([RFC 9111 §4.2.2](https://www.rfc-editor.org/rfc/rfc9111#section-4.2.2)), and conditional revalidation (`ETag`/`Last-Modified`) are
 all honoured.
@@ -4154,6 +4154,10 @@ Client `max-age` with non-zero values is not enforced — use `no-cache` to forc
 revalidation. Per [RFC 9111 §5.2.1](https://www.rfc-editor.org/rfc/rfc9111#section-5.2.1), request directives are advisory (`MAY`) for
 shared caches; ignoring client `max-age` prevents cache-bypass abuse on shared
 routes.
+
+RFC mode accepts an optional single argument: a comma-separated list of request
+header names to fold into the cache key (see `keyHeaders` below). This is the
+recommended way to use RFC mode on authenticated routes.
 
 **Force mode** (3–5 arguments): operator TTL is authoritative; upstream
 `Cache-Control` freshness directives are ignored. Semantic blockers (`no-store`,

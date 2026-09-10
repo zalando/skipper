@@ -203,6 +203,136 @@ func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
 	}
 }
 
+// TestCacheFilter_RFC_KeyHeaders_DifferentTokens verifies that in RFC mode with
+// "Authorization" in keyHeaders, concurrent requests carrying different tokens
+// are never coalesced — each gets its own upstream fetch and its own response.
+func TestCacheFilter_RFC_KeyHeaders_DifferentTokens(t *testing.T) {
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	fi, err := spec.CreateFilter([]any{"Authorization"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+
+	mc := &missCounting{Storage: f.storage}
+	mc.wg.Add(2)
+	f.storage = mc
+
+	var fetchCount atomic.Int64
+	fetchStarted := make(chan struct{})
+	releaseAll := make(chan struct{})
+	var fetchStartedOnce sync.Once
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		fetchCount.Add(1)
+		fetchStartedOnce.Do(func() { close(fetchStarted) })
+		mc.wg.Wait()
+		<-releaseAll
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type":  {"application/json"},
+				"Cache-Control": {"private, no-store"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"token":"` + req.Header.Get("Authorization") + `"}`)),
+		}, nil
+	}
+
+	const url = "https://cdn.contentful.com/spaces/abc/entries/me"
+
+	var wg sync.WaitGroup
+	ctxA := newCtx("GET", url, "token-user-a")
+	ctxB := newCtx("GET", url, "token-user-b")
+
+	wg.Add(2)
+	go func() { defer wg.Done(); f.Request(ctxA) }()
+	<-fetchStarted
+	go func() { defer wg.Done(); f.Request(ctxB) }()
+	time.Sleep(50 * time.Millisecond) // let user-b reach DoChan
+	close(releaseAll)
+	wg.Wait()
+
+	if got := fetchCount.Load(); got != 2 {
+		t.Fatalf("expected 2 upstream fetches (one per token), got %d", got)
+	}
+	bodyA, _ := io.ReadAll(ctxA.FResponse.Body)
+	bodyB, _ := io.ReadAll(ctxB.FResponse.Body)
+	if !strings.Contains(string(bodyA), "token-user-a") {
+		t.Errorf("user-a got wrong response: %q", string(bodyA))
+	}
+	if !strings.Contains(string(bodyB), "token-user-b") {
+		t.Errorf("user-b got wrong response: %q", string(bodyB))
+	}
+	if strings.Contains(string(bodyB), "token-user-a") {
+		t.Errorf("cross-user disclosure: user-b received user-a's response: %q", string(bodyB))
+	}
+}
+
+// TestCacheFilter_RFC_KeyHeaders_SameToken verifies that in RFC mode with
+// "Authorization" in keyHeaders, concurrent requests carrying the same token
+// are still coalesced — same identity, one upstream fetch.
+func TestCacheFilter_RFC_KeyHeaders_SameToken(t *testing.T) {
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	fi, err := spec.CreateFilter([]any{"Authorization"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+
+	mc := &missCounting{Storage: f.storage}
+	mc.wg.Add(2)
+	f.storage = mc
+
+	var fetchCount atomic.Int64
+	fetchStarted := make(chan struct{})
+	releaseAll := make(chan struct{})
+	var fetchStartedOnce sync.Once
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		fetchCount.Add(1)
+		fetchStartedOnce.Do(func() { close(fetchStarted) })
+		mc.wg.Wait()
+		<-releaseAll
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type":  {"application/json"},
+				"Cache-Control": {"max-age=300"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"data":"shared"}`)),
+		}, nil
+	}
+
+	const url = "https://cdn.contentful.com/spaces/abc/entries/shared"
+	const token = "service-account-token"
+
+	var wg sync.WaitGroup
+	ctxA := newCtx("GET", url, token)
+	ctxB := newCtx("GET", url, token)
+
+	wg.Add(2)
+	go func() { defer wg.Done(); f.Request(ctxA) }()
+	<-fetchStarted
+	go func() { defer wg.Done(); f.Request(ctxB) }()
+	time.Sleep(50 * time.Millisecond)
+	close(releaseAll)
+	wg.Wait()
+
+	if got := fetchCount.Load(); got != 1 {
+		t.Fatalf("expected 1 upstream fetch (same token coalesced), got %d", got)
+	}
+	bodyA, _ := io.ReadAll(ctxA.FResponse.Body)
+	bodyB, _ := io.ReadAll(ctxB.FResponse.Body)
+	if string(bodyA) != `{"data":"shared"}` {
+		t.Errorf("user-a got wrong response: %q", string(bodyA))
+	}
+	if string(bodyB) != `{"data":"shared"}` {
+		t.Errorf("user-b got wrong response: %q", string(bodyB))
+	}
+}
+
 func TestCacheFilter_404CachedWithErrorTTL(t *testing.T) {
 	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
 	url := newLocalBackend(t) + "/spaces/abc/entries/missing"
@@ -2967,18 +3097,21 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	cases := []struct {
-		name    string
-		args    []any
-		wantRFC bool
-		wantSIE time.Duration
-		wantErr bool
+		name           string
+		args           []any
+		wantRFC        bool
+		wantSIE        time.Duration
+		wantKeyHeaders string
+		wantErr        bool
 	}{
-		{"0 args pure rfc mode", []any{}, true, 0, false},
-		{"3 args force mode", []any{"5m", "15s", "30s"}, false, 0, false},
-		{"4 args staleIfError", []any{"5m", "15s", "30s", "60s"}, false, 60 * time.Second, false},
-		{"1 arg invalid", []any{"5m"}, false, 0, true},
-		{"2 args invalid", []any{"5m", "15s"}, false, 0, true},
-		{"6 args too many", []any{"5m", "15s", "30s", "60s", "Authorization", "extra"}, false, 0, true},
+		{"0 args pure rfc mode", []any{}, true, 0, "", false},
+		{"1 arg rfc mode with keyHeaders", []any{"Authorization"}, true, 0, "Authorization", false},
+		{"1 arg rfc mode multiple keyHeaders", []any{"Authorization,X-Tenant-ID"}, true, 0, "Authorization,X-Tenant-Id", false},
+		{"3 args force mode", []any{"5m", "15s", "30s"}, false, 0, "", false},
+		{"4 args staleIfError", []any{"5m", "15s", "30s", "60s"}, false, 60 * time.Second, "", false},
+		{"5 args force mode with keyHeaders", []any{"5m", "15s", "30s", "0s", "Authorization"}, false, 0, "Authorization", false},
+		{"2 args invalid", []any{"5m", "15s"}, false, 0, "", true},
+		{"6 args too many", []any{"5m", "15s", "30s", "60s", "Authorization", "extra"}, false, 0, "", true},
 	}
 
 	for _, tc := range cases {
@@ -2999,6 +3132,12 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 			}
 			if cf.staleIfError != tc.wantSIE {
 				t.Errorf("staleIfError: got %v, want %v", cf.staleIfError, tc.wantSIE)
+			}
+			if tc.wantKeyHeaders != "" {
+				got := strings.Join(cf.keyHeaders, ",")
+				if got != tc.wantKeyHeaders {
+					t.Errorf("keyHeaders: got %q, want %q", got, tc.wantKeyHeaders)
+				}
 			}
 		})
 	}

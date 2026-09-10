@@ -151,11 +151,15 @@ func (s *cacheSpec) Close() error {
 }
 
 func (s *cacheSpec) CreateFilter(args []any) (filters.Filter, error) {
-	if len(args) != 0 && (len(args) < 3 || len(args) > 5) {
-		return nil, fmt.Errorf("cache: expected 0 or 3-5 args (ttl, errorTTL, swrWindow[, staleIfError[, keyHeaders]]), got %d: %w", len(args), filters.ErrInvalidFilterParameters)
+	// Valid arg counts:
+	//   0              → RFC mode, no keyHeaders
+	//   1              → RFC mode, arg0 = keyHeaders (comma-separated header names)
+	//   3, 4, 5        → force mode: ttl, errorTTL, swrWindow[, staleIfError[, keyHeaders]]
+	if len(args) == 2 || len(args) > 5 {
+		return nil, fmt.Errorf("cache: expected 0, 1, or 3-5 args (RFC: [keyHeaders]; force: ttl, errorTTL, swrWindow[, staleIfError[, keyHeaders]]), got %d: %w", len(args), filters.ErrInvalidFilterParameters)
 	}
 
-	rfcMode := len(args) == 0 // zero args → pure RFC mode
+	rfcMode := len(args) <= 1 // zero or one arg → RFC mode
 
 	var ttl, errorTTL, swr, staleIfError time.Duration
 	if len(args) >= 3 {
@@ -187,15 +191,24 @@ func (s *cacheSpec) CreateFilter(args []any) (filters.Filter, error) {
 	}
 
 	var keyHeaders []string
-	if len(args) == 5 {
+	var keyHeadersRaw string
+	switch {
+	case len(args) == 1:
+		raw, ok := args[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("cache: arg 0 (keyHeaders): expected string, got %T: %w", args[0], filters.ErrInvalidFilterParameters)
+		}
+		keyHeadersRaw = raw
+	case len(args) == 5:
 		raw, ok := args[4].(string)
 		if !ok {
 			return nil, fmt.Errorf("cache: arg 4 (keyHeaders): expected string, got %T: %w", args[4], filters.ErrInvalidFilterParameters)
 		}
-		for h := range strings.SplitSeq(raw, ",") {
-			if name := strings.TrimSpace(h); name != "" {
-				keyHeaders = append(keyHeaders, http.CanonicalHeaderKey(name))
-			}
+		keyHeadersRaw = raw
+	}
+	for h := range strings.SplitSeq(keyHeadersRaw, ",") {
+		if name := strings.TrimSpace(h); name != "" {
+			keyHeaders = append(keyHeaders, http.CanonicalHeaderKey(name))
 		}
 	}
 
