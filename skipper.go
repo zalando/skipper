@@ -1516,7 +1516,7 @@ func (o *Options) filterRegistry() filters.Registry {
 }
 
 func (o *Options) TLSConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
-	var tlsConfig *tls.Config
+	var config *tls.Config
 
 	if o.ProxyTLS != nil {
 		return o.ProxyTLS, nil
@@ -1526,9 +1526,9 @@ func (o *Options) TLSConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		// sets:
 		// - GetCertificate
 		// - NextProtos
-		tlsConfig = o.Letsencrypt.TLSConfig()
+		config = o.Letsencrypt.TLSConfig()
 	} else if cr != nil {
-		tlsConfig = &tls.Config{
+		config = &tls.Config{
 			// sets GetCertificate which was already set by Letsencrypt.TLSConfig()
 			GetCertificate: cr.GetCertFromHello,
 		}
@@ -1537,20 +1537,20 @@ func (o *Options) TLSConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 			return nil, nil
 		}
 
-		tlsConfig = &tls.Config{}
+		config = &tls.Config{}
 	}
 
-	tlsConfig.MinVersion = o.TLSMinVersion
-	tlsConfig.ClientAuth = o.TLSClientAuth
-	tlsConfig.KeyLogWriter = o.KeyLogWriter
-	tlsConfig.VerifyConnection = o.VerifyConnection
+	config.MinVersion = o.TLSMinVersion
+	config.ClientAuth = o.TLSClientAuth
+	config.KeyLogWriter = o.KeyLogWriter
+	config.VerifyConnection = o.VerifyConnection
 
 	if o.CipherSuites != nil {
-		tlsConfig.CipherSuites = o.CipherSuites
+		config.CipherSuites = o.CipherSuites
 	}
 
 	if o.CertPathTLS == "" && o.KeyPathTLS == "" {
-		return tlsConfig, nil
+		return config, nil
 	}
 
 	crts := strings.Split(o.CertPathTLS, ",")
@@ -1566,9 +1566,9 @@ func (o *Options) TLSConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		if err != nil {
 			return nil, fmt.Errorf("failed to load X509 keypair from %s and %s: %w", crt, key, err)
 		}
-		tlsConfig.Certificates = append(tlsConfig.Certificates, keypair)
+		config.Certificates = append(config.Certificates, keypair)
 	}
-	return tlsConfig, nil
+	return config, nil
 }
 
 func (o *Options) openTracingTracerInstance() (ot.Tracer, error) {
