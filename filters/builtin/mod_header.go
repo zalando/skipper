@@ -65,11 +65,14 @@ func (f *modRequestHeader) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	if _, ok := req.Header[http.CanonicalHeaderKey(f.headerName)]; !ok {
+	values, ok := req.Header[http.CanonicalHeaderKey(f.headerName)]
+	if !ok {
 		return
 	}
 
-	req.Header.Set(f.headerName, f.rx.ReplaceAllString(req.Header.Get(f.headerName), f.replacement))
+	for i, value := range values {
+		values[i] = f.rx.ReplaceAllString(value, f.replacement)
+	}
 }
 
 func (*modRequestHeader) Response(filters.FilterContext) {}
@@ -124,9 +127,12 @@ func (*modResponseHeader) Request(filters.FilterContext) {}
 func (f *modResponseHeader) Response(ctx filters.FilterContext) {
 	resp := ctx.Response()
 
-	if _, ok := resp.Header[http.CanonicalHeaderKey(f.headerName)]; !ok {
+	values, ok := resp.Header[http.CanonicalHeaderKey(f.headerName)]
+	if !ok {
 		return
 	}
 
-	resp.Header.Set(f.headerName, f.rx.ReplaceAllString(resp.Header.Get(f.headerName), f.replacement))
+	for i, value := range values {
+		values[i] = f.rx.ReplaceAllString(value, f.replacement)
+	}
 }
