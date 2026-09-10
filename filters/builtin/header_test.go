@@ -185,6 +185,12 @@ func TestHeader(t *testing.T) {
 			valid:          true,
 			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []any{"x-test-name", "^value1$"},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value0"}},
 		}},
 		"setResponseHeader": {{
 			msg:            "set response header when none",
@@ -284,6 +290,12 @@ func TestHeader(t *testing.T) {
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []any{"x-test-name", "^value1$"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Name": []string{"value0"}},
 		}},
 		"setContextRequestHeader": {{
 			msg:            "set request header from context",
@@ -554,6 +566,53 @@ func TestHeader(t *testing.T) {
 					}
 				})
 			}
+		})
+	}
+}
+
+// Asserts on the header map of the filter context because the proxy copies
+// headers into their canonical form and therefore hides a value that was
+// stored under a non-canonical name behind random map iteration order.
+func TestDropHeaderRegexpCanonicalName(t *testing.T) {
+	for _, ti := range []struct {
+		msg  string
+		name string
+	}{{
+		msg:  "canonical name",
+		name: "X-Test-Name",
+	}, {
+		msg:  "lowercase name",
+		name: "x-test-name",
+	}} {
+		t.Run(ti.msg, func(t *testing.T) {
+			expected := http.Header{"X-Test-Name": []string{"value0"}}
+
+			t.Run("request", func(t *testing.T) {
+				f, err := NewDropRequestHeaderValueRegexp().CreateFilter([]any{ti.name, "^value1$"})
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				r, _ := http.NewRequest("GET", "http://example.com", nil)
+				r.Header["X-Test-Name"] = []string{"value0", "value1"}
+
+				f.Request(&filtertest.Context{FRequest: r})
+
+				assert.Equal(t, expected, r.Header)
+			})
+
+			t.Run("response", func(t *testing.T) {
+				f, err := NewDropResponseHeaderValueRegexp().CreateFilter([]any{ti.name, "^value1$"})
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				rsp := &http.Response{Header: http.Header{"X-Test-Name": []string{"value0", "value1"}}}
+
+				f.Response(&filtertest.Context{FResponse: rsp})
+
+				assert.Equal(t, expected, rsp.Header)
+			})
 		})
 	}
 }
