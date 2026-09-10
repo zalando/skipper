@@ -18,6 +18,7 @@ listed here:
    * [rateBreaker](filters.md#ratebreaker)
    * [disableBreaker](filters.md#disablebreaker)
 * [bearerinjector](filters.md#bearerinjector) filter, that injects tokens for an app
+* [httpMessageSignature](filters.md#httpmessagesignature) filter, that signs outgoing HTTP requests according to RFC 9421 HTTP Message Signatures using secrets managed by the secrets module
 * The secrets module that does
    * automated secrets rotation read from files used by `bearerinjector filter`
    * dynamic secrets lookup used by `bearerinjector filter`
@@ -118,6 +119,28 @@ Accept-Encoding: gzip
 ```
 
 This example showed bearer injection with secrets rotation.
+
+#### Example RFC 9421 HTTP Message Signatures
+
+Create a secret key file inside the credentials directory:
+
+```bash
+mkdir -p /tmp/secrets
+echo "secret-key-material" > /tmp/secrets/api-key
+```
+
+Run Skipper with `-credentials-paths`, `-http-message-signature-key-file` and `-http-message-signature-key-id`:
+
+```bash
+skipper \
+  -credentials-paths=/tmp/secrets \
+  -http-message-signature-key-file=api-key \
+  -http-message-signature-key-id=my-key-1 \
+  -inline-routes='Host("api.partner.com") -> httpMessageSignature("hmac-sha256", "@method, @path, @authority") -> "https://upstream.partner.com"'
+```
+
+See the [httpMessageSignature filter documentation](filters.md#httpmessagesignature) for full configuration
+options and supported signature algorithms.
 
 ##### Reach multiple services
 Often your service wants to reach multiple services, so you need to

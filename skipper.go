@@ -1073,6 +1073,12 @@ type Options struct {
 	// CredentialsUpdateInterval sets the interval to update secrets
 	CredentialsUpdateInterval time.Duration
 
+	// HTTPMessageSignatureKeyFile path to the key file for HTTP Message Signatures
+	HTTPMessageSignatureKeyFile string
+
+	// HTTPMessageSignatureKeyID key ID for HTTP Message Signatures
+	HTTPMessageSignatureKeyID string
+
 	// API Monitoring feature is active (feature toggle)
 	ApiUsageMonitoringEnable                bool
 	ApiUsageMonitoringRealmKeys             string
@@ -2077,6 +2083,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		block.NewBlockHex(o.MaxMatcherBufferSize),
 		auth.NewBearerInjector(sp),
 		auth.NewSetRequestHeaderFromSecret(sp),
+		auth.NewHTTPMessageSignature(o.HTTPMessageSignatureKeyFile, o.HTTPMessageSignatureKeyID, sp),
 		auth.NewJwtValidationWithOptions(tio),
 		auth.NewJwtValidationKeys(),
 		auth.NewJwtMetrics(),

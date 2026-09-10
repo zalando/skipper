@@ -252,6 +252,8 @@ type Config struct {
 	OIDCCookieRemoveSubdomains        int           `yaml:"oidc-cookie-remove-subdomains"`
 	CredentialPaths                   *listFlag     `yaml:"credentials-paths"`
 	CredentialsUpdateInterval         time.Duration `yaml:"credentials-update-interval"`
+	HTTPMessageSignatureKeyFile       string        `yaml:"http-message-signature-key-file"`
+	HTTPMessageSignatureKeyID         string        `yaml:"http-message-signature-key-id"`
 
 	// TLS configuration for the validation webhook
 	ValidationWebhookEnabled  bool   `yaml:"validation-webhook-enabled"`
@@ -657,6 +659,8 @@ func NewConfig() *Config {
 	flag.Int64Var(&cfg.OpenPolicyAgentMaxRequestBodySize, "open-policy-agent-max-request-body-size", openpolicyagent.DefaultMaxRequestBodySize, "Maximum number of bytes from a http request body that are passed as input to the policy")
 	flag.Int64Var(&cfg.OpenPolicyAgentRequestBodyBufferSize, "open-policy-agent-request-body-buffer-size", openpolicyagent.DefaultRequestBodyBufferSize, "Read buffer size for the request body")
 	flag.Int64Var(&cfg.OpenPolicyAgentMaxMemoryBodyParsing, "open-policy-agent-max-memory-body-parsing", openpolicyagent.DefaultMaxMemoryBodyParsing, "Total number of bytes used to parse http request bodies across all requests. Once the limit is met, requests will be rejected.")
+	flag.StringVar(&cfg.HTTPMessageSignatureKeyFile, "http-message-signature-key-file", "", "path to the secret key file for HTTP Message Signatures (RFC 9421)")
+	flag.StringVar(&cfg.HTTPMessageSignatureKeyID, "http-message-signature-key-id", "", "key ID used in HTTP Message Signatures (RFC 9421)")
 
 	// TLS client certs
 	flag.StringVar(&cfg.ClientKeyFile, "client-tls-key", "", "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs")
@@ -1156,6 +1160,8 @@ func (c *Config) ToOptions() skipper.Options {
 		ValidationWebhookCertFile:         c.ValidationWebhookCertFile,
 		ValidationWebhookKeyFile:          c.ValidationWebhookKeyFile,
 		EnableAdvancedValidation:          c.EnableAdvancedValidation,
+		HTTPMessageSignatureKeyFile:       c.HTTPMessageSignatureKeyFile,
+		HTTPMessageSignatureKeyID:         c.HTTPMessageSignatureKeyID,
 
 		// connections, timeouts:
 		WaitForHealthcheckInterval:   c.WaitForHealthcheckInterval,
