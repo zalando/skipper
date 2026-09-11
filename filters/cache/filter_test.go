@@ -96,6 +96,16 @@ func newCtxWithRoute(method, rawURL, authHeader, routeID string) *filtertest.Con
 	return ctx
 }
 
+// newLocalBackend starts a throwaway local HTTP server and returns its URL.
+// cf.fetch is stubbed in every test that uses this, so the server is never
+// actually called — it exists only so tests don't reference real external hosts.
+func newLocalBackend(t *testing.T) string {
+	t.Helper()
+	backend := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	t.Cleanup(backend.Close)
+	return backend.URL
+}
+
 func upstreamResponse(status int, body string) *http.Response {
 	return &http.Response{
 		StatusCode: status,
