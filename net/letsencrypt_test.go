@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/net/valkeytest"
+	"golang.org/x/crypto/acme/autocert"
 )
 
 func TestRemoteCache(t *testing.T) {
@@ -34,6 +35,14 @@ func TestRemoteCache(t *testing.T) {
 	}
 	defer rc.Close()
 
+	if v, err := rc.Get(context.Background(), "not-exist"); err != nil {
+		if err != autocert.ErrCacheMiss {
+			t.Fatalf("Failed to get cache miss error on not existing key: %v err: %v", v, err)
+		}
+	} else {
+		t.Fatalf("Want error %q but got %q", autocert.ErrCacheMiss, v)
+	}
+
 	if err := rc.Put(context.Background(), "foo", []byte("bar")); err != nil {
 		t.Fatalf("Failed to put: %v", err)
 	}
@@ -55,8 +64,8 @@ func TestRemoteCache(t *testing.T) {
 func TestInmemoryCache(t *testing.T) {
 	rc := &InmemoryCache{}
 
-	if _, err := rc.Get(context.Background(), "foo"); err == nil {
-		t.Fatal(`Failed can not get "foo" on empty cache`)
+	if _, err := rc.Get(context.Background(), "foo"); err != autocert.ErrCacheMiss {
+		t.Fatal(`Failed can not get cache miss on empty cache`)
 	}
 
 	if err := rc.Put(context.Background(), "foo", []byte("bar")); err != nil {

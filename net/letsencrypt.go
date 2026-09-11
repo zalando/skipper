@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
+	"github.com/valkey-io/valkey-go"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -50,7 +51,7 @@ type InmemoryCache struct {
 
 func (ic *InmemoryCache) Get(ctx context.Context, key string) ([]byte, error) {
 	if dat, ok := ic.m.Load(key); !ok {
-		return nil, fmt.Errorf("missing key %q", key)
+		return nil, autocert.ErrCacheMiss
 	} else {
 		if data, ok := dat.([]byte); !ok {
 			return nil, fmt.Errorf("failed to convert %q to []byte", dat)
@@ -84,9 +85,15 @@ type RemoteCache struct {
 
 func (rc *RemoteCache) Get(ctx context.Context, key string) ([]byte, error) {
 	res, err := rc.Client.Get(ctx, key)
+
 	if err != nil {
+		// key not found
+		if valkey.IsValkeyNil(err) {
+			return nil, autocert.ErrCacheMiss
+		}
 		return nil, err
 	}
+
 	return []byte(res), nil
 }
 
