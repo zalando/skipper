@@ -51,7 +51,7 @@ func TestRedirect(t *testing.T) {
 		"schema, host, path and query",
 		http.StatusFound,
 		"http://redirect.example.org/some/other/path?newquery=3",
-		"http://redirect.example.org/some/other/path?newquery=3",
+		"http://redirect.example.org/some/other/path?foo=1&bar=2&newquery=3",
 		false,
 	}, {
 		"host only",
@@ -69,7 +69,7 @@ func TestRedirect(t *testing.T) {
 		"host, path and query",
 		http.StatusFound,
 		"//redirect.example.org/some/other/path?newquery=3",
-		"https://redirect.example.org/some/other/path?newquery=3",
+		"https://redirect.example.org/some/other/path?foo=1&bar=2&newquery=3",
 		false,
 	}, {
 		"path only",
@@ -81,13 +81,13 @@ func TestRedirect(t *testing.T) {
 		"path and query",
 		http.StatusFound,
 		"/some/other/path?newquery=3",
-		"https://incoming.example.org/some/other/path?newquery=3",
+		"https://incoming.example.org/some/other/path?foo=1&bar=2&newquery=3",
 		false,
 	}, {
 		"query only",
 		http.StatusFound,
 		"?newquery=3",
-		"https://incoming.example.org/some/path?newquery=3",
+		"https://incoming.example.org/some/path?foo=1&bar=2&newquery=3",
 		false,
 	}, {
 		"schema and path",
@@ -99,13 +99,13 @@ func TestRedirect(t *testing.T) {
 		"schema, path and query",
 		http.StatusFound,
 		"http:///some/other/path?newquery=3",
-		"http://incoming.example.org/some/other/path?newquery=3",
+		"http://incoming.example.org/some/other/path?foo=1&bar=2&newquery=3",
 		false,
 	}, {
 		"schema and query",
 		http.StatusFound,
 		"http://?newquery=3",
-		"http://incoming.example.org/some/path?newquery=3",
+		"http://incoming.example.org/some/path?foo=1&bar=2&newquery=3",
 		false,
 	}, {
 		"different code",
