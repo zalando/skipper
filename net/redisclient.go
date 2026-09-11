@@ -392,14 +392,16 @@ func (r *RedisRingClient) StartSpan(operationName string, opts ...opentracing.St
 	return r.tracer.StartSpan(operationName, opts...)
 }
 
-func (r *RedisRingClient) Close() {
+func (r *RedisRingClient) Close() error {
+	var err error
 	r.once.Do(func() {
 		r.closed = true
 		close(r.quit)
 		if r.ring != nil {
-			r.ring.Close()
+			err = r.ring.Close()
 		}
 	})
+	return err
 }
 
 func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs []string) {
@@ -409,13 +411,17 @@ func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs []string) {
 	r.ring.SetAddrs(createAddressMap(addrs))
 }
 
+// make sure we can use *RedisRingClient as autocert.Cache
+var _ RemoteCacheClient = &RedisRingClient{}
+
 func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {
 	res := r.ring.Get(ctx, key)
 	return res.Val(), res.Err()
 }
 
-func (r *RedisRingClient) Set(ctx context.Context, key string, value any, expiration time.Duration) (string, error) {
-	res := r.ring.Set(ctx, key, value, expiration)
+func (r *RedisRingClient) Set(ctx context.Context, key, value string) (string, error) {
+	var v interface{} = value
+	res := r.ring.Set(ctx, key, v, 0)
 	return res.Result()
 }
 
