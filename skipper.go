@@ -2322,10 +2322,12 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				o.Letsencrypt.SetCache(&skpnet.RemoteCache{
 					Client: redisRing,
 				})
-
 			default:
-				// nothing to do, see config/config.go for other autocert.Cache implementations
+				log.Fatal("Failed to set letsencrypt remote cache: no valkey nor redis ring")
 			}
+
+		default:
+			// nothing to do, see config/config.go for other autocert.Cache implementations
 		}
 	}
 
