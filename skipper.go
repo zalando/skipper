@@ -834,6 +834,12 @@ type Options struct {
 	// BreakerSettings contain global and host specific settings for the circuit breakers.
 	BreakerSettings []circuit.BreakerSettings
 
+	// Letsencrypt if not nil you can use a remote cache config.
+	Letsencrypt *skpnet.Letsencrypt
+
+	// LetsencryptCache
+	LetsencryptCache string
+
 	// EnableRatelimiters enables the usage of the ratelimiter in the route definitions without initializing any
 	// by default. It is a shortcut for setting the RatelimitSettings to:
 	//
@@ -1510,28 +1516,37 @@ func (o *Options) filterRegistry() filters.Registry {
 }
 
 func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
+	var config *tls.Config
 
 	if o.ProxyTLS != nil {
 		return o.ProxyTLS, nil
 	}
 
-	if o.CertPathTLS == "" && o.KeyPathTLS == "" && cr == nil {
+	if o.CertPathTLS == "" && o.KeyPathTLS == "" && cr == nil && o.Letsencrypt == nil {
 		return nil, nil
 	}
 
-	config := &tls.Config{
-		MinVersion:       o.TLSMinVersion,
-		ClientAuth:       o.TLSClientAuth,
-		KeyLogWriter:     o.KeyLogWriter,
-		VerifyConnection: o.VerifyConnection,
+	if o.Letsencrypt != nil {
+		// sets:
+		// - GetCertificate
+		// - NextProtos
+		config = o.Letsencrypt.TLSConfig()
+	} else if cr != nil {
+		config = &tls.Config{
+			// sets GetCertificate which was already set by Letsencrypt.TLSConfig()
+			GetCertificate: cr.GetCertFromHello,
+		}
+	} else {
+		config = &tls.Config{}
 	}
+
+	config.MinVersion = o.TLSMinVersion
+	config.ClientAuth = o.TLSClientAuth
+	config.KeyLogWriter = o.KeyLogWriter
+	config.VerifyConnection = o.VerifyConnection
 
 	if o.CipherSuites != nil {
 		config.CipherSuites = o.CipherSuites
-	}
-
-	if cr != nil {
-		config.GetCertificate = cr.GetCertFromHello
 	}
 
 	if o.CertPathTLS == "" && o.KeyPathTLS == "" {
@@ -2120,7 +2135,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	var (
 		swarmer       ratelimit.Swarmer
 		redisOptions  *skpnet.RedisOptions
+		redisRing     *skpnet.RedisRingClient
 		valkeyOptions *skpnet.ValkeyOptions
+		valkeyRing    *skpnet.ValkeyRingClient
 	)
 	log.Infof("enable swarm: %v", o.EnableSwarm)
 	if o.EnableSwarm {
@@ -2272,7 +2289,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 	}
 
-	var valkeyRing *skpnet.ValkeyRingClient
 	if valkeyOptions != nil {
 		if valkeyOptions.MetricsPrefix == "" {
 			valkeyOptions.MetricsPrefix = ratelimit.ValkeyMetricsPrefix
@@ -2284,13 +2300,35 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		defer valkeyRing.Close()
 	}
 
-	var redisRing *skpnet.RedisRingClient
 	if redisOptions != nil {
 		if redisOptions.MetricsPrefix == "" {
 			redisOptions.MetricsPrefix = ratelimit.RedisMetricsPrefix
 		}
 		redisRing = skpnet.NewRedisRingClient(redisOptions)
 		defer redisRing.Close()
+	}
+
+	if o.Letsencrypt != nil {
+		switch o.LetsencryptCache {
+		case "remote":
+			// we need this here because of the remote cache client init
+			switch {
+			case valkeyRing != nil:
+				o.Letsencrypt.SetCache(&skpnet.RemoteCache{
+					Client: valkeyRing,
+				})
+
+			case redisRing != nil:
+				o.Letsencrypt.SetCache(&skpnet.RemoteCache{
+					Client: redisRing,
+				})
+			default:
+				log.Fatal("Failed to set letsencrypt remote cache: no valkey nor redis ring")
+			}
+
+		default:
+			// nothing to do, see config/config.go for other autocert.Cache implementations
+		}
 	}
 
 	var (

@@ -297,6 +297,16 @@ func TestOptionsTLSConfig(t *testing.T) {
 	assert.Same(t, keyLogWriter, c.KeyLogWriter)
 	assert.NotNil(t, c.VerifyConnection)
 
+	// Letsencrypt
+	o = &Options{
+		Letsencrypt:   skpnet.NewLetsencrypt(&skpnet.InmemoryCache{}, "email@example", "http://dir.example/url", "UA", []string{"example.test"}),
+		TLSMinVersion: tls.VersionTLS12,
+	}
+	c, err = o.TlsConfig(cr)
+	require.NoError(t, err)
+	require.Equal(t, uint16(tls.VersionTLS12), c.MinVersion)
+	assert.NotNil(t, c.GetCertificate)
+	assert.NotNil(t, c.NextProtos)
 }
 
 func TestOptionsTLSConfigInvalidPaths(t *testing.T) {
