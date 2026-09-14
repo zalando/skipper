@@ -239,6 +239,40 @@ func (c *context) RouteId() string {
 	return c.route.Id
 }
 
+func (c *context) RoutePredicates() []filters.RoutePredicate {
+	if c.route == nil {
+		return nil
+	}
+	src := c.route.Route.Predicates
+	if len(src) == 0 {
+		return nil
+	}
+	out := make([]filters.RoutePredicate, len(src))
+	for i, p := range src {
+		args := make([]interface{}, len(p.Args))
+		copy(args, p.Args)
+		out[i] = filters.RoutePredicate{Name: p.Name, Args: args}
+	}
+	return out
+}
+
+func (c *context) RouteFilters() []filters.RouteFilter {
+	if c.route == nil {
+		return nil
+	}
+	src := c.route.Route.Filters
+	if len(src) == 0 {
+		return nil
+	}
+	out := make([]filters.RouteFilter, len(src))
+	for i, f := range src {
+		args := make([]interface{}, len(f.Args))
+		copy(args, f.Args)
+		out[i] = filters.RouteFilter{Name: f.Name, Args: args}
+	}
+	return out
+}
+
 func (c *context) Serve(r *http.Response) {
 	r.Request = c.Request()
 
