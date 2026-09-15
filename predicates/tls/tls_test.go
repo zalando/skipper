@@ -341,7 +341,7 @@ func TestMatchIssuerDN(t *testing.T) {
 		{"empty peer certs", emptyTLSReq, false},
 		{"matching issuer DN", reqWithCert(leafCert), true},
 		{"non-matching issuer DN", reqWithCert(otherLeaf), false},
-{"self-signed CA: issuer == subject, so issuer DN matches predicate", reqWithCert(caCert), true},
+		{"self-signed CA: issuer == subject, so issuer DN matches predicate", reqWithCert(caCert), true},
 	} {
 		t.Run(tc.msg, func(t *testing.T) {
 			if got := pred.Match(tc.req); got != tc.wantMatch {
