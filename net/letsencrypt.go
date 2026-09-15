@@ -16,6 +16,11 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
+const (
+	DefaultLetsencryptCache          = "directory"
+	DefaultLetsencryptCacheDirectory = "/data/skipper/certs"
+)
+
 type DirCache struct {
 	dir   string
 	cache autocert.Cache
