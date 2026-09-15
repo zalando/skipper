@@ -184,6 +184,8 @@ func defaultConfig(with func(*Config)) *Config {
 		ValidateQuery:                           true,
 		ValidateQueryLog:                        true,
 		LetsencryptDomains:                      commaListFlag(),
+		LetsencryptCache:                        net.DefaultLetsencryptCache,
+		LetsencryptCacheDir:                     net.DefaultLetsencryptCacheDirectory,
 		EnableLua:                               false,
 		LuaModules:                              commaListFlag(),
 		LuaSources:                              commaListFlag(),

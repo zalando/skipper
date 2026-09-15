@@ -691,8 +691,8 @@ func NewConfig() *Config {
 
 	// Letsencrypt
 	flag.BoolVar(&cfg.EnableLetsencrypt, "enable-letsencrypt", false, "enables letsencrypt autocert handling on the proxy")
-	flag.StringVar(&cfg.LetsencryptCache, "letsencrypt-cache", "directory", "Configure the autocert cert cache <inmemory|remote|directory>. If you use certbot, you need to use directory.")
-	flag.StringVar(&cfg.LetsencryptCacheDir, "letsencrypt-cache-dir", "/data/skipper/certs", `Configure the autocert cert cache directory for cache type "directory".`)
+	flag.StringVar(&cfg.LetsencryptCache, "letsencrypt-cache", net.DefaultLetsencryptCache, "Configure the autocert cert cache <inmemory|remote|directory>. If you use certbot, you need to use directory.")
+	flag.StringVar(&cfg.LetsencryptCacheDir, "letsencrypt-cache-dir", net.DefaultLetsencryptCacheDirectory, `Configure the autocert cert cache directory for cache type "directory".`)
 	flag.StringVar(&cfg.LetsencryptEmail, "letsencrypt-email", "", "Sets letsencrypt email address such that you can be reached by letsencrypt if something goes wrong")
 	flag.Var(cfg.LetsencryptDomains, "letsencrypt-domains", "An allow list of domains for autocert handling")
 	flag.StringVar(&cfg.LetsencryptDirectoryURL, "letsencrypt-directory-url", "", "Sets directory URL for testing, defaults to autocert.DefaultACMEDirectory")
