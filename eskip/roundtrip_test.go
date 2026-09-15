@@ -182,3 +182,49 @@ func TestRoundtripLBZone(t *testing.T) {
 		assert.Equal(t, serialized, out.String(), "round-trip must be stable")
 	})
 }
+
+// Test various numbers are parsed to the same value after serialization
+func TestRoundtripNumber(t *testing.T) {
+	for _, value := range []float64{
+		0,
+		1,
+		-1,
+		0.5,
+		-0.5,
+		3.14,
+		0.0001,
+		0.00001,
+		0.000012345,
+		-0.00005,
+		1e-20,
+		1e21,
+		1234567890123456789,
+	} {
+		t.Run(fmt.Sprintf("%v", value), func(t *testing.T) {
+			in := &Route{
+				Predicates:  []*Predicate{{Name: "APredicate", Args: []interface{}{value}}},
+				Filters:     []*Filter{{Name: "afilter", Args: []interface{}{value}}},
+				BackendType: ShuntBackend,
+			}
+
+			serialized := in.String()
+			t.Logf("%v, %s", value, serialized)
+
+			outs, err := Parse(serialized)
+			require.NoError(t, err)
+			require.Len(t, outs, 1)
+
+			out := outs[0]
+
+			require.Len(t, out.Predicates, 1)
+			require.Len(t, out.Predicates[0].Args, 1)
+			assert.Equal(t, value, out.Predicates[0].Args[0])
+
+			require.Len(t, out.Filters, 1)
+			require.Len(t, out.Filters[0].Args, 1)
+			assert.Equal(t, value, out.Filters[0].Args[0])
+
+			assert.Equal(t, serialized, out.String(), "round-trip must be stable")
+		})
+	}
+}
