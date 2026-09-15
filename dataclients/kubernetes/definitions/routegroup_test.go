@@ -17,23 +17,19 @@ func TestSkipperBackendNil(t *testing.T) {
 	}
 }
 
-func TestRouteGroupListShareParseCache(t *testing.T) {
-	list := &RouteGroupList{
-		Items: []*RouteGroupItem{
-			{Spec: &RouteGroupSpec{}},
-			{Spec: &RouteGroupSpec{}},
-			{Spec: nil}, // must be tolerated
-		},
-	}
-	list.ShareParseCache()
+func TestNewRouteGroupListWithSharedCache(t *testing.T) {
+	list := NewRouteGroupListWithSharedCache([]*RouteGroupItem{
+		{Spec: &RouteGroupSpec{}},
+		nil,
+		{Spec: &RouteGroupSpec{}},
+		{Spec: nil},
+	})
 
-	// The same definition string parsed through two different RouteGroups
-	// resolves to the same cached object, so it is parsed only once.
 	f0, err := list.Items[0].Spec.ParseFilter(`status(200)`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f1, err := list.Items[1].Spec.ParseFilter(`status(200)`)
+	f1, err := list.Items[2].Spec.ParseFilter(`status(200)`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +41,7 @@ func TestRouteGroupListShareParseCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p1, err := list.Items[1].Spec.ParsePredicate(`Method("GET")`)
+	p1, err := list.Items[2].Spec.ParsePredicate(`Method("GET")`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,6 +63,6 @@ func TestRouteGroupParseCacheIsPerRouteGroupWithoutSharing(t *testing.T) {
 		t.Fatal(err)
 	}
 	if fa == fb {
-		t.Error("expected independent caches without ShareParseCache")
+		t.Error("expected independent caches without shared cache")
 	}
 }
