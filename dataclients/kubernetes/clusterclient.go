@@ -421,6 +421,7 @@ func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error)
 		return nil, err
 	}
 	log.Debugf("all routegroups received: %d", len(rgl.Items))
+	rgl = definitions.NewRouteGroupListWithSharedCache(rgl.Items)
 
 	rgs := make([]*definitions.RouteGroupItem, 0, len(rgl.Items))
 	for _, i := range rgl.Items {
