@@ -4,6 +4,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 	"net/http"
+	"slices"
 	"testing"
 )
 
@@ -225,6 +226,49 @@ func TestModResponseHeader(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestModHeaderMultipleValues(t *testing.T) {
+	t.Run("request", func(t *testing.T) {
+		spec := NewModRequestHeader()
+		f, err := spec.CreateFilter([]any{"X-Forwarded-Host", `^internal\.`, "public."})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req, err := http.NewRequest("GET", "https://example.org/path/yo", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header["X-Forwarded-Host"] = []string{"internal.example.org", "internal.example.com"}
+
+		f.Request(&filtertest.Context{FRequest: req})
+
+		want := []string{"public.example.org", "public.example.com"}
+		if got := req.Header.Values("X-Forwarded-Host"); !slices.Equal(got, want) {
+			t.Errorf("failed to modify all request header values, got: %q, want: %q", got, want)
+		}
+	})
+
+	t.Run("response", func(t *testing.T) {
+		spec := NewModResponseHeader()
+		f, err := spec.CreateFilter([]any{"Set-Cookie", `Domain=internal\.example\.org`, "Domain=example.org"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp := &http.Response{Header: http.Header{"Set-Cookie": []string{
+			"a=1; Domain=internal.example.org",
+			"b=2; Domain=internal.example.org",
+		}}}
+
+		f.Response(&filtertest.Context{FResponse: rsp})
+
+		want := []string{"a=1; Domain=example.org", "b=2; Domain=example.org"}
+		if got := rsp.Header.Values("Set-Cookie"); !slices.Equal(got, want) {
+			t.Errorf("failed to modify all response header values, got: %q, want: %q", got, want)
+		}
+	})
 }
 
 func TestModifyHostWithInvalidExpression(t *testing.T) {
