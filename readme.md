@@ -43,6 +43,13 @@ Skipper
      header to reduce amount of CPU used in your skipper data plane
    - webhook: Kubernetes validation webhook to make sure your
      manifests are deployed safely
+- support for HTTP/1.1, H2C, HTTP/2
+- outstanding features
+   - HTTP proxy library implementation to enable you to build rock solid proxies
+   - Authentication and Authorization (no external dependency on oauth-proxy or OpenPolicyAgent containers)
+   - Cluster Rate Limits, no instance local storage required
+   - Letsencrypt with remote storage support
+   - Tiered cache with local and remote storage
 
 Skipper provides a default executable command with a few built-in filters. However, its primary use case is to
 be extended with custom filters, predicates or data sources. [Go here for additional documentation](https://pkg.go.dev/github.com/zalando/skipper).
@@ -72,21 +79,20 @@ Example, assumes that you have $GOBIN set to a directory that exists
 and is in your $PATH:
 
 ```
-% curl -LO https://github.com/zalando/skipper/releases/download/v0.14.8/skipper-v0.14.8-linux-amd64.tar.gz
-% tar xzf skipper-v0.14.8-linux-amd64.tar.gz
-% mv skipper-v0.14.8-linux-amd64/* $GOBIN/
+% curl -LO https://github.com/zalando/skipper/releases/download/v0.27.92/skipper-v0.27.92-linux-amd64.tar.gz
+% tar xzf skipper-v0.27.92-linux-amd64.tar.gz
+% mv skipper-v0.27.92-linux-amd64/* $GOBIN/
 % skipper -version
-Skipper version v0.14.8 (commit: 95057948, runtime: go1.19.1)
+Skipper version v0.27.92 (commit: 344e73c6, runtime: go1.27.1)
 ```
 
 ##### From Source
-
 
 ```
 % git clone https://github.com/zalando/skipper.git
 % make
 % ./bin/skipper -version
-Skipper version v0.14.8 (commit: 95057948, runtime: go1.19.3)
+Skipper version v0.27.92 (commit: 344e73c6, runtime: go1.27.1)
 ```
 
 #### Running

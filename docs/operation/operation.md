@@ -2067,3 +2067,45 @@ flowchart TD
 
 - `cache_status`: `"hit"`, `"miss"`, or `"stale"`
 - `cache_ttl_remaining_ms`: remaining freshness in milliseconds (only set on hits)
+
+## Letsencrypt - autocert
+
+Letsencrypt let's you create and automate TLS certificates.
+Skipper can be used to automate TLS certificate on the first request.
+
+Example configuration flags:
+
+```
+-enable-letsencrypt \
+-letsencrypt-cache=directory \
+-letsencrypt-cache-dir=/data/skipper/certs \
+-letsencrypt-email=my-email@my-domain.org \
+-letsencrypt-user-agent=my-skipper \
+-letsencrypt-domains="my-domain.org,blog.my-domain.org,www.my-domain.org"
+```
+
+As you can see there is a list of comma separated values you can add to tell about domain ownership such that skipper would respond to incoming ACME challenges.
+
+There are multiple choices for `-letsencrypt-cache`. In the example we use "directory" to persist TLS certificates as files.
+
+Other choices are:
+
+- "inmemory": no persistence
+- "remote": persist into infrastrucuture to share cert/keys with other skipper processes. You can use the redis or valkey ring clients, that you can use for cache() and clusterRatelimit() filters.
+
+## Shared Storage - Redis / Valkey
+
+Some features require coordination if you run a lot of skippers, for
+example in a Kubernetes cluster as ingress controller.
+
+Examples:
+
+- Filters: cache(), clusterRatelimit(), clusterClientRatelimit(), backendRatelimit() and clusterLeakyBucketRatelimit()
+- Letsencrypt: if you use "-letsencrypt-cache=remote" as persistence
+
+Shared storage are accessed via a client side ring hash, which means
+you can scale the shared storage, but the same buckets end up on the
+same shard and will be found by all skipper instances.
+
+See also our [cluster ratelimit tutorial](../tutorials/ratelimit.md#cluster-ratelimit)
+in order to understand which options you have and how to set them up.
