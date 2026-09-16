@@ -1,3 +1,8 @@
+// Package tls is implementing predicates that can match based on the
+// client peer certificate. There is no validation at this point,
+// please use [github.com/zalando/skipper/filters/tls] in order to
+// validate certificates for authentication and authorization
+// purposes.
 package tls
 
 import (
@@ -50,6 +55,12 @@ func NewTLSClientCheckIssuerCNPredicate() routing.PredicateSpec {
 	}
 }
 
+func NewTLSClientCheckCNPredicate() routing.PredicateSpec {
+	return &tlsClientPredicateSpec{
+		typ: checkCN,
+	}
+}
+
 func NewTLSClientCheckSanDNSPredicate() routing.PredicateSpec {
 	return &tlsClientPredicateSpec{
 		typ: checkSanDNS,
@@ -74,14 +85,25 @@ func NewTLSClientCheckSanURIPredicate() routing.PredicateSpec {
 	}
 }
 
-func NewTLSClientCheckCNPredicate() routing.PredicateSpec {
-	return &tlsClientPredicateSpec{
-		typ: checkCN,
-	}
-}
-
 func (spec *tlsClientPredicateSpec) Name() string {
-	return predicates.TLSClientName
+	switch spec.typ {
+	case checkIssuerCN:
+		return predicates.TLSClientIssuerCNName
+	case checkIssuerDN:
+		return predicates.TLSClientIssuerDNName
+	case checkCN:
+		return predicates.TLSClientCNName
+	case checkSanCIDR:
+		return predicates.TLSClientSanCIDRName
+	case checkSanDNS:
+		return predicates.TLSClientSanDNSName
+	case checkSanIP:
+		return predicates.TLSClientSanIPName
+	case checkSanURI:
+		return predicates.TLSClientSanURIName
+	}
+
+	return predicates.TLSClientIssuerDNName
 }
 
 func allowedStrings(a []any) (map[string]struct{}, error) {

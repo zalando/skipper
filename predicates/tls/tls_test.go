@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -104,21 +103,47 @@ func reqWithCert(cert *x509.Certificate) *http.Request {
 var noTLSReq = &http.Request{}
 var emptyTLSReq = &http.Request{TLS: &tls.ConnectionState{}}
 
-// --- TestName ---
-
 func TestName(t *testing.T) {
-	for _, spec := range []routing.PredicateSpec{
-		NewTLSClientCheckIssuerDNPredicate(),
-		NewTLSClientCheckIssuerCNPredicate(),
-		NewTLSClientCheckSanDNSPredicate(),
-		NewTLSClientCheckSanCIDRPredicate(),
-		NewTLSClientCheckSanIPPredicate(),
-		NewTLSClientCheckSanURIPredicate(),
-		NewTLSClientCheckCNPredicate(),
+	for _, tc := range []struct {
+		msg    string
+		spec   routing.PredicateSpec
+		result string
+	}{
+		{
+			msg:    "IssuerDN",
+			spec:   NewTLSClientCheckIssuerDNPredicate(),
+			result: "TLSClientIssuerDN",
+		}, {
+			msg:    "IssuerCN",
+			spec:   NewTLSClientCheckIssuerCNPredicate(),
+			result: "TLSClientIssuerCN",
+		}, {
+			msg:    "CN",
+			spec:   NewTLSClientCheckCNPredicate(),
+			result: "TLSClientCN",
+		}, {
+			msg:    "SanDNS",
+			spec:   NewTLSClientCheckSanDNSPredicate(),
+			result: "TLSClientSanDNS",
+		}, {
+			msg:    "SanCIDR",
+			spec:   NewTLSClientCheckSanCIDRPredicate(),
+			result: "TLSClientSanCIDR",
+		}, {
+			msg:    "SanIP",
+			spec:   NewTLSClientCheckSanIPPredicate(),
+			result: "TLSClientSanIP",
+		}, {
+			msg:    "SanURI",
+			spec:   NewTLSClientCheckSanURIPredicate(),
+			result: "TLSClientSanURI",
+		},
 	} {
-		if name := spec.Name(); name != predicates.TLSClientName {
-			t.Errorf("expected name %q, got %q", predicates.TLSClientName, name)
-		}
+		t.Run(tc.msg, func(t *testing.T) {
+			if name := tc.spec.Name(); name != tc.result {
+				t.Errorf("expected name %q, got %q", tc.result, name)
+			}
+		})
 	}
 }
 
