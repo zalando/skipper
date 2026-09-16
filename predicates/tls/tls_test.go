@@ -111,31 +111,31 @@ func TestName(t *testing.T) {
 	}{
 		{
 			msg:    "IssuerDN",
-			spec:   NewTLSClientCheckIssuerDNPredicate(),
+			spec:   NewTLSClientCheckIssuerDN(),
 			result: "TLSClientIssuerDN",
 		}, {
 			msg:    "IssuerCN",
-			spec:   NewTLSClientCheckIssuerCNPredicate(),
+			spec:   NewTLSClientCheckIssuerCN(),
 			result: "TLSClientIssuerCN",
 		}, {
 			msg:    "CN",
-			spec:   NewTLSClientCheckCNPredicate(),
+			spec:   NewTLSClientCheckCN(),
 			result: "TLSClientCN",
 		}, {
 			msg:    "SanDNS",
-			spec:   NewTLSClientCheckSanDNSPredicate(),
+			spec:   NewTLSClientCheckSanDNS(),
 			result: "TLSClientSanDNS",
 		}, {
 			msg:    "SanCIDR",
-			spec:   NewTLSClientCheckSanCIDRPredicate(),
+			spec:   NewTLSClientCheckSanCIDR(),
 			result: "TLSClientSanCIDR",
 		}, {
 			msg:    "SanIP",
-			spec:   NewTLSClientCheckSanIPPredicate(),
+			spec:   NewTLSClientCheckSanIP(),
 			result: "TLSClientSanIP",
 		}, {
 			msg:    "SanURI",
-			spec:   NewTLSClientCheckSanURIPredicate(),
+			spec:   NewTLSClientCheckSanURI(),
 			result: "TLSClientSanURI",
 		},
 	} {
@@ -150,7 +150,7 @@ func TestName(t *testing.T) {
 // --- TestCreate ---
 
 func TestCreateIssuerDN(t *testing.T) {
-	spec := NewTLSClientCheckIssuerDNPredicate()
+	spec := NewTLSClientCheckIssuerDN()
 	for _, tc := range []struct {
 		msg     string
 		args    []any
@@ -175,7 +175,7 @@ func TestCreateIssuerDN(t *testing.T) {
 }
 
 func TestCreateIssuerCN(t *testing.T) {
-	spec := NewTLSClientCheckIssuerCNPredicate()
+	spec := NewTLSClientCheckIssuerCN()
 	for _, tc := range []struct {
 		msg     string
 		args    []any
@@ -200,7 +200,7 @@ func TestCreateIssuerCN(t *testing.T) {
 }
 
 func TestCreateCN(t *testing.T) {
-	spec := NewTLSClientCheckCNPredicate()
+	spec := NewTLSClientCheckCN()
 	for _, tc := range []struct {
 		msg     string
 		args    []any
@@ -225,7 +225,7 @@ func TestCreateCN(t *testing.T) {
 }
 
 func TestCreateSanDNS(t *testing.T) {
-	spec := NewTLSClientCheckSanDNSPredicate()
+	spec := NewTLSClientCheckSanDNS()
 	for _, tc := range []struct {
 		msg     string
 		args    []any
@@ -255,7 +255,7 @@ func TestCreateSanDNS(t *testing.T) {
 }
 
 func TestCreateSanCIDR(t *testing.T) {
-	spec := NewTLSClientCheckSanCIDRPredicate()
+	spec := NewTLSClientCheckSanCIDR()
 	for _, tc := range []struct {
 		msg     string
 		args    []any
@@ -283,7 +283,7 @@ func TestCreateSanCIDR(t *testing.T) {
 }
 
 func TestCreateSanIP(t *testing.T) {
-	spec := NewTLSClientCheckSanIPPredicate()
+	spec := NewTLSClientCheckSanIP()
 	for _, tc := range []struct {
 		msg     string
 		args    []any
@@ -311,7 +311,7 @@ func TestCreateSanIP(t *testing.T) {
 }
 
 func TestCreateSanURI(t *testing.T) {
-	spec := NewTLSClientCheckSanURIPredicate()
+	spec := NewTLSClientCheckSanURI()
 	for _, tc := range []struct {
 		msg     string
 		args    []any
@@ -352,7 +352,7 @@ func TestMatchIssuerDN(t *testing.T) {
 		Subject: pkix.Name{CommonName: "client"},
 	}, otherCA, otherKey)
 
-	pred, err := NewTLSClientCheckIssuerDNPredicate().Create([]any{issuerDN})
+	pred, err := NewTLSClientCheckIssuerDN().Create([]any{issuerDN})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -387,7 +387,7 @@ func TestMatchIssuerCN(t *testing.T) {
 		Subject: pkix.Name{CommonName: "client"},
 	}, otherCA, otherKey)
 
-	pred, err := NewTLSClientCheckIssuerCNPredicate().Create([]any{"Trusted Issuer"})
+	pred, err := NewTLSClientCheckIssuerCN().Create([]any{"Trusted Issuer"})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -421,7 +421,7 @@ func TestMatchCN(t *testing.T) {
 		Subject: pkix.Name{},
 	})
 
-	pred, err := NewTLSClientCheckCNPredicate().Create([]any{"allowed-client"})
+	pred, err := NewTLSClientCheckCN().Create([]any{"allowed-client"})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -470,7 +470,7 @@ func TestMatchSanDNS(t *testing.T) {
 		DNSNames: []string{"other.example.com", "api.example.com"},
 	})
 
-	pred, err := NewTLSClientCheckSanDNSPredicate().Create([]any{"api.example.com", "*.example.com"})
+	pred, err := NewTLSClientCheckSanDNS().Create([]any{"api.example.com", "*.example.com"})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -518,15 +518,15 @@ func TestMatchSanCIDR(t *testing.T) {
 		Subject: pkix.Name{CommonName: "c"},
 	})
 
-	predIPv4, err := NewTLSClientCheckSanCIDRPredicate().Create([]any{"10.0.0.0/8"})
+	predIPv4, err := NewTLSClientCheckSanCIDR().Create([]any{"10.0.0.0/8"})
 	if err != nil {
 		t.Fatalf("Create IPv4 CIDR: %v", err)
 	}
-	predIPv6, err := NewTLSClientCheckSanCIDRPredicate().Create([]any{"2001:db8::/32"})
+	predIPv6, err := NewTLSClientCheckSanCIDR().Create([]any{"2001:db8::/32"})
 	if err != nil {
 		t.Fatalf("Create IPv6 CIDR: %v", err)
 	}
-	predOther, err := NewTLSClientCheckSanCIDRPredicate().Create([]any{"192.168.0.0/16"})
+	predOther, err := NewTLSClientCheckSanCIDR().Create([]any{"192.168.0.0/16"})
 	if err != nil {
 		t.Fatalf("Create other CIDR: %v", err)
 	}
@@ -581,11 +581,11 @@ func TestMatchSanIP(t *testing.T) {
 		Subject: pkix.Name{CommonName: "c"},
 	})
 
-	predIPv4, err := NewTLSClientCheckSanIPPredicate().Create([]any{"192.168.1.1"})
+	predIPv4, err := NewTLSClientCheckSanIP().Create([]any{"192.168.1.1"})
 	if err != nil {
 		t.Fatalf("Create IPv4: %v", err)
 	}
-	predIPv6, err := NewTLSClientCheckSanIPPredicate().Create([]any{"2001:db8::1"})
+	predIPv6, err := NewTLSClientCheckSanIP().Create([]any{"2001:db8::1"})
 	if err != nil {
 		t.Fatalf("Create IPv6: %v", err)
 	}
@@ -641,20 +641,20 @@ func TestMatchSanURI(t *testing.T) {
 		Subject: pkix.Name{CommonName: "c"},
 	})
 
-	predExact, err := NewTLSClientCheckSanURIPredicate().Create([]any{
+	predExact, err := NewTLSClientCheckSanURI().Create([]any{
 		"spiffe://cluster.local/ns/default/sa/myapp",
 	})
 	if err != nil {
 		t.Fatalf("Create exact: %v", err)
 	}
-	predGlob, err := NewTLSClientCheckSanURIPredicate().Create([]any{
+	predGlob, err := NewTLSClientCheckSanURI().Create([]any{
 		"spiffe://cluster.local/ns/*/sa/*",
 	})
 	if err != nil {
 		t.Fatalf("Create glob: %v", err)
 	}
 	// predMixed has both an exact HTTPS URI and a spiffe glob.
-	predMixed, err := NewTLSClientCheckSanURIPredicate().Create([]any{
+	predMixed, err := NewTLSClientCheckSanURI().Create([]any{
 		"https://exact.example.com",
 		"spiffe://*/ns/*/sa/*",
 	})
@@ -704,7 +704,7 @@ func BenchmarkMatchIssuerDN(b *testing.B) {
 			args[i] = fmt.Sprintf("CN=ca%d,O=Bench", i)
 		}
 		args[n-1] = issuerDN
-		pred, _ := NewTLSClientCheckIssuerDNPredicate().Create(args)
+		pred, _ := NewTLSClientCheckIssuerDN().Create(args)
 		b.Run(fmt.Sprintf("n=%d/hit", n), func(b *testing.B) {
 			for b.Loop() {
 				pred.Match(reqHit)
@@ -732,7 +732,7 @@ func BenchmarkMatchIssuerCN(b *testing.B) {
 			args[i] = fmt.Sprintf("other-ca-%d", i)
 		}
 		args[n-1] = "Bench Issuer CN"
-		pred, _ := NewTLSClientCheckIssuerCNPredicate().Create(args)
+		pred, _ := NewTLSClientCheckIssuerCN().Create(args)
 		b.Run(fmt.Sprintf("n=%d/hit", n), func(b *testing.B) {
 			for b.Loop() {
 				pred.Match(reqHit)
@@ -758,7 +758,7 @@ func BenchmarkMatchCN(b *testing.B) {
 			args[i] = fmt.Sprintf("other-client-%d", i)
 		}
 		args[n-1] = "allowed-client"
-		pred, _ := NewTLSClientCheckCNPredicate().Create(args)
+		pred, _ := NewTLSClientCheckCN().Create(args)
 		b.Run(fmt.Sprintf("n=%d/hit", n), func(b *testing.B) {
 			for b.Loop() {
 				pred.Match(reqHit)
@@ -801,7 +801,7 @@ func BenchmarkMatchSanDNS(b *testing.B) {
 				args[i] = fmt.Sprintf("host%d.example.com", i)
 			}
 			args[n-1] = "api.example.com"
-			pred, _ := NewTLSClientCheckSanDNSPredicate().Create(args)
+			pred, _ := NewTLSClientCheckSanDNS().Create(args)
 			b.Run(fmt.Sprintf("certSANs=%d/n=%d/hit", certSANs, n), func(b *testing.B) {
 				for b.Loop() {
 					pred.Match(reqHit)
@@ -845,7 +845,7 @@ func BenchmarkMatchSanCIDR(b *testing.B) {
 				args[i] = fmt.Sprintf("192.168.%d.0/24", i%256)
 			}
 			args[n-1] = "10.0.0.0/8"
-			pred, _ := NewTLSClientCheckSanCIDRPredicate().Create(args)
+			pred, _ := NewTLSClientCheckSanCIDR().Create(args)
 			b.Run(fmt.Sprintf("certSANs=%d/n=%d/hit", certSANs, n), func(b *testing.B) {
 				for b.Loop() {
 					pred.Match(reqHit)
@@ -876,7 +876,7 @@ func BenchmarkMatchSanIP(b *testing.B) {
 				args[i] = fmt.Sprintf("192.168.%d.1", i%256)
 			}
 			args[n-1] = "10.0.0.1"
-			pred, _ := NewTLSClientCheckSanIPPredicate().Create(args)
+			pred, _ := NewTLSClientCheckSanIP().Create(args)
 			b.Run(fmt.Sprintf("certSANs=%d/n=%d/hit", certSANs, n), func(b *testing.B) {
 				for b.Loop() {
 					pred.Match(reqHit)
@@ -923,7 +923,7 @@ func BenchmarkMatchSanURI(b *testing.B) {
 				args[i] = fmt.Sprintf("https://other%d.example.com/path", i)
 			}
 			args[n-1] = "spiffe://*/ns/*/sa/*"
-			pred, _ := NewTLSClientCheckSanURIPredicate().Create(args)
+			pred, _ := NewTLSClientCheckSanURI().Create(args)
 			b.Run(fmt.Sprintf("certSANs=%d/n=%d/hit", certSANs, n), func(b *testing.B) {
 				for b.Loop() {
 					pred.Match(reqHit)

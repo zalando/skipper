@@ -43,43 +43,43 @@ type tlsClientPredicate struct {
 	allowedIPs      *netipx.IPSet
 }
 
-func NewTLSClientCheckIssuerDNPredicate() routing.PredicateSpec {
+func NewTLSClientCheckIssuerDN() routing.PredicateSpec {
 	return &tlsClientPredicateSpec{
 		typ: checkIssuerDN,
 	}
 }
 
-func NewTLSClientCheckIssuerCNPredicate() routing.PredicateSpec {
+func NewTLSClientCheckIssuerCN() routing.PredicateSpec {
 	return &tlsClientPredicateSpec{
 		typ: checkIssuerCN,
 	}
 }
 
-func NewTLSClientCheckCNPredicate() routing.PredicateSpec {
+func NewTLSClientCheckCN() routing.PredicateSpec {
 	return &tlsClientPredicateSpec{
 		typ: checkCN,
 	}
 }
 
-func NewTLSClientCheckSanDNSPredicate() routing.PredicateSpec {
+func NewTLSClientCheckSanDNS() routing.PredicateSpec {
 	return &tlsClientPredicateSpec{
 		typ: checkSanDNS,
 	}
 }
 
-func NewTLSClientCheckSanCIDRPredicate() routing.PredicateSpec {
+func NewTLSClientCheckSanCIDR() routing.PredicateSpec {
 	return &tlsClientPredicateSpec{
 		typ: checkSanCIDR,
 	}
 }
 
-func NewTLSClientCheckSanIPPredicate() routing.PredicateSpec {
+func NewTLSClientCheckSanIP() routing.PredicateSpec {
 	return &tlsClientPredicateSpec{
 		typ: checkSanIP,
 	}
 }
 
-func NewTLSClientCheckSanURIPredicate() routing.PredicateSpec {
+func NewTLSClientCheckSanURI() routing.PredicateSpec {
 	return &tlsClientPredicateSpec{
 		typ: checkSanURI,
 	}
