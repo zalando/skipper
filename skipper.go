@@ -801,6 +801,10 @@ type Options struct {
 	// EnableMTLS enables mTLS support in the proxy with rotated client cert
 	EnableMTLS bool
 
+	// AllowInsecureBackend enables the per-route proxySSLVerifyOff() filter.
+	// When false (the default), the filter has no effect even if present in a route.
+	AllowInsecureBackend bool
+
 	// TLSMinVersion to set the minimal TLS version for all TLS configurations
 	TLSMinVersion uint16
 
@@ -2702,6 +2706,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ClientKeyFile:                    o.ClientKeyFile,
 		ClientCertRefreshInterval:        o.ClientCertRefreshInterval,
 		EnableMTLS:                       o.EnableMTLS,
+		AllowInsecureBackend:             o.AllowInsecureBackend,
 		CustomHttpRoundTripperWrap:       o.CustomHttpRoundTripperWrap,
 		RateLimiters:                     ratelimitRegistry,
 		EndpointRegistry:                 endpointRegistry,

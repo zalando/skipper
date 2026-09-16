@@ -255,6 +255,7 @@ func Filters() []filters.Spec {
 		tls.NewMtlsSanDNS(),
 		tls.NewMtlsSanIP(),
 		tls.NewMtlsSanURI(),
+		tls.NewProxySSLVerifyOff(),
 	}
 }
 

@@ -1331,3 +1331,33 @@ metadata:
     zalando.org/traffic-zone-aware: "false"
   name: app
 ```
+
+## Skipping Backend TLS Certificate Verification
+
+By default skipper validates the TLS certificate of every HTTPS backend.
+For legacy backends that use self-signed or otherwise untrusted certificates,
+per-Ingress verification can be disabled with the filter `proxySSLVerifyOff()`
+
+**Security requirement**: the feature is gated by the `--allow-insecure-backends=true`
+flag (disabled by default). Skipper must be started with this flag, otherwise the
+filter has no effect.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: legacy-app
+  annotations:
+    zalando.org/filter: proxySSLVerifyOff()
+spec:
+  rules:
+  - host: legacy-app.example.org
+    http:
+      paths:
+      - pathType: ImplementationSpecific
+        backend:
+          service:
+            name: legacy-app
+            port:
+              number: 443
+```

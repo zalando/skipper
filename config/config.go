@@ -44,6 +44,7 @@ type Config struct {
 	EnableCopyStreamPoolExperimental      bool           `yaml:"enable-copy-stream-pool"`
 	IgnoreTrailingSlash                   bool           `yaml:"ignore-trailing-slash"`
 	Insecure                              bool           `yaml:"insecure"`
+	AllowInsecureBackends                 bool           `yaml:"allow-insecure-backends"`
 	ProxyPreserveHost                     bool           `yaml:"proxy-preserve-host"`
 	DevMode                               bool           `yaml:"dev-mode"`
 	SupportListener                       string         `yaml:"support-listener"`
@@ -453,6 +454,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.EnableCopyStreamPoolExperimental, "enable-copy-stream-pool", false, "flag to use a pooled copy stream in the proxy. This is an optimization that is experimental and this option might disappear in the future")
 	flag.BoolVar(&cfg.IgnoreTrailingSlash, "ignore-trailing-slash", false, "flag indicating to ignore trailing slashes in paths when routing")
 	flag.BoolVar(&cfg.Insecure, "insecure", false, "flag indicating to ignore the verification of the TLS certificates of the backend services")
+	flag.BoolVar(&cfg.AllowInsecureBackends, "allow-insecure-backends", false, "enables the per-route proxySSLVerifyOff() filter that skips TLS certificate verification for individual backends; disabled by default")
 	flag.BoolVar(&cfg.ProxyPreserveHost, "proxy-preserve-host", false, "flag indicating to preserve the incoming request 'Host' header in the outgoing requests")
 	flag.BoolVar(&cfg.DevMode, "dev-mode", false, "enables developer time behavior, like unbuffered routing updates")
 	flag.StringVar(&cfg.SupportListener, "support-listener", ":9911", "network address used for exposing the /metrics endpoint. An empty value disables support endpoint.")
@@ -1209,6 +1211,7 @@ func (c *Config) ToOptions() skipper.Options {
 		MaxIdleConnsBackend:          c.MaxIdleConnsBackend,
 		DisableHTTPKeepalives:        c.DisableHTTPKeepalives,
 		KubernetesEnableTLS:          c.KubernetesEnableTLS,
+		AllowInsecureBackend:         c.AllowInsecureBackends,
 
 		// swarm:
 		EnableSwarm: c.EnableSwarm,

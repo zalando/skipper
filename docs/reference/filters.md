@@ -700,7 +700,20 @@ Example:
 * -> mtlsAuthn() ->  mtlsSanURI("spiffe://my-service.example/*") -> "http://10.2.5.21:8080";
 ```
 
+### proxySSLVerifyOff
 
+This filter lets you connect to backends with untrusted certificates
+that skipper proxy would not be able to verify.
+
+**Security requirement**: the feature is gated by the `--allow-insecure-backends=true`
+flag (disabled by default). Skipper must be started with this flag, otherwise the
+filter has no effect.
+
+Example:
+
+```
+* -> proxySSLVerifyOff() -> https://example.test
+```
 
 ## Diagnostics
 
