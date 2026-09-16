@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -322,6 +324,15 @@ func TestServerResponseFilter(t *testing.T) {
 			r := eskip.MustParse(fmt.Sprintf(`* -> %s("%s", "%s") -> <shunt>`, ti.filterName, ti.bundleName, ti.contextExtensions))
 
 			proxy := proxytest.New(fr, r...)
+
+			// GetOrStartInstance is non-blocking, so the OPA instance may not be
+			// ready yet when the proxy starts serving. Wait for it to become
+			// healthy before firing the request, otherwise the filter returns a
+			// 503 ("instance is not ready yet") instead of the expected status.
+			require.Eventually(t, func() bool {
+				inst, instErr := opaFactory.GetOrStartInstance(ti.bundleName)
+				return instErr == nil && inst.Started() && inst.Healthy()
+			}, 5*time.Second, 50*time.Millisecond, "OPA instance did not become ready")
 
 			req, err := http.NewRequest("GET", proxy.URL+ti.requestPath, strings.NewReader(ti.body))
 			assert.NoError(t, err)
