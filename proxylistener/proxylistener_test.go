@@ -1,6 +1,7 @@
 package proxylistener
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -105,6 +106,49 @@ func createBogusProxyClient(proxyAddr, destAddr string, destPort int, version by
 	return cli
 }
 
+// executeSkipListRequest dials directly, sends the PROXY header followed by a
+// GET request, and reads the response using http.ReadResponse. This avoids the
+// known net/http Client Transport race condition (golang/go#31259) where the
+// server immediately sends 400 Bad Request and closes the connection on malformed
+// request bytes, causing readLoopPeekFailLocked in http.Client.
+func executeSkipListRequest(addr, host string) (*http.Response, error) {
+	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	header := &proxyproto.Header{
+		Version:           2,
+		Command:           proxyproto.PROXY,
+		TransportProtocol: proxyproto.TCPv4,
+		SourceAddr: &net.TCPAddr{
+			IP:   net.ParseIP(clientIP),
+			Port: clientPort,
+		},
+		DestinationAddr: &net.TCPAddr{
+			IP:   net.ParseIP("10.0.0.5"),
+			Port: 8080,
+		},
+	}
+
+	if _, err := header.WriteTo(conn); err != nil {
+		return nil, err
+	}
+
+	if _, err := fmt.Fprintf(conn, "GET /foo HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", host); err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", "http://"+addr+"/foo", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Host = host
+
+	return http.ReadResponse(bufio.NewReader(conn), req)
+}
+
 func TestProxyListenerWithProxyClient(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
@@ -187,9 +231,7 @@ func TestProxyListenerWithProxyClient(t *testing.T) {
 				}),
 			}
 
-			client := createProxyClient(addr, "10.0.0.5", 8080)
-
-			// shutdownCH is closed after client.Do returns so that srv.Shutdown
+			// shutdownCH is closed after client request returns so that srv.Shutdown
 			// is only called once the request has completed, not on a fixed timer.
 			shutdownCH := make(chan struct{})
 			waitShutdownCH := make(chan struct{})
@@ -212,15 +254,26 @@ func TestProxyListenerWithProxyClient(t *testing.T) {
 				close(waitServeCH)
 			}()
 
-			buf := bytes.NewBufferString(clientString)
-			req, err := http.NewRequest("POST", "http://"+addr+"/foo", buf)
-			if err != nil {
-				t.Fatalf("Failed to create request: %v", err)
+			var rsp *http.Response
+			if len(tt.skipList) > 0 {
+				rsp, err = executeSkipListRequest(addr, tt.host)
+			} else {
+				client := createProxyClient(addr, "10.0.0.5", 8080)
+				defer client.CloseIdleConnections()
+
+				buf := bytes.NewBufferString(clientString)
+				var req *http.Request
+				req, err = http.NewRequest("POST", "http://"+addr+"/foo", buf)
+				if err != nil {
+					t.Fatalf("Failed to create request: %v", err)
+				}
+				req.Host = tt.host
+				rsp, err = client.Do(req)
 			}
-			req.Host = tt.host
-			rsp, err := client.Do(req)
+
 			if rsp != nil {
-				rsp.Body.Close() // drain body before triggering shutdown
+				_, _ = io.Copy(io.Discard, rsp.Body)
+				rsp.Body.Close()
 			}
 			close(shutdownCH) // trigger shutdown now that response body is consumed
 			if err != nil && !tt.wantErr {
@@ -332,6 +385,7 @@ func TestProxyListenerWithBogusProxyClient(t *testing.T) {
 			}
 
 			client := createBogusProxyClient(addr, tt.destAddr, 8080, tt.version, tt.protocol)
+			defer client.CloseIdleConnections()
 
 			shutdownCH := make(chan struct{})
 			waitShutdownCH := make(chan struct{})
@@ -362,6 +416,7 @@ func TestProxyListenerWithBogusProxyClient(t *testing.T) {
 			req.Host = tt.host
 			rsp, err := client.Do(req)
 			if rsp != nil {
+				_, _ = io.Copy(io.Discard, rsp.Body)
 				rsp.Body.Close()
 			}
 			close(shutdownCH)
@@ -515,6 +570,7 @@ func TestProxyListenerWithHttpClient(t *testing.T) {
 			client := &http.Client{
 				Transport: &http.Transport{DisableKeepAlives: true},
 			}
+			defer client.CloseIdleConnections()
 
 			shutdownCH := make(chan struct{})
 			waitShutdownCH := make(chan struct{})
@@ -545,6 +601,7 @@ func TestProxyListenerWithHttpClient(t *testing.T) {
 			req.Host = tt.host
 			rsp, err := client.Do(req)
 			if rsp != nil {
+				_, _ = io.Copy(io.Discard, rsp.Body)
 				rsp.Body.Close()
 			}
 			close(shutdownCH)
