@@ -1348,7 +1348,7 @@ kind: Ingress
 metadata:
   name: legacy-app
   annotations:
-    zalando.org/filter: proxySSLVerifyOff()
+    zalando.org/skipper-filter: proxySSLVerifyOff()
 spec:
   rules:
   - host: legacy-app.example.org
