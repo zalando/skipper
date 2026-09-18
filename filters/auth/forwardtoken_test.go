@@ -91,13 +91,11 @@ func TestForwardToken(t *testing.T) {
 			},
 		},
 		{
-			filters: `forwardToken("X-Skipper-Tokeninfo")`, // not tokeninfo or tokenintrospection, passes existing
+			filters: `forwardToken("X-Skipper-Tokeninfo")`, // not tokeninfo or tokenintrospection, drops existing, see https://github.com/zalando/skipper/security/advisories/GHSA-pr9p-gcff-7g4p
 			header: http.Header{
 				"X-Skipper-Tokeninfo": []string{`{"already": "exists"}`},
 			},
-			expectedHeader: http.Header{
-				"X-Skipper-Tokeninfo": []string{`{"already": "exists"}`},
-			},
+			expectedHeader: http.Header{},
 		},
 	} {
 		t.Run(ti.filters, func(t *testing.T) {
