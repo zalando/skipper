@@ -16,8 +16,8 @@ to RouteGroups.
 Annotation | example data | usage
 --- | --- | ---
 zalando.org/backend-weights | `{"my-app-1": 80, "my-app-2": 20}` | blue-green deployments, see also [StackSet](https://github.com/zalando-incubator/stackset-controller) for more high-level integration
-zalando.org/skipper-filter | `consecutiveBreaker(15)` | arbitrary filters
-zalando.org/skipper-predicate | `QueryParam("version", "^alpha$")` | arbitrary predicates
+zalando.org/skipper-filter | `consecutiveBreaker(15)` | arbitrary filters added to all routes created by `.spec.rules`
+zalando.org/skipper-predicate | `QueryParam("version", "^alpha$")` | arbitrary predicates added to all routes created by `.spec.rules`
 zalando.org/skipper-routes | `Method("OPTIONS") -> status(200) -> <shunt>` | extra custom routes, please consider using [RouteGroups](routegroups.md) instead
 zalando.org/skipper-backend | `forward` | if you want to rewrite the backend, for migration purposes to the forward backend, other backends are not allowed, yet.
 zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skipper-filter instead
