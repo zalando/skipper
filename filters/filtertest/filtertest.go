@@ -35,6 +35,8 @@ type Context struct {
 	FMetrics            filters.Metrics
 	FTracer             opentracing.Tracer
 	FRouteId            string
+	FRoutePredicates    []filters.RoutePredicate
+	FRouteFilters       []filters.RouteFilter
 }
 
 func (spec *Filter) Name() string                    { return spec.FilterName }
@@ -93,4 +95,6 @@ func (fc *Context) Split() (filters.FilterContext, error) {
 	return fc, nil
 }
 
-func (fc *Context) RouteId() string { return fc.FRouteId }
+func (fc *Context) RouteId() string                          { return fc.FRouteId }
+func (fc *Context) RoutePredicates() []filters.RoutePredicate { return fc.FRoutePredicates }
+func (fc *Context) RouteFilters() []filters.RouteFilter       { return fc.FRouteFilters }
