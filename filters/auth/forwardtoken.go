@@ -66,7 +66,7 @@ func getTokenPayload(ctx filters.FilterContext, cacheKey string) any {
 }
 
 func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
-	ctx.Request().Header.Del(f.HeaderName)
+	ctx.Request().Header.Del(f.HeaderName) // https://github.com/zalando/skipper/security/advisories/GHSA-pr9p-gcff-7g4p
 
 	tiMap := getTokenPayload(ctx, tokeninfoCacheKey)
 	if tiMap == nil {

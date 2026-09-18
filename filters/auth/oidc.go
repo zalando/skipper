@@ -947,6 +947,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 func setHeaders(upstreamHeaders map[string]string, ctx filters.FilterContext, container any) (err error) {
 	// Always drop any client-supplied inbound copy first, on every path,
 	// so a forged identity header cannot survive a missing claim.
+	// https://github.com/zalando/skipper/security/advisories/GHSA-pr9p-gcff-7g4p
 	for k := range upstreamHeaders {
 		ctx.Request().Header.Del(k)
 	}

@@ -51,6 +51,8 @@ func newBearerInjectorFilter(s string, sr secrets.SecretsReader) *bearerInjector
 }
 
 func (f *bearerInjectorFilter) Request(ctx filters.FilterContext) {
+	ctx.Request().Header.Del(authHeaderName) // https://github.com/zalando/skipper/security/advisories/GHSA-pr9p-gcff-7g4p
+
 	b, ok := f.secretsReader.GetSecret(f.secretName)
 	if !ok {
 		log.Errorf("Secret %q not found for bearerinjector filter. Make sure the file exists in a directory passed via -credentials-paths flag. See https://opensource.zalando.com/skipper/reference/egress/#example-bearer-injection", f.secretName)
