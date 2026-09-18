@@ -70,6 +70,7 @@ import (
 	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/tee"
+	ptls "github.com/zalando/skipper/predicates/tls"
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxylistener"
@@ -2566,6 +2567,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		host.NewAny(),
 		content.NewContentLengthBetween(),
 		skpotel.NewBaggage(),
+		ptls.NewTLSClientCheckIssuerDN(),
+		ptls.NewTLSClientCheckIssuerCN(),
+		ptls.NewTLSClientCheckCN(),
+		ptls.NewTLSClientCheckSanDNS(),
+		ptls.NewTLSClientCheckSanCIDR(),
+		ptls.NewTLSClientCheckSanIP(),
+		ptls.NewTLSClientCheckSanURI(),
 	)
 
 	// provide default value for wrapper if not defined
