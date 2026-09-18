@@ -54,6 +54,8 @@ func (*forwardTokenFieldSpec) CreateFilter(args []any) (filters.Filter, error) {
 }
 
 func (f *forwardTokenFieldFilter) Request(ctx filters.FilterContext) {
+	ctx.Request().Header.Del(f.HeaderName)
+
 	payload := getPayload(ctx, tokeninfoCacheKey)
 	if payload == nil {
 		payload = getPayload(ctx, tokenintrospectionCacheKey)
