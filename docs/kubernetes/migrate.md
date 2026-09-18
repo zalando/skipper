@@ -370,6 +370,19 @@ set XFF headers similar to either Nginx or AWS ALB.  If you miss
 anything please file an [issue in our bug tracker](https://github.com/zalando/skipper/issues/new/choose).
 It’s often not much work to add such features.
 
+#### Insecure TLS
+
+Nginx annotation `nginx.ingress.kubernetes.io/proxy-ssl-verify: off`
+allows to configure the ingress proxy to not verify the certificate
+presented by the backend.
+
+In skipper you can use annotation `zalando.org/skipper-filter` to specify one or more filters.
+The filter that allows you to skiper verification is `proxySSLVerifyOff()`
+
+Because this is an insecure operation the operator of skipper-ingress
+needs to allow this by adding a flag to skipper:
+`--allow-insecure-backends=true`.
+
 #### Blue-Green deployment
 
 A very common deployment configuration for your applications is to

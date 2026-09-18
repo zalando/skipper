@@ -405,6 +405,10 @@ type Params struct {
 
 	// PassiveHealthCheck defines the parameters for the healthy endpoints checker.
 	PassiveHealthCheck *PassiveHealthCheck
+
+	// AllowInsecureBackend enables per-route TLS certificate verification skip via the
+	// proxySSLVerifyOff filter. When false (the default), the filter has no effect.
+	AllowInsecureBackend bool
 }
 
 type (
@@ -486,6 +490,7 @@ type Proxy struct {
 	healthyEndpoints         *healthyEndpoints
 	roundTripper             http.RoundTripper
 	h2cRoundTripper          http.RoundTripper
+	insecureRoundTripper     http.RoundTripper
 	priorityRoutes           []PriorityRoute
 	flags                    Flags
 	metrics                  metrics.Metrics
@@ -858,6 +863,13 @@ func WithParams(p Params) *Proxy {
 	h2cTr.Protocols = new(http.Protocols)
 	h2cTr.Protocols.SetUnencryptedHTTP2(true)
 
+	var insecureTr *http.Transport
+	if p.AllowInsecureBackend {
+		insecureTr = newTransport(p)
+		/* #nosec */
+		insecureTr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
 	// We need this to reliably fade on DNS change, which is right
 	// now not fixed with IdleConnTimeout in the http.Transport.
 	// https://github.com/golang/go/issues/23427
@@ -870,6 +882,9 @@ func WithParams(p Params) *Proxy {
 				case <-ticker.C:
 					tr.CloseIdleConnections()
 					h2cTr.CloseIdleConnections()
+					if insecureTr != nil {
+						insecureTr.CloseIdleConnections()
+					}
 				case <-quit:
 					return
 				}
@@ -917,9 +932,15 @@ func WithParams(p Params) *Proxy {
 		fadein: &fadeIn{
 			rnd: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), // #nosec
 		},
-		healthyEndpoints:         healthyEndpointsChooser,
-		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
-		h2cRoundTripper:          p.CustomHttpRoundTripperWrap(h2cTr),
+		healthyEndpoints: healthyEndpointsChooser,
+		roundTripper:     p.CustomHttpRoundTripperWrap(tr),
+		h2cRoundTripper:  p.CustomHttpRoundTripperWrap(h2cTr),
+		insecureRoundTripper: func() http.RoundTripper {
+			if insecureTr != nil {
+				return p.CustomHttpRoundTripperWrap(insecureTr)
+			}
+			return nil
+		}(),
 		priorityRoutes:           p.PriorityRoutes,
 		flags:                    p.Flags,
 		metrics:                  m,
@@ -1224,6 +1245,14 @@ func (p *Proxy) getRoundTripper(ctx *context, req *http.Request) (http.RoundTrip
 	case "h2c":
 		req.URL.Scheme = "http"
 		return p.h2cRoundTripper, nil
+
+	case "https":
+		if p.insecureRoundTripper != nil {
+			if skip, _ := ctx.StateBag()[filters.BackendSkipTLSVerify].(bool); skip {
+				return p.insecureRoundTripper, nil
+			}
+		}
+
 	case "fastcgi":
 		f := "index.php"
 		if sf, ok := ctx.StateBag()["fastCgiFilename"]; ok {
@@ -1246,9 +1275,9 @@ func (p *Proxy) getRoundTripper(ctx *context, req *http.Request) (http.RoundTrip
 		req.RemoteAddr = ctx.request.RemoteAddr
 
 		return rt, nil
-	default:
-		return p.roundTripper, nil
 	}
+
+	return p.roundTripper, nil
 }
 
 func (p *Proxy) rejectBackend(ctx *context, req *http.Request) (*http.Response, bool) {

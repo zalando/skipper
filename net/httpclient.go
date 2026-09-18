@@ -376,6 +376,10 @@ type Options struct {
 	// RootCAs to pass as part of the TLSClientConfig to the underlying http.Transport
 	RootCAs *x509.CertPool
 
+	// InsecureSkipVerify disables TLS certificate verification for backend connections.
+	// Ignored when Transport is non-nil.
+	InsecureSkipVerify bool
+
 	// Log is used for error logging
 	Log logging.Logger
 
@@ -458,6 +462,16 @@ func NewTransport(options Options) *Transport {
 			htransport.Protocols = new(http.Protocols)
 		}
 		htransport.Protocols.SetUnencryptedHTTP2(true)
+	}
+
+	if options.InsecureSkipVerify && options.Transport == nil {
+		if htransport.TLSClientConfig == nil {
+			/* #nosec */
+			htransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		} else {
+			/* #nosec */
+			htransport.TLSClientConfig.InsecureSkipVerify = true
+		}
 	}
 
 	t := &Transport{

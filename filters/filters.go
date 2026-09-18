@@ -35,6 +35,10 @@ const (
 
 	// BackendRatelimit is the key used in the state bag to configure backend ratelimit in proxy
 	BackendRatelimit = "backend:ratelimit"
+
+	// BackendSkipTLSVerify is the key used in the state bag to instruct the proxy to skip TLS
+	// certificate verification for the backend. Only effective when AllowInsecureBackend is enabled globally.
+	BackendSkipTLSVerify = "backend:skip-tls-verify"
 )
 
 // FilterContext object providing state and information that is unique to a request.
@@ -395,6 +399,7 @@ const (
 	LoopbackIfStatus                           = "loopbackIfStatus"
 	CacheName                                  = "cache"
 	HTTPMessageSignatureName                   = "httpMessageSignature"
+	ProxySSLVerifyOffName                      = "proxySSLVerifyOff"
 
 	// Undocumented filters
 	HealthCheckName        = "healthcheck"
