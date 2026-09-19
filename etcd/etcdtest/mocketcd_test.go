@@ -40,7 +40,15 @@ func TestMockETCD(t *testing.T) {
 		t.Fatalf("failes to reset data: %q", dat)
 	}
 
+	PutData(key, val)
 	DeleteAll()
+	dat, err = GetNode(key)
+	if err != nil {
+		t.Fatalf("Failed to get data: %v", err)
+	}
+	if dat != "" {
+		t.Fatalf("failes to deleteall data: %q", dat)
+	}
 
 	err = Stop()
 	if err != nil {
