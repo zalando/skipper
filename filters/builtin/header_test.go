@@ -570,7 +570,7 @@ func TestHeader(t *testing.T) {
 	}
 }
 
-func TestDropHeaderRegexpCanonicalName(t *testing.T) {
+func TestDropHeaderRegexpRequest(t *testing.T) {
 	for _, ti := range []struct {
 		msg            string
 		filterArgKey   string
@@ -592,28 +592,50 @@ func TestDropHeaderRegexpCanonicalName(t *testing.T) {
 		expected:       http.Header{"X-Test-Name": []string{"value0"}},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			t.Run("request", func(t *testing.T) {
-				f, err := NewDropRequestHeaderValueRegexp().CreateFilter([]any{ti.filterArgKey, ti.filterArgValue})
-				if err != nil {
-					t.Fatal(err)
-				}
+			f, err := NewDropRequestHeaderValueRegexp().CreateFilter([]any{ti.filterArgKey, ti.filterArgValue})
+			if err != nil {
+				t.Fatal(err)
+			}
 
-				r, _ := http.NewRequest("GET", "http://example.com", nil)
-				maps.Copy(r.Header, ti.headerInput)
-				f.Request(&filtertest.Context{FRequest: r})
-				assert.Equal(t, ti.expected, r.Header)
-			})
+			r, _ := http.NewRequest("GET", "http://example.com", nil)
+			maps.Copy(r.Header, ti.headerInput)
+			f.Request(&filtertest.Context{FRequest: r})
+			assert.Equal(t, ti.expected, r.Header)
+		})
 
-			t.Run("response", func(t *testing.T) {
-				f, err := NewDropResponseHeaderValueRegexp().CreateFilter([]any{ti.filterArgKey, ti.filterArgValue})
-				if err != nil {
-					t.Fatal(err)
-				}
+	}
+}
 
-				rsp := &http.Response{Header: ti.headerInput}
-				f.Response(&filtertest.Context{FResponse: rsp})
-				assert.Equal(t, ti.expected, rsp.Header)
-			})
+func TestDropHeaderRegexpResponse(t *testing.T) {
+	for _, ti := range []struct {
+		msg            string
+		filterArgKey   string
+		filterArgValue string
+		headerInput    http.Header
+		expected       http.Header
+	}{{
+		msg:            "canonical name",
+		filterArgKey:   "X-Test-Name",
+		filterArgValue: "^value1$",
+		headerInput:    http.Header{"X-Test-Name": []string{"value0", "value1"}},
+
+		expected: http.Header{"X-Test-Name": []string{"value0"}},
+	}, {
+		msg:            "lowercase name",
+		filterArgKey:   "x-test-name",
+		filterArgValue: "^value1$",
+		headerInput:    http.Header{"X-Test-Name": []string{"value0", "value1"}},
+		expected:       http.Header{"X-Test-Name": []string{"value0"}},
+	}} {
+		t.Run(ti.msg, func(t *testing.T) {
+			f, err := NewDropResponseHeaderValueRegexp().CreateFilter([]any{ti.filterArgKey, ti.filterArgValue})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			rsp := &http.Response{Header: ti.headerInput}
+			f.Response(&filtertest.Context{FResponse: rsp})
+			assert.Equal(t, ti.expected, rsp.Header)
 		})
 	}
 }
