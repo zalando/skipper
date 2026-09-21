@@ -804,3 +804,130 @@ The example matches the key of baggage item key `foo` with its corresponding val
 ```
 OTelBaggage("foo", "bar")
 ```
+
+## TLS
+
+Predicates matching client certificate data to route.  Predicates do
+not validate a certificate. Forged, untrusted or outdated certificates
+are not checked, so they produce the same result as good certificates.
+If you want to make sure a client certificate is valid you have to use [mTLS filters](filters.md#tls)
+
+Example cert:
+
+```
+certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            06:ee:d0:29:33:81:81:ca:10:83:d7:ea:32:c0:25:65:9a:37
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C = US, O = Let's Encrypt, CN = YR2
+        Validity
+            Not Before: Sep  1 07:20:15 2026 GMT
+            Not After : Nov 30 07:20:14 2026 GMT
+        Subject: CN = www.zalando.de
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (2048 bit)
+                Modulus:
+                    00:d7:03:90:5b:f5:5f:81:06:55:4c:3a:fa:c0:1d:
+                    3f:11:7c:56:be:61:e4:e4:a9:75:4e:59:44:94:8e:
+					...
+                    c4:c7:df:5d:23:01:d8:8f:7d:df:c5:09:b6:cd:9c:
+                    55:ef
+                Exponent: 65537 (0x10001)
+        X509v3 extensions:
+            X509v3 Key Usage: critical
+                Digital Signature, Key Encipherment
+            X509v3 Extended Key Usage:
+                TLS Web Server Authentication
+            X509v3 Basic Constraints: critical
+                CA:FALSE
+            X509v3 Subject Key Identifier:
+                9E:8D:E5:5A:EF:7A:29:0C:F8:4A:45:88:43:27:D0:88:39:12:4D:35
+            X509v3 Authority Key Identifier:
+                40:15:2D:26:79:ED:32:20:9E:DF:9A:72:1D:D6:32:1F:81:0C:81:0C
+            Authority Information Access:
+                CA Issuers - URI:http://yr2.i.lencr.org/
+            X509v3 Subject Alternative Name:
+                DNS:en.zalando.de, DNS:ficheproduit.zalando.fr, DNS:fr.zalando.be, DNS:fr.zalando.ch, DNS:it.zalando.ch, DNS:www.zalando.at, DNS:www.zalando.be, DNS:www.zalando.bg, DNS:www.zalando.ch, DNS:www.zalando.co.uk, DNS:www.zalando.cz, DNS:www.zalando.de, DNS:www.zalando.dk, DNS:www.zalando.ee, DNS:www.zalando.es, DNS:www.zalando.fi, DNS:www.zalando.fr, DNS:www.zalando.gr, DNS:www.zalando.hr, DNS:www.zalando.hu, DNS:www.zalando.ie, DNS:www.zalando.it, DNS:www.zalando.lt, DNS:www.zalando.lu, DNS:www.zalando.lv, DNS:www.zalando.nl, DNS:www.zalando.no, DNS:www.zalando.pl, DNS:www.zalando.pt, DNS:www.zalando.ro, DNS:www.zalando.se, DNS:www.zalando.si, DNS:www.zalando.sk
+	            URI:spiffe://example.org/ns/prod/sa/frontend, IP Address:192.168.1.50, IP Address:10.0.4.12
+				...
+```
+
+The predicates show an example match of the shown certificate data.
+
+### TLSClientIssuerCN
+
+Checks the CN of the referenced Issuer.
+
+Example:
+
+```
+TLSClientIssuerCN("YR2")
+```
+
+### TLSClientIssuerDN
+
+Checks the DN of the referenced Issuer.
+
+Example:
+
+```
+TLSClientIssuerDN("C=US,O=Let's Encrypt,CN=YR2")
+```
+
+### TLSClientCN
+
+Checks the Subject CN of the certificate.
+
+Example:
+
+```
+TLSClientCN("www.zalando.de")
+```
+
+### TLSClientSanDNS
+
+Checks X509v3 Subject Alternative Name DNS entries.
+
+Example:
+
+```
+TLSClientSanDNS("en.zalando.de", "www.zalando.dk")
+```
+
+
+### TLSClientSanCIDR
+
+Checks X509v3 Subject Alternative Name included IP and CIDR entries.
+
+Example:
+
+```
+TLSClientSanCIDR("192.168.1.0/24")
+```
+
+
+### TLSClientSanIP
+
+Checks X509v3 Subject Alternative Name included IP entries.
+
+Example:
+
+```
+TLSClientSanIP("192.168.1.50")
+```
+
+### TLSClientSanURI
+
+Checks X509v3 Subject Alternative Name included URI entries.
+Has DNS based label whildcard and path based globbing support.
+
+Example:
+
+```
+TLSClientSanURI("spiffe://example.org/ns/prod/sa/frontend")
+TLSClientSanURI("spiffe://example.org/ns/prod/*")
+TLSClientSanURI("spiffe://*.org/ns/prod/*")
+```

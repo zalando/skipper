@@ -48,4 +48,11 @@ const (
 	TrafficSegmentName        = "TrafficSegment"
 	ContentLengthBetweenName  = "ContentLengthBetween"
 	OTelBaggageName           = "OTelBaggage"
+	TLSClientIssuerCNName     = "TLSClientIssuerCN"
+	TLSClientIssuerDNName     = "TLSClientIssuerDN"
+	TLSClientCNName           = "TLSClientCN"
+	TLSClientSanDNSName       = "TLSClientSanDNS"
+	TLSClientSanCIDRName      = "TLSClientSanCIDR"
+	TLSClientSanIPName        = "TLSClientSanIP"
+	TLSClientSanURIName       = "TLSClientSanURI"
 )
