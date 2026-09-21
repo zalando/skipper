@@ -185,6 +185,12 @@ func TestHeader(t *testing.T) {
 			valid:          true,
 			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []any{"x-test-name", "^value1$"},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value0"}},
 		}},
 		"setResponseHeader": {{
 			msg:            "set response header when none",
@@ -284,6 +290,12 @@ func TestHeader(t *testing.T) {
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []any{"x-test-name", "^value1$"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Name": []string{"value0"}},
 		}},
 		"setContextRequestHeader": {{
 			msg:            "set request header from context",
@@ -554,6 +566,54 @@ func TestHeader(t *testing.T) {
 					}
 				})
 			}
+		})
+	}
+}
+
+func TestDropHeaderRegexpCanonicalName(t *testing.T) {
+	for _, ti := range []struct {
+		msg            string
+		filterArgKey   string
+		filterArgValue string
+		headerInput    http.Header
+		expected       http.Header
+	}{{
+		msg:            "canonical name",
+		filterArgKey:   "X-Test-Name",
+		filterArgValue: "^value1$",
+		headerInput:    http.Header{"X-Test-Name": []string{"value0", "value1"}},
+
+		expected: http.Header{"X-Test-Name": []string{"value0"}},
+	}, {
+		msg:            "lowercase name",
+		filterArgKey:   "x-test-name",
+		filterArgValue: "^value1$",
+		headerInput:    http.Header{"X-Test-Name": []string{"value0", "value1"}},
+		expected:       http.Header{"X-Test-Name": []string{"value0"}},
+	}} {
+		t.Run(ti.msg, func(t *testing.T) {
+			t.Run("request", func(t *testing.T) {
+				f, err := NewDropRequestHeaderValueRegexp().CreateFilter([]any{ti.filterArgKey, ti.filterArgValue})
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				r, _ := http.NewRequest("GET", "http://example.com", nil)
+				maps.Copy(r.Header, ti.headerInput)
+				f.Request(&filtertest.Context{FRequest: r})
+				assert.Equal(t, ti.expected, r.Header)
+			})
+
+			t.Run("response", func(t *testing.T) {
+				f, err := NewDropResponseHeaderValueRegexp().CreateFilter([]any{ti.filterArgKey, ti.filterArgValue})
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				rsp := &http.Response{Header: ti.headerInput}
+				f.Response(&filtertest.Context{FResponse: rsp})
+				assert.Equal(t, ti.expected, rsp.Header)
+			})
 		})
 	}
 }
