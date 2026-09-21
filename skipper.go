@@ -1872,11 +1872,18 @@ func getRemoteURLShardAddrUpdater(address string) func() ([]string, error) {
 	}
 }
 
+func wrapError(err error, component string) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", component, err)
+}
+
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// init log
 	accessLogger, err := initLog(o)
 	if err != nil {
-		return err
+		return wrapError(err, "logging")
 	}
 
 	if o.EnablePrometheusMetrics {
@@ -1951,7 +1958,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	if err := o.findAndLoadPlugins(); err != nil {
-		return err
+		return wrapError(err, "plugins")
 	}
 
 	var cr *certregistry.CertRegistry
@@ -1962,14 +1969,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// create data clients
 	dataClients, err := createDataClients(o, cr)
 	if err != nil {
-		return err
+		return wrapError(err, "dataclients")
 	}
 
 	// append custom data clients
 	dataClients = append(dataClients, o.CustomDataClients...)
 
 	if err = ensureExpectedDataclients(o, dataClients); err != nil {
-		return err
+		return wrapError(err, "dataclients")
 	}
 
 	if len(dataClients) == 0 {
@@ -1986,7 +1993,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	if o.OpenTelemetry != nil {
 		shutdown, err := sotel.Init(context.Background(), o.OpenTelemetry)
 		if err != nil {
-			return fmt.Errorf("failed to setup OpenTelemetry: %w", err)
+			return wrapError(err, "OpenTelemetry")
 		}
 		defer shutdown(context.Background())
 
@@ -2004,7 +2011,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	} else {
 		tracer, err = o.openTracingTracerInstance()
 		if err != nil {
-			return err
+			return wrapError(err, "OpenTracing")
 		}
 		// Could be a noop tracer or a wrapper if library user configured OpenTracing bridge tracer
 		otelTracer = otel.Tracer(otelTracerName)
@@ -2247,7 +2254,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			} else {
 				kdc, err = kubernetes.New(o.KubernetesDataClientOptions())
 				if err != nil {
-					return err
+					return wrapError(err, "valkey")
 				}
 				defer kdc.Close()
 
@@ -2256,14 +2263,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			log.Infof("start initialValkeyAddressUpdate")
 			if err := initialValkeyAddressUpdate(valkeyOptions, kdc); err != nil {
-				return err
+				return wrapError(err, "valkey")
 			}
 
 		} else if valkeyOptions != nil && o.SwarmValkeyEndpointsRemoteURL != "" {
 			log.Infof("Use remote address %q to fetch updates valkey shards", o.SwarmValkeyEndpointsRemoteURL)
 			valkeyOptions.AddrUpdater = getRemoteURLShardAddrUpdater(o.SwarmValkeyEndpointsRemoteURL)
 			if err := initialValkeyAddressUpdate(valkeyOptions, nil); err != nil {
-				return err
+				return wrapError(err, "valkey")
 			}
 		}
 
@@ -2277,7 +2284,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			} else {
 				kdc, err := kubernetes.New(o.KubernetesDataClientOptions())
 				if err != nil {
-					return err
+					return wrapError(err, "redis")
 				}
 				defer kdc.Close()
 
@@ -2287,7 +2294,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			_, err = redisOptions.AddrUpdater()
 			if err != nil {
 				log.Errorf("Failed to update redis addresses from kubernetes: %v", err)
-				return err
+				return wrapError(err, "redis")
 			}
 		} else if redisOptions != nil && o.SwarmRedisEndpointsRemoteURL != "" {
 			log.Infof("Use remote address %s to fetch updates redis shards", o.SwarmRedisEndpointsRemoteURL)
@@ -2296,7 +2303,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			_, err = redisOptions.AddrUpdater()
 			if err != nil {
 				log.Errorf("Failed to update redis addresses from URL: %v", err)
-				return err
+				return wrapError(err, "redis")
 			}
 		}
 	}
@@ -2307,7 +2314,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 		valkeyRing, err = skpnet.NewValkeyRingClient(valkeyOptions)
 		if err != nil {
-			return err
+			return wrapError(err, "valkey")
 		}
 		defer valkeyRing.Close()
 	}
@@ -2433,7 +2440,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			if err := oauthConfig.Init(); err != nil {
 				log.Errorf("Failed to initialize oauth grant filter: %v.", err)
-				return err
+				return wrapError(err, "oauth grant")
 			}
 		}
 
@@ -2479,7 +2486,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		opaRegistry, err = openpolicyagent.NewOpenPolicyAgentRegistry(opaRegistryOpts...)
 		if err != nil {
 			log.Errorf("failed to create Open Policy Agent registry: %v.", err)
-			return err
+			return wrapError(err, "Open Policy Agent")
 		}
 		defer opaRegistry.Close()
 
@@ -2495,7 +2502,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		compress, err := builtin.NewCompressWithOptions(builtin.CompressOptions{Encodings: o.CompressEncodings})
 		if err != nil {
 			log.Errorf("Failed to create compress filter: %v.", err)
-			return err
+			return wrapError(err, "compress filter")
 		}
 		o.CustomFilters = append(o.CustomFilters, compress)
 	}
@@ -2507,7 +2514,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		})
 		if err != nil {
 			log.Errorf("Failed to create lua filter: %v.", err)
-			return err
+			return wrapError(err, "lua filter")
 		}
 		o.CustomFilters = append(o.CustomFilters, lua)
 	}
@@ -2516,7 +2523,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		o.MtlsAuthnCA, err = x509.SystemCertPool()
 		if err != nil {
 			log.Errorf("Failed to load system certs: %v", err)
-			return err
+			return wrapError(err, "system certs")
 		}
 	}
 	o.CustomFilters = append(o.CustomFilters, tlsfilters.NewMtlsAuthn(o.MtlsAuthnCA, o.MtlsAuthnInterMediateCA))
@@ -2592,7 +2599,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	passiveHealthCheckEnabled, passiveHealthCheck, err := proxy.InitPassiveHealthChecker(o.PassiveHealthCheck)
 	if err != nil {
-		return err
+		return wrapError(err, "passive health check")
 	}
 
 	// create a routing engine
@@ -2815,7 +2822,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 	}
 
-	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr, cr)
+	err = listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr, cr)
+	return wrapError(err, "proxy listener")
 }
 
 func initialValkeyAddressUpdate(valkeyOptions *skpnet.ValkeyOptions, dc routing.DataClient) error {

@@ -49,6 +49,43 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	return listenAndServeQuit(proxy, o, nil, nil, nil, nil)
 }
 
+func TestWrapError(t *testing.T) {
+	require.NoError(t, wrapError(nil, "valkey"))
+
+	cause := &net.OpError{Op: "dial", Net: "tcp", Err: os.ErrDeadlineExceeded}
+	err := wrapError(cause, "valkey")
+	require.EqualError(t, err, "valkey: "+cause.Error())
+	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+	var opErr *net.OpError
+	require.ErrorAs(t, err, &opErr)
+	require.Same(t, cause, opErr)
+}
+
+func TestRunErrorContext(t *testing.T) {
+	for _, tt := range []struct {
+		component string
+		options   Options
+	}{
+		{
+			component: "valkey",
+			options:   Options{EnableSwarm: true, SwarmValkeyURLs: []string{"127.0.0.1:0"}},
+		},
+		{
+			component: "redis",
+			options:   Options{EnableSwarm: true, SwarmRedisEndpointsRemoteURL: "http://127.0.0.1:0"},
+		},
+	} {
+		t.Run(tt.component, func(t *testing.T) {
+			tt.options.MetricsBackend = &metricstest.MockMetrics{}
+			err := Run(tt.options)
+			var opErr *net.OpError
+			require.ErrorAs(t, err, &opErr)
+			require.Equal(t, "dial", opErr.Op)
+			require.ErrorContains(t, err, tt.component+": ")
+		})
+	}
+}
+
 func testListener() bool {
 	return slices.Contains(os.Args, "listener")
 }
