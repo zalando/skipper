@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -55,15 +55,8 @@ func argsString(args []interface{}) string {
 		case int:
 			sargs = appendFmt(sargs, "%d", a)
 		case float64:
-			f := "%g"
-
-			// imprecise elimination of 0 decimals
-			// TODO: better fix this issue on parsing side
-			if math.Floor(v) == v {
-				f = "%.0f"
-			}
-
-			sargs = appendFmt(sargs, f, a)
+			// the eskip number token does not support exponent notation
+			sargs = append(sargs, strconv.FormatFloat(v, 'f', -1, 64))
 		case string:
 			sargs = appendFmtEscape(sargs, `"%s"`, `"`, a)
 		default:
