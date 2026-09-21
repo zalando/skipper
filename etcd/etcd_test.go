@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -89,9 +90,9 @@ func checkInitial(d []*eskip.Route) bool {
 	return true
 }
 
-func checkBackend(d []*eskip.Route, routeId, backend string) bool {
+func checkBackend(d []*eskip.Route, routeID, backend string) bool {
 	for _, r := range d {
-		if r.Id == routeId {
+		if r.Id == routeID {
 			return r.Backend == backend
 		}
 	}
@@ -99,14 +100,8 @@ func checkBackend(d []*eskip.Route, routeId, backend string) bool {
 	return false
 }
 
-func checkDeleted(ids []string, routeId string) bool {
-	for _, id := range ids {
-		if id == routeId {
-			return true
-		}
-	}
-
-	return false
+func checkDeleted(ids []string, routeID string) bool {
+	return slices.Contains(ids, routeID)
 }
 
 func TestEndpointErrorsString(t *testing.T) {
