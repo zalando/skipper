@@ -22,8 +22,8 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/hashicorp/memberlist v0.6.0
-	github.com/instana/go-sensor v1.75.2
+	github.com/hashicorp/memberlist v0.7.0
+	github.com/instana/go-sensor v1.77.0
 	github.com/klauspost/compress v1.20.0
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.73
@@ -49,9 +49,9 @@ require (
 	github.com/tsenart/vegeta v12.7.0+incompatible
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
-	github.com/valkey-io/valkey-go v1.0.77
-	github.com/valkey-io/valkey-go/valkeyhook v1.0.77
-	github.com/valkey-io/valkey-go/valkeyotel v1.0.77
+	github.com/valkey-io/valkey-go v1.0.78
+	github.com/valkey-io/valkey-go/valkeyhook v1.0.78
+	github.com/valkey-io/valkey-go/valkeyotel v1.0.78
 	github.com/yookoala/gofast v0.8.0
 	github.com/yuin/gopher-lua v1.1.2
 	go.opentelemetry.io/contrib/exporters/autoexport v0.71.0
@@ -104,7 +104,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.3-0.20251027160822-ad3df93bed29 // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
-	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.5 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.8 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.32.6 // indirect
@@ -179,12 +178,12 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
-	github.com/hashicorp/go-metrics v0.6.0 // indirect
+	github.com/hashicorp/go-metrics v0.7.0 // indirect
 	github.com/hashicorp/go-msgpack/v2 v2.1.5 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.7 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
-	github.com/hashicorp/golang-lru v0.5.4 // indirect
+	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/golang-lru/arc/v2 v2.0.7 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/huandu/go-clone v1.7.3 // indirect
@@ -242,7 +241,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/prometheus/common v0.70.1 // indirect
+	github.com/prometheus/common v0.71.0 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/quipo/dependencysolver v0.0.0-20170801134659-2b009cb4ddcc // indirect
