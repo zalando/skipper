@@ -323,12 +323,9 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 	case appendContextRequestHeader:
 		valueFromContext(ctx, f.key, f.value, true, header.Add)
 	case copyRequestHeader, copyRequestHeaderDeprecated:
-		headerValue := header.Get(f.key)
-		if headerValue != "" {
-			header.Set(f.value, headerValue)
-			if strings.ToLower(f.value) == "host" {
-				ctx.SetOutgoingHost(headerValue)
-			}
+		values := copyHeaderValues(header, f.key, f.value)
+		if len(values) > 0 && strings.EqualFold(f.value, "host") {
+			ctx.SetOutgoingHost(values[0])
 		}
 	}
 }
@@ -359,9 +356,24 @@ func (f *headerFilter) Response(ctx filters.FilterContext) {
 	case appendContextResponseHeader:
 		valueFromContext(ctx, f.key, f.value, false, header.Add)
 	case copyResponseHeader, copyResponseHeaderDeprecated:
-		headerValue := header.Get(f.key)
-		if headerValue != "" {
-			header.Set(f.value, headerValue)
+		copyHeaderValues(header, f.key, f.value)
+	}
+}
+
+// copyHeaderValues copies every value of src onto dst.
+// Header.Get/Set only keep the first value, which drops repeated
+// headers such as Set-Cookie or X-Forwarded-For.
+func copyHeaderValues(header http.Header, src, dst string) []string {
+	values := header.Values(src)
+	if len(values) == 0 {
+		return nil
+	}
+	copied := append([]string(nil), values...)
+	if !strings.EqualFold(src, dst) {
+		header.Del(dst)
+		for _, v := range copied {
+			header.Add(dst, v)
 		}
 	}
+	return copied
 }

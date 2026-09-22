@@ -3,6 +3,7 @@ package builtin
 import (
 	"net/http"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/zalando/skipper/filters"
@@ -165,4 +166,67 @@ func Test_copyFilter_Response(t *testing.T) {
 
 		})
 	}
+}
+
+func TestCopyHeaderMultipleValues(t *testing.T) {
+	t.Run("request", func(t *testing.T) {
+		f, err := NewCopyRequestHeader().CreateFilter([]any{"X-Forwarded-For", "X-Real-Forwarded-For"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req, err := http.NewRequest("GET", "https://example.org/path", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header["X-Forwarded-For"] = []string{"10.0.1.1", "10.0.2.1"}
+
+		f.Request(&filtertest.Context{FRequest: req})
+
+		want := []string{"10.0.1.1", "10.0.2.1"}
+		if got := req.Header.Values("X-Real-Forwarded-For"); !slices.Equal(got, want) {
+			t.Errorf("failed to copy all request header values, got: %q, want: %q", got, want)
+		}
+		if got := req.Header.Values("X-Forwarded-For"); !slices.Equal(got, want) {
+			t.Errorf("source request header values were changed, got: %q, want: %q", got, want)
+		}
+	})
+
+	t.Run("response", func(t *testing.T) {
+		f, err := NewCopyResponseHeader().CreateFilter([]any{"Set-Cookie", "X-Backend-Set-Cookie"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp := &http.Response{Header: http.Header{"Set-Cookie": []string{
+			"a=1; Domain=example.org",
+			"b=2; Domain=example.org",
+		}}}
+
+		f.Response(&filtertest.Context{FResponse: rsp})
+
+		want := []string{"a=1; Domain=example.org", "b=2; Domain=example.org"}
+		if got := rsp.Header.Values("X-Backend-Set-Cookie"); !slices.Equal(got, want) {
+			t.Errorf("failed to copy all response header values, got: %q, want: %q", got, want)
+		}
+		if got := rsp.Header.Values("Set-Cookie"); !slices.Equal(got, want) {
+			t.Errorf("source response header values were changed, got: %q, want: %q", got, want)
+		}
+	})
+
+	t.Run("response onto itself", func(t *testing.T) {
+		f, err := NewCopyResponseHeader().CreateFilter([]any{"Set-Cookie", "Set-Cookie"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want := []string{"a=1; Domain=example.org", "b=2; Domain=example.org"}
+		rsp := &http.Response{Header: http.Header{"Set-Cookie": append([]string(nil), want...)}}
+
+		f.Response(&filtertest.Context{FResponse: rsp})
+
+		if got := rsp.Header.Values("Set-Cookie"); !slices.Equal(got, want) {
+			t.Errorf("copying a header onto itself dropped values, got: %q, want: %q", got, want)
+		}
+	})
 }

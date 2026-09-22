@@ -278,7 +278,7 @@ Same as [appendContextRequestHeader](#appendcontextrequestheader), except for re
 
 ### copyRequestHeader
 
-Copies value of a given request header to another header.
+Copies all values of a given request header to another header.
 
 Parameters:
 
