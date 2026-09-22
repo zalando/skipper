@@ -83,11 +83,18 @@ func (ce *EncryptedCookieEncoder) decodeCookie(cookieHeader string) (c *cookie, 
 // allowedForHost checks if provided host matches cookie domain
 // according to https://www.rfc-editor.org/rfc/rfc6265#section-5.1.3
 func (c *cookie) allowedForHost(host string) bool {
+	if c.Domain == "" {
+		return false
+	}
 	hostWithoutPort, _, err := net.SplitHostPort(host)
 	if err != nil {
 		hostWithoutPort = host
 	}
-	return strings.HasSuffix(hostWithoutPort, c.Domain)
+	// IP literals use exact match only; subdomain suffix rule does not apply.
+	if net.ParseIP(hostWithoutPort) != nil {
+		return hostWithoutPort == c.Domain
+	}
+	return hostWithoutPort == c.Domain || strings.HasSuffix(hostWithoutPort, "."+c.Domain)
 }
 
 // extractCookie removes and returns the OAuth Grant token cookie from a HTTP request.

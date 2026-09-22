@@ -400,11 +400,11 @@ func TestGrantFlow(t *testing.T) {
 	})
 
 	t.Run("check handles multiple cookies with same name and uses the first decodable one", func(t *testing.T) {
-		badCookies := auth.NewGrantCookies(t, config)
+		badCookies := auth.NewGrantCookiesWithHost(t, config, applicationDomain)
 		for _, c := range badCookies {
 			c.Value = "invalid"
 		}
-		goodCookies := auth.NewGrantCookies(t, config)
+		goodCookies := auth.NewGrantCookiesWithHost(t, config, applicationDomain)
 		otherCookies := []*http.Cookie{{Name: "foo", Value: "bar", Path: "/", Secure: true, HttpOnly: true}}
 
 		rsp := grantQueryWithCookies(t, client, proxy.URL, slices.Concat(badCookies, goodCookies, otherCookies)...)
@@ -427,7 +427,7 @@ func TestGrantFlow(t *testing.T) {
 	})
 
 	t.Run("check does not send cookie again if token was not refreshed", func(t *testing.T) {
-		goodCookies := auth.NewGrantCookies(t, config)
+		goodCookies := auth.NewGrantCookiesWithHost(t, config, applicationDomain)
 
 		rsp := grantQueryWithCookies(t, client, proxy.URL, goodCookies...)
 
@@ -727,6 +727,7 @@ func TestGrantTokenCookieDomainOneRemovedSubdomains(t *testing.T) {
 		{"neighbor domain", "bar.skipper.test", true},
 		{"application subdomain", "baz.foo.skipper.test", true},
 		//
+		{"fake application domain", "foo.askipper.test", false},
 		{"another domain", "foo.other.test", false},
 		{"another parent domain", "other.test", false},
 		{"neighbor subdomain", "baz.bar.skipper.test", false},
