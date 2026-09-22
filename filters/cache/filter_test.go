@@ -4813,3 +4813,396 @@ func TestProxy_L2Cache_MissWhenBothMiss(t *testing.T) {
 
 // Ensure url import is used
 var _ = url.Parse
+
+// TestCacheFilter_StoreDecision table-drives storeDecision across mode ×
+// noStore/private × Authorization × public/mustRevalidate × keyHeaders —
+// cheaper than exercising every combination through each call site.
+func TestCacheFilter_StoreDecision(t *testing.T) {
+	tests := []struct {
+		name         string
+		rfcMode      bool
+		keyHeaders   []string
+		authHeader   string
+		cacheControl string
+		wantStore    bool
+	}{
+		{"rfc mode, no directives, no auth: stored", true, nil, "", "max-age=300", true},
+		{"rfc mode, private: not stored", true, nil, "", "private, max-age=300", false},
+		{"rfc mode, no-store: not stored", true, nil, "", "no-store", false},
+		{"force mode, private: stored anyway (operator override)", false, nil, "", "private, max-age=0", true},
+		{"force mode, no-store: stored anyway (operator override)", false, nil, "", "no-store", true},
+		{"rfc mode, Authorization without public: not stored", true, nil, "Bearer x", "max-age=300", false},
+		{"rfc mode, Authorization with public: stored", true, nil, "Bearer x", "public, max-age=300", true},
+		{"rfc mode, Authorization with must-revalidate: stored", true, nil, "Bearer x", "must-revalidate, max-age=300", true},
+		{"rfc mode, Authorization already in keyHeaders: stored despite non-public", true, []string{"Authorization"}, "Bearer x", "max-age=300", true},
+		{"force mode, Authorization without public: not stored (unconditional guard)", false, nil, "Bearer x", "", false},
+		{"force mode, Authorization in keyHeaders: stored despite non-public", false, []string{"Authorization"}, "Bearer x", "", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var f *cacheFilter
+			if tc.rfcMode {
+				f = newTestFilterRFC(t, time.Minute, 15*time.Second, time.Minute)
+			} else {
+				f = newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+			}
+			f.keyHeaders = tc.keyHeaders
+
+			req, _ := http.NewRequest("GET", "https://cdn.example.com/store-decision", nil)
+			if tc.authHeader != "" {
+				req.Header.Set("Authorization", tc.authHeader)
+			}
+			header := http.Header{}
+			if tc.cacheControl != "" {
+				header.Set("Cache-Control", tc.cacheControl)
+			}
+			d := parseCacheControl(header)
+
+			_, store := f.storeDecision(req, http.StatusOK, header, d)
+			if store != tc.wantStore {
+				t.Errorf("storeDecision() store = %v, want %v", store, tc.wantStore)
+			}
+		})
+	}
+}
+
+// TestCacheFilter_Coalesce_LeaderNeverRefetches guards against using
+// singleflight.Result.Shared for leader/follower detection: Shared is
+// identical for every waiter including the leader, so branching on it would
+// make the leader itself redundantly refetch whenever a follower joined a
+// non-storeable result. Exactly N fetches expected (1 leader + N-1 follower
+// bypasses), never more.
+func TestCacheFilter_Coalesce_LeaderNeverRefetches(t *testing.T) {
+	const N = 50
+	f := newTestFilterRFC(t, 0, 0, 0) // pure RFC mode, no keyHeaders
+
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+
+	mc := &missCounting{Storage: f.storage}
+	mc.wg.Add(N)
+	f.storage = mc
+
+	var fetchCount atomic.Int64
+	fetchStarted := make(chan struct{})
+	releaseAll := make(chan struct{})
+	var fetchStartedOnce sync.Once
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		fetchCount.Add(1)
+		fetchStartedOnce.Do(func() { close(fetchStarted) })
+		mc.wg.Wait()
+		<-releaseAll
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": {"text/plain"}, "Cache-Control": {"private, no-store"}},
+			Body:       io.NopCloser(strings.NewReader("body for " + req.Header.Get("Authorization"))),
+		}, nil
+	}
+
+	url := "https://cdn.example.com/leader-no-refetch"
+	results := make([]*filtertest.Context, N)
+	var wg sync.WaitGroup
+	for i := range N {
+		wg.Add(1)
+		i := i
+		go func() {
+			defer wg.Done()
+			ctx := newCtx("GET", url, fmt.Sprintf("token-%d", i))
+			f.Request(ctx)
+			results[i] = ctx
+		}()
+	}
+	<-fetchStarted
+	close(releaseAll)
+	wg.Wait()
+
+	if got := fetchCount.Load(); got != N {
+		t.Fatalf("expected exactly %d fetches (1 leader + %d follower bypasses); got %d — the leader itself may have redundantly refetched", N, N-1, got)
+	}
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		if got, want := counters["cache.coalesce_bypass"], int64(N-1); got != want {
+			t.Errorf("expected cache.coalesce_bypass == %d, got %d", want, got)
+		}
+		if got := counters["cache.coalesce_bypass_error"]; got != 0 {
+			t.Errorf("expected cache.coalesce_bypass_error == 0, got %d", got)
+		}
+	})
+
+	for i, ctx := range results {
+		if !ctx.FServed {
+			t.Fatalf("goroutine %d: expected ctx to be served", i)
+		}
+		body, _ := io.ReadAll(ctx.FResponse.Body)
+		want := fmt.Sprintf("token-%d", i)
+		if !strings.Contains(string(body), want) {
+			t.Errorf("goroutine %d: cross-user disclosure: expected own token %q, got %q", i, want, body)
+		}
+	}
+}
+
+// TestCacheFilter_Coalesce_VaryMismatch_IndependentFetch verifies the
+// in-memory Vary-based follower check generalizes beyond Authorization: two
+// session groups (identified by a header not in keyHeaders) must never share
+// a private response, but same-session requests still coalesce via Vary.
+func TestCacheFilter_Coalesce_VaryMismatch_IndependentFetch(t *testing.T) {
+	const perSession = 25
+	f := newTestFilterRFC(t, 0, 0, 0) // no keyHeaders — Vary is the only safety net here
+
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+
+	mc := &missCounting{Storage: f.storage}
+	mc.wg.Add(2 * perSession)
+	f.storage = mc
+
+	var fetchCount atomic.Int64
+	fetchStarted := make(chan struct{})
+	releaseAll := make(chan struct{})
+	var fetchStartedOnce sync.Once
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		fetchCount.Add(1)
+		fetchStartedOnce.Do(func() { close(fetchStarted) })
+		mc.wg.Wait()
+		<-releaseAll
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type":  {"text/plain"},
+				"Cache-Control": {"private"},
+				"Vary":          {"X-Session-Id"},
+			},
+			Body: io.NopCloser(strings.NewReader("session=" + req.Header.Get("X-Session-Id"))),
+		}, nil
+	}
+
+	url := "https://cdn.example.com/vary-mismatch"
+	results := make([]*filtertest.Context, 2*perSession)
+	sessions := make([]string, 2*perSession)
+
+	var wg sync.WaitGroup
+	for i := range 2 * perSession {
+		session := "session-a"
+		if i%2 == 1 {
+			session = "session-b"
+		}
+		sessions[i] = session
+		wg.Add(1)
+		i, session := i, session
+		go func() {
+			defer wg.Done()
+			ctx := newCtx("GET", url, "")
+			ctx.FRequest.Header.Set("X-Session-Id", session)
+			f.Request(ctx)
+			results[i] = ctx
+		}()
+	}
+
+	<-fetchStarted
+	close(releaseAll)
+	wg.Wait()
+
+	if got := fetchCount.Load(); got < 2 {
+		t.Fatalf("expected at least 2 fetches (Vary-mismatched sessions can never share), got %d", got)
+	}
+	// Only the leader's session group shares for free; the losing group's bypass
+	// fetches aren't coalesced with each other (bypass has no singleflight of its
+	// own), so worst case is 1 (leader) + perSession (losing group). This bounds
+	// safety, not efficiency for the losing group — inherent to one coalesce()
+	// key per burst.
+	if got := fetchCount.Load(); got > perSession+2 {
+		t.Fatalf("expected at most one session's worth of independent fetches plus the leader's, got %d", got)
+	}
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		if got, want := counters["cache.coalesce_bypass"], fetchCount.Load()-1; got != want {
+			t.Errorf("expected cache.coalesce_bypass == %d (fetchCount-1), got %d", want, got)
+		}
+		if got := counters["cache.coalesce_bypass_error"]; got != 0 {
+			t.Errorf("expected cache.coalesce_bypass_error == 0, got %d", got)
+		}
+	})
+
+	for i, ctx := range results {
+		if !ctx.FServed {
+			t.Fatalf("goroutine %d: expected ctx to be served", i)
+		}
+		body, _ := io.ReadAll(ctx.FResponse.Body)
+		wantSession := sessions[i]
+		if !strings.Contains(string(body), wantSession) {
+			t.Errorf("goroutine %d: expected %q in response, got %q", i, wantSession, body)
+		}
+		otherSession := "session-b"
+		if wantSession == "session-b" {
+			otherSession = "session-a"
+		}
+		if strings.Contains(string(body), otherSession) {
+			t.Errorf("cross-session disclosure: goroutine %d (session %q) received %q", i, wantSession, body)
+		}
+	}
+}
+
+// TestCacheFilter_Coalesce_ForceMode_SharesDespitePrivate is the coalesce-level
+// counterpart to TestCacheFilter_ForceMode_CachesWhenUpstreamSaysPrivate: force
+// mode's operator-trust override applies to sharing too, not just storage.
+func TestCacheFilter_Coalesce_ForceMode_SharesDespitePrivate(t *testing.T) {
+	const N = 50
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute) // force mode
+
+	mc := &missCounting{Storage: f.storage}
+	mc.wg.Add(N)
+	f.storage = mc
+
+	var fetchCount atomic.Int64
+	fetchStarted := make(chan struct{})
+	releaseAll := make(chan struct{})
+	var fetchStartedOnce sync.Once
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		fetchCount.Add(1)
+		fetchStartedOnce.Do(func() { close(fetchStarted) })
+		mc.wg.Wait()
+		<-releaseAll
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": {"application/json"}, "Cache-Control": {"private, no-store"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":"contentful"}`)),
+		}, nil
+	}
+
+	url := "https://cdn.example.com/force-coalesce-private"
+	results := make([]*filtertest.Context, N)
+	var wg sync.WaitGroup
+	for i := range N {
+		wg.Add(1)
+		i := i
+		go func() {
+			defer wg.Done()
+			ctx := newCtx("GET", url, "")
+			f.Request(ctx)
+			results[i] = ctx
+		}()
+	}
+	<-fetchStarted
+	close(releaseAll)
+	wg.Wait()
+
+	if got := fetchCount.Load(); got > 10 {
+		t.Fatalf("force mode: expected coalescing to hold despite upstream private/no-store, got %d fetches for %d requests", got, N)
+	}
+	for i, ctx := range results {
+		if !ctx.FServed {
+			t.Fatalf("goroutine %d: expected ctx to be served", i)
+		}
+	}
+}
+
+// TestCacheFilter_Revalidate_Authorization_NotStored verifies that a background
+// revalidation carrying the original Authorization header does not overwrite
+// the entry when the response isn't public/must-revalidate.
+func TestCacheFilter_Revalidate_Authorization_NotStored(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, cleanup := newTestFilterRFCWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
+		defer cleanup()
+		url := "https://cdn.example.com/reval-auth-not-public"
+
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Cache-Control": {"max-age=10"}, "Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":"v1"}`)),
+			}, nil
+		}
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		synctest.Wait()
+
+		key := ctx1.StateBag()[stateBagKey].(string)
+		before, err := f.storage.Get(ctx1.FRequest.Context(), key)
+		if err != nil || before == nil {
+			t.Fatalf("expected seeded entry, got err=%v entry=%v", err, before)
+		}
+
+		// Background revalidation, triggered by a request carrying Authorization,
+		// returns a response that is not public/must-revalidate.
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Cache-Control": {"max-age=10"}, "Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":"v2-must-not-be-stored"}`)),
+			}, nil
+		}
+
+		time.Sleep(2 * time.Millisecond) // entry is now stale
+
+		ctx2 := newCtx("GET", url, "Bearer secret")
+		f.Request(ctx2)
+		synctest.Wait()
+
+		if !ctx2.FServed {
+			t.Fatal("expected stale entry to be served while revalidation runs")
+		}
+
+		after, err := f.storage.Get(ctx1.FRequest.Context(), key)
+		if err != nil || after == nil {
+			t.Fatalf("entry should still exist: err=%v entry=%v", err, after)
+		}
+		if string(after.Payload) != string(before.Payload) {
+			t.Fatalf("RFC 9111 §3.5: Authorization-bearing, non-public revalidation must not overwrite the entry; got %q", after.Payload)
+		}
+	})
+}
+
+// TestCacheFilter_Revalidate_ForceMode_Authorization_NotStored verifies the
+// Authorization/public guard applies in doRevalidate even in force mode, where
+// the operator-trust override exempts private/no-store but not this check.
+func TestCacheFilter_Revalidate_ForceMode_Authorization_NotStored(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, cleanup := newTestFilterWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
+		defer cleanup()
+		url := "https://cdn.example.com/reval-force-auth-not-public"
+
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":"v1"}`)),
+			}, nil
+		}
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		synctest.Wait()
+
+		key := ctx1.StateBag()[stateBagKey].(string)
+		before, err := f.storage.Get(ctx1.FRequest.Context(), key)
+		if err != nil || before == nil {
+			t.Fatalf("expected seeded entry, got err=%v entry=%v", err, before)
+		}
+
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":"v2-must-not-be-stored"}`)),
+			}, nil
+		}
+
+		time.Sleep(2 * time.Millisecond)
+
+		ctx2 := newCtx("GET", url, "Bearer secret")
+		f.Request(ctx2)
+		synctest.Wait()
+
+		if !ctx2.FServed {
+			t.Fatal("expected stale entry to be served while revalidation runs")
+		}
+
+		after, err := f.storage.Get(ctx1.FRequest.Context(), key)
+		if err != nil || after == nil {
+			t.Fatalf("entry should still exist: err=%v entry=%v", err, after)
+		}
+		if string(after.Payload) != string(before.Payload) {
+			t.Fatalf("force mode: Authorization/public guard must still apply in doRevalidate; got %q", after.Payload)
+		}
+	})
+}
