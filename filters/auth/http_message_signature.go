@@ -102,9 +102,9 @@ func (s *httpMessageSignatureSpec) CreateFilter(config []interface{}) (filters.F
 
 func (f *httpMessageSignatureFilter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
-	if req == nil {
-		return
-	}
+	// https://github.com/zalando/skipper/security/advisories/GHSA-pr9p-gcff-7g4p
+	req.Header.Del("Signature-Input")
+	req.Header.Del("Signature")
 
 	keyBytes, ok := f.secretsReader.GetSecret(f.keyFile)
 	if !ok || len(keyBytes) == 0 {

@@ -67,6 +67,8 @@ func (s *secretHeaderSpec) CreateFilter(args []any) (filters.Filter, error) {
 }
 
 func (f *secretHeaderFilter) Request(ctx filters.FilterContext) {
+	ctx.Request().Header.Del(f.headerName) // https://github.com/zalando/skipper/security/advisories/GHSA-pr9p-gcff-7g4p
+
 	value, ok := f.secretsReader.GetSecret(f.secretName)
 	if !ok {
 		log.Errorf("Secret %q not found for setRequestHeaderFromSecret filter", f.secretName)

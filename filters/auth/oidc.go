@@ -945,6 +945,13 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 }
 
 func setHeaders(upstreamHeaders map[string]string, ctx filters.FilterContext, container any) (err error) {
+	// Always drop any client-supplied inbound copy first, on every path,
+	// so a forged identity header cannot survive a missing claim.
+	// https://github.com/zalando/skipper/security/advisories/GHSA-pr9p-gcff-7g4p
+	for k := range upstreamHeaders {
+		ctx.Request().Header.Del(k)
+	}
+
 	oidcInfoJson, err := json.Marshal(container)
 	if err != nil || !gjson.ValidBytes(oidcInfoJson) {
 		return fmt.Errorf("failed to serialize OIDC token info: %w", err)
@@ -959,11 +966,8 @@ func setHeaders(upstreamHeaders map[string]string, ctx filters.FilterContext, co
 	parsed := gjson.ParseBytes(oidcInfoJson)
 
 	for key, query := range upstreamHeaders {
-		// Always drop any client-supplied inbound copy first, on every path,
-		// so a forged identity header cannot survive a missing claim.
-		ctx.Request().Header.Del(key)
 		match := parsed.Get(query)
-		log.Debugf("header: %s results: %s", query, match.String())
+		log.Debugf("header %q: %s results: %s", key, query, match.String())
 		if !match.Exists() {
 			log.Errorf("Lookup failed for upstream header '%s'", query)
 			continue

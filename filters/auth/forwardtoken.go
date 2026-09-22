@@ -66,9 +66,14 @@ func getTokenPayload(ctx filters.FilterContext, cacheKey string) any {
 }
 
 func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
+	ctx.Request().Header.Del(f.HeaderName) // https://github.com/zalando/skipper/security/advisories/GHSA-pr9p-gcff-7g4p
+
 	tiMap := getTokenPayload(ctx, tokeninfoCacheKey)
 	if tiMap == nil {
 		tiMap = getTokenPayload(ctx, tokenintrospectionCacheKey)
+	}
+	if tiMap == nil {
+		tiMap = getTokenPayload(ctx, oidcClaimsCacheKey)
 	}
 	if tiMap == nil {
 		return
@@ -80,6 +85,8 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 			tiMap = retainKeys(typedTiMap, f.RetainJsonKeys)
 		case tokenIntrospectionInfo:
 			tiMap = retainKeys(typedTiMap, f.RetainJsonKeys)
+		case tokenContainer:
+			tiMap = retainKeys(typedTiMap.Claims, f.RetainJsonKeys)
 		default:
 			ctx.Logger().Errorf("Unexpected input type[%T] for `forwardToken` filter. Unable to apply mask", typedTiMap)
 		}

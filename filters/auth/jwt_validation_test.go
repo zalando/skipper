@@ -6,9 +6,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"testing"
 	"time"
 
@@ -142,6 +144,151 @@ func TestJWTValidation(t *testing.T) {
 				t.Errorf("unexpected status code: %v != %v", rsp.StatusCode, ti.expected)
 				return
 			}
+		})
+	}
+}
+
+// TestJWTValidationGHSApr9pgcff7g4p tests advisory https://github.com/zalando/skipper/security/advisories/GHSA-pr9p-gcff-7g4p
+func TestJWTValidationGHSApr9pgcff7g4p(t *testing.T) {
+
+	for _, ti := range []struct {
+		msg                 string
+		auth                string
+		filter              string
+		headerKey           string
+		headerValue         string
+		expectedStatus      int
+		expectedHeaderKey   string
+		expectedHeaderValue string
+	}{{
+		msg:                 "jwtValidation: valid token forward not forged headers",
+		auth:                authHeaderPrefix + createToken(t, jwt.SigningMethodRS256),
+		filter:              `forwardToken("Issuer")`,
+		headerKey:           "foo",
+		headerValue:         "bar",
+		expectedStatus:      http.StatusOK,
+		expectedHeaderKey:   "Issuer",
+		expectedHeaderValue: `{"oauth2token":null,"oidctoken":"","subject":"aaa","claims":{"iss":"test","sub":"aaa"}}`,
+	}, {
+		msg:                 "jwtValidation: valid token forwardField not forged headers",
+		auth:                authHeaderPrefix + createToken(t, jwt.SigningMethodRS256),
+		filter:              `forwardTokenField("Issuer", "claims.iss")`,
+		headerKey:           "foo",
+		headerValue:         "bar",
+		expectedStatus:      http.StatusOK,
+		expectedHeaderKey:   "Issuer",
+		expectedHeaderValue: "test",
+	}, {
+		msg:                 "jwtValidation: valid token forward forged headers",
+		auth:                authHeaderPrefix + createToken(t, jwt.SigningMethodRS256),
+		filter:              `forwardToken("Issuer", "iss")`,
+		headerKey:           "Issuer",
+		headerValue:         "bar",
+		expectedStatus:      http.StatusOK,
+		expectedHeaderKey:   "Issuer",
+		expectedHeaderValue: `{"iss":"test"}`,
+	}, {
+		msg:                 "jwtValidation: valid token forwardField forged headers",
+		auth:                authHeaderPrefix + createToken(t, jwt.SigningMethodRS256),
+		filter:              `forwardTokenField("Issuer", "claims.iss")`,
+		headerKey:           "Issuer",
+		headerValue:         "bar",
+		expectedStatus:      http.StatusOK,
+		expectedHeaderKey:   "Issuer",
+		expectedHeaderValue: "test",
+	}, {
+		msg:                 "jwtValidation: valid token forwardField forged headers, bogus claim",
+		auth:                authHeaderPrefix + createToken(t, jwt.SigningMethodRS256),
+		filter:              `forwardTokenField("Issuer", "claims.isss")`,
+		headerKey:           "Issuer",
+		headerValue:         "bar",
+		expectedStatus:      http.StatusOK,
+		expectedHeaderKey:   "Issuer",
+		expectedHeaderValue: "",
+	}} {
+		t.Run(ti.msg, func(t *testing.T) {
+
+			cli := net.NewClient(net.Options{
+				IdleConnTimeout: 2 * time.Second,
+			})
+			defer cli.Close()
+
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+				v := r.Header.Get(ti.expectedHeaderKey)
+				re := regexp.MustCompile(`"exp":\s*\d+,?`)
+				result := re.ReplaceAllString(v, "")
+				if result != ti.expectedHeaderValue {
+					msg := fmt.Sprintf("Failed to get expected value %q, got %q", ti.expectedHeaderValue, result)
+					t.Log(msg)
+					w.WriteHeader(250)
+					w.Write([]byte(msg))
+					return
+				}
+				w.WriteHeader(200)
+				w.Write([]byte("OK"))
+			}))
+			defer backend.Close()
+
+			authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, `{"keys":[{"kty":"RSA", "alg":"RS256", "kid": "%s", "n":"%s","e":"AQAB"}]}`,
+					kid, base64.RawURLEncoding.EncodeToString(privateKey.PublicKey.N.Bytes()))
+			}))
+			defer authServer.Close()
+
+			testOidcConfig := getTestOidcConfig()
+			issuerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				e := json.NewEncoder(w)
+				err := e.Encode(testOidcConfig)
+				if err != nil {
+					t.Fatalf("Could not encode testOidcConfig: %v", err)
+				}
+			}))
+			defer issuerServer.Close()
+
+			// patch openIDConfig to the current testservers
+			testOidcConfig.JwksURI = authServer.URL + testAuthPath
+
+			var jwtValidationSpec = NewJwtValidationWithOptions(TokenintrospectionOptions{})
+			var forwardFielSpec = NewForwardTokenField()
+			var forwardSpec = NewForwardToken()
+
+			fr := make(filters.Registry)
+			fr.Register(jwtValidationSpec)
+			fr.Register(forwardFielSpec)
+			fr.Register(forwardSpec)
+
+			r := eskip.MustParse(fmt.Sprintf(`* -> jwtValidation("%s") -> %s -> "%s"`, issuerServer.URL, ti.filter, backend.URL))
+			proxy := proxytest.New(fr, r...)
+			defer proxy.Close()
+
+			reqURL, _ := url.Parse(proxy.URL)
+
+			req, _ := http.NewRequest("GET", reqURL.String(), nil)
+
+			req.Header.Set(authHeaderName, ti.auth)
+			req.Header.Set(ti.headerKey, ti.headerValue)
+
+			rsp, err := cli.Do(req)
+			if err != nil {
+				t.Errorf("failed to get response: %v", err)
+				return
+			}
+			defer rsp.Body.Close()
+
+			if rsp.StatusCode != ti.expectedStatus {
+				t.Errorf("unexpected status code: %v != %v", rsp.StatusCode, ti.expectedStatus)
+				return
+			}
+			buf, err := io.ReadAll(rsp.Body)
+			if err != nil {
+				t.Fatalf("Failed to read body: %v", err)
+			}
+			res := string(buf)
+			if res != "OK" {
+				t.Fatal(res)
+			}
+
 		})
 	}
 }
