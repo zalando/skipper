@@ -2011,7 +2011,9 @@ unsafe-method path, options are: wait for TTL expiry, restart the Skipper proces
 delete the key directly in L2.
 
 Concurrent cold-miss requests for the same route and key within one Skipper process are
-coalesced into a single upstream fetch (thundering-herd protection). Requests arriving via
+coalesced into a single upstream fetch (thundering-herd protection) when it's safe to
+share the result — see the `cache()` filter reference's "Coalescing safety" note for when
+a request instead performs its own independent fetch. Requests arriving via
 different routes are not coalesced even if they target the same upstream URL, because the
 route ID is part of the cache key. This protection is also process-local: a fleet of N
 instances may still issue up to N simultaneous origin requests on a cold miss.
@@ -2058,6 +2060,12 @@ flowchart TD
 - `cache.miss`: Counter, request not in cache; upstream was contacted
 - `cache.stale`: Counter, stale entry served while background revalidation was enqueued
 - `cache.coalesce_error`: Counter, singleflight cold-miss fetch returned an error
+- `cache.coalesce_bypass`: Counter, a concurrent cold-miss request could not safely
+  reuse another request's in-flight response (private/no-store/non-public-Authorization
+  and no proof of matching identity via `keyHeaders` or `Vary`) and performed its own
+  fetch instead
+- `cache.coalesce_bypass_error`: Counter, an independent bypass fetch (see
+  `cache.coalesce_bypass`) returned an error
 
 **LRU (always active):**
 

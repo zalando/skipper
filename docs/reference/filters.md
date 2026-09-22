@@ -4165,10 +4165,11 @@ recommended way to use RFC mode on authenticated routes.
 
 Stale-while-revalidate (SWR): a stale entry within the SWR window is served
 immediately while a background fetch refreshes the entry. Concurrent cold-miss
-requests for the same key are coalesced into a single upstream fetch. The SWR
-window's source depends on the mode: in force mode it's the operator-supplied
-`swrWindow` parameter below; in RFC mode it's the response's own
-[`stale-while-revalidate`](https://www.rfc-editor.org/rfc/rfc5861#section-3)
+requests for the same key are coalesced into a single upstream fetch when it's
+safe to share the result; see "Coalescing safety" below for when it isn't. The
+SWR window's source depends on the mode: in force mode it's the
+operator-supplied `swrWindow` parameter below; in RFC mode it's the response's
+own [`stale-while-revalidate`](https://www.rfc-editor.org/rfc/rfc5861#section-3)
 `Cache-Control` directive — if the upstream never sends that directive, RFC-mode
 entries have no SWR window and simply expire at TTL. The background fetch is
 dispatched directly to the route's backend when possible (force mode with a
@@ -4180,15 +4181,20 @@ difference between the two.
 Unsafe methods (`POST`, `PUT`, `DELETE`, `PATCH`) invalidate the cached entry on
 success. `HEAD 200` freshens stored headers without replacing the body.
 
-Parameters (force mode):
+Parameters:
+
+* `keyHeaders` – optional; comma-separated request header names folded into the
+  cache key for per-header isolation (string, e.g. `"Authorization,X-Tenant-ID"`).
+  Valid in both RFC mode (as the single argument) and force mode (as the 5th
+  argument).
+
+Force-mode-only parameters (3–5 arguments):
 
 * `ttl` – freshness duration for 200 responses (string, e.g. `"5m"`)
 * `errorTTL` – freshness duration for 404/5xx responses (string)
 * `swrWindow` – stale-while-revalidate window after TTL expires (string)
 * `staleIfError` – optional; how long a stale entry may be served on upstream
   5xx (string, [RFC 5861](https://www.rfc-editor.org/rfc/rfc5861))
-* `keyHeaders` – optional; comma-separated request header names folded into the
-  cache key for per-header isolation (string, e.g. `"Authorization,X-Tenant-ID"`)
 
 Examples:
 
@@ -4216,6 +4222,21 @@ Force mode with per-tenant cache key isolation:
 -> cache("5m", "15s", "30s", "0s", "X-Tenant-ID") -> "https://cdn.example.org"
 ```
 
+RFC mode with per-user cache key isolation:
+
+```
+-> cache("Authorization") -> "https://cdn.example.org"
+```
+
+RFC mode with per-session cache key isolation — extract the identifying cookie
+into a dedicated header rather than keying on the whole `Cookie` header, which
+carries unrelated cookies and would fragment the cache on every one of them:
+
+```
+-> setRequestHeader("X-Session-Id", "${request.cookie.session_id}")
+-> cache("X-Session-Id") -> "https://cdn.example.org"
+```
+
 **Cache key**
 
 The key is derived from route ID + scheme + host + path + query string,
@@ -4235,24 +4256,31 @@ matching the same key. It has no awareness of other filters in the chain.
 * **Do not use on routes that return user-specific data or set user-scoped
   cookies** — those responses will be served to other users.
 * **`Authorization` is not in the key by default.** Responses are stored and
-  served without regard to caller identity. To isolate per-user responses, add
-  `Authorization` to `keyHeaders`; without it, a response stored for one user
-  will be served to all others on the same path. Note: in RFC mode, if the
-  request carries an `Authorization` header and the upstream does not respond
-  with `Cache-Control: public` or `must-revalidate`, the response is silently
-  not stored (RFC 9111 §3.5). Use force mode or ensure the upstream sets
-  `Cache-Control: public` if you want authenticated responses cached.
+  served without regard to caller identity. To isolate per-user responses, use
+  `cache("Authorization")` in RFC mode, or add `Authorization` to the 5-arg
+  `keyHeaders` form in force mode; without it, a response stored for one user
+  will be served to all others on the same path. Note: if the request carries
+  an `Authorization` header and the upstream does not respond with
+  `Cache-Control: public` or `must-revalidate`, the response is not stored
+  (RFC 9111 §3.5) — this guard is unconditional, not RFC-mode-only, unless
+  `Authorization` is already in `keyHeaders`. Use force mode, add `Authorization`
+  to `keyHeaders`, or ensure the upstream sets `Cache-Control: public` if you
+  want authenticated responses cached.
 * **`Cache-Control: private` is ignored in force mode.** Audit the upstream
   response before enabling force mode on any authenticated route.
-* **Coalescing is not gated by `private`/`no-store`.** In RFC mode, concurrent
-  cold-miss requests to the same key are coalesced into a single upstream
-  fetch, and every one of those concurrent requests receives that same
-  response — including `private`/`no-store` responses that are never
-  persisted to the cache. This coalescing uses the same key as storage,
-  so it is also scoped by `keyHeaders`: without the identity header included,
-  two different users' concurrent requests to the same path can share one
-  upstream fetch and receive each other's response, even though nothing is ever
-  written to the cache.
+* **Coalescing safety.** Concurrent cold-miss requests to the same key share a
+  single upstream fetch only when it's safe: a request gets its own independent
+  fetch instead of reusing another concurrent request's response whenever that
+  response is `private`/`no-store`/non-public-Authorization *and* its identity
+  isn't already proven to match — either because `keyHeaders` already forces
+  every request on this key to share the same identity, or because the
+  response's own `Vary` header names a dimension both requests match on
+  exactly. Without `keyHeaders` and without a `Vary` header naming the
+  relevant identity dimension, two different users' concurrent requests to the
+  same path each get their own fetch rather than risk cross-user disclosure.
+  This means "coalesced into a single upstream fetch" is not an absolute
+  guarantee — a burst of concurrent requests that turn out unsafe to share can
+  produce more than one fetch for the same key.
 
 !!! note
     `s-maxage` implies `proxy-revalidate` per [RFC 9111 §5.2.2.10](https://www.rfc-editor.org/rfc/rfc9111#section-5.2.2.10): stale entries
