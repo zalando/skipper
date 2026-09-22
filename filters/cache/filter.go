@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -471,16 +472,41 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	ctx.Serve(headBodyOmitted(method, rsp))
 }
 
-// coalesceResult carries both the fetched entry and any stale-if-error eligible
-// stored entry snapshotted before the fetch. The snapshot is taken before f.fetch() so
-// that a 5xx result cannot overwrite it in storage before the stale-if-error check runs.
+// coalesceResult carries the fetched entry, a stale-if-error snapshot taken
+// before f.fetch() (so a 5xx result can't overwrite it first), and what's
+// needed to decide whether a follower may reuse the leader's entry.
 type coalesceResult struct {
-	entry  *Entry
-	stored *Entry // snapshot before fetch; nil if no eligible stale-if-error entry existed
+	entry     *Entry
+	stored    *Entry        // snapshot before fetch; nil if no eligible stale-if-error entry existed
+	storeable bool          // storeDecision's verdict for entry; also gates sharing with non-leader waiters
+	varyNames []string      // Vary header names from entry's response, for in-memory follower matching
+	leaderReq *http.Request // the exact *http.Request that was actually fetched
+}
+
+// Checks if this response can be persisted, or handed to a party
+// that isn't the one who fetched it - a coalesce follower, or
+// background revalidation triggered by someone else's request
+func (f *cacheFilter) storeDecision(req *http.Request, statusCode int, header http.Header, d cacheDirectives) (ttl time.Duration, store bool) {
+	// RFC mode only: no-store and private are semantic blockers (RFC 9111 §5.2.2).
+	if f.rfcMode && (d.noStore || d.private) {
+		return 0, false
+	}
+	ttl, store = f.resolveTTL(statusCode, header, d)
+	if !store {
+		return 0, false
+	}
+	// RFC 9111 §3.5, unconditional (not mode-gated) — unless Authorization is
+	// already folded into the key (keyHeaders), in which case every request on
+	// this key already shares the same credential.
+	if req.Header.Get("Authorization") != "" && !slices.Contains(f.keyHeaders, "Authorization") && !d.public && !d.mustRevalidate {
+		return 0, false
+	}
+	return ttl, true
 }
 
 // coalesce gates concurrent cold misses for the same key behind a single upstream
-// fetch, preventing thundering herd within this process. All waiters receive the same response.
+// fetch, preventing thundering herd within this process. A follower only reuses
+// the leader's response when storeDecision and Vary allow it (see storeDecision).
 // Note: coalescing is process-local — a fleet of N Skipper instances may still issue
 // up to N simultaneous origin requests for the same cold miss.
 // Stale-if-error (RFC 5861 §4) is also applied here: a pre-fetch snapshot of any
@@ -514,25 +540,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		}
 
 		directives := parseCacheControl(resp.Header)
-		// RFC mode only: no-store and private are semantic blockers (RFC 9111 §5.2.2).
-		if f.rfcMode && (directives.noStore || directives.private) {
-			cia := correctedInitialAge(requestTime, responseTime, resp.Header)
-			coalescedHeader := resp.Header.Clone()
-			stripHopByHop(coalescedHeader)
-			return &coalesceResult{
-				entry: &Entry{
-					StatusCode:          resp.StatusCode,
-					Header:              coalescedHeader,
-					Payload:             body,
-					CreatedAt:           responseTime,
-					TTL:                 0,
-					CorrectedInitialAge: cia,
-					ResponseTime:        responseTime,
-				},
-				stored: sieStored,
-			}, nil
-		}
-		ttl, shouldStore := f.resolveTTL(resp.StatusCode, resp.Header, directives)
+		ttl, store := f.storeDecision(req, resp.StatusCode, resp.Header, directives)
 		swr := f.resolveSWR(resp.StatusCode, directives)
 		cia := correctedInitialAge(requestTime, responseTime, resp.Header)
 		coalescedHeader := resp.Header.Clone()
@@ -550,13 +558,19 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			CorrectedInitialAge:  cia,
 			ResponseTime:         responseTime,
 		}
-		if shouldStore {
+		if store {
 			if err := f.storage.Set(context.Background(), key, entry); err != nil {
 				log.WithError(err).Warn("cache: Set failed (cold-miss store)")
 				f.metrics.IncCounter("cache.storage_error")
 			}
 		}
-		return &coalesceResult{entry: entry, stored: sieStored}, nil
+		return &coalesceResult{
+			entry:     entry,
+			stored:    sieStored,
+			storeable: store,
+			varyNames: parseVaryNames(resp.Header.Get("Vary")),
+			leaderReq: req,
+		}, nil
 	})
 
 	select {
@@ -571,6 +585,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		// RFC 5861 §4: on 5xx, serve a stale entry if within the stale-if-error window.
 		// This check lives here (not in Response()) because coalesce always calls
 		// ctx.Serve(), which sets ctx.Served()=true and causes Response() to return early.
+		// cr.stored was already vetted by storeDecision, so any waiter may share it.
 		if cr.stored != nil && entry.StatusCode >= 500 {
 			staleRsp := &http.Response{
 				StatusCode: cr.stored.StatusCode,
@@ -581,6 +596,26 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			tagSpan(ctx, cacheStatusStale, -1)
 			setAgeHeader(staleRsp, cr.stored, time.Now())
 			ctx.Serve(headBodyOmitted(ctx.Request().Method, staleRsp))
+			return
+		}
+
+		// req is this goroutine's clone; cr.leaderReq is whichever clone won DoChan.
+		// A follower reuses the leader's entry only if it's storeable, or its
+		// identity already matches via keyHeaders (same key => same identity) or
+		// Vary — scoped to this burst only, unlike storeDecision's stricter
+		// persistence check, which future requests can read back. Otherwise: fetch
+		// independently.
+		sameVaryDimension := len(cr.varyNames) > 0 && varyKey("", req, cr.varyNames) == varyKey("", cr.leaderReq, cr.varyNames)
+		identityMatchesLeader := len(f.keyHeaders) > 0 || sameVaryDimension
+		if req != cr.leaderReq && !cr.storeable && !identityMatchesLeader {
+			f.metrics.IncCounter("cache.coalesce_bypass")
+			resp, err := f.fetch(req)
+			if err != nil {
+				f.metrics.IncCounter("cache.coalesce_bypass_error")
+				return
+			}
+			defer resp.Body.Close()
+			ctx.Serve(headBodyOmitted(ctx.Request().Method, resp))
 			return
 		}
 
@@ -684,20 +719,11 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	}
 
 	directives := parseCacheControl(rsp.Header)
-	// RFC mode only: no-store and private are semantic blockers (RFC 9111 §5.2.2).
-	if f.rfcMode && (directives.noStore || directives.private) {
-		return
-	}
-
-	ttl, shouldStore := f.resolveTTL(rsp.StatusCode, rsp.Header, directives)
+	ttl, shouldStore := f.storeDecision(ctx.Request(), rsp.StatusCode, rsp.Header, directives)
 	if !shouldStore {
 		return
 	}
 	swr := f.resolveSWR(rsp.StatusCode, directives)
-
-	if ctx.Request().Header.Get("Authorization") != "" && !directives.public && !directives.mustRevalidate {
-		return
-	}
 
 	body, err := io.ReadAll(rsp.Body)
 	if err != nil {
@@ -937,11 +963,7 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL, ou
 		}
 
 		directives := parseCacheControl(responseHeader)
-		// RFC mode only: no-store and private are semantic blockers (RFC 9111 §5.2.2).
-		if f.rfcMode && (directives.noStore || directives.private) {
-			return nil, nil
-		}
-		ttl, shouldStore := f.resolveTTL(statusCode, responseHeader, directives)
+		ttl, shouldStore := f.storeDecision(req, statusCode, responseHeader, directives)
 		if !shouldStore {
 			return nil, nil
 		}
