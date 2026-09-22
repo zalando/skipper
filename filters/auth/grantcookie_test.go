@@ -23,8 +23,13 @@ func newGrantCookies(t *testing.T, config *OAuthConfig, host string, token oauth
 	return cookies
 }
 
+// defaultCookieHost is used by helpers that don't specify a host. Tests using
+// these helpers send requests to a proxy that listens on 127.0.0.1, so the
+// cookie domain must match that address for allowedForHost to accept it.
+const defaultCookieHost = "127.0.0.1"
+
 func NewGrantCookies(t *testing.T, config *OAuthConfig) []*http.Cookie {
-	return newGrantCookies(t, config, "", oauth2.Token{
+	return newGrantCookies(t, config, defaultCookieHost, oauth2.Token{
 		AccessToken:  testToken,
 		RefreshToken: testRefreshToken,
 		Expiry:       time.Now().Add(testAccessTokenExpiresIn),
@@ -32,7 +37,7 @@ func NewGrantCookies(t *testing.T, config *OAuthConfig) []*http.Cookie {
 }
 
 func NewGrantCookiesWithExpiration(t *testing.T, config *OAuthConfig, expiry time.Time) []*http.Cookie {
-	return newGrantCookies(t, config, "", oauth2.Token{
+	return newGrantCookies(t, config, defaultCookieHost, oauth2.Token{
 		AccessToken:  testToken,
 		RefreshToken: testRefreshToken,
 		Expiry:       expiry,
@@ -40,7 +45,7 @@ func NewGrantCookiesWithExpiration(t *testing.T, config *OAuthConfig, expiry tim
 }
 
 func NewGrantCookiesWithInvalidAccessToken(t *testing.T, config *OAuthConfig) []*http.Cookie {
-	return newGrantCookies(t, config, "", oauth2.Token{
+	return newGrantCookies(t, config, defaultCookieHost, oauth2.Token{
 		AccessToken:  "invalid",
 		RefreshToken: testRefreshToken,
 		Expiry:       time.Now().Add(testAccessTokenExpiresIn),
@@ -48,7 +53,7 @@ func NewGrantCookiesWithInvalidAccessToken(t *testing.T, config *OAuthConfig) []
 }
 
 func NewGrantCookiesWithInvalidRefreshToken(t *testing.T, config *OAuthConfig) []*http.Cookie {
-	return newGrantCookies(t, config, "", oauth2.Token{
+	return newGrantCookies(t, config, defaultCookieHost, oauth2.Token{
 		AccessToken:  testToken,
 		RefreshToken: "invalid",
 		Expiry:       time.Now().Add(time.Duration(-1) * time.Minute),
@@ -56,7 +61,15 @@ func NewGrantCookiesWithInvalidRefreshToken(t *testing.T, config *OAuthConfig) [
 }
 
 func NewGrantCookiesWithTokens(t *testing.T, config *OAuthConfig, refreshToken string, accessToken string) []*http.Cookie {
-	return newGrantCookies(t, config, "", oauth2.Token{
+	return newGrantCookies(t, config, defaultCookieHost, oauth2.Token{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		Expiry:       time.Now().Add(testAccessTokenExpiresIn),
+	})
+}
+
+func NewGrantCookiesWithHostAndTokens(t *testing.T, config *OAuthConfig, host string, refreshToken string, accessToken string) []*http.Cookie {
+	return newGrantCookies(t, config, host, oauth2.Token{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		Expiry:       time.Now().Add(testAccessTokenExpiresIn),

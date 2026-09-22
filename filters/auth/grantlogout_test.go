@@ -117,7 +117,7 @@ func TestGrantLogout(t *testing.T) {
 	defer proxy.Close()
 
 	t.Run("check that logout with both tokens revokes refresh token", func(t *testing.T) {
-		cookies := auth.NewGrantCookiesWithTokens(t, config, testRefreshToken, testToken)
+		cookies := auth.NewGrantCookiesWithHostAndTokens(t, config, applicationDomain, testRefreshToken, testToken)
 
 		rsp := grantQueryWithCookies(t, client, proxy.URL, cookies...)
 
@@ -125,7 +125,7 @@ func TestGrantLogout(t *testing.T) {
 	})
 
 	t.Run("check that logout with no refresh token revokes access token", func(t *testing.T) {
-		cookies := auth.NewGrantCookiesWithTokens(t, config, "", testToken)
+		cookies := auth.NewGrantCookiesWithHostAndTokens(t, config, applicationDomain, "", testToken)
 
 		rsp := grantQueryWithCookies(t, client, proxy.URL, cookies...)
 
@@ -133,7 +133,7 @@ func TestGrantLogout(t *testing.T) {
 	})
 
 	t.Run("check that logout deletes grant token cookie", func(t *testing.T) {
-		cookies := auth.NewGrantCookiesWithTokens(t, config, testRefreshToken, testToken)
+		cookies := auth.NewGrantCookiesWithHostAndTokens(t, config, applicationDomain, testRefreshToken, testToken)
 
 		rsp := grantQueryWithCookies(t, client, proxy.URL, cookies...)
 
@@ -142,7 +142,7 @@ func TestGrantLogout(t *testing.T) {
 	})
 
 	t.Run("check that logout with no tokens results in a 401", func(t *testing.T) {
-		cookies := auth.NewGrantCookiesWithTokens(t, config, "", "")
+		cookies := auth.NewGrantCookiesWithHostAndTokens(t, config, applicationDomain, "", "")
 
 		rsp := grantQueryWithCookies(t, client, proxy.URL, cookies...)
 
@@ -165,7 +165,7 @@ func TestGrantLogout(t *testing.T) {
 	})
 
 	t.Run("check that logout with a refresh token which fails to revoke on the upstream server results in 500", func(t *testing.T) {
-		cookies := auth.NewGrantCookiesWithTokens(t, config, "another_refresh_token", testToken)
+		cookies := auth.NewGrantCookiesWithHostAndTokens(t, config, applicationDomain, "another_refresh_token", testToken)
 
 		rsp := grantQueryWithCookies(t, client, proxy.URL, cookies...)
 
@@ -173,7 +173,7 @@ func TestGrantLogout(t *testing.T) {
 	})
 
 	t.Run("check that logout with an access token which fails to revoke on the upstream server results in 500", func(t *testing.T) {
-		cookies := auth.NewGrantCookiesWithTokens(t, config, testRefreshToken, "another_access_token")
+		cookies := auth.NewGrantCookiesWithHostAndTokens(t, config, applicationDomain, testRefreshToken, "another_access_token")
 
 		rsp := grantQueryWithCookies(t, client, proxy.URL, cookies...)
 
