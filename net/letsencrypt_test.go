@@ -96,15 +96,15 @@ func TestInmemoryCache(t *testing.T) {
 
 func TestLetsencrypt(t *testing.T) {
 	invalidDomain := "s_.example.org"
-	if validateDomain(invalidDomain) {
-		t.Fatalf("Failed to validate invalid domain %q", invalidDomain)
-	}
-	validDomain := "example.org"
-	if !validateDomain(validDomain) {
-		t.Fatalf("Failed to validate valid domain %q", validDomain)
-	}
+	require.False(t, validateDomain(invalidDomain), "Failed to validate invalid domain %q", invalidDomain)
 
-	le := NewLetsencrypt(&InmemoryCache{}, "skipper@example.org", "https://acme-staging-v02.api.letsencrypt.org/directory", "skipper-test TestLetsencrypt", []string{validDomain})
+	validDomain := "example.org"
+	require.True(t, validateDomain(validDomain), "Failed to validate valid domain %q", validDomain)
+
+	wildcardDomain := "*.example.org"
+	require.True(t, validateDomain(wildcardDomain), "Failed to validate valid wildcard domain %q", wildcardDomain)
+
+	le := NewLetsencrypt(&InmemoryCache{}, "skipper@example.org", "https://acme-staging-v02.api.letsencrypt.org/directory", "skipper-test TestLetsencrypt", []string{validDomain, wildcardDomain})
 	defer le.Close()
 	if le.manager.Client != nil {
 		dir, err := le.manager.Client.Discover(context.TODO())

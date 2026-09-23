@@ -185,8 +185,9 @@ func (le *Letsencrypt) Close() {
 var domainRegex = regexp.MustCompile("^[a-z0-9-]+$")
 
 func validateDomain(s string) bool {
+	strippedS := strings.TrimPrefix(s, "*.")
 	i := 0
-	for w := range strings.SplitSeq(s, ".") {
+	for w := range strings.SplitSeq(strippedS, ".") {
 		if !domainRegex.MatchString(w) {
 			return false
 		}

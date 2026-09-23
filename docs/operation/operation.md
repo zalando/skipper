@@ -2081,10 +2081,12 @@ Example configuration flags:
 -letsencrypt-cache-dir=/data/skipper/certs \
 -letsencrypt-email=my-email@my-domain.org \
 -letsencrypt-user-agent=my-skipper \
--letsencrypt-domains="my-domain.org,blog.my-domain.org,www.my-domain.org"
+-letsencrypt-domains="my-domain.org,*.my-domain.org,blog.my-domain.org,www.my-domain.org"
 ```
 
 As you can see there is a list of comma separated values you can add to tell about domain ownership such that skipper would respond to incoming ACME challenges.
+
+A single leading wildcard label is supported to cover all subdomains at that level.
 
 There are multiple choices for `-letsencrypt-cache`. In the example we use "directory" to persist TLS certificates as files.
 
