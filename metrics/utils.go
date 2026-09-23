@@ -34,7 +34,8 @@ func measuredMethod(m string) string {
 		"PATCH",
 		"DELETE",
 		"TRACE",
-		"CONNECT":
+		"CONNECT",
+		"QUERY":
 		return m
 	default:
 		return "_unknownmethod_"

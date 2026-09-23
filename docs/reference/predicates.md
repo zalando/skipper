@@ -271,7 +271,7 @@ health_down: Path("/health") && Shutdown() -> status(503) -> inlineContent("shut
 ## Method
 
 The HTTP method that the request must match. HTTP methods are one of
-GET, HEAD, PATCH, POST, PUT, DELETE, OPTIONS, CONNECT, TRACE.
+GET, HEAD, PATCH, POST, PUT, DELETE, OPTIONS, CONNECT, TRACE, QUERY.
 
 Parameters:
 
@@ -282,12 +282,13 @@ Examples:
 ```
 Method("GET")
 Method("OPTIONS")
+Method("QUERY")
 ```
 
 ## Methods
 
 The HTTP method that the request must match. HTTP methods are one of
-GET, HEAD, PATCH, POST, PUT, DELETE, OPTIONS, CONNECT, TRACE.
+GET, HEAD, PATCH, POST, PUT, DELETE, OPTIONS, CONNECT, TRACE, QUERY.
 
 Parameters:
 
@@ -299,6 +300,7 @@ Examples:
 Methods("GET")
 Methods("OPTIONS", "POST")
 Methods("OPTIONS", "POST", "patch")
+Methods("GET", "QUERY")
 ```
 
 ## Header

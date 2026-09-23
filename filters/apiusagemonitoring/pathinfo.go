@@ -78,6 +78,7 @@ const (
 	methodIndexConnect        // CONNECT
 	methodIndexOptions        // OPTIONS
 	methodIndexTrace          // TRACE
+	methodIndexQuery          // QUERY (RFC 10008)
 
 	methodIndexUnknown // Value when the HTTP Method is not in the known list
 	methodIndexLength  // Gives the constant size of the `metricPrefixesPerMethod` array.
@@ -94,6 +95,7 @@ var (
 		http.MethodConnect: methodIndexConnect,
 		http.MethodOptions: methodIndexOptions,
 		http.MethodTrace:   methodIndexTrace,
+		"QUERY":            methodIndexQuery,
 	}
 )
 

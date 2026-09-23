@@ -30,14 +30,13 @@ func TestMethodsArgs(t *testing.T) {
 		true,
 	}, {
 		"ok",
-		[]any{http.MethodGet, http.MethodPost},
+		[]any{http.MethodGet, http.MethodPost, MethodQuery},
 		false,
-	},
-		{
-			"ok case-insensitive",
-			[]any{"GeT", "post", "oPtiOnS"},
-			false,
-		}} {
+	}, {
+		"ok case-insensitive",
+		[]any{"GeT", "post", "oPtiOnS", "query"},
+		false,
+	}} {
 		func() {
 			p, err := New().Create(ti.args)
 			if ti.err && err == nil {
@@ -59,7 +58,7 @@ func TestMethodsArgs(t *testing.T) {
 
 func TestMethodsMatch(t *testing.T) {
 	msg := "match multiple case-insensitive"
-	args := []any{"gEt", "post", "DELETE", "ConnEct"}
+	args := []any{"gEt", "post", "DELETE", "ConnEct", "QuErY"}
 	match := map[string]bool{
 		"GeT":     true,
 		"POST":    true,
@@ -70,6 +69,8 @@ func TestMethodsMatch(t *testing.T) {
 		"coNNect": true,
 		"options": false,
 		"trace":   false,
+		"QUERY":   true,
+		"query":   true,
 	}
 
 	p, err := New().Create(args)
