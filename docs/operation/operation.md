@@ -231,12 +231,8 @@ new data in these files and will reload the TLS client configuration
 to use the new cert and key. Rotation will happen every
 `-client-tls-cert-refresh-interval`, which defaults to `5m`.
 
-This configuration will enable mTLS for all connections to all
-backends of the proxy. More advanced configurations are work in
-progress:
-
-- https://github.com/zalando/skipper/issues/4072
-- https://github.com/zalando/skipper/issues/4042
+This configuration will enable mTLS for all https connections to all
+backends of the proxy.
 
 #### client to proxy server
 
@@ -263,9 +259,16 @@ validate client certificates. In order to check more details for authorization, 
 - [`mtlsSanIP()`](../reference/filters.md#mtlssanip)
 - [`mtlsSanURI()`](../reference/filters.md#mtlssanuri)
 
-Features are also work in progress:
+There are a bunch of [TLS predicates](https://opensource.zalando.com/skipper/reference/predicates/#tls),
+that you use to mix mTLS routes with non-mTLS routes:
 
-- https://github.com/zalando/skipper/issues/4073
+- [`TLSClientIssuerCN()`](../reference/predicates.md#tlsclientissuercn)
+- [`TLSClientIssuerDN()`](../reference/predicates.md#tlsclientissuerdn)
+- [`TLSClientCN()`](../reference/predicates.md#tlsclientcn)
+- [`TLSClientSanDNS()`](../reference/predicates.md#tlsclientsandns)
+- [`TLSClientSanCIDR()`](../reference/predicates.md#tlsclientsancidr)
+- [`TLSClientSanIP()`](../reference/predicates.md#tlsclientsanip)
+- [`TLSClientSandURI()`](../reference/predicates.md#tlsclientsanuri)
 
 ### OAuth2 Tokeninfo
 
