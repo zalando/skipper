@@ -28,6 +28,10 @@ import (
 // Deprecated, use predicates.MethodsName instead
 const Name = predicates.MethodsName
 
+// MethodQuery represents the HTTP QUERY method defined in RFC 10008.
+// net/http does not yet export MethodQuery.
+const MethodQuery = "QUERY"
+
 var ErrInvalidArgumentsCount = errors.New("at least one method should be specified")
 var ErrInvalidArgumentType = errors.New("only string values are allowed")
 
@@ -53,6 +57,7 @@ func New() routing.PredicateSpec {
 		http.MethodConnect: true,
 		http.MethodOptions: true,
 		http.MethodTrace:   true,
+		MethodQuery:        true,
 	}}
 }
 
