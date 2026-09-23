@@ -256,6 +256,7 @@ func Test_Filter_AllHttpMethodsAreSupported(t *testing.T) {
 		{http.MethodConnect, "CONNECT"},
 		{http.MethodOptions, "OPTIONS"},
 		{http.MethodTrace, "TRACE"},
+		{"QUERY", "QUERY"},
 		{"", "{unknown}"},
 		{"foo", "{unknown}"},
 	} {
