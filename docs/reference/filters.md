@@ -4269,18 +4269,21 @@ matching the same key. It has no awareness of other filters in the chain.
 * **`Cache-Control: private` is ignored in force mode.** Audit the upstream
   response before enabling force mode on any authenticated route.
 * **Coalescing safety.** Concurrent cold-miss requests to the same key share a
-  single upstream fetch only when it's safe: a request gets its own independent
-  fetch instead of reusing another concurrent request's response whenever that
-  response is `private`/`no-store`/non-public-Authorization *and* its identity
-  isn't already proven to match — either because `keyHeaders` already forces
-  every request on this key to share the same identity, or because the
-  response's own `Vary` header names a dimension both requests match on
-  exactly. Without `keyHeaders` and without a `Vary` header naming the
-  relevant identity dimension, two different users' concurrent requests to the
-  same path each get their own fetch rather than risk cross-user disclosure.
-  This means "coalesced into a single upstream fetch" is not an absolute
-  guarantee — a burst of concurrent requests that turn out unsafe to share can
-  produce more than one fetch for the same key.
+  single upstream fetch only when it's safe to reuse: safe means the response
+  is one `storeDecision` would also persist for later requests — not just the
+  `private`/`no-store`/`Authorization` cases named above, but any response
+  that isn't storeable for any reason (e.g. no explicit freshness directive
+  and nothing to derive a heuristic TTL from). A request may still reuse an
+  unsafe response if its identity is already proven to match: either
+  `keyHeaders` puts every request on this key under the same values (only as
+  reliable as the operator's own `keyHeaders` choice — a header left out of
+  it isn't covered), or the response's own `Vary` header names a dimension
+  both requests match on exactly. Otherwise each request fetches
+  independently, and independent fetches aren't coalesced with each other
+  either — so "coalesced into a single upstream fetch" (above) is not an
+  absolute guarantee: a burst of N concurrent requests that all turn out
+  unsafe to share can produce up to N fetches for the same key, not just one
+  extra.
 
 !!! note
     `s-maxage` implies `proxy-revalidate` per [RFC 9111 §5.2.2.10](https://www.rfc-editor.org/rfc/rfc9111#section-5.2.2.10): stale entries

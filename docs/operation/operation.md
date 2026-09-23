@@ -2060,10 +2060,9 @@ flowchart TD
 - `cache.miss`: Counter, request not in cache; upstream was contacted
 - `cache.stale`: Counter, stale entry served while background revalidation was enqueued
 - `cache.coalesce_error`: Counter, singleflight cold-miss fetch returned an error
-- `cache.coalesce_bypass`: Counter, a concurrent cold-miss request could not safely
-  reuse another request's in-flight response (private/no-store/non-public-Authorization
-  and no proof of matching identity via `keyHeaders` or `Vary`) and performed its own
-  fetch instead
+- `cache.coalesce_bypass`: Counter, a concurrent cold-miss request's response wasn't
+  storeable and no `keyHeaders`/`Vary` proof of matching identity was available, so
+  it performed its own fetch instead of reusing another request's in-flight response
 - `cache.coalesce_bypass_error`: Counter, an independent bypass fetch (see
   `cache.coalesce_bypass`) returned an error
 
