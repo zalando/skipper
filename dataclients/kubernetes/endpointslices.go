@@ -115,8 +115,15 @@ func effectiveScheme(p *endpointSlicePort, schemeDefault string, annotationSet b
 	if annotationSet {
 		return schemeDefault
 	}
-	if p != nil && p.AppProtocol == appProtocolH2C {
-		return "h2c"
+	if p != nil {
+		switch p.AppProtocol {
+		case appProtocolH2C:
+			return "h2c"
+		case "https":
+			return "https"
+		case "http":
+			return "http"
+		}
 	}
 	return schemeDefault
 }
@@ -167,7 +174,7 @@ type endpointSlicePort struct {
 	Name        string `json:"name"`        // "http"
 	Port        int    `json:"port"`        // 8080
 	Protocol    string `json:"protocol"`    // "TCP"
-	AppProtocol string `json:"appProtocol"` // "kubernetes.io/h2c", "kubernetes.io/ws", "kubernetes.io/wss"
+	AppProtocol string `json:"appProtocol"` // "http", "https", "kubernetes.io/h2c", "kubernetes.io/ws", "kubernetes.io/wss"
 }
 
 func (ep *EndpointSliceEndpoints) isTerminating() bool {
