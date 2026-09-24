@@ -4844,7 +4844,7 @@ func TestCacheFilter_StoreDecision(t *testing.T) {
 			}
 			f.keyHeaders = tc.keyHeaders
 
-			req, _ := http.NewRequest("GET", "https://cdn.example.com/store-decision", nil)
+			req, _ := http.NewRequest("GET", newLocalBackend(t)+"/store-decision", nil)
 			if tc.authHeader != "" {
 				req.Header.Set("Authorization", tc.authHeader)
 			}
@@ -4896,7 +4896,7 @@ func TestCacheFilter_Coalesce_LeaderNeverRefetches(t *testing.T) {
 		}, nil
 	}
 
-	url := "https://cdn.example.com/leader-no-refetch"
+	url := newLocalBackend(t) + "/leader-no-refetch"
 	results := make([]*filtertest.Context, N)
 	var wg sync.WaitGroup
 	for i := range N {
@@ -4973,7 +4973,7 @@ func TestCacheFilter_Coalesce_VaryMismatch_IndependentFetch(t *testing.T) {
 		}, nil
 	}
 
-	url := "https://cdn.example.com/vary-mismatch"
+	url := newLocalBackend(t) + "/vary-mismatch"
 	results := make([]*filtertest.Context, 2*perSession)
 	sessions := make([]string, 2*perSession)
 
@@ -5066,7 +5066,7 @@ func TestCacheFilter_Coalesce_ForceMode_SharesDespitePrivate(t *testing.T) {
 		}, nil
 	}
 
-	url := "https://cdn.example.com/force-coalesce-private"
+	url := newLocalBackend(t) + "/force-coalesce-private"
 	results := make([]*filtertest.Context, N)
 	var wg sync.WaitGroup
 	for i := range N {
@@ -5097,10 +5097,10 @@ func TestCacheFilter_Coalesce_ForceMode_SharesDespitePrivate(t *testing.T) {
 // revalidation carrying the original Authorization header does not overwrite
 // the entry when the response isn't public/must-revalidate.
 func TestCacheFilter_Revalidate_Authorization_NotStored(t *testing.T) {
+	url := newLocalBackend(t) + "/reval-auth-not-public"
 	synctest.Test(t, func(t *testing.T) {
 		f, cleanup := newTestFilterRFCWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
 		defer cleanup()
-		url := "https://cdn.example.com/reval-auth-not-public"
 
 		f.fetch = func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
@@ -5153,10 +5153,10 @@ func TestCacheFilter_Revalidate_Authorization_NotStored(t *testing.T) {
 // Authorization/public guard applies in doRevalidate even in force mode, where
 // the operator-trust override exempts private/no-store but not this check.
 func TestCacheFilter_Revalidate_ForceMode_Authorization_NotStored(t *testing.T) {
+	url := newLocalBackend(t) + "/reval-force-auth-not-public"
 	synctest.Test(t, func(t *testing.T) {
 		f, cleanup := newTestFilterWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
 		defer cleanup()
-		url := "https://cdn.example.com/reval-force-auth-not-public"
 
 		f.fetch = func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
