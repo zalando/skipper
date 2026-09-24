@@ -425,6 +425,15 @@ func TestHeader(t *testing.T) {
 				"X-Test-Request-Foo": []string{"foo"},
 				"X-Test-Request-Bar": []string{"foo"},
 			},
+		}, {
+			msg:           "copy all header values",
+			args:          []any{"X-Test-Foo", "X-Test-Bar"},
+			valid:         true,
+			requestHeader: http.Header{"X-Test-Foo": []string{"foo", "bar"}},
+			expectedHeader: http.Header{
+				"X-Test-Request-Foo": []string{"foo", "bar"},
+				"X-Test-Request-Bar": []string{"foo", "bar"},
+			},
 		}},
 		"copyResponseHeader": {{
 			msg:  "too few args",
@@ -472,6 +481,15 @@ func TestHeader(t *testing.T) {
 			expectedHeader: http.Header{
 				"X-Test-Foo": []string{"foo"},
 				"X-Test-Bar": []string{"foo"},
+			},
+		}, {
+			msg:            "copy all header values",
+			args:           []any{"X-Test-Foo", "X-Test-Bar"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Foo": []string{"foo", "bar"}},
+			expectedHeader: http.Header{
+				"X-Test-Foo": []string{"foo", "bar"},
+				"X-Test-Bar": []string{"foo", "bar"},
 			},
 		}}} {
 		t.Run(filter, func(t *testing.T) {
