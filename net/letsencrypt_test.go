@@ -128,3 +128,35 @@ func TestLetsencrypt(t *testing.T) {
 	defer li.Close()
 	t.Logf("listener %v", li.Addr())
 }
+
+func TestLetsencryptWildcardHostPolicy(t *testing.T) {
+	le := NewLetsencrypt(
+		&InmemoryCache{},
+		"skipper@example.org",
+		"https://acme-staging-v02.api.letsencrypt.org/directory",
+		"skipper-test TestLetsencryptWildcardHostPolicy",
+		[]string{"*.example.org", "example.com"},
+	)
+	defer le.Close()
+
+	for _, tt := range []struct {
+		name    string
+		host    string
+		allowed bool
+	}{
+		{"wildcard matches single-label subdomain", "foo.example.org", true},
+		{"wildcard does not match wrong bare domain", "example.org", false},
+		{"wildcard does not match multi-label subdomain", "a.b.example.org", false},
+		{"exact domain matches", "example.com", true},
+		{"exact domain does not match subdomain", "foo.example.com", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := le.manager.HostPolicy(context.Background(), tt.host)
+			if tt.allowed {
+				require.NoError(t, err, "host %q should be allowed", tt.host)
+			} else {
+				require.Error(t, err, "host %q should be rejected", tt.host)
+			}
+		})
+	}
+}
