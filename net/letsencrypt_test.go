@@ -104,6 +104,9 @@ func TestLetsencrypt(t *testing.T) {
 	wildcardDomain := "*.example.org"
 	require.True(t, validateDomain(wildcardDomain), "Failed to validate valid wildcard domain %q", wildcardDomain)
 
+	invalidDoubleWildcardDomain := "*.*.example.org"
+	require.False(t, validateDomain(invalidDoubleWildcardDomain), "Failed to validate invalid double wildcard domain %q", invalidDoubleWildcardDomain)
+
 	le := NewLetsencrypt(&InmemoryCache{}, "skipper@example.org", "https://acme-staging-v02.api.letsencrypt.org/directory", "skipper-test TestLetsencrypt", []string{validDomain, wildcardDomain})
 	defer le.Close()
 	if le.manager.Client != nil {
