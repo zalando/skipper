@@ -61,6 +61,7 @@ type (
 		authClient *authClient
 		claims     []string
 		kv         kv
+		args       []any // original creation args, set only for secure variants for redaction
 	}
 
 	openIDConfig struct {
@@ -343,6 +344,9 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []any) (filters.Filter, error
 		authClient: ac,
 		kv:         make(map[string][]string),
 	}
+	if s.secure {
+		f.args = args
+	}
 	switch f.typ {
 	case checkOAuthTokenintrospectionAllClaims:
 		fallthrough
@@ -403,6 +407,19 @@ func (f *tokenintrospectFilter) String() string {
 		return fmt.Sprintf("%s(%s)", filters.SecureOAuthTokenintrospectionAllKVName, f.kv)
 	}
 	return AuthUnknown
+}
+
+// RedactedArgs implements filters.Redactable for secure tokenintrospection variants.
+// It replaces clientId (args[1]) and clientSecret (args[2]) with a placeholder.
+func (f *tokenintrospectFilter) RedactedArgs() []any {
+	if len(f.args) < 3 {
+		return f.args
+	}
+	out := make([]any, len(f.args))
+	copy(out, f.args)
+	out[1] = "<redacted>"
+	out[2] = "<redacted>"
+	return out
 }
 
 func (f *tokenintrospectFilter) validateAnyClaims(info tokenIntrospectionInfo) bool {

@@ -195,6 +195,16 @@ type FilterCloser interface {
 	io.Closer
 }
 
+// Redactable is an optional interface that Filter instances can implement
+// to provide a redacted copy of their creation args for safe external display
+// (e.g. the /routes API endpoint). Implement this on any filter whose args
+// contain secrets such as OAuth client credentials or API keys.
+type Redactable interface {
+	// RedactedArgs returns a copy of the original creation args with sensitive
+	// values replaced by a placeholder. Must not modify the original args slice.
+	RedactedArgs() []any
+}
+
 // Spec objects are specifications for filters. When initializing the routes,
 // the Filter instances are created using the Spec objects found in the
 // registry.
