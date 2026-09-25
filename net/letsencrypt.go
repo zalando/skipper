@@ -142,7 +142,7 @@ func NewLetsencrypt(cache autocert.Cache, email, directoryURL, userAgent string,
 	manager := &autocert.Manager{
 		Cache:      cache,
 		Email:      email,
-		HostPolicy: autocert.HostWhitelist(domains...),
+		HostPolicy: hostPolicy(domains),
 		Prompt:     autocert.AcceptTOS,
 		Client: &acme.Client{
 			DirectoryURL: directoryURL,
@@ -183,6 +183,48 @@ func (le *Letsencrypt) Close() {
 }
 
 var domainRegex = regexp.MustCompile("^[a-z0-9-]+$")
+
+// hostPolicy returns an autocert.HostPolicy that authorizes the given domains.
+// Unlike autocert.HostWhitelist it supports single-label wildcard domains of the
+// form "*.example.org", which match exactly one subdomain label (e.g.
+// "foo.example.org" but neither "example.org" nor "a.b.example.org"). Non-wildcard
+// domains keep exact-match semantics.
+func hostPolicy(domains []string) autocert.HostPolicy {
+	exact := make(map[string]bool, len(domains))
+	var wildcardSuffixes []string
+	for _, d := range domains {
+		d = strings.ToLower(d)
+		if suffix, ok := strings.CutPrefix(d, "*."); ok {
+			wildcardSuffixes = append(wildcardSuffixes, suffix)
+		} else {
+			exact[d] = true
+		}
+	}
+
+	return func(_ context.Context, host string) error {
+		host = strings.ToLower(host)
+		if exact[host] {
+			return nil
+		}
+		for _, suffix := range wildcardSuffixes {
+			if matchesDNSWildcard(host, suffix) {
+				return nil
+			}
+		}
+		return fmt.Errorf("acme/autocert: host %q not configured in HostPolicy", host)
+	}
+}
+
+// matchesDNSWildcard reports whether the lowercased host matches the wildcard
+// pattern "*.suffix". It requires exactly one non-empty label before suffix,
+// matching RFC 6125 single-label wildcard semantics.
+func matchesDNSWildcard(host, suffix string) bool {
+	if !strings.HasSuffix(host, "."+suffix) {
+		return false
+	}
+	label := host[:len(host)-len(suffix)-1]
+	return label != "" && !strings.Contains(label, ".")
+}
 
 func validateDomain(s string) bool {
 	strippedS := strings.TrimPrefix(s, "*.")
