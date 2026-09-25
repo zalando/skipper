@@ -110,7 +110,7 @@ func (m *matcher) fill(requested int) error {
 				if err != nil {
 					return err
 				}
-				m.pending.Reset()
+				io.CopyBuffer(m.ready, m.pending, m.readBuffer)
 				readSize = 1
 			}
 		}

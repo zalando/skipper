@@ -317,8 +317,8 @@ func TestMatcherErrorCases(t *testing.T) {
 		bmb := newMatcher(context.Background(), r, blockMatcher(toblockList), 5, MaxBufferBestEffort)
 		p := make([]byte, len(r.initialContent))
 		_, err := bmb.Read(p)
-		if err != nil {
-			t.Errorf("Failed to read: %v", err)
+		if err != ErrBlocked {
+			t.Errorf("Failed to get expected error %v, got: %v", ErrBlocked, err)
 		}
 	})
 
@@ -423,6 +423,62 @@ func BenchmarkBlock(b *testing.B) {
 				if err != nil {
 					return
 				}
+			}
+		})
+	}
+}
+
+func TestMatcherBestEffortPassesBody(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		body          string
+		maxBufferSize uint64
+		readSize      int
+	}{
+		{
+			name:          "body larger than max buffer",
+			body:          strings.Repeat("a", 100),
+			maxBufferSize: 16,
+			readSize:      32,
+		},
+		{
+			name:          "body larger than max buffer read at once",
+			body:          strings.Repeat("a", 100),
+			maxBufferSize: 16,
+			readSize:      1024,
+		},
+		{
+			name:          "body larger than max buffer and read size",
+			body:          strings.Repeat("abc", 10000),
+			maxBufferSize: 100,
+			readSize:      1024,
+		},
+		{
+			name:          "body within max buffer",
+			body:          strings.Repeat("a", 100),
+			maxBufferSize: 1024,
+			readSize:      32,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rc := io.NopCloser(strings.NewReader(tt.body))
+			m := newMatcher(context.Background(), rc, blockMatcher([]toBlockKeys{{Str: []byte(".class")}}), tt.maxBufferSize, MaxBufferBestEffort)
+
+			var got bytes.Buffer
+			p := make([]byte, tt.readSize)
+			for {
+				n, err := m.Read(p)
+				got.Write(p[:n])
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					t.Fatalf("Failed to read: %v", err)
+				}
+			}
+
+			if got.String() != tt.body {
+				t.Errorf("Failed to pass the body, got %d bytes, want %d bytes", got.Len(), len(tt.body))
 			}
 		})
 	}
