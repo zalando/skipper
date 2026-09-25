@@ -276,6 +276,48 @@ func TestBlock(t *testing.T) {
 		}
 	})
 
+	t.Run("pass request larger than the matcher buffer and check content", func(t *testing.T) {
+		content := strings.Repeat("hello world ", 1000)
+
+		be := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			res, err := io.ReadAll(r.Body)
+			r.Body.Close()
+			if err != nil {
+				w.WriteHeader(500)
+				w.Write([]byte("Failed to read body"))
+				return
+			}
+			if s := string(res); s != content {
+				t.Logf("backend received %d bytes, want %d bytes", len(s), len(content))
+				w.WriteHeader(400)
+				w.Write([]byte("wrong body"))
+				return
+			}
+			w.WriteHeader(200)
+			w.Write([]byte("OK"))
+		}))
+		defer be.Close()
+
+		r := eskip.MustParse(fmt.Sprintf(`* -> blockContent("foo") -> "%s"`, be.URL))
+		proxy := proxytest.New(fr, r...)
+		defer proxy.Close()
+
+		req, err := http.NewRequest("POST", proxy.URL, strings.NewReader(content))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp, err := proxy.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, _ := io.ReadAll(rsp.Body)
+		defer rsp.Body.Close()
+		if rsp.StatusCode != 200 {
+			t.Errorf("Blocked response status code %d: %s", rsp.StatusCode, string(result))
+		}
+	})
+
 	t.Run("pass request on empty body", func(t *testing.T) {
 		r := eskip.MustParse(fmt.Sprintf(`* -> blockContent("foo") -> "%s"`, backend.URL))
 		proxy := proxytest.New(fr, r...)
