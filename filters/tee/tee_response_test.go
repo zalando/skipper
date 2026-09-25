@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -14,15 +15,19 @@ import (
 
 func TestTeeResponseEndToEndBody(t *testing.T) {
 	s := "hello"
+	done := make(chan struct{})
 
 	shadowBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(done)
 		b, err := io.ReadAll(r.Body)
 		if err != nil {
-			t.Fatalf("Failed to read shadow request: %v", err)
+			t.Errorf("Failed to read shadow request: %v", err)
+			return
 		}
 
 		if s != string(b) {
-			t.Fatalf("Failed to get the shadow request %q != %q", s, string(b))
+			t.Errorf("Failed to get the shadow request %q != %q", s, string(b))
+			return
 		}
 
 		r.Body.Close()
@@ -64,6 +69,12 @@ func TestTeeResponseEndToEndBody(t *testing.T) {
 	}
 
 	rsp.Body.Close()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for shadow backend to receive request")
+	}
 }
 
 func TestTeeResponseNoResponseBody(t *testing.T) {
