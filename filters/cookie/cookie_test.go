@@ -2,6 +2,7 @@ package cookie
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/zalando/skipper/filters"
@@ -705,4 +706,147 @@ func TestDropResponseCookie(t *testing.T) {
 		})
 	}
 
+}
+
+func TestDropCookieKeepsOtherCookies(t *testing.T) {
+	t.Run("request", func(t *testing.T) {
+		for _, tt := range []struct {
+			name   string
+			cookie []string
+			want   []string
+		}{
+			{
+				name:   "json value",
+				cookie: []string{`foo=foo1; bar={"x":1}`},
+				want:   []string{`bar={"x":1}`},
+			},
+			{
+				name:   "non-ascii value",
+				cookie: []string{"foo=foo1; bar=José"},
+				want:   []string{"bar=José"},
+			},
+			{
+				name:   "backslash value",
+				cookie: []string{`foo=foo1; bar=a\b`},
+				want:   []string{`bar=a\b`},
+			},
+			{
+				name:   "value with space is not quoted",
+				cookie: []string{"foo=foo1; bar=hello world"},
+				want:   []string{"bar=hello world"},
+			},
+			{
+				name:   "value with comma is not quoted",
+				cookie: []string{"foo=foo1; bar=a,b"},
+				want:   []string{"bar=a,b"},
+			},
+			{
+				name:   "match in the middle",
+				cookie: []string{"a=1; foo=foo1; b=2"},
+				want:   []string{"a=1; b=2"},
+			},
+			{
+				name:   "multiple header values",
+				cookie: []string{"foo=foo1", "bar=baz"},
+				want:   []string{"bar=baz"},
+			},
+			{
+				name:   "empty pairs",
+				cookie: []string{"foo=foo1;; bar=baz;"},
+				want:   []string{"bar=baz"},
+			},
+			{
+				name:   "only the matching cookie",
+				cookie: []string{"foo=foo1"},
+				want:   nil,
+			},
+			{
+				name:   "no match keeps the header as is",
+				cookie: []string{`bar={"x":1}; baz=2`},
+				want:   []string{`bar={"x":1}; baz=2`},
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				f, err := NewDropRequestCookie().CreateFilter([]any{"foo"})
+				if err != nil {
+					t.Fatalf("Failed to create filter: %v", err)
+				}
+
+				ctx := &filtertest.Context{
+					FRequest:  &http.Request{Header: http.Header{"Cookie": tt.cookie}},
+					FStateBag: map[string]any{},
+					FResponse: &http.Response{Header: http.Header{}},
+				}
+
+				f.Request(ctx)
+
+				if got := ctx.Request().Header.Values("Cookie"); !slices.Equal(got, tt.want) {
+					t.Errorf("Failed to keep the other cookies, got: %q, want: %q", got, tt.want)
+				}
+			})
+		}
+	})
+
+	t.Run("response", func(t *testing.T) {
+		for _, tt := range []struct {
+			name      string
+			setCookie []string
+			want      []string
+		}{
+			{
+				name:      "json value",
+				setCookie: []string{"foo=foo1; Path=/", `bar={"x":1}; Path=/`},
+				want:      []string{`bar={"x":1}; Path=/`},
+			},
+			{
+				name:      "unknown attribute",
+				setCookie: []string{"foo=foo1; Path=/", "bar=x; Path=/; Priority=High"},
+				want:      []string{"bar=x; Path=/; Priority=High"},
+			},
+			{
+				name:      "unparsable expires",
+				setCookie: []string{"foo=foo1; Path=/", "bar=x; Path=/; Expires=bogus"},
+				want:      []string{"bar=x; Path=/; Expires=bogus"},
+			},
+			{
+				name:      "attribute order and casing",
+				setCookie: []string{"foo=foo1; Path=/", "bar=x; path=/; secure; httponly"},
+				want:      []string{"bar=x; path=/; secure; httponly"},
+			},
+			{
+				name:      "match in the middle",
+				setCookie: []string{"a=1", "foo=foo1", "b=2"},
+				want:      []string{"a=1", "b=2"},
+			},
+			{
+				name:      "only the matching cookie",
+				setCookie: []string{"foo=foo1; Path=/"},
+				want:      nil,
+			},
+			{
+				name:      "no match keeps the header as is",
+				setCookie: []string{`bar={"x":1}; Path=/`, "baz=2; Priority=High"},
+				want:      []string{`bar={"x":1}; Path=/`, "baz=2; Priority=High"},
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				f, err := NewDropResponseCookie().CreateFilter([]any{"foo"})
+				if err != nil {
+					t.Fatalf("Failed to create filter: %v", err)
+				}
+
+				ctx := &filtertest.Context{
+					FRequest:  &http.Request{},
+					FStateBag: map[string]any{},
+					FResponse: &http.Response{Header: http.Header{"Set-Cookie": tt.setCookie}},
+				}
+
+				f.Response(ctx)
+
+				if got := ctx.Response().Header.Values("Set-Cookie"); !slices.Equal(got, tt.want) {
+					t.Errorf("Failed to keep the other cookies, got: %q, want: %q", got, tt.want)
+				}
+			})
+		}
+	})
 }
