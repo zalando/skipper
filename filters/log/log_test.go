@@ -1,9 +1,15 @@
 package log
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 )
 
@@ -103,7 +109,190 @@ func TestRequest(t *testing.T) {
 				t.Errorf("Unexpected result: '%s' != '%s'", s, ti.expected)
 				return
 			}
-
 		})
 	}
+}
+
+func TestUnverifiedAuditLogSpec(t *testing.T) {
+	spec := NewUnverifiedAuditLog()
+	if spec.Name() != filters.UnverifiedAuditLogName {
+		t.Fatalf("expected name %s, got %s", filters.UnverifiedAuditLogName, spec.Name())
+	}
+
+	_, err := spec.CreateFilter([]any{123})
+	if !errors.Is(err, filters.ErrInvalidFilterParameters) {
+		t.Fatalf("expected ErrInvalidFilterParameters for non-string arg, got %v", err)
+	}
+
+	fltr, err := spec.CreateFilter(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	fltr.Response(&filtertest.Context{})
+}
+
+func TestAuditLogSpec(t *testing.T) {
+	spec := NewAuditLog(1024)
+	if spec.Name() != filters.AuditLogName {
+		t.Fatalf("expected name %s, got %s", filters.AuditLogName, spec.Name())
+	}
+
+	_, err := spec.CreateFilter([]any{"unexpected"})
+	if !errors.Is(err, filters.ErrInvalidFilterParameters) {
+		t.Fatalf("expected ErrInvalidFilterParameters, got %v", err)
+	}
+
+	fltr, err := spec.CreateFilter(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fltr == nil {
+		t.Fatal("expected non-nil filter")
+	}
+}
+
+func TestTeeBody(t *testing.T) {
+	t.Run("bounded maxTee", func(t *testing.T) {
+		content := "hello world from teeBody"
+		rc := io.NopCloser(strings.NewReader(content))
+		tb := newTeeBody(rc, 5)
+
+		buf, err := io.ReadAll(tb)
+		if err != nil {
+			t.Fatalf("unexpected read error: %v", err)
+		}
+		if string(buf) != content {
+			t.Fatalf("expected read content %q, got %q", content, string(buf))
+		}
+
+		if err := tb.Close(); err != nil {
+			t.Fatalf("unexpected close error: %v", err)
+		}
+
+		tBody := tb.(*teeBody)
+		if tBody.buffer.String() != "hello" {
+			t.Fatalf("expected buffer to be truncated to 'hello', got %q", tBody.buffer.String())
+		}
+	})
+
+	t.Run("unbounded maxTee negative", func(t *testing.T) {
+		content := "complete content without limit"
+		rc := io.NopCloser(strings.NewReader(content))
+		tb := newTeeBody(rc, -1)
+
+		buf, err := io.ReadAll(tb)
+		if err != nil {
+			t.Fatalf("unexpected read error: %v", err)
+		}
+		if string(buf) != content {
+			t.Fatalf("expected read content %q, got %q", content, string(buf))
+		}
+
+		tBody := tb.(*teeBody)
+		if tBody.buffer.String() != content {
+			t.Fatalf("expected buffer to match full content, got %q", tBody.buffer.String())
+		}
+	})
+}
+
+func TestAuditLogFilter(t *testing.T) {
+	t.Run("records request body and auth status", func(t *testing.T) {
+		out := &bytes.Buffer{}
+		al := &auditLog{
+			writer:     out,
+			maxBodyLog: 1024,
+		}
+
+		req, err := http.NewRequest("POST", "http://localhost/api/test", io.NopCloser(strings.NewReader("payload-data")))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		ctx := &filtertest.Context{
+			FStateBag: map[string]any{
+				AuthUserKey:         "john_doe",
+				AuthRejectReasonKey: "insufficient_scope",
+			},
+			FRequest:  req,
+			FResponse: &http.Response{StatusCode: http.StatusForbidden},
+		}
+
+		al.Request(ctx)
+		al.Response(ctx)
+
+		var doc auditDoc
+		if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+			t.Fatalf("failed to decode audit log JSON: %v, raw: %s", err, out.String())
+		}
+
+		if doc.Method != "POST" {
+			t.Errorf("expected Method POST, got %s", doc.Method)
+		}
+		if doc.Path != "/api/test" {
+			t.Errorf("expected Path /api/test, got %s", doc.Path)
+		}
+		if doc.Status != http.StatusForbidden {
+			t.Errorf("expected Status 403, got %d", doc.Status)
+		}
+		if doc.RequestBody != "payload-data" {
+			t.Errorf("expected RequestBody 'payload-data', got %q", doc.RequestBody)
+		}
+		if doc.AuthStatus == nil {
+			t.Fatal("expected AuthStatus to be populated")
+		}
+		if doc.AuthStatus.User != "john_doe" {
+			t.Errorf("expected user 'john_doe', got %s", doc.AuthStatus.User)
+		}
+		if !doc.AuthStatus.Rejected {
+			t.Errorf("expected Rejected to be true")
+		}
+		if doc.AuthStatus.Reason != "insufficient_scope" {
+			t.Errorf("expected Reason 'insufficient_scope', got %s", doc.AuthStatus.Reason)
+		}
+	})
+
+	t.Run("zero maxBodyLog does not wrap body in teeBody", func(t *testing.T) {
+		al := &auditLog{
+			writer:     &bytes.Buffer{},
+			maxBodyLog: 0,
+		}
+
+		req, _ := http.NewRequest("GET", "http://localhost/", io.NopCloser(strings.NewReader("test")))
+		ctx := &filtertest.Context{
+			FRequest:  req,
+			FResponse: &http.Response{StatusCode: http.StatusOK},
+		}
+
+		al.Request(ctx)
+		if _, ok := ctx.Request().Body.(*teeBody); ok {
+			t.Fatal("expected body NOT to be wrapped in teeBody when maxBodyLog == 0")
+		}
+	})
+
+	t.Run("negative maxBodyLog copies full body", func(t *testing.T) {
+		out := &bytes.Buffer{}
+		al := &auditLog{
+			writer:     out,
+			maxBodyLog: -1,
+		}
+
+		bodyContent := "unlimited-length-body"
+		req, _ := http.NewRequest("PUT", "http://localhost/unlimited", io.NopCloser(strings.NewReader(bodyContent)))
+		ctx := &filtertest.Context{
+			FRequest:  req,
+			FResponse: &http.Response{StatusCode: http.StatusOK},
+		}
+
+		al.Request(ctx)
+		al.Response(ctx)
+
+		var doc auditDoc
+		if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+			t.Fatalf("failed to parse JSON: %v", err)
+		}
+		if doc.RequestBody != bodyContent {
+			t.Errorf("expected body %q, got %q", bodyContent, doc.RequestBody)
+		}
+	})
 }
