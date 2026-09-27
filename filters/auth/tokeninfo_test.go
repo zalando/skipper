@@ -787,3 +787,53 @@ func TestOAuthTokeninfoValidateArgs(t *testing.T) {
 		}
 	})
 }
+
+func TestTokeninfoConstructors(t *testing.T) {
+	u := "https://tokeninfo.example.com"
+	d := 3 * time.Second
+
+	specs := []struct {
+		name string
+		spec filters.Spec
+	}{
+		{name: filters.OAuthTokeninfoAllScopeName, spec: NewOAuthTokeninfoAllScope(u, d)},
+		{name: filters.OAuthTokeninfoAllKVName, spec: NewOAuthTokeninfoAllKV(u, d)},
+		{name: filters.OAuthTokeninfoAnyKVName, spec: NewOAuthTokeninfoAnyKV(u, d)},
+	}
+
+	for _, s := range specs {
+		t.Run(s.name, func(t *testing.T) {
+			assert.Equal(t, s.name, s.spec.Name())
+		})
+	}
+
+	t.Run("TokeninfoWithOptions with tokeninfoSpec", func(t *testing.T) {
+		opts := TokeninfoOptions{
+			URL:     u,
+			Timeout: 5 * time.Second,
+		}
+		s := TokeninfoWithOptions(NewOAuthTokeninfoAllScope, opts)
+		ts, ok := s.(*tokeninfoSpec)
+		require.True(t, ok)
+		assert.Equal(t, opts.URL, ts.options.URL)
+		assert.Equal(t, opts.Timeout, ts.options.Timeout)
+		assert.Equal(t, filters.OAuthTokeninfoAllScopeName, s.Name())
+	})
+
+	t.Run("TokeninfoWithOptions with non-tokeninfoSpec fallback", func(t *testing.T) {
+		mockCreator := func(string, time.Duration) filters.Spec {
+			return &mockFilterSpec{name: "mock"}
+		}
+		s := TokeninfoWithOptions(mockCreator, TokeninfoOptions{URL: u, Timeout: d})
+		assert.Equal(t, "mock", s.Name())
+	})
+}
+
+type mockFilterSpec struct {
+	name string
+}
+
+func (m *mockFilterSpec) Name() string { return m.name }
+func (m *mockFilterSpec) CreateFilter([]any) (filters.Filter, error) {
+	return nil, nil
+}

@@ -715,3 +715,43 @@ func Test_validateAllClaims(t *testing.T) {
 		})
 	}
 }
+
+func TestTokenintrospectionWithOptions(t *testing.T) {
+	d := 2 * time.Second
+
+	t.Run("with tokenIntrospectionSpec", func(t *testing.T) {
+		opts := TokenintrospectionOptions{
+			Timeout: 5 * time.Second,
+		}
+		s := TokenintrospectionWithOptions(NewOAuthTokenintrospectionAnyKV, opts)
+		ts, ok := s.(*tokenIntrospectionSpec)
+		if !ok {
+			t.Fatalf("expected *tokenIntrospectionSpec, got %T", s)
+		}
+		if ts.options.Timeout != 5*time.Second {
+			t.Errorf("expected timeout 5s, got %v", ts.options.Timeout)
+		}
+		if s.Name() != filters.OAuthTokenintrospectionAnyKVName {
+			t.Errorf("expected name %s, got %s", filters.OAuthTokenintrospectionAnyKVName, s.Name())
+		}
+	})
+
+	t.Run("with non-tokenIntrospectionSpec fallback", func(t *testing.T) {
+		mockCreator := func(time.Duration) filters.Spec {
+			return &mockIntrospectionSpec{name: "mock-intro"}
+		}
+		s := TokenintrospectionWithOptions(mockCreator, TokenintrospectionOptions{Timeout: d})
+		if s.Name() != "mock-intro" {
+			t.Errorf("expected mock-intro, got %s", s.Name())
+		}
+	})
+}
+
+type mockIntrospectionSpec struct {
+	name string
+}
+
+func (m *mockIntrospectionSpec) Name() string { return m.name }
+func (m *mockIntrospectionSpec) CreateFilter([]any) (filters.Filter, error) {
+	return nil, nil
+}
