@@ -23,11 +23,11 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/memberlist v0.7.0
-	github.com/instana/go-sensor v1.77.0
+	github.com/instana/go-sensor v1.79.0
 	github.com/klauspost/compress v1.20.0
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.73
-	github.com/molecule-man/go-brrr v1.1.0
+	github.com/molecule-man/go-brrr v1.1.1
 	github.com/oklog/ulid v1.3.1
 	github.com/open-policy-agent/eopa v1.46.1-0.20260410145035-769c001a4008
 	github.com/open-policy-agent/opa v1.15.2
