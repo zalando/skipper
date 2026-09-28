@@ -10,6 +10,7 @@ import (
 	stdlibhttptest "net/http/httptest"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
 	"github.com/valkey-io/valkey-go"
+	"modernc.org/libc/signal"
 
 	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/filters"
@@ -436,6 +438,64 @@ func TestHTTPServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to stream response body: %v", err)
 	}
+}
+
+func TestSupportServer(t *testing.T) {
+	o := Options{
+		Address:                 ":0",
+		SupportListener:         ":39911",
+		OIDCSecretsFile:         "VERSION",
+		WaitFirstRouteLoad:      true,
+		SuppressRouteUpdateLogs: true,
+		InlineRoutes:            `r: PathSubtree("/auth") -> oauthOidcUserInfo("https://accounts.google.com", "client_id", "client_secret", "http://target.example.com/subpath/callback", "email profile", "name email picture", "parameter=value", "X-Auth-Authorization:claims.email", "0") -> <shunt>;`,
+	}
+
+	sigs := make(chan os.Signal, signal.SIGUSR1)
+	go run(o, sigs, nil)
+	// cleanup spawned process
+	defer func() {
+		syscall.Kill(syscall.Getpid(), syscall.SIGUSR1)
+	}()
+
+	addr := "http://localhost" + o.SupportListener + "/routes"
+	var (
+		err error
+		rsp *http.Response
+	)
+	for i := range 10 {
+		rsp, err = waitConnGet(addr)
+		if err != nil {
+			time.Sleep(250 * time.Millisecond)
+			continue
+		}
+
+		defer rsp.Body.Close()
+		buf, err := io.ReadAll(rsp.Body)
+		if err != nil {
+			time.Sleep(250 * time.Millisecond)
+			continue
+		}
+
+		n := len(buf)
+		if n == 0 {
+			time.Sleep(250 * time.Millisecond)
+			continue
+		}
+
+		t.Logf("Iteration %d got %d bytes", i, n)
+
+		if rsp.StatusCode != 200 {
+			t.Fatalf("Status code should be 200, instead got: %d\n", rsp.StatusCode)
+		}
+
+		result := string(buf)
+		if strings.Contains(result, "client_secret") {
+			t.Fatalf("/routes should be redacted: %q", result)
+		}
+		t.Log(result)
+		return
+	}
+	t.Fatal("no success")
 }
 
 func TestServerShutdownHTTP(t *testing.T) {

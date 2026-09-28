@@ -676,7 +676,13 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 						o.Metrics.SetInvalidRoute(r.Id, errInvalidMatcher.Code())
 					}
 				} else {
-					validRoutes = append(validRoutes, &r.Route)
+					rc := r.Route.Copy()
+					for j, lf := range r.Filters {
+						if red, ok := lf.Filter.(filters.Redactable); ok {
+							rc.Filters[j].Args = red.RedactedArgs()
+						}
+					}
+					validRoutes = append(validRoutes, rc)
 				}
 			}
 

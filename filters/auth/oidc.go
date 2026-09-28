@@ -134,6 +134,7 @@ type (
 		oidcOptions          OidcOptions
 		dropClaimName        string
 		dropClaimValueRegexp *regexp.Regexp
+		args                 []any // original creation args kept for redaction
 	}
 
 	tokenContainer struct {
@@ -397,6 +398,7 @@ func (s *tokenOidcSpec) CreateFilter(args []any) (filters.Filter, error) {
 		f.dropClaimValueRegexp = re
 	}
 
+	f.args = args
 	return f, nil
 }
 
@@ -412,6 +414,18 @@ func (s *tokenOidcSpec) Name() string {
 		return filters.OAuthOidcAllClaimsName
 	}
 	return AuthUnknown
+}
+
+// RedactedArgs implements filters.Redactable.
+// It replaces the clientSecret (args[paramClientSecret] == args[2]) with a placeholder.
+func (f *tokenOidcFilter) RedactedArgs() []any {
+	if len(f.args) <= paramClientSecret {
+		return f.args
+	}
+	out := make([]any, len(f.args))
+	copy(out, f.args)
+	out[paramClientSecret] = "<redacted>"
+	return out
 }
 
 func (f *tokenOidcFilter) validateAnyClaims(h map[string]any) bool {
