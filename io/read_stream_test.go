@@ -255,8 +255,9 @@ func TestMatcherFuncError(t *testing.T) {
 		}
 		errTest := fmt.Errorf("we test an error")
 
+		// f is called on the full buffered content (16 bytes) before slicing.
 		f := func(p []byte) (int, error) {
-			if len(p) == 8 {
+			if len(p) == 16 {
 				return 0, errTest
 			}
 			return len(p), nil
@@ -362,6 +363,118 @@ func TestMatcherErrorCases(t *testing.T) {
 			t.Errorf("Failed to get correct read error: %v", err)
 		}
 	})
+}
+
+// TestMatcherBoundaryStraddling verifies that the matcher catches needles that
+// straddle chunk-read boundaries (GHSA-373c-6ffw-j63p).
+func TestMatcherBoundaryStraddling(t *testing.T) {
+	const needle = "FORBIDDEN"
+	const chunkSize = 8192 // defaultReadBufferSize
+
+	block := blockMatcher([]toBlockKeys{{Str: []byte(needle)}})
+
+	t.Run("needle straddling first chunk boundary", func(t *testing.T) {
+		// needle starts 4 bytes before the end of the first chunk
+		body := []byte(strings.Repeat("A", chunkSize-4) + needle + strings.Repeat("B", 100))
+		r := &nonBlockingReader{initialContent: body}
+		m := newMatcher(context.Background(), r, block, 2*1024*1024, MaxBufferBestEffort)
+		p := make([]byte, chunkSize)
+		_, err := m.Read(p)
+		if !errors.Is(err, ErrBlocked) {
+			t.Errorf("want ErrBlocked, got %v", err)
+		}
+	})
+
+	t.Run("needle split 1 byte into second chunk", func(t *testing.T) {
+		// last byte of needle falls into the second chunk
+		body := []byte(strings.Repeat("A", chunkSize-1) + needle + strings.Repeat("B", 100))
+		r := &nonBlockingReader{initialContent: body}
+		m := newMatcher(context.Background(), r, block, 2*1024*1024, MaxBufferBestEffort)
+		p := make([]byte, chunkSize)
+		_, err := m.Read(p)
+		if !errors.Is(err, ErrBlocked) {
+			t.Errorf("want ErrBlocked, got %v", err)
+		}
+	})
+
+	t.Run("needle spanning two chunk boundaries with long needle", func(t *testing.T) {
+		longNeedle := strings.Repeat("X", chunkSize+10) // longer than one chunk
+		block2 := blockMatcher([]toBlockKeys{{Str: []byte(longNeedle)}})
+		// needle starts mid first chunk and ends in the third chunk
+		body := []byte(strings.Repeat("A", chunkSize/2) + longNeedle + strings.Repeat("B", 100))
+		r := &nonBlockingReader{initialContent: body}
+		m := newMatcher(context.Background(), r, block2, 4*1024*1024, MaxBufferBestEffort)
+		p := make([]byte, chunkSize)
+		_, err := m.Read(p)
+		if !errors.Is(err, ErrBlocked) {
+			t.Errorf("want ErrBlocked, got %v", err)
+		}
+	})
+
+	t.Run("clean body same size does not block", func(t *testing.T) {
+		body := []byte(strings.Repeat("A", chunkSize+100))
+		r := &nonBlockingReader{initialContent: body}
+		m := newMatcher(context.Background(), r, block, 2*1024*1024, MaxBufferBestEffort)
+		p := make([]byte, chunkSize)
+		n, err := m.Read(p)
+		if err != nil {
+			t.Errorf("want nil error, got %v", err)
+		}
+		if n != chunkSize {
+			t.Errorf("want %d bytes, got %d", chunkSize, n)
+		}
+	})
+
+	t.Run("match function called once per fill", func(t *testing.T) {
+		// body fits entirely in the buffer; f must be called exactly once per Read
+		var calls int
+		countingF := func(p []byte) (int, error) {
+			calls++
+			return len(p), nil
+		}
+		body := []byte(strings.Repeat("A", 3*chunkSize))
+		r := &nonBlockingReader{initialContent: body}
+		m := newMatcher(context.Background(), r, countingF, 2*1024*1024, MaxBufferBestEffort)
+		p := make([]byte, chunkSize)
+		// First Read fills and scans the entire body once, then returns the first chunk.
+		_, err := m.Read(p)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if calls != 1 {
+			t.Errorf("want f called 1 time on first Read, got %d", calls)
+		}
+		// Subsequent reads of already-buffered data must not re-scan.
+		_, err = m.Read(p)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if calls != 1 {
+			t.Errorf("want f called 1 time total after two reads, got %d", calls)
+		}
+	})
+}
+
+// TestMatcherOverflowBoundaryGap documents the known remaining gap: when the body
+// exceeds maxBufferSize (MaxBufferBestEffort path), a needle that straddles the
+// flush boundary between two pending-buffer chunks is not detected.
+// This is tracked as a follow-up to GHSA-373c-6ffw-j63p.
+func TestMatcherOverflowBoundaryGap(t *testing.T) {
+	t.Skip("known limitation: overflow path boundary gap, tracked as follow-up to GHSA-373c-6ffw-j63p")
+
+	const needle = "FORBIDDEN"
+	const maxBuf = 100
+	block := blockMatcher([]toBlockKeys{{Str: []byte(needle)}})
+
+	// Body exceeds maxBuf; needle straddles the flush seam at offset maxBuf.
+	body := []byte(strings.Repeat("A", maxBuf-4) + needle + strings.Repeat("B", 100))
+	r := &nonBlockingReader{initialContent: body}
+	m := newMatcher(context.Background(), r, block, maxBuf, MaxBufferBestEffort)
+	p := make([]byte, len(body))
+	_, err := m.Read(p)
+	if !errors.Is(err, ErrBlocked) {
+		t.Errorf("want ErrBlocked for overflow boundary needle, got %v", err)
+	}
 }
 
 func BenchmarkBlock(b *testing.B) {

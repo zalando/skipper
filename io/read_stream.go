@@ -36,8 +36,9 @@ type matcher struct {
 	ready   *bytes.Buffer
 	pending *bytes.Buffer
 
-	err    error
-	closed bool
+	err     error
+	closed  bool
+	matched bool
 }
 
 var (
@@ -130,6 +131,7 @@ func (m *matcher) Read(p []byte) (int, error) {
 	}
 
 	if m.ready.Len() < len(p) {
+		m.matched = false
 		m.err = m.fill(len(p))
 	}
 
@@ -138,11 +140,18 @@ func (m *matcher) Read(p []byte) (int, error) {
 		return 0, m.err
 	}
 
+	if !m.matched {
+		if _, err := m.f(m.ready.Bytes()); err != nil {
+			m.closed = true
+			return 0, err
+		}
+		m.matched = true
+	}
+
 	n, _ := m.ready.Read(p)
 	if n == 0 && len(p) > 0 && m.err != nil {
 		return 0, m.err
 	}
-	p = p[:n]
 
 	select {
 	case <-m.ctx.Done():
@@ -151,11 +160,6 @@ func (m *matcher) Read(p []byte) (int, error) {
 	default:
 	}
 
-	n, err := m.f(p)
-	if err != nil {
-		m.closed = true
-		return 0, err
-	}
 	return n, nil
 }
 
