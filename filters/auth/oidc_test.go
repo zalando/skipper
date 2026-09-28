@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/net/dnstest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -1917,4 +1918,39 @@ func TestOIDCLoginCSRF(t *testing.T) {
 			t.Errorf("victim received unexpected session cookie: %v", c)
 		}
 	}
+}
+
+func TestOidcConstructorsAndInternalServerError(t *testing.T) {
+	secFile := "secrets.yaml"
+	secRegistry := secrets.NewRegistry()
+
+	specs := []struct {
+		name string
+		spec filters.Spec
+	}{
+		{name: filters.OAuthOidcUserInfoName, spec: NewOAuthOidcUserInfos(secFile, secRegistry)},
+		{name: filters.OAuthOidcAnyClaimsName, spec: NewOAuthOidcAnyClaims(secFile, secRegistry)},
+		{name: filters.OAuthOidcAllClaimsName, spec: NewOAuthOidcAllClaims(secFile, secRegistry)},
+	}
+
+	for _, s := range specs {
+		t.Run(s.name, func(t *testing.T) {
+			if s.spec.Name() != s.name {
+				t.Errorf("expected name %s, got %s", s.name, s.spec.Name())
+			}
+		})
+	}
+
+	t.Run("internalServerError", func(t *testing.T) {
+		f := &tokenOidcFilter{}
+		ctx := &filtertest.Context{}
+		f.internalServerError(ctx)
+
+		if !ctx.FServed {
+			t.Fatal("expected response to be served")
+		}
+		if ctx.FResponse == nil || ctx.FResponse.StatusCode != http.StatusInternalServerError {
+			t.Fatalf("expected status 500, got %+v", ctx.FResponse)
+		}
+	})
 }
