@@ -118,60 +118,44 @@ func (d *dropCookie) CreateFilter(args []any) (filters.Filter, error) {
 	}, nil
 }
 
-func cookieName(s string) string {
-	s, _, _ = strings.Cut(s, ";")
-	name, _, _ := strings.Cut(s, "=")
-	return strings.TrimSpace(name)
-}
-
-func setValues(h http.Header, key string, values []string) {
-	if len(values) == 0 {
-		h.Del(key)
-	} else {
-		h[key] = values
-	}
-}
-
 func removeCookie(request *http.Request, name string) bool {
-	values := request.Header.Values("Cookie")
+	cookies := request.Cookies()
 	hasCookie := false
-	kept := make([]string, 0, len(values))
-	for _, v := range values {
-		var remaining []string
-		for _, c := range strings.Split(v, ";") {
-			c = strings.TrimSpace(c)
-			if c == "" {
-				continue
-			}
-			if cookieName(c) == name {
-				hasCookie = true
-			} else {
-				remaining = append(remaining, c)
-			}
-		}
-		if len(remaining) > 0 {
-			kept = append(kept, strings.Join(remaining, "; "))
+	for _, c := range cookies {
+		if c.Name == name {
+			hasCookie = true
+			break
 		}
 	}
 
 	if hasCookie {
-		setValues(request.Header, "Cookie", kept)
+		request.Header.Del("Cookie")
+		for _, c := range cookies {
+			if c.Name != name {
+				request.AddCookie(c)
+			}
+		}
 	}
 	return hasCookie
 }
 
 func removeCookieResponse(rsp *http.Response, name string) bool {
-	values := rsp.Header.Values(SetCookieHttpHeader)
-	kept := make([]string, 0, len(values))
-	for _, v := range values {
-		if cookieName(v) != name {
-			kept = append(kept, v)
+	cookies := rsp.Cookies()
+	hasCookie := false
+	for _, c := range cookies {
+		if c.Name == name {
+			hasCookie = true
+			break
 		}
 	}
 
-	hasCookie := len(kept) != len(values)
 	if hasCookie {
-		setValues(rsp.Header, SetCookieHttpHeader, kept)
+		rsp.Header.Del("Set-Cookie")
+		for _, c := range cookies {
+			if c.Name != name {
+				rsp.Header.Add("Set-Cookie", c.String())
+			}
+		}
 	}
 	return hasCookie
 }
