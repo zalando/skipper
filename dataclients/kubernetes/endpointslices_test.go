@@ -90,6 +90,65 @@ func TestAddresses(t *testing.T) {
 	}).addresses())
 }
 
+func TestAddressesByZone(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		endpoints []*skipperEndpoint
+		zone      string
+		want      []string
+	}{
+		{
+			name:      "empty endpoints slice returns empty",
+			endpoints: []*skipperEndpoint{},
+			zone:      "zone-1",
+			want:      []string{},
+		},
+		{
+			name: "single matching zone returns only target address",
+			endpoints: []*skipperEndpoint{
+				{Address: "10.0.0.1", Zone: "zone-1"},
+				{Address: "10.0.0.2", Zone: "zone-2"},
+			},
+			zone: "zone-1",
+			want: []string{"10.0.0.1"},
+		},
+		{
+			name: "multiple matching endpoints in target zone preserves order",
+			endpoints: []*skipperEndpoint{
+				{Address: "10.0.0.1", Zone: "zone-1"},
+				{Address: "10.0.0.2", Zone: "zone-2"},
+				{Address: "10.0.0.3", Zone: "zone-1"},
+			},
+			zone: "zone-1",
+			want: []string{"10.0.0.1", "10.0.0.3"},
+		},
+		{
+			name: "non-matching zone returns empty slice",
+			endpoints: []*skipperEndpoint{
+				{Address: "10.0.0.1", Zone: "zone-1"},
+				{Address: "10.0.0.2", Zone: "zone-2"},
+			},
+			zone: "zone-3",
+			want: []string{},
+		},
+		{
+			name: "empty zone query matches only endpoints with empty zone",
+			endpoints: []*skipperEndpoint{
+				{Address: "10.0.0.1", Zone: "zone-1"},
+				{Address: "10.0.0.2", Zone: ""},
+			},
+			zone: "",
+			want: []string{"10.0.0.2"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			eps := &skipperEndpointSlice{Endpoints: tt.endpoints}
+			got := eps.addressesByZone(tt.zone)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestEndpointSliceEndpointIsReady(t *testing.T) {
 	ready := true
 	notReady := false
