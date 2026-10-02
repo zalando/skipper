@@ -16,7 +16,7 @@ type cacheDirectives struct {
 	public               bool
 	maxAge               int64 // -1 = not present; 0 means max-age=0
 	sMaxAge              int64 // -1 = not present
-	staleWhileRevalidate int64 // -1 = not present (RFC 5861)
+	staleWhileRevalidate int64 // -1 = not present (RFC 5861 §3)
 }
 
 type requestCacheDirectives struct {

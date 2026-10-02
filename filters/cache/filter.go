@@ -999,7 +999,7 @@ func (f *cacheFilter) resolveTTL(statusCode int, header http.Header, directives 
 // resolveTTL's force-mode behavior.
 //
 // RFC mode (rfcMode==true): honors the response's stale-while-revalidate
-// directive (RFC 5861) when present; otherwise there is no SWR window.
+// directive (RFC 5861 §3) when present; otherwise there is no SWR window.
 func (f *cacheFilter) resolveSWR(statusCode int, directives cacheDirectives) time.Duration {
 	if statusCode != http.StatusOK {
 		return 0

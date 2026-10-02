@@ -1136,7 +1136,7 @@ func TestCacheFilter_Revalidation_LBBackendFallsBackToLoopback(t *testing.T) {
 
 // TestCacheFilter_Revalidation_RFCMode_StaleServedAndRevalidated covers RFC
 // mode background revalidation: resolveSWR honors the response's
-// stale-while-revalidate directive (RFC 5861), giving an RFC-mode entry a
+// stale-while-revalidate directive (RFC 5861 §3), giving an RFC-mode entry a
 // non-zero SWR window. BackendUrl() is set but must still be ignored
 // (self-loopback) per revalidationDispatch's RFC-mode gating.
 func TestCacheFilter_Revalidation_RFCMode_StaleServedAndRevalidated(t *testing.T) {
