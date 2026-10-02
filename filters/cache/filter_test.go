@@ -1026,7 +1026,9 @@ func TestCacheFilter_Revalidation_UsesOriginalRequestPath(t *testing.T) {
 // static-backend case: revalidation should dial ctx.BackendUrl() directly
 // instead of looping back through skipper's own listener. This sidesteps the
 // self-loopback routing failure entirely, regardless of which upstream filter
-// mutated the request.
+// mutated the request. It also asserts the internal revalidateHeader never
+// reaches the real backend on this path, since direct dispatch never re-enters
+// skipper's own Request() handler to strip it.
 func TestCacheFilter_Revalidation_DirectDispatchToBackend(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
@@ -1051,9 +1053,10 @@ func TestCacheFilter_Revalidation_DirectDispatchToBackend(t *testing.T) {
 
 		time.Sleep(2 * time.Millisecond)
 
-		var revalidatedScheme, revalidatedHost string
+		var revalidatedScheme, revalidatedHost, revalidateHeaderValue string
 		f.fetch = func(req *http.Request) (*http.Response, error) {
 			revalidatedScheme, revalidatedHost = req.URL.Scheme, req.URL.Host
+			revalidateHeaderValue = req.Header.Get(revalidateHeader)
 			return upstreamResponseCC(http.StatusOK, `{"data":"v2"}`, "public, max-age=300"), nil
 		}
 
@@ -1066,6 +1069,9 @@ func TestCacheFilter_Revalidation_DirectDispatchToBackend(t *testing.T) {
 		}
 		if revalidatedScheme != "https" || revalidatedHost != "origin.example" {
 			t.Fatalf("revalidation request went to %s://%s, want https://origin.example (ctx.BackendUrl(), not the listener)", revalidatedScheme, revalidatedHost)
+		}
+		if revalidateHeaderValue != "" {
+			t.Fatalf("direct-dispatch request carried %s=%q to the real backend; this internal header must only be set for self-loopback", revalidateHeader, revalidateHeaderValue)
 		}
 		mockMetrics.WithCounters(func(counters map[string]int64) {
 			if counters["cache.reval_backend_dispatch"] != 1 {

@@ -829,7 +829,6 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request, backen
 // skipper's own listener (f.listenAddr), which is counted normally.
 func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL string) {
 	f.revalSF.Do(key, func() (any, error) { //nolint:errcheck
-		req.Header.Set(revalidateHeader, "1")
 		if backendURL != "" {
 			u, err := url.Parse(backendURL)
 			if err != nil {
@@ -842,6 +841,12 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL str
 			req.URL.Scheme, req.URL.Host = u.Scheme, u.Host
 			f.metrics.IncCounter("cache.reval_backend_dispatch")
 		} else {
+			// revalidateHeader only matters for self-loopback: it tells this
+			// filter's own Request() to skip the cache lookup when the request
+			// re-enters skipper. Direct dispatch never re-enters skipper, so
+			// setting it there would just leak an internal header to the real
+			// origin.
+			req.Header.Set(revalidateHeader, "1")
 			req.URL.Scheme, req.URL.Host = "http", f.listenAddr
 		}
 		req.RequestURI = ""
