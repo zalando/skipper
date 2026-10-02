@@ -59,19 +59,23 @@ func TestParseCacheControl(t *testing.T) {
 		header http.Header
 		want   cacheDirectives
 	}{
-		{"no-store", http.Header{"Cache-Control": {"no-store"}}, cacheDirectives{noStore: true, maxAge: -1, sMaxAge: -1}},
-		{"no-cache", http.Header{"Cache-Control": {"no-cache"}}, cacheDirectives{noCache: true, maxAge: -1, sMaxAge: -1}},
-		{"private", http.Header{"Cache-Control": {"private"}}, cacheDirectives{private: true, maxAge: -1, sMaxAge: -1}},
-		{"must-revalidate", http.Header{"Cache-Control": {"must-revalidate"}}, cacheDirectives{mustRevalidate: true, maxAge: -1, sMaxAge: -1}},
-		{"comma-separated", http.Header{"Cache-Control": {"no-store, must-revalidate"}}, cacheDirectives{noStore: true, mustRevalidate: true, maxAge: -1, sMaxAge: -1}},
-		{"multiple lines", http.Header{"Cache-Control": {"no-cache", "must-revalidate"}}, cacheDirectives{noCache: true, mustRevalidate: true, maxAge: -1, sMaxAge: -1}},
-		{"case-insensitive", http.Header{"Cache-Control": {"NO-STORE"}}, cacheDirectives{noStore: true, maxAge: -1, sMaxAge: -1}},
-		{"value suffix stripped", http.Header{"Cache-Control": {`no-cache="x-private"`}}, cacheDirectives{noCache: true, maxAge: -1, sMaxAge: -1}},
-		{"empty", http.Header{}, cacheDirectives{maxAge: -1, sMaxAge: -1}},
-		{"max-age=3600", http.Header{"Cache-Control": {"max-age=3600"}}, cacheDirectives{maxAge: 3600, sMaxAge: -1}},
-		{"s-maxage=60", http.Header{"Cache-Control": {"s-maxage=60"}}, cacheDirectives{maxAge: -1, sMaxAge: 60}},
-		{"max-age=3.4", http.Header{"Cache-Control": {"max-age=3.4"}}, cacheDirectives{maxAge: -1, sMaxAge: -1}},                 // malformed: ParseInt fails, sentinel unchanged
-		{"max-age=0,max-age=5", http.Header{"Cache-Control": {"max-age=0, max-age=5"}}, cacheDirectives{maxAge: 5, sMaxAge: -1}}, // last-write-wins; no duplicate guard
+		{"no-store", http.Header{"Cache-Control": {"no-store"}}, cacheDirectives{noStore: true, maxAge: -1, sMaxAge: -1, staleWhileRevalidate: -1}},
+		{"no-cache", http.Header{"Cache-Control": {"no-cache"}}, cacheDirectives{noCache: true, maxAge: -1, sMaxAge: -1, staleWhileRevalidate: -1}},
+		{"private", http.Header{"Cache-Control": {"private"}}, cacheDirectives{private: true, maxAge: -1, sMaxAge: -1, staleWhileRevalidate: -1}},
+		{"must-revalidate", http.Header{"Cache-Control": {"must-revalidate"}}, cacheDirectives{mustRevalidate: true, maxAge: -1, sMaxAge: -1, staleWhileRevalidate: -1}},
+		{"comma-separated", http.Header{"Cache-Control": {"no-store, must-revalidate"}}, cacheDirectives{noStore: true, mustRevalidate: true, maxAge: -1, sMaxAge: -1, staleWhileRevalidate: -1}},
+		{"multiple lines", http.Header{"Cache-Control": {"no-cache", "must-revalidate"}}, cacheDirectives{noCache: true, mustRevalidate: true, maxAge: -1, sMaxAge: -1, staleWhileRevalidate: -1}},
+		{"case-insensitive", http.Header{"Cache-Control": {"NO-STORE"}}, cacheDirectives{noStore: true, maxAge: -1, sMaxAge: -1, staleWhileRevalidate: -1}},
+		{"value suffix stripped", http.Header{"Cache-Control": {`no-cache="x-private"`}}, cacheDirectives{noCache: true, maxAge: -1, sMaxAge: -1, staleWhileRevalidate: -1}},
+		{"empty", http.Header{}, cacheDirectives{maxAge: -1, sMaxAge: -1, staleWhileRevalidate: -1}},
+		{"max-age=3600", http.Header{"Cache-Control": {"max-age=3600"}}, cacheDirectives{maxAge: 3600, sMaxAge: -1, staleWhileRevalidate: -1}},
+		{"s-maxage=60", http.Header{"Cache-Control": {"s-maxage=60"}}, cacheDirectives{maxAge: -1, sMaxAge: 60, staleWhileRevalidate: -1}},
+		{"max-age=3.4", http.Header{"Cache-Control": {"max-age=3.4"}}, cacheDirectives{maxAge: -1, sMaxAge: -1, staleWhileRevalidate: -1}},                 // malformed: ParseInt fails, sentinel unchanged
+		{"max-age=0,max-age=5", http.Header{"Cache-Control": {"max-age=0, max-age=5"}}, cacheDirectives{maxAge: 5, sMaxAge: -1, staleWhileRevalidate: -1}}, // last-write-wins; no duplicate guard
+		{"stale-while-revalidate=3600", http.Header{"Cache-Control": {"stale-while-revalidate=3600"}}, cacheDirectives{maxAge: -1, sMaxAge: -1, staleWhileRevalidate: 3600}},
+		{"stale-while-revalidate=0", http.Header{"Cache-Control": {"stale-while-revalidate=0"}}, cacheDirectives{maxAge: -1, sMaxAge: -1, staleWhileRevalidate: 0}},
+		{"stale-while-revalidate malformed", http.Header{"Cache-Control": {"stale-while-revalidate=bad"}}, cacheDirectives{maxAge: -1, sMaxAge: -1, staleWhileRevalidate: -1}},
+		{"max-age and stale-while-revalidate", http.Header{"Cache-Control": {"max-age=300, stale-while-revalidate=60"}}, cacheDirectives{maxAge: 300, sMaxAge: -1, staleWhileRevalidate: 60}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

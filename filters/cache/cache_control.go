@@ -8,14 +8,15 @@ import (
 )
 
 type cacheDirectives struct {
-	noStore         bool
-	noCache         bool
-	private         bool
-	mustRevalidate  bool
-	proxyRevalidate bool
-	public          bool
-	maxAge          int64 // -1 = not present; 0 means max-age=0
-	sMaxAge         int64 // -1 = not present
+	noStore              bool
+	noCache              bool
+	private              bool
+	mustRevalidate       bool
+	proxyRevalidate      bool
+	public               bool
+	maxAge               int64 // -1 = not present; 0 means max-age=0
+	sMaxAge              int64 // -1 = not present
+	staleWhileRevalidate int64 // -1 = not present (RFC 5861)
 }
 
 type requestCacheDirectives struct {
@@ -68,7 +69,7 @@ func parseRequestCacheControl(h http.Header) requestCacheDirectives {
 // Uses Header.Values to handle multiple header lines; matches names
 // case-insensitively per RFC 9111 §5.2.
 func parseCacheControl(h http.Header) cacheDirectives {
-	d := cacheDirectives{maxAge: -1, sMaxAge: -1}
+	d := cacheDirectives{maxAge: -1, sMaxAge: -1, staleWhileRevalidate: -1}
 	for _, line := range h.Values("Cache-Control") {
 		for token := range strings.SplitSeq(line, ",") {
 			parts := strings.SplitN(strings.TrimSpace(token), "=", 2)
@@ -96,6 +97,12 @@ func parseCacheControl(h http.Header) cacheDirectives {
 				if len(parts) == 2 {
 					if v, err := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64); err == nil {
 						d.sMaxAge = v
+					}
+				}
+			case "stale-while-revalidate":
+				if len(parts) == 2 {
+					if v, err := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64); err == nil {
+						d.staleWhileRevalidate = v
 					}
 				}
 			}

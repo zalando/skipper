@@ -2056,6 +2056,12 @@ flowchart TD
 - `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
 - `cache.reval_error`: Counter, background revalidation fetch failures
 - `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
+- `cache.reval_backend_dispatch`: Counter, revalidation fetches dispatched directly to the route's
+  resolved backend instead of looping back through skipper's own listener (force mode with a static
+  backend only). These calls bypass skipper's proxy pipeline, so they are *not* reflected in the
+  usual per-route/backend metrics (`MeasureBackend*`) or the access log - this counter is the only
+  metrics-level signal for that traffic. Self-loopback revalidations don't increment it, but do show
+  up in the standard backend metrics/access log via their inner hop through the listener.
 
 **L2 (if Valkey or Redis is configured):**
 
