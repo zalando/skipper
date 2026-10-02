@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSwarm(t *testing.T) {
@@ -42,17 +43,12 @@ func TestSwarm(t *testing.T) {
 	second.ShareValue("bar", 3)
 	third.ShareValue("bar", 4)
 
-	const delay = 300 * time.Millisecond
-	time.Sleep(delay)
-
 	checkValues := func(s []*Swarm, key string, expected map[string]any) {
-		for _, si := range s {
-			got := si.Values(key)
-			if !cmp.Equal(got, expected) {
-				t.Errorf("invalid state: %v", cmp.Diff(got, expected))
-				return
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			for _, si := range s {
+				assert.Empty(c, cmp.Diff(expected, si.Values(key)))
 			}
-		}
+		}, 5*time.Second, 10*time.Millisecond)
 	}
 
 	checkValues([]*Swarm{first, second, third}, "foo", map[string]any{

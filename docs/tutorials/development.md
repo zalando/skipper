@@ -12,6 +12,48 @@ make skipper
 
 binary will be `./bin/skipper`
 
+### Colima Setup on macOS for Running Docker tests
+
+On macOS, Colima runs Docker in a VM, so the host needs a route to the test containers.
+Docker [direct routing](https://docs.docker.com/engine/network/port-publishing/#direct-routing) permits access to published container ports through that route.
+
+Assuming you use default profile - in `~/.colima/default/colima.yaml`, replace `docker: {}` with:
+
+```yaml
+docker:
+  allow-direct-routing: true
+  default-address-pools:
+    - base: 172.30.252.0/23
+      size: 27
+```
+
+Restart to apply the Docker settings:
+
+```sh
+colima stop
+colima start --network-address
+```
+
+Execute this script to enable direct routing to the docker containers
+
+```sh
+  set -eu
+  subnet=172.30.252.0/23
+  vm_ip=$(colima list | awk -v profile="default" '$1 == profile && $2 == "Running" { print $NF }')
+  case "$vm_ip" in
+    *.*.*.*) ;;
+    *) echo "Start the Colima profile with --network-address first" >&2; exit 1 ;;
+  esac
+
+  sudo route -n add -net "$subnet" "$vm_ip"
+```
+
+You also need to set these environment variables.
+ ```sh
+   export DOCKER_HOST="$(docker context inspect colima --format '{{(index .Endpoints "docker").Host}}')"
+   export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
+ ```
+
 ### Run Skipper as Proxy with 2 backends
 
 As a small example, we show how you can run one proxy skipper and 2
