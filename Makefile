@@ -11,6 +11,10 @@ TEST_PLUGINS       = _test_plugins/filter_noop.so \
 		     _test_plugins/multitype_noop.so \
 		     _test_plugins_fail/fail.so
 
+ifeq ($(shell go env GOOS),darwin)
+TEST_PLUGIN_FLAGS = -ldflags=-w
+endif
+
 .PHONY: default
 default: build
 
@@ -122,10 +126,10 @@ check-plugins: $(TEST_PLUGINS)
 	go test -run LoadPlugins
 
 _test_plugins/%.so: _test_plugins/%.go
-	go build -buildmode=plugin -o $@ $<
+	go build -buildmode=plugin $(TEST_PLUGIN_FLAGS) -o $@ $<
 
 _test_plugins_fail/%.so: _test_plugins_fail/%.go
-	go build -buildmode=plugin -o $@ $<
+	go build -buildmode=plugin $(TEST_PLUGIN_FLAGS) -o $@ $<
 
 .PHONY: fuzz
 fuzz: ## run all fuzz tests
