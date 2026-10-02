@@ -1857,6 +1857,57 @@ Read client-id and client-secret from environment variables
 secureOauthTokenintrospectionAllKV("issuerURL", "", "", "k1", "v1", "k2", "v2")
 ```
 
+### Token Exchange
+
+Token exchange performed by calling an external OAuth2 token endpoint.
+The filter implements [RFC 8693](https://www.rfc-editor.org/rfc/rfc8693)
+and always responds directly to the client — the backend is never reached.
+
+On success the filter serves the raw RFC 8693 JSON response from the token
+endpoint (`200 OK`, `Content-Type: application/json`). On error it responds:
+
+- No `Authorization: Bearer <token>` header → `401 Unauthorized`
+- Token endpoint returns non-200 or network error → `502 Bad Gateway`
+- Token endpoint returns 200 but the body is unparseable or missing
+  `access_token` → `502 Bad Gateway`
+
+The token endpoint URL, client ID is static, and client secret is a
+file to be externally rotated. The configuration supplied at
+startup via `-oauth2-token-exchange-url`,
+`-oauth2-token-exchange-client-id`, and
+`-oauth2-token-exchange-client-secret-file` flags. The filter itself takes
+the per-route arguments described below.
+
+#### tokenExchange
+
+If skipper is started with `-oauth2-token-exchange-url` flag, you can use
+this filter.
+
+The filter accepts zero, one, or two optional string arguments:
+
+- First argument (optional): `audience` — the target service or resource
+  the issued token should be scoped to.
+- Second argument (optional): `scope` — a space-separated list of scopes
+  to request for the issued token.
+
+The filter reads the incoming `Authorization: Bearer <token>` header as
+the subject token, posts an RFC 8693 token exchange request to the
+configured endpoint using the operator-supplied client credentials, and
+serves the token endpoint's JSON response body directly to the client.
+
+Examples:
+
+```
+// exchange with no additional constraints
+tokenExchange()
+
+// exchange targeting a specific audience
+tokenExchange("https://my-internal-service.example.org")
+
+// exchange targeting a specific audience and requesting specific scopes
+tokenExchange("https://my-internal-service.example.org", "read write")
+```
+
 ### JWT
 #### jwtValidation
 

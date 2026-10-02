@@ -326,6 +326,7 @@ const (
 	SecureOAuthTokenintrospectionAllClaimsName = "secureOauthTokenintrospectionAllClaims"
 	SecureOAuthTokenintrospectionAnyKVName     = "secureOauthTokenintrospectionAnyKV"
 	SecureOAuthTokenintrospectionAllKVName     = "secureOauthTokenintrospectionAllKV"
+	OAuthTokenExchangeName                     = "tokenExchange"
 	ForwardTokenName                           = "forwardToken"
 	ForwardTokenFieldName                      = "forwardTokenField"
 	OAuthGrantName                             = "oauthGrant"

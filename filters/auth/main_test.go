@@ -37,4 +37,8 @@ func cleanupAuthClients() {
 		value.(*net.Client).Close()
 		return true
 	})
+
+	for _, c := range tokenExchangeClients {
+		c.Close()
+	}
 }
