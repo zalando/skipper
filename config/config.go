@@ -225,37 +225,41 @@ type Config struct {
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
 
 	// Auth:
-	EnableOAuth2GrantFlow             bool          `yaml:"enable-oauth2-grant-flow"`
-	Oauth2AuthURL                     string        `yaml:"oauth2-auth-url"`
-	Oauth2TokenURL                    string        `yaml:"oauth2-token-url"`
-	Oauth2RevokeTokenURL              string        `yaml:"oauth2-revoke-token-url"`
-	Oauth2TokeninfoURL                string        `yaml:"oauth2-tokeninfo-url"`
-	Oauth2TokeninfoTimeout            time.Duration `yaml:"oauth2-tokeninfo-timeout"`
-	Oauth2TokeninfoCacheSize          int           `yaml:"oauth2-tokeninfo-cache-size"`
-	Oauth2TokeninfoCacheTTL           time.Duration `yaml:"oauth2-tokeninfo-cache-ttl"`
-	Oauth2SecretFile                  string        `yaml:"oauth2-secret-file"`
-	Oauth2ClientID                    string        `yaml:"oauth2-client-id"`
-	Oauth2ClientSecret                string        `yaml:"oauth2-client-secret"`
-	Oauth2ClientIDFile                string        `yaml:"oauth2-client-id-file"`
-	Oauth2ClientSecretFile            string        `yaml:"oauth2-client-secret-file"`
-	Oauth2AuthURLParameters           mapFlags      `yaml:"oauth2-auth-url-parameters"`
-	Oauth2CallbackPath                string        `yaml:"oauth2-callback-path"`
-	Oauth2TokenintrospectionTimeout   time.Duration `yaml:"oauth2-tokenintrospect-timeout"`
-	Oauth2AccessTokenHeaderName       string        `yaml:"oauth2-access-token-header-name"`
-	Oauth2TokeninfoSubjectKey         string        `yaml:"oauth2-tokeninfo-subject-key"`
-	Oauth2GrantTokeninfoKeys          *listFlag     `yaml:"oauth2-grant-tokeninfo-keys"`
-	Oauth2TokenCookieName             string        `yaml:"oauth2-token-cookie-name"`
-	Oauth2TokenCookieRemoveSubdomains int           `yaml:"oauth2-token-cookie-remove-subdomains"`
-	Oauth2GrantInsecure               bool          `yaml:"oauth2-grant-insecure"`
-	WebhookTimeout                    time.Duration `yaml:"webhook-timeout"`
-	OidcSecretsFile                   string        `yaml:"oidc-secrets-file"`
-	OIDCCookieValidity                time.Duration `yaml:"oidc-cookie-validity"`
-	OidcDistributedClaimsTimeout      time.Duration `yaml:"oidc-distributed-claims-timeout"`
-	OIDCCookieRemoveSubdomains        int           `yaml:"oidc-cookie-remove-subdomains"`
-	CredentialPaths                   *listFlag     `yaml:"credentials-paths"`
-	CredentialsUpdateInterval         time.Duration `yaml:"credentials-update-interval"`
-	HTTPMessageSignatureKeyFile       string        `yaml:"http-message-signature-key-file"`
-	HTTPMessageSignatureKeyID         string        `yaml:"http-message-signature-key-id"`
+	EnableOAuth2GrantFlow              bool          `yaml:"enable-oauth2-grant-flow"`
+	Oauth2AuthURL                      string        `yaml:"oauth2-auth-url"`
+	Oauth2TokenURL                     string        `yaml:"oauth2-token-url"`
+	Oauth2RevokeTokenURL               string        `yaml:"oauth2-revoke-token-url"`
+	Oauth2TokeninfoURL                 string        `yaml:"oauth2-tokeninfo-url"`
+	Oauth2TokeninfoTimeout             time.Duration `yaml:"oauth2-tokeninfo-timeout"`
+	Oauth2TokeninfoCacheSize           int           `yaml:"oauth2-tokeninfo-cache-size"`
+	Oauth2TokeninfoCacheTTL            time.Duration `yaml:"oauth2-tokeninfo-cache-ttl"`
+	Oauth2SecretFile                   string        `yaml:"oauth2-secret-file"`
+	Oauth2ClientID                     string        `yaml:"oauth2-client-id"`
+	Oauth2ClientSecret                 string        `yaml:"oauth2-client-secret"`
+	Oauth2ClientIDFile                 string        `yaml:"oauth2-client-id-file"`
+	Oauth2ClientSecretFile             string        `yaml:"oauth2-client-secret-file"`
+	Oauth2AuthURLParameters            mapFlags      `yaml:"oauth2-auth-url-parameters"`
+	Oauth2CallbackPath                 string        `yaml:"oauth2-callback-path"`
+	Oauth2TokenintrospectionTimeout    time.Duration `yaml:"oauth2-tokenintrospect-timeout"`
+	Oauth2AccessTokenHeaderName        string        `yaml:"oauth2-access-token-header-name"`
+	Oauth2TokeninfoSubjectKey          string        `yaml:"oauth2-tokeninfo-subject-key"`
+	Oauth2GrantTokeninfoKeys           *listFlag     `yaml:"oauth2-grant-tokeninfo-keys"`
+	Oauth2TokenCookieName              string        `yaml:"oauth2-token-cookie-name"`
+	Oauth2TokenCookieRemoveSubdomains  int           `yaml:"oauth2-token-cookie-remove-subdomains"`
+	Oauth2GrantInsecure                bool          `yaml:"oauth2-grant-insecure"`
+	WebhookTimeout                     time.Duration `yaml:"webhook-timeout"`
+	OAuthTokenExchangeURL              string        `yaml:"oauth2-token-exchange-url"`
+	OAuthTokenExchangeClientID         string        `yaml:"oauth2-token-exchange-client-id"`
+	OAuthTokenExchangeClientSecretFile string        `yaml:"oauth2-token-exchange-client-secret-file"`
+	OAuthTokenExchangeTimeout          time.Duration `yaml:"oauth2-token-exchange-timeout"`
+	OidcSecretsFile                    string        `yaml:"oidc-secrets-file"`
+	OIDCCookieValidity                 time.Duration `yaml:"oidc-cookie-validity"`
+	OidcDistributedClaimsTimeout       time.Duration `yaml:"oidc-distributed-claims-timeout"`
+	OIDCCookieRemoveSubdomains         int           `yaml:"oidc-cookie-remove-subdomains"`
+	CredentialPaths                    *listFlag     `yaml:"credentials-paths"`
+	CredentialsUpdateInterval          time.Duration `yaml:"credentials-update-interval"`
+	HTTPMessageSignatureKeyFile        string        `yaml:"http-message-signature-key-file"`
+	HTTPMessageSignatureKeyID          string        `yaml:"http-message-signature-key-id"`
 
 	// TLS configuration for the validation webhook
 	ValidationWebhookEnabled  bool   `yaml:"validation-webhook-enabled"`
@@ -645,6 +649,10 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.Oauth2TokenCookieRemoveSubdomains, "oauth2-token-cookie-remove-subdomains", 1, "sets the number of subdomains to remove from the callback request hostname to obtain token cookie domain")
 	flag.BoolVar(&cfg.Oauth2GrantInsecure, "oauth2-grant-insecure", false, "omits Secure attribute of the token cookie and uses http scheme for callback url")
 	flag.DurationVar(&cfg.WebhookTimeout, "webhook-timeout", 2*time.Second, "sets the webhook request timeout duration")
+	flag.StringVar(&cfg.OAuthTokenExchangeURL, "oauth2-token-exchange-url", "", "sets the RFC 8693 token exchange endpoint for the tokenExchange() filter")
+	flag.StringVar(&cfg.OAuthTokenExchangeClientID, "oauth2-token-exchange-client-id", "", "sets the client ID for the tokenExchange() filter")
+	flag.StringVar(&cfg.OAuthTokenExchangeClientSecretFile, "oauth2-token-exchange-client-secret-file", "", "path to a file containing the client secret for the tokenExchange() filter; supports hot-reload")
+	flag.DurationVar(&cfg.OAuthTokenExchangeTimeout, "oauth2-token-exchange-timeout", 2*time.Second, "sets the HTTP timeout for calls to the token exchange endpoint")
 	flag.BoolVar(&cfg.ValidationWebhookEnabled, "validation-webhook-enabled", false, "enables validation webhook for incoming requests")
 	flag.StringVar(&cfg.ValidationWebhookAddress, "validation-webhook-address", ":9000", "address of the validation webhook service")
 	flag.StringVar(&cfg.ValidationWebhookCertFile, "validation-webhook-cert-file", "", "path to the certificate file for the validation webhook")
@@ -1149,42 +1157,46 @@ func (c *Config) ToOptions() skipper.Options {
 		RouteServerFilters: c.RouteServerFilters.filters,
 
 		// Auth:
-		EnableOAuth2GrantFlow:             c.EnableOAuth2GrantFlow,
-		OAuth2AuthURL:                     c.Oauth2AuthURL,
-		OAuth2TokenURL:                    c.Oauth2TokenURL,
-		OAuth2RevokeTokenURL:              c.Oauth2RevokeTokenURL,
-		OAuthTokeninfoURL:                 c.Oauth2TokeninfoURL,
-		OAuthTokeninfoTimeout:             c.Oauth2TokeninfoTimeout,
-		OAuthTokeninfoCacheSize:           c.Oauth2TokeninfoCacheSize,
-		OAuthTokeninfoCacheTTL:            c.Oauth2TokeninfoCacheTTL,
-		OAuth2SecretFile:                  c.Oauth2SecretFile,
-		OAuth2ClientID:                    c.Oauth2ClientID,
-		OAuth2ClientSecret:                c.Oauth2ClientSecret,
-		OAuth2ClientIDFile:                c.Oauth2ClientIDFile,
-		OAuth2ClientSecretFile:            c.Oauth2ClientSecretFile,
-		OAuth2CallbackPath:                c.Oauth2CallbackPath,
-		OAuthTokenintrospectionTimeout:    c.Oauth2TokenintrospectionTimeout,
-		OAuth2AuthURLParameters:           c.Oauth2AuthURLParameters.values,
-		OAuth2AccessTokenHeaderName:       c.Oauth2AccessTokenHeaderName,
-		OAuth2TokeninfoSubjectKey:         c.Oauth2TokeninfoSubjectKey,
-		OAuth2GrantTokeninfoKeys:          c.Oauth2GrantTokeninfoKeys.values,
-		OAuth2TokenCookieName:             c.Oauth2TokenCookieName,
-		OAuth2TokenCookieRemoveSubdomains: c.Oauth2TokenCookieRemoveSubdomains,
-		OAuth2GrantInsecure:               c.Oauth2GrantInsecure,
-		WebhookTimeout:                    c.WebhookTimeout,
-		OIDCSecretsFile:                   c.OidcSecretsFile,
-		OIDCCookieValidity:                c.OIDCCookieValidity,
-		OIDCDistributedClaimsTimeout:      c.OidcDistributedClaimsTimeout,
-		OIDCCookieRemoveSubdomains:        c.OIDCCookieRemoveSubdomains,
-		CredentialsPaths:                  c.CredentialPaths.values,
-		CredentialsUpdateInterval:         c.CredentialsUpdateInterval,
-		ValidationWebhookEnabled:          c.ValidationWebhookEnabled,
-		ValidationWebhookAddress:          c.ValidationWebhookAddress,
-		ValidationWebhookCertFile:         c.ValidationWebhookCertFile,
-		ValidationWebhookKeyFile:          c.ValidationWebhookKeyFile,
-		EnableAdvancedValidation:          c.EnableAdvancedValidation,
-		HTTPMessageSignatureKeyFile:       c.HTTPMessageSignatureKeyFile,
-		HTTPMessageSignatureKeyID:         c.HTTPMessageSignatureKeyID,
+		EnableOAuth2GrantFlow:              c.EnableOAuth2GrantFlow,
+		OAuth2AuthURL:                      c.Oauth2AuthURL,
+		OAuth2TokenURL:                     c.Oauth2TokenURL,
+		OAuth2RevokeTokenURL:               c.Oauth2RevokeTokenURL,
+		OAuthTokeninfoURL:                  c.Oauth2TokeninfoURL,
+		OAuthTokeninfoTimeout:              c.Oauth2TokeninfoTimeout,
+		OAuthTokeninfoCacheSize:            c.Oauth2TokeninfoCacheSize,
+		OAuthTokeninfoCacheTTL:             c.Oauth2TokeninfoCacheTTL,
+		OAuth2SecretFile:                   c.Oauth2SecretFile,
+		OAuth2ClientID:                     c.Oauth2ClientID,
+		OAuth2ClientSecret:                 c.Oauth2ClientSecret,
+		OAuth2ClientIDFile:                 c.Oauth2ClientIDFile,
+		OAuth2ClientSecretFile:             c.Oauth2ClientSecretFile,
+		OAuth2CallbackPath:                 c.Oauth2CallbackPath,
+		OAuthTokenintrospectionTimeout:     c.Oauth2TokenintrospectionTimeout,
+		OAuth2AuthURLParameters:            c.Oauth2AuthURLParameters.values,
+		OAuth2AccessTokenHeaderName:        c.Oauth2AccessTokenHeaderName,
+		OAuth2TokeninfoSubjectKey:          c.Oauth2TokeninfoSubjectKey,
+		OAuth2GrantTokeninfoKeys:           c.Oauth2GrantTokeninfoKeys.values,
+		OAuth2TokenCookieName:              c.Oauth2TokenCookieName,
+		OAuth2TokenCookieRemoveSubdomains:  c.Oauth2TokenCookieRemoveSubdomains,
+		OAuth2GrantInsecure:                c.Oauth2GrantInsecure,
+		WebhookTimeout:                     c.WebhookTimeout,
+		OAuthTokenExchangeURL:              c.OAuthTokenExchangeURL,
+		OAuthTokenExchangeClientID:         c.OAuthTokenExchangeClientID,
+		OAuthTokenExchangeClientSecretFile: c.OAuthTokenExchangeClientSecretFile,
+		OAuthTokenExchangeTimeout:          c.OAuthTokenExchangeTimeout,
+		OIDCSecretsFile:                    c.OidcSecretsFile,
+		OIDCCookieValidity:                 c.OIDCCookieValidity,
+		OIDCDistributedClaimsTimeout:       c.OidcDistributedClaimsTimeout,
+		OIDCCookieRemoveSubdomains:         c.OIDCCookieRemoveSubdomains,
+		CredentialsPaths:                   c.CredentialPaths.values,
+		CredentialsUpdateInterval:          c.CredentialsUpdateInterval,
+		ValidationWebhookEnabled:           c.ValidationWebhookEnabled,
+		ValidationWebhookAddress:           c.ValidationWebhookAddress,
+		ValidationWebhookCertFile:          c.ValidationWebhookCertFile,
+		ValidationWebhookKeyFile:           c.ValidationWebhookKeyFile,
+		EnableAdvancedValidation:           c.EnableAdvancedValidation,
+		HTTPMessageSignatureKeyFile:        c.HTTPMessageSignatureKeyFile,
+		HTTPMessageSignatureKeyID:          c.HTTPMessageSignatureKeyID,
 
 		// connections, timeouts:
 		WaitForHealthcheckInterval:   c.WaitForHealthcheckInterval,
