@@ -246,7 +246,7 @@ func (s *cacheSpec) revalidationWorker() {
 			if job.filter != nil {
 				s.metrics.MeasureSince("cache.reval_wait_duration", job.enqueuedAt)
 				start := time.Now()
-				job.filter.doRevalidate(job.key, job.req)
+				job.filter.doRevalidate(job.key, job.req, job.backendURL)
 				s.metrics.MeasureSince("cache.reval_duration", start)
 			}
 		case <-s.ctx.Done():
@@ -277,6 +277,7 @@ func (s *cacheSpec) updateMetrics() {
 type revalJob struct {
 	key        string
 	req        *http.Request // cloned via Request.Clone
+	backendURL string        // non-empty: dial here directly instead of looping through listenAddr
 	filter     *cacheFilter  // instance whose doRevalidate to call
 	enqueuedAt time.Time     // wall-clock time the job entered the queue; used to measure wait time
 }
@@ -411,11 +412,13 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 				Request:    ctx.Request(), // link response to originating request per net/http convention
 			}
 			ctx.Serve(notModified)
-			f.enqueueRevalidation(key, revalidationRequest(ctx))
+			revalReq, backendURL := revalidationDispatch(ctx, f.rfcMode)
+			f.enqueueRevalidation(key, revalReq, backendURL)
 			return
 		}
 		ctx.Serve(headBodyOmitted(method, rsp))
-		f.enqueueRevalidation(key, revalidationRequest(ctx))
+		revalReq, backendURL := revalidationDispatch(ctx, f.rfcMode)
+		f.enqueueRevalidation(key, revalReq, backendURL)
 		return
 	}
 
@@ -749,6 +752,38 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	}
 }
 
+// revalidationDispatch decides how background revalidation should reach the
+// origin: directly at the route's resolved backend when safe (force mode,
+// static network backend — ctx.BackendUrl() non-empty), or via self-loopback
+// through skipper's own listener otherwise (RFC mode, or a load-balanced /
+// dynamic backend with no single resolvable URL — BackendUrl() is empty for
+// both per its own doc comment).
+//
+// The two branches deliberately use different request objects. Direct
+// dispatch uses ctx.Request() — already transformed by earlier filters
+// (modPath, setRequestHeader, ...) into exactly what should be sent to the
+// backend. Using the pre-filter request here would be wrong: it would send
+// the client-facing path/host straight to the backend, bypassing whatever
+// those filters did. The self-loopback fallback still needs revalidationRequest
+// (ctx.OriginalRequest(), falling back to ctx.Request()) because it has to
+// re-match a route, which requires the pre-mutation path.
+//
+// Note: as of this writing, RFC mode (zero-arg cache()) never actually
+// reaches background revalidation at all — CreateFilter only parses a
+// swrWindow for the 3-5 arg (force-mode) form, so f.swrWindow is always 0 in
+// RFC mode and Entry.IsStale (storage.go) can never be true. The rfcMode
+// check here is deliberately kept anyway, so this doesn't silently dispatch
+// RFC-mode revalidation to the wrong place if RFC mode ever gains real SWR
+// support (e.g. honoring a response's stale-while-revalidate directive).
+func revalidationDispatch(ctx filters.FilterContext, rfcMode bool) (req *http.Request, backendURL string) {
+	if !rfcMode {
+		if b := ctx.BackendUrl(); b != "" {
+			return ctx.Request(), b
+		}
+	}
+	return revalidationRequest(ctx), ""
+}
+
 // revalidationRequest returns the request to replay for background revalidation.
 // It must be ctx.OriginalRequest(), not ctx.Request(): by the time this filter's
 // Request() runs, earlier filters (e.g. modPath stripping a path prefix before
@@ -768,13 +803,17 @@ func revalidationRequest(ctx filters.FilterContext) *http.Request {
 
 // enqueueRevalidation sends a revalidation job to the background worker.
 // The request is cloned in the calling goroutine before orig is released.
+// backendURL, when non-empty, tells doRevalidate to dispatch directly to that
+// backend instead of looping back through skipper's own listener (see
+// revalidationDispatch).
 // If the queue is full the job is dropped and reval_dropped is incremented.
 // The closure captures f.doRevalidate so the spec-level worker respects this route's config.
-func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
+func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request, backendURL string) {
 	cloned := orig.Clone(context.Background())
 	job := revalJob{
 		key:        key,
 		req:        cloned,
+		backendURL: backendURL,
 		filter:     f,
 		enqueuedAt: time.Now(),
 	}
@@ -790,11 +829,25 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 // doRevalidate revalidates key against the upstream. It sends a conditional
 // request (If-None-Match / If-Modified-Since) when the stored entry carries
 // validators; a 304 response reuses the stored payload and merges new headers.
-func (f *cacheFilter) doRevalidate(key string, req *http.Request) {
+// backendURL, when non-empty, is dialed directly; otherwise the request loops
+// back through skipper's own listener (f.listenAddr) so the full filter chain
+// reruns on it.
+func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL string) {
 	f.revalSF.Do(key, func() (any, error) { //nolint:errcheck
 		req.Header.Set(revalidateHeader, "1")
-		req.URL.Scheme = "http"
-		req.URL.Host = f.listenAddr
+		if backendURL != "" {
+			u, err := url.Parse(backendURL)
+			if err != nil {
+				f.metrics.IncCounter("cache.reval_error")
+				log.WithFields(log.Fields{
+					"backendURL": backendURL,
+				}).WithError(err).Warn("cache: invalid backend URL for direct revalidation dispatch")
+				return nil, nil
+			}
+			req.URL.Scheme, req.URL.Host = u.Scheme, u.Host
+		} else {
+			req.URL.Scheme, req.URL.Host = "http", f.listenAddr
+		}
 		req.RequestURI = ""
 
 		if stored, err := f.storage.Get(context.Background(), key); err == nil && stored != nil {

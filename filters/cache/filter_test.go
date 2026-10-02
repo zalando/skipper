@@ -968,6 +968,12 @@ func TestCacheFilter_ConditionalRevalidation_LastModified_304(t *testing.T) {
 // match any route and the stale entry can never be refreshed. (RouteGroup
 // example: pathSubtree /api/contentful/ + modPath("^/api/contentful", "") before
 // cache().)
+//
+// This exercises revalidationDispatch's self-loopback fallback specifically:
+// FBackendUrl is left unset (empty), the same as a load-balanced or dynamic
+// backend where ctx.BackendUrl() has no single resolvable URL. See
+// TestCacheFilter_Revalidation_DirectDispatchToBackend for the force-mode +
+// static-backend case, which bypasses this path entirely.
 func TestCacheFilter_Revalidation_UsesOriginalRequestPath(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
@@ -1014,6 +1020,148 @@ func TestCacheFilter_Revalidation_UsesOriginalRequestPath(t *testing.T) {
 			t.Fatalf("revalidation request used path %q, want the original pre-filter path %q", revalidatedPath, wantPath)
 		}
 	})
+}
+
+// TestCacheFilter_Revalidation_DirectDispatchToBackend covers the force-mode +
+// static-backend case: revalidation should dial ctx.BackendUrl() directly
+// instead of looping back through skipper's own listener. This sidesteps the
+// self-loopback routing failure entirely, regardless of which upstream filter
+// mutated the request.
+func TestCacheFilter_Revalidation_DirectDispatchToBackend(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+
+		req, _ := http.NewRequest("GET", "http://backend.example/spaces/abc/entries", nil)
+
+		newStaleCtx := func() *filtertest.Context {
+			return &filtertest.Context{
+				FRequest:    req,
+				FBackendUrl: "https://origin.example",
+				FStateBag:   make(map[string]any),
+				FMetrics:    &metricstest.MockMetrics{},
+			}
+		}
+
+		ctx1 := newStaleCtx()
+		f.Request(ctx1)
+		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "public, max-age=300")
+		f.Response(ctx1)
+
+		time.Sleep(2 * time.Millisecond)
+
+		var revalidatedScheme, revalidatedHost string
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			revalidatedScheme, revalidatedHost = req.URL.Scheme, req.URL.Host
+			return upstreamResponseCC(http.StatusOK, `{"data":"v2"}`, "public, max-age=300"), nil
+		}
+
+		ctx2 := newStaleCtx()
+		f.Request(ctx2)
+		synctest.Wait()
+
+		if !ctx2.FServed {
+			t.Fatal("expected stale entry to be served")
+		}
+		if revalidatedScheme != "https" || revalidatedHost != "origin.example" {
+			t.Fatalf("revalidation request went to %s://%s, want https://origin.example (ctx.BackendUrl(), not the listener)", revalidatedScheme, revalidatedHost)
+		}
+	})
+}
+
+// TestCacheFilter_Revalidation_LBBackendFallsBackToLoopback covers a
+// load-balanced or dynamic backend: ctx.BackendUrl() is empty (per its own
+// doc comment, there's no single resolvable URL to dial), so even in force
+// mode revalidation must still fall back to self-loopback rather than
+// breaking on an empty host.
+func TestCacheFilter_Revalidation_LBBackendFallsBackToLoopback(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+
+		req, _ := http.NewRequest("GET", "http://backend.example/spaces/abc/entries", nil)
+
+		newStaleCtx := func() *filtertest.Context {
+			return &filtertest.Context{
+				FRequest:    req,
+				FBackendUrl: "", // load-balanced/dynamic backend: no single URL
+				FStateBag:   make(map[string]any),
+				FMetrics:    &metricstest.MockMetrics{},
+			}
+		}
+
+		ctx1 := newStaleCtx()
+		f.Request(ctx1)
+		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "public, max-age=300")
+		f.Response(ctx1)
+
+		time.Sleep(2 * time.Millisecond)
+
+		var revalidatedHost string
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			revalidatedHost = req.URL.Host
+			return upstreamResponseCC(http.StatusOK, `{"data":"v2"}`, "public, max-age=300"), nil
+		}
+
+		ctx2 := newStaleCtx()
+		f.Request(ctx2)
+		synctest.Wait()
+
+		if !ctx2.FServed {
+			t.Fatal("expected stale entry to be served")
+		}
+		if revalidatedHost != "localhost:9090" {
+			t.Fatalf("revalidation request went to host %q, want the listener (localhost:9090) since BackendUrl() is empty", revalidatedHost)
+		}
+	})
+}
+
+// TestRevalidationDispatch_RFCModeIgnoresBackendUrl is a direct unit test of
+// revalidationDispatch's mode gating, not an integration test through
+// Request()/Response(). RFC mode (zero-arg cache()) never actually reaches
+// background revalidation today — CreateFilter only parses swrWindow for the
+// force-mode (3-5 arg) form, so f.swrWindow is always 0 in RFC mode and
+// Entry.IsStale (storage.go) can never be true, meaning the integration path
+// is unreachable regardless of this change. This test instead verifies the
+// gating logic itself in isolation, so it stays correct if RFC mode ever
+// gains real stale-while-revalidate support.
+func TestRevalidationDispatch_RFCModeIgnoresBackendUrl(t *testing.T) {
+	req, _ := http.NewRequest("GET", "http://backend.example/spaces/abc/entries", nil)
+	ctx := &filtertest.Context{
+		FRequest:         req,
+		FOriginalRequest: req,
+		FBackendUrl:      "https://origin.example", // present, but RFC mode must ignore it
+	}
+
+	gotReq, gotBackendURL := revalidationDispatch(ctx, true /* rfcMode */)
+
+	if gotBackendURL != "" {
+		t.Fatalf("rfcMode=true: got backendURL %q, want empty (must fall back to self-loopback)", gotBackendURL)
+	}
+	if gotReq != req {
+		t.Fatalf("rfcMode=true: got a different request than revalidationRequest(ctx) would return")
+	}
+}
+
+// TestRevalidationDispatch_ForceModeUsesBackendUrl is the force-mode
+// counterpart: with a resolvable static backend, dispatch should go directly
+// there using ctx.Request() (not ctx.OriginalRequest()), since ctx.Request()
+// is what earlier filters already transformed into the backend-ready form.
+func TestRevalidationDispatch_ForceModeUsesBackendUrl(t *testing.T) {
+	mutated, _ := http.NewRequest("GET", "http://backend.example/spaces/abc/entries", nil)
+	original, _ := http.NewRequest("GET", "http://backend.example/api/contentful/spaces/abc/entries", nil)
+	ctx := &filtertest.Context{
+		FRequest:         mutated,
+		FOriginalRequest: original,
+		FBackendUrl:      "https://origin.example",
+	}
+
+	gotReq, gotBackendURL := revalidationDispatch(ctx, false /* rfcMode */)
+
+	if gotBackendURL != "https://origin.example" {
+		t.Fatalf("rfcMode=false, BackendUrl set: got backendURL %q, want %q", gotBackendURL, "https://origin.example")
+	}
+	if gotReq != mutated {
+		t.Fatalf("rfcMode=false, BackendUrl set: should use ctx.Request() (filter-transformed), not ctx.OriginalRequest()")
+	}
 }
 
 func TestCacheFilter_RevalidationError_MetricIncremented(t *testing.T) {
