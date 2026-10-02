@@ -411,11 +411,11 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 				Request:    ctx.Request(), // link response to originating request per net/http convention
 			}
 			ctx.Serve(notModified)
-			f.enqueueRevalidation(key, ctx.Request())
+			f.enqueueRevalidation(key, revalidationRequest(ctx))
 			return
 		}
 		ctx.Serve(headBodyOmitted(method, rsp))
-		f.enqueueRevalidation(key, ctx.Request())
+		f.enqueueRevalidation(key, revalidationRequest(ctx))
 		return
 	}
 
@@ -747,6 +747,23 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 		log.WithError(err).Warn("cache: Set failed (response store)")
 		f.metrics.IncCounter("cache.storage_error")
 	}
+}
+
+// revalidationRequest returns the request to replay for background revalidation.
+// It must be ctx.OriginalRequest(), not ctx.Request(): by the time this filter's
+// Request() runs, earlier filters (e.g. modPath stripping a path prefix before
+// forwarding) may have already mutated ctx.Request() in place. doRevalidate loops
+// the request back through skipper's own listener so the full filter chain reruns
+// on it; replaying the already-mutated request can no longer match the route that
+// produced that mutation, so revalidation permanently fails with a routing error
+// and a stale entry (e.g. a cached error) never gets refreshed.
+// ctx.OriginalRequest() can be nil per its interface contract, so fall back to
+// ctx.Request() rather than passing nil into enqueueRevalidation.
+func revalidationRequest(ctx filters.FilterContext) *http.Request {
+	if orig := ctx.OriginalRequest(); orig != nil {
+		return orig
+	}
+	return ctx.Request()
 }
 
 // enqueueRevalidation sends a revalidation job to the background worker.

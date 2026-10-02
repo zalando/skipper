@@ -960,6 +960,62 @@ func TestCacheFilter_ConditionalRevalidation_LastModified_304(t *testing.T) {
 	})
 }
 
+// TestCacheFilter_Revalidation_UsesOriginalRequestPath guards against a bug where
+// background revalidation replayed ctx.Request() instead of ctx.OriginalRequest().
+// When an earlier filter (e.g. modPath) strips a path prefix before cache() runs,
+// ctx.Request() no longer carries the prefix the real route requires, so looping
+// the mutated request back through skipper's own router permanently fails to
+// match any route and the stale entry can never be refreshed. (RouteGroup
+// example: pathSubtree /api/contentful/ + modPath("^/api/contentful", "") before
+// cache().)
+func TestCacheFilter_Revalidation_UsesOriginalRequestPath(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+
+		// Simulate the request as cache() sees it after an earlier modPath-style
+		// filter already stripped "/api/contentful" in place, versus the request
+		// the client actually sent (still carrying the prefix).
+		mutated, _ := http.NewRequest("GET", "http://backend.example/unify-footers/external/pl_PL", nil)
+		original, _ := http.NewRequest("GET", "http://backend.example/api/contentful/unify-footers/external/pl_PL", nil)
+
+		newStaleCtx := func() *filtertest.Context {
+			return &filtertest.Context{
+				FRequest:         mutated,
+				FOriginalRequest: original,
+				FStateBag:        make(map[string]any),
+				FMetrics:         &metricstest.MockMetrics{},
+			}
+		}
+
+		ctx1 := newStaleCtx()
+		f.Request(ctx1)
+		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "public, max-age=300")
+		f.Response(ctx1)
+
+		// Advance past TTL but inside the SWR window, so the next request serves
+		// stale and triggers a background revalidation.
+		time.Sleep(2 * time.Millisecond)
+
+		var revalidatedPath string
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			revalidatedPath = req.URL.Path
+			return upstreamResponseCC(http.StatusOK, `{"data":"v2"}`, "public, max-age=300"), nil
+		}
+
+		ctx2 := newStaleCtx()
+		f.Request(ctx2)
+		synctest.Wait()
+
+		if !ctx2.FServed {
+			t.Fatal("expected stale entry to be served")
+		}
+		const wantPath = "/api/contentful/unify-footers/external/pl_PL"
+		if revalidatedPath != wantPath {
+			t.Fatalf("revalidation request used path %q, want the original pre-filter path %q", revalidatedPath, wantPath)
+		}
+	})
+}
+
 func TestCacheFilter_RevalidationError_MetricIncremented(t *testing.T) {
 	url := newLocalBackend(t) + "/spaces/abc/entries/reval-err"
 	synctest.Test(t, func(t *testing.T) {
