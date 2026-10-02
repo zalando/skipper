@@ -1114,15 +1114,60 @@ func TestCacheFilter_Revalidation_LBBackendFallsBackToLoopback(t *testing.T) {
 	})
 }
 
+// TestCacheFilter_Revalidation_RFCMode_StaleServedAndRevalidated proves RFC
+// mode now actually reaches background revalidation: resolveSWR honors the
+// response's stale-while-revalidate directive (RFC 5861), so an RFC-mode
+// entry can have a non-zero SWR window. BackendUrl() is set but must still
+// be ignored (self-loopback) per revalidationDispatch's RFC-mode gating.
+func TestCacheFilter_Revalidation_RFCMode_StaleServedAndRevalidated(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newTestFilterRFC(t, 0, 0, 0)
+
+		req, _ := http.NewRequest("GET", "http://backend.example/spaces/abc/entries", nil)
+		newStaleCtx := func() *filtertest.Context {
+			return &filtertest.Context{
+				FRequest:    req,
+				FBackendUrl: "https://origin.example", // present, but RFC mode must ignore it
+				FStateBag:   make(map[string]any),
+				FMetrics:    &metricstest.MockMetrics{},
+			}
+		}
+
+		ctx1 := newStaleCtx()
+		f.Request(ctx1)
+		ctx1.FResponse = upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "max-age=0, stale-while-revalidate=3600")
+		f.Response(ctx1)
+
+		time.Sleep(time.Millisecond)
+
+		var revalidatedHost string
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			revalidatedHost = req.URL.Host
+			return upstreamResponseCC(http.StatusOK, `{"data":"v2"}`, "max-age=0, stale-while-revalidate=3600"), nil
+		}
+
+		ctx2 := newStaleCtx()
+		f.Request(ctx2)
+		synctest.Wait()
+
+		if !ctx2.FServed {
+			t.Fatal("expected stale entry to be served")
+		}
+		if ctx2.FResponse.Header.Get("X-Cache-Status") != "STALE" {
+			t.Fatalf("expected STALE, got %q", ctx2.FResponse.Header.Get("X-Cache-Status"))
+		}
+		if revalidatedHost != "localhost:9090" {
+			t.Fatalf("revalidation request went to host %q, want the listener (localhost:9090); RFC mode must ignore BackendUrl()", revalidatedHost)
+		}
+	})
+}
+
 // TestRevalidationDispatch_RFCModeIgnoresBackendUrl is a direct unit test of
 // revalidationDispatch's mode gating, not an integration test through
-// Request()/Response(). RFC mode (zero-arg cache()) never actually reaches
-// background revalidation today — CreateFilter only parses swrWindow for the
-// force-mode (3-5 arg) form, so f.swrWindow is always 0 in RFC mode and
-// Entry.IsStale (storage.go) can never be true, meaning the integration path
-// is unreachable regardless of this change. This test instead verifies the
-// gating logic itself in isolation, so it stays correct if RFC mode ever
-// gains real stale-while-revalidate support.
+// Request()/Response() (see TestCacheFilter_Revalidation_RFCMode_StaleServedAndRevalidated
+// for that). RFC mode always ignores BackendUrl() because a Response()-filter
+// positioned after cache() could rewrite Cache-Control, and only the
+// self-loopback path sees that rewritten value before doRevalidate reads it.
 func TestRevalidationDispatch_RFCModeIgnoresBackendUrl(t *testing.T) {
 	req, _ := http.NewRequest("GET", "http://backend.example/spaces/abc/entries", nil)
 	ctx := &filtertest.Context{

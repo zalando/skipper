@@ -519,10 +519,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			}, nil
 		}
 		ttl, shouldStore := f.resolveTTL(resp.StatusCode, resp.Header, directives)
-		swr := f.swrWindow
-		if resp.StatusCode != http.StatusOK {
-			swr = 0
-		}
+		swr := f.resolveSWR(resp.StatusCode, directives)
 		cia := correctedInitialAge(requestTime, responseTime, resp.Header)
 		coalescedHeader := resp.Header.Clone()
 		stripHopByHop(coalescedHeader)
@@ -682,6 +679,7 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	if !shouldStore {
 		return
 	}
+	swr := f.resolveSWR(rsp.StatusCode, directives)
 
 	if ctx.Request().Header.Get("Authorization") != "" && !directives.public && !directives.mustRevalidate {
 		return
@@ -709,7 +707,7 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 		sentinel := &Entry{
 			CreatedAt:            time.Now(),
 			TTL:                  ttl,
-			StaleWhileRevalidate: f.swrWindow,
+			StaleWhileRevalidate: swr,
 			VaryHeaders:          varyNames,
 		}
 		if err := f.storage.Set(ctx.Request().Context(), "vary:"+baseKey, sentinel); err != nil {
@@ -718,10 +716,6 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 		}
 	}
 
-	swr := f.swrWindow
-	if rsp.StatusCode != http.StatusOK {
-		swr = 0
-	}
 	responseTime := time.Now()
 	var requestTime time.Time
 	if rt, ok := ctx.StateBag()[stateBagRequestTime].(time.Time); ok {
@@ -768,13 +762,12 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 // (ctx.OriginalRequest(), falling back to ctx.Request()) because it has to
 // re-match a route, which requires the pre-mutation path.
 //
-// Note: as of this writing, RFC mode (zero-arg cache()) never actually
-// reaches background revalidation at all — CreateFilter only parses a
-// swrWindow for the 3-5 arg (force-mode) form, so f.swrWindow is always 0 in
-// RFC mode and Entry.IsStale (storage.go) can never be true. The rfcMode
-// check here is deliberately kept anyway, so this doesn't silently dispatch
-// RFC-mode revalidation to the wrong place if RFC mode ever gains real SWR
-// support (e.g. honoring a response's stale-while-revalidate directive).
+// Note: RFC mode always uses self-loopback, never direct dispatch, even when
+// ctx.BackendUrl() is non-empty. A Response()-filter positioned after cache()
+// could rewrite Cache-Control; only the self-loopback path re-runs the full
+// filter chain and sees that rewritten value before doRevalidate reads it for
+// TTL and stale-while-revalidate purposes (resolveTTL, resolveSWR). Direct
+// dispatch would read the pre-rewrite upstream headers instead.
 func revalidationDispatch(ctx filters.FilterContext, rfcMode bool) (req *http.Request, backendURL string) {
 	if !rfcMode {
 		if b := ctx.BackendUrl(); b != "" {
@@ -922,7 +915,7 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL str
 			Payload:              body,
 			CreatedAt:            responseTime,
 			TTL:                  ttl,
-			StaleWhileRevalidate: f.swrWindow,
+			StaleWhileRevalidate: f.resolveSWR(statusCode, directives),
 			StaleIfError:         f.staleIfError,
 			ETag:                 responseHeader.Get("ETag"),
 			LastModified:         responseHeader.Get("Last-Modified"),
@@ -990,6 +983,26 @@ func (f *cacheFilter) resolveTTL(statusCode int, header http.Header, directives 
 	// Store even when TTL=0 (expired/invalid Expires or max-age=0) so
 	// ETag/Last-Modified are preserved for conditional revalidation (§5.2.2.4).
 	return ttl, true
+}
+
+// resolveSWR decides the stale-while-revalidate window for a stored entry.
+//
+// Force mode (rfcMode==false): operator swrWindow is authoritative, matching
+// resolveTTL's force-mode behavior.
+//
+// RFC mode (rfcMode==true): honors the response's stale-while-revalidate
+// directive (RFC 5861) when present; otherwise there is no SWR window.
+func (f *cacheFilter) resolveSWR(statusCode int, directives cacheDirectives) time.Duration {
+	if statusCode != http.StatusOK {
+		return 0
+	}
+	if !f.rfcMode {
+		return f.swrWindow
+	}
+	if directives.staleWhileRevalidate >= 0 {
+		return time.Duration(directives.staleWhileRevalidate) * time.Second
+	}
+	return 0
 }
 
 // cacheKey builds a deterministic cache key from the route ID and request.
