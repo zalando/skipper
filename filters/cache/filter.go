@@ -822,9 +822,12 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request, backen
 // doRevalidate revalidates key against the upstream. It sends a conditional
 // request (If-None-Match / If-Modified-Since) when the stored entry carries
 // validators; a 304 response reuses the stored payload and merges new headers.
-// backendURL, when non-empty, is dialed directly; otherwise the request loops
-// back through skipper's own listener (f.listenAddr) so the full filter chain
-// reruns on it.
+// backendURL, when non-empty, is dialed directly (incrementing
+// cache.reval_backend_dispatch, since that call bypasses skipper's own proxy
+// pipeline and so isn't captured by the usual backend/access-log metrics);
+// otherwise the request loops back through skipper's own listener
+// (f.listenAddr) so the full filter chain reruns on it, including the
+// standard backend metrics and access log for that inner hop.
 func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL string) {
 	f.revalSF.Do(key, func() (any, error) { //nolint:errcheck
 		req.Header.Set(revalidateHeader, "1")
@@ -838,6 +841,7 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL str
 				return nil, nil
 			}
 			req.URL.Scheme, req.URL.Host = u.Scheme, u.Host
+			f.metrics.IncCounter("cache.reval_backend_dispatch")
 		} else {
 			req.URL.Scheme, req.URL.Host = "http", f.listenAddr
 		}

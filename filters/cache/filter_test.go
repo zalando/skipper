@@ -1030,6 +1030,8 @@ func TestCacheFilter_Revalidation_UsesOriginalRequestPath(t *testing.T) {
 func TestCacheFilter_Revalidation_DirectDispatchToBackend(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		mockMetrics := &metricstest.MockMetrics{}
+		f.metrics = mockMetrics
 
 		req, _ := http.NewRequest("GET", "http://backend.example/spaces/abc/entries", nil)
 
@@ -1065,6 +1067,11 @@ func TestCacheFilter_Revalidation_DirectDispatchToBackend(t *testing.T) {
 		if revalidatedScheme != "https" || revalidatedHost != "origin.example" {
 			t.Fatalf("revalidation request went to %s://%s, want https://origin.example (ctx.BackendUrl(), not the listener)", revalidatedScheme, revalidatedHost)
 		}
+		mockMetrics.WithCounters(func(counters map[string]int64) {
+			if counters["cache.reval_backend_dispatch"] != 1 {
+				t.Errorf("expected cache.reval_backend_dispatch==1, got %d", counters["cache.reval_backend_dispatch"])
+			}
+		})
 	})
 }
 
@@ -1076,6 +1083,8 @@ func TestCacheFilter_Revalidation_DirectDispatchToBackend(t *testing.T) {
 func TestCacheFilter_Revalidation_LBBackendFallsBackToLoopback(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
+		mockMetrics := &metricstest.MockMetrics{}
+		f.metrics = mockMetrics
 
 		req, _ := http.NewRequest("GET", "http://backend.example/spaces/abc/entries", nil)
 
@@ -1111,6 +1120,11 @@ func TestCacheFilter_Revalidation_LBBackendFallsBackToLoopback(t *testing.T) {
 		if revalidatedHost != "localhost:9090" {
 			t.Fatalf("revalidation request went to host %q, want the listener (localhost:9090) since BackendUrl() is empty", revalidatedHost)
 		}
+		mockMetrics.WithCounters(func(counters map[string]int64) {
+			if counters["cache.reval_backend_dispatch"] != 0 {
+				t.Errorf("expected cache.reval_backend_dispatch==0 for self-loopback, got %d", counters["cache.reval_backend_dispatch"])
+			}
+		})
 	})
 }
 
