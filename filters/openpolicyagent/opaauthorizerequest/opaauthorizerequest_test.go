@@ -614,6 +614,8 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 }
 
 func TestAuthorizeRequestFilterWithS3DecisionLogPlugin(t *testing.T) {
+	t.Setenv("AWS_ACCESS_KEY_ID", "testing")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "testing")
 	for _, ti := range []struct {
 		msg             string
 		requestPath     string
@@ -841,6 +843,8 @@ func TestAuthorizeRequestFilterWithS3DecisionLogPlugin_SlowS3BlocksClientRespons
 	if testing.Short() {
 		t.Skip("timing-sensitive test, skipped in short mode")
 	}
+	t.Setenv("AWS_ACCESS_KEY_ID", "testing")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "testing")
 	const s3Delay = 300 * time.Millisecond
 
 	s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -941,6 +945,8 @@ func TestFullDecisionLogBufferBlocksClientResponse(t *testing.T) {
 	if testing.Short() {
 		t.Skip("timing-sensitive test, skipped in short mode")
 	}
+	t.Setenv("AWS_ACCESS_KEY_ID", "testing")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "testing")
 	// stallDuration must be long enough to be unambiguous, short enough for a fast test.
 	const stallDuration = 300 * time.Millisecond
 
