@@ -401,6 +401,17 @@ func repeatedSlice(v float64, n int) []float64 {
 	return s
 }
 
+func TestFilterFadeInLazyFiltering(t *testing.T) {
+	route, proxy, _ := initializeEndpoints(repeatedSlice(2, 3), loadbalancer.RoundRobin.String(), defaultFadeInDurationHuge)
+	defer proxy.Close()
+
+	got := proxy.fadein.filterFadeIn(route.LBEndpoints, route)
+	assert.Equal(t, route.LBEndpoints, got)
+	if &got[0] != &route.LBEndpoints[0] {
+		t.Fatal("expected the steady-state result to reuse the input slice")
+	}
+}
+
 func BenchmarkFadeIn(b *testing.B) {
 	old := 2.0
 	clients := []int{1, 4, 16, 64, 256}

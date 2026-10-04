@@ -33,8 +33,8 @@ func (f *fadeIn) filterFadeIn(endpoints []routing.LBEndpoint, rt *routing.Route)
 	threshold := f.rnd.Float64()
 	f.mu.Unlock()
 
-	filtered := make([]routing.LBEndpoint, 0, len(endpoints))
-	for _, e := range endpoints {
+	var filtered []routing.LBEndpoint
+	for i, e := range endpoints {
 		age := now.Sub(e.Metrics.DetectedTime())
 		f := f.fadeInScore(
 			age,
@@ -42,7 +42,15 @@ func (f *fadeIn) filterFadeIn(endpoints []routing.LBEndpoint, rt *routing.Route)
 			rt.LBFadeInExponent,
 		)
 		if threshold < f {
-			filtered = append(filtered, e)
+			if filtered != nil {
+				filtered = append(filtered, e)
+			}
+			continue
+		}
+
+		if filtered == nil {
+			filtered = make([]routing.LBEndpoint, 0, len(endpoints))
+			filtered = append(filtered, endpoints[:i]...)
 		}
 	}
 
