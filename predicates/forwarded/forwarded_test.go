@@ -71,6 +71,17 @@ func TestForwardedHost(t *testing.T) {
 		matches: false,
 		isError: true,
 	}, {
+		msg:  "Forwarded Header parameter names are case-insensitive",
+		host: "^example\\.com$",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{`for=192.0.2.60;Host=example.com`},
+			},
+		},
+		matches: true,
+		isError: false,
+	}, {
 		msg:     "Empty Forwarded Header should not match",
 		host:    "^example\\.com$",
 		r:       request{},
@@ -373,6 +384,39 @@ func TestForwardedProto(t *testing.T) {
 			},
 		},
 		matches: true,
+		isError: false,
+	}, {
+		msg:   "Forwarded Header parameter names are case-insensitive",
+		proto: "https",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{"For=192.0.2.60;Proto=https;By=203.0.113.43"},
+			},
+		},
+		matches: true,
+		isError: false,
+	}, {
+		msg:   "Forwarded Header proto value is case-insensitive",
+		proto: "https",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{"for=192.0.2.60;proto=HTTPS"},
+			},
+		},
+		matches: true,
+		isError: false,
+	}, {
+		msg:   "Upper case parameter name with a different proto should not match",
+		proto: "http",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{"PROTO=https"},
+			},
+		},
+		matches: false,
 		isError: false,
 	}}
 
