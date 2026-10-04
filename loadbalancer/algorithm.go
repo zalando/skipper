@@ -20,6 +20,11 @@ import (
 // Algorithm indicates the used load balancing algorithm.
 type Algorithm int
 
+type readOnlyLBEndpoints struct{}
+
+// ReadOnlyLBEndpoints marks built-in algorithms whose Apply methods do not mutate the endpoint slice.
+func (readOnlyLBEndpoints) ReadOnlyLBEndpoints() {}
+
 const (
 	// None is the default non-specified algorithm.
 	None Algorithm = iota
@@ -65,6 +70,7 @@ var (
 )
 
 type roundRobin struct {
+	readOnlyLBEndpoints
 	index int64
 }
 
@@ -85,6 +91,7 @@ func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 }
 
 type random struct {
+	readOnlyLBEndpoints
 	mu  sync.Mutex
 	rnd *rand.Rand
 }
@@ -114,6 +121,7 @@ type (
 		hash  uint64 // hash of endpoint
 	}
 	consistentHash struct {
+		readOnlyLBEndpoints
 		hashRing []endpointHash // list of endpoints sorted by hash value
 	}
 )
@@ -239,6 +247,7 @@ func (ch *consistentHash) chooseConsistentHashEndpoint(ctx *routing.LBContext) i
 }
 
 type powerOfRandomNChoices struct {
+	readOnlyLBEndpoints
 	mu              sync.Mutex
 	rnd             *rand.Rand
 	numberOfChoices int
@@ -278,6 +287,7 @@ func (p *powerOfRandomNChoices) getScore(e routing.LBEndpoint) int64 {
 }
 
 type weightedRoundRobin struct {
+	readOnlyLBEndpoints
 	mu             sync.Mutex
 	rnd            *rand.Rand
 	currentWeights map[string]float64
@@ -339,6 +349,7 @@ func newLeastRequests(endpoints []string) routing.LBAlgorithm {
 }
 
 type leastRequests struct {
+	readOnlyLBEndpoints
 	mu             sync.Mutex
 	rnd            *rand.Rand
 	currentWeights map[string]float64

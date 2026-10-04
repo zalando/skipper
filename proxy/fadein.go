@@ -9,6 +9,10 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
+type readOnlyLBEndpointAlgorithm interface {
+	ReadOnlyLBEndpoints()
+}
+
 type fadeIn struct {
 	mu  sync.Mutex
 	rnd *rand.Rand
@@ -34,6 +38,9 @@ func (f *fadeIn) filterFadeIn(endpoints []routing.LBEndpoint, rt *routing.Route)
 	f.mu.Unlock()
 
 	var filtered []routing.LBEndpoint
+	if _, ok := rt.LBAlgorithm.(readOnlyLBEndpointAlgorithm); !ok {
+		filtered = make([]routing.LBEndpoint, 0, len(endpoints))
+	}
 	for i, e := range endpoints {
 		age := now.Sub(e.Metrics.DetectedTime())
 		f := f.fadeInScore(
