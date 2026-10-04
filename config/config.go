@@ -186,6 +186,7 @@ type Config struct {
 	KubernetesPathModeString                             string                             `yaml:"kubernetes-path-mode"`
 	KubernetesPathMode                                   kubernetes.PathMode                `yaml:"-"`
 	KubernetesNamespace                                  string                             `yaml:"kubernetes-namespace"`
+	KubernetesListChunkSize                              int                                `yaml:"kubernetes-list-chunk-size"`
 	KubernetesEnableEndpointSlices                       bool                               `yaml:"enable-kubernetes-endpointslices"`
 	KubernetesTopologyZone                               string                             `yaml:"kubernetes-topology-zone"`
 	KubernetesEnableEastWest                             bool                               `yaml:"enable-kubernetes-east-west"`
@@ -593,6 +594,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.WhitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", "sets the iprange/CIDRS to be whitelisted during healthcheck")
 	flag.StringVar(&cfg.KubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", "controls the default interpretation of Kubernetes ingress paths: <kubernetes-ingress|path-regexp|path-prefix>")
 	flag.StringVar(&cfg.KubernetesNamespace, "kubernetes-namespace", "", "watch only this namespace for ingresses")
+	flag.IntVar(&cfg.KubernetesListChunkSize, "kubernetes-list-chunk-size", 0, "configures the chunk size (limit parameter) when listing Kubernetes resources. If 0 or negative, pagination is disabled")
 	flag.BoolVar(&cfg.KubernetesEnableEndpointSlices, "enable-kubernetes-endpointslices", false, "Enables that skipper fetches Kubernetes endpointslices instead of endpoints to scale more than 1000 pods within a service")
 	flag.StringVar(&cfg.KubernetesTopologyZone, "kubernetes-topology-zone", "", "sets the topology zone to be used for zone aware routing")
 	flag.BoolVar(&cfg.KubernetesEnableEastWest, "enable-kubernetes-east-west", false, "*Deprecated*: use kubernetes-east-west-range feature. Enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local")
@@ -1110,6 +1112,7 @@ func (c *Config) ToOptions() skipper.Options {
 		WhitelistedHealthCheckCIDR:                     whitelistCIDRS,
 		KubernetesPathMode:                             c.KubernetesPathMode,
 		KubernetesNamespace:                            c.KubernetesNamespace,
+		KubernetesListChunkSize:                        c.KubernetesListChunkSize,
 		KubernetesEnableEndpointslices:                 c.KubernetesEnableEndpointSlices,
 		KubernetesTopologyZone:                         c.KubernetesTopologyZone,
 		KubernetesEnableEastWest:                       c.KubernetesEnableEastWest,
