@@ -2078,7 +2078,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	defer sp.Close()
 	for _, p := range o.CredentialsPaths {
 		if err := sp.Add(p); err != nil {
-			log.Fatalf("Failed to add credentials file: %s: %v", p, err)
+			log.Errorf("Failed to add credentials file: %s: %v", p, err)
 		}
 	}
 
