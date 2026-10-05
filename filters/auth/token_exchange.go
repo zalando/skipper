@@ -175,7 +175,7 @@ func (f *tokenExchangeFilter) Request(ctx filters.FilterContext) {
 	ctx.Serve(&http.Response{
 		StatusCode: status,
 		Header:     h,
-		Body:       io.NopCloser(strings.NewReader(string(successBody))),
+		Body:       io.NopCloser(bytes.NewReader(successBody)),
 	})
 }
 
