@@ -116,8 +116,7 @@ func (s *tokenExchangeSpec) CreateFilter(args []any) (filters.Filter, error) {
 			tracer = opentracing.NoopTracer{}
 		}
 		cli = net.NewClient(net.Options{
-			ResponseHeaderTimeout:   s.options.Timeout,
-			TLSHandshakeTimeout:     s.options.Timeout,
+			Timeout:                 s.options.Timeout,
 			MaxIdleConnsPerHost:     maxIdle,
 			Tracer:                  tracer,
 			OpentracingComponentTag: "skipper",
