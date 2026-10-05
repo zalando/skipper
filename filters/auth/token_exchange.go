@@ -161,8 +161,8 @@ func (f *tokenExchangeFilter) Request(ctx filters.FilterContext) {
 
 	h := make(http.Header)
 	h.Set("Content-Type", "application/json")
-	h.Set("Content-Type", "application/x-www-form-urlencoded")
 	h.Set("Cache-Control", "no-store")
+	h.Set("Pragma", "no-cache")
 
 	if idpErrBody != nil {
 		// RFC 8693 §2.2.2: forward the IdP's RFC 6749 §5.2 error response as-is.
@@ -229,7 +229,6 @@ func (f *tokenExchangeFilter) exchangeToken(ctx filters.FilterContext, subjectTo
 	}
 	req = req.WithContext(ctx.Request().Context())
 	req.SetBasicAuth(f.clientID, string(secret))
-	req.Header.Set("Pragma", "no-cache")
 
 	resp, err := f.cli.Do(req)
 	if err != nil {
