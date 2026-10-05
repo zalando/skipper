@@ -228,6 +228,8 @@ func (f *tokenExchangeFilter) exchangeToken(ctx filters.FilterContext, subjectTo
 	}
 	req = req.WithContext(ctx.Request().Context())
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Cache-Control", "no-store")
+	req.Header.Set("Pragma", "no-cache")
 
 	resp, err := f.cli.Do(req)
 	if err != nil {
