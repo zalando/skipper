@@ -1104,6 +1104,21 @@ type Options struct {
 	// WebhookTimeout sets timeout duration while calling a custom webhook auth service
 	WebhookTimeout time.Duration
 
+	// OAuthTokenExchangeURL sets the RFC 8693 token endpoint for the tokenExchange() filter.
+	// When non-empty, the filter is registered and available to routes.
+	OAuthTokenExchangeURL string
+
+	// OAuthTokenExchangeClientID is the client_id sent to the token exchange endpoint.
+	OAuthTokenExchangeClientID string
+
+	// OAuthTokenExchangeClientSecretFile is the path to a file containing the
+	// client_secret for the token exchange endpoint. The file is read at request
+	// time and supports hot-reload via the secrets module.
+	OAuthTokenExchangeClientSecretFile string
+
+	// OAuthTokenExchangeTimeout sets the HTTP timeout for calls to the token exchange endpoint.
+	OAuthTokenExchangeTimeout time.Duration
+
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
 	MaxAuditBody int
 
@@ -2065,6 +2080,28 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		if err := sp.Add(p); err != nil {
 			log.Errorf("Failed to add credentials file: %s: %v", p, err)
 		}
+	}
+
+	if o.OAuthTokenExchangeURL != "" {
+		if o.OAuthTokenExchangeClientSecretFile != "" {
+			if err := sp.Add(o.OAuthTokenExchangeClientSecretFile); err != nil {
+				log.Fatalf("Failed to add token exchange client secret file: %v", err)
+			}
+		}
+		o.CustomFilters = append(o.CustomFilters,
+			auth.NewTokenExchangeSpec(
+				o.OAuthTokenExchangeURL,
+				o.OAuthTokenExchangeClientID,
+				o.OAuthTokenExchangeClientSecretFile,
+				auth.TokenExchangeOptions{
+					Timeout:                     o.OAuthTokenExchangeTimeout,
+					MaxIdleConns:                o.IdleConnectionsPerHost,
+					Tracer:                      tracer,
+					OpenTracingClientTraceByTag: o.OpenTracingClientTraceByTag,
+					SecretsReader:               sp,
+				},
+			),
+		)
 	}
 
 	tio := auth.TokenintrospectionOptions{

@@ -127,6 +127,7 @@ func defaultConfig(with func(*Config)) *Config {
 		Oauth2GrantTokeninfoKeys:                commaListFlag(),
 		Oauth2TokenCookieName:                   "oauth2-grant",
 		Oauth2TokenCookieRemoveSubdomains:       1,
+		OAuthTokenExchangeTimeout:               2 * time.Second,
 		WebhookTimeout:                          2 * time.Second,
 		OidcDistributedClaimsTimeout:            2 * time.Second,
 		OIDCCookieValidity:                      time.Hour,

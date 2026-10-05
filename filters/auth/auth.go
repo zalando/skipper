@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/zalando/skipper/filters"
@@ -163,16 +164,10 @@ func getStrings(args []any) ([]string, error) {
 // right. Right can be a superset of left.
 func all(left, right []string) bool {
 	for _, l := range left {
-		var found bool
-		for _, r := range right {
-			if l == r {
-				found = true
-				break
-			}
+		if slices.Contains(right, l) {
+			continue
 		}
-		if !found {
-			return false
-		}
+		return false
 	}
 	return true
 }
