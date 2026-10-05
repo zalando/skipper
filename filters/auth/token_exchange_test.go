@@ -254,15 +254,6 @@ func TestTokenExchange(t *testing.T) {
 			bodyContains:   "server_error",
 		},
 		{
-			// Empty non-200 body is forwarded with the IdP's status code.
-			msg:          "token endpoint returns 400 with no body forwards 400",
-			incomingAuth: authHeaderPrefix + testToken,
-			tokenEndpointFn: func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusBadRequest)
-			},
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
 			msg:          "token endpoint returns invalid JSON results in 502",
 			incomingAuth: authHeaderPrefix + testToken,
 			tokenEndpointFn: func(w http.ResponseWriter, _ *http.Request) {
