@@ -137,9 +137,11 @@ func parseForwarded(fh string) *forwarded {
 			token, value, found := strings.Cut(forwardedPair, "=")
 			value = strings.Trim(value, `"`)
 			if found && value != "" {
-				switch token {
+				// RFC 7239 section 4: parameter names are case-insensitive.
+				switch strings.ToLower(token) {
 				case "proto":
-					f.proto = value
+					// The value is a URI scheme, which is case-insensitive (RFC 3986 section 3.1).
+					f.proto = strings.ToLower(value)
 				case "host":
 					f.host = value
 				}
