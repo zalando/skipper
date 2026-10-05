@@ -59,6 +59,7 @@ func requestWithR(r float64) *http.Request {
 // a total number of requests performed.
 // Results use float64 type to simplify fractional comparisons.
 func doN(t *testing.T, client *proxytest.TestClient, request func() *http.Request) (map[int]float64, float64) {
+	client.Transport.(*http.Transport).MaxIdleConnsPerHost = runtime.NumCPU()
 	const n = 10_000
 
 	var mu sync.Mutex
