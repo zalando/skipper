@@ -229,6 +229,7 @@ func (f *tokenExchangeFilter) exchangeToken(ctx filters.FilterContext, subjectTo
 	}
 	req = req.WithContext(ctx.Request().Context())
 	req.SetBasicAuth(f.clientID, string(secret))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := f.cli.Do(req)
 	if err != nil {
