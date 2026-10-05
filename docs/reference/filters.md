@@ -448,7 +448,7 @@ approach of certain LB implementations.
 ## HTTP Path
 
 Filters in this section rewrite the request path. Once one of them has run, the original,
-pre-filter-chain request is only reachable from later filters and dataclients through
+pre-filter-chain request is only reachable from later filters through
 `ctx.OriginalRequest()`, which stays `nil` unless the `-proxy-preserve-original` flag is set
 (`false` by default). See [Preserving the Original Request](../operation/operation.md#preserving-the-original-request).
 

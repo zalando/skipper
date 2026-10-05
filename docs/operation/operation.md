@@ -1697,7 +1697,7 @@ be on.
 
 ## Preserving the Original Request
 
-Filters and dataclients that need the request or response as they were before any filter in the
+Filters that need the request or response as they were before any filter in the
 route ran can call `ctx.OriginalRequest()` / `ctx.OriginalResponse()`. By default these return
 `nil`: cloning that metadata on every request has a cost, so it is opt-in.
 
@@ -1707,8 +1707,8 @@ of this flag, since it needs the original request to produce its diff output.
 
 Any filter that rewrites the request, such as
 [`modPath`](../reference/filters.md#modpath) or [`setPath`](../reference/filters.md#setpath),
-makes the pre-filter-chain request unavailable through `ctx.Request()` to filters and dataclients
-running later in the chain. Those later consumers need `-proxy-preserve-original` set to recover it
+makes the pre-filter-chain request unavailable through `ctx.Request()` to filters
+running later in the chain. Those later filters need `-proxy-preserve-original` set to recover it
 via `ctx.OriginalRequest()`; without the flag it silently returns `nil`.
 
 ## Debugging Requests
