@@ -46,6 +46,7 @@ type Config struct {
 	Insecure                              bool           `yaml:"insecure"`
 	AllowInsecureBackends                 bool           `yaml:"allow-insecure-backends"`
 	ProxyPreserveHost                     bool           `yaml:"proxy-preserve-host"`
+	ProxyPreserveOriginal                 bool           `yaml:"proxy-preserve-original"`
 	DevMode                               bool           `yaml:"dev-mode"`
 	SupportListener                       string         `yaml:"support-listener"`
 	DebugListener                         string         `yaml:"debug-listener"`
@@ -456,6 +457,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.Insecure, "insecure", false, "flag indicating to ignore the verification of the TLS certificates of the backend services")
 	flag.BoolVar(&cfg.AllowInsecureBackends, "allow-insecure-backends", false, "enables the per-route proxySSLVerifyOff() filter that skips TLS certificate verification for individual backends; disabled by default")
 	flag.BoolVar(&cfg.ProxyPreserveHost, "proxy-preserve-host", false, "flag indicating to preserve the incoming request 'Host' header in the outgoing requests")
+	flag.BoolVar(&cfg.ProxyPreserveOriginal, "proxy-preserve-original", false, "flag indicating to preserve the original, pre-filter-chain request and response metadata, accessible to filters and dataclients via ctx.OriginalRequest()/ctx.OriginalResponse(); required by any filter or dataclient that needs the request as it was before path or header modifying filters ran; adds a per-request metadata clone")
 	flag.BoolVar(&cfg.DevMode, "dev-mode", false, "enables developer time behavior, like unbuffered routing updates")
 	flag.StringVar(&cfg.SupportListener, "support-listener", ":9911", "network address used for exposing the /metrics endpoint. An empty value disables support endpoint.")
 	flag.StringVar(&cfg.DebugListener, "debug-listener", "", "when this address is set, skipper starts an additional listener returning the original and transformed requests")
@@ -1308,6 +1310,10 @@ func (c *Config) ToOptions() skipper.Options {
 
 	if c.ProxyPreserveHost {
 		options.ProxyFlags |= proxy.PreserveHost
+	}
+
+	if c.ProxyPreserveOriginal {
+		options.ProxyFlags |= proxy.PreserveOriginal
 	}
 
 	if c.RemoveHopHeaders {

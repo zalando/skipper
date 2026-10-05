@@ -1695,6 +1695,22 @@ If the second interpretation gets considered the right way, and the
 other one a bug, then the default value for this flag may become to
 be on.
 
+## Preserving the Original Request
+
+Filters and dataclients that need the request or response as they were before any filter in the
+route ran can call `ctx.OriginalRequest()` / `ctx.OriginalResponse()`. By default these return
+`nil`: cloning that metadata on every request has a cost, so it is opt-in.
+
+Set `-proxy-preserve-original` to enable it on the main listener. The `-debug-listener` (see
+[Debugging Requests](#debugging-requests)) always has this behavior enabled internally, regardless
+of this flag, since it needs the original request to produce its diff output.
+
+Any filter that rewrites the request, such as
+[`modPath`](../reference/filters.md#modpath) or [`setPath`](../reference/filters.md#setpath),
+makes the pre-filter-chain request unavailable through `ctx.Request()` to filters and dataclients
+running later in the chain. Those later consumers need `-proxy-preserve-original` set to recover it
+via `ctx.OriginalRequest()`; without the flag it silently returns `nil`.
+
 ## Debugging Requests
 
 Skipper provides [filters](../reference/filters.md), that can change
