@@ -1028,7 +1028,9 @@ func TestCacheFilter_Revalidation_UsesOriginalRequestPath(t *testing.T) {
 // self-loopback routing failure entirely, regardless of which upstream filter
 // mutated the request. It also asserts the internal revalidateHeader never
 // reaches the real backend on this path, since direct dispatch never re-enters
-// skipper's own Request() handler to strip it.
+// skipper's own Request() handler to strip it, and that the wire Host header
+// is rewritten to ctx.OutgoingHost() rather than left as the client-facing
+// Host a real inbound request would carry.
 func TestCacheFilter_Revalidation_DirectDispatchToBackend(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newTestFilter(t, time.Millisecond, 15*time.Second, time.Hour)
@@ -1036,13 +1038,15 @@ func TestCacheFilter_Revalidation_DirectDispatchToBackend(t *testing.T) {
 		f.metrics = mockMetrics
 
 		req, _ := http.NewRequest("GET", "http://backend.example/spaces/abc/entries", nil)
+		req.Host = "shop.example" // as a real inbound request would carry the client-facing Host
 
 		newStaleCtx := func() *filtertest.Context {
 			return &filtertest.Context{
-				FRequest:    req,
-				FBackendUrl: "https://origin.example",
-				FStateBag:   make(map[string]any),
-				FMetrics:    &metricstest.MockMetrics{},
+				FRequest:      req,
+				FBackendUrl:   "https://origin.example",
+				FOutgoingHost: "origin.example:443",
+				FStateBag:     make(map[string]any),
+				FMetrics:      &metricstest.MockMetrics{},
 			}
 		}
 
@@ -1053,9 +1057,10 @@ func TestCacheFilter_Revalidation_DirectDispatchToBackend(t *testing.T) {
 
 		time.Sleep(2 * time.Millisecond)
 
-		var revalidatedScheme, revalidatedHost, revalidateHeaderValue string
+		var revalidatedScheme, revalidatedURLHost, revalidatedWireHost, revalidateHeaderValue string
 		f.fetch = func(req *http.Request) (*http.Response, error) {
-			revalidatedScheme, revalidatedHost = req.URL.Scheme, req.URL.Host
+			revalidatedScheme, revalidatedURLHost = req.URL.Scheme, req.URL.Host
+			revalidatedWireHost = req.Host
 			revalidateHeaderValue = req.Header.Get(revalidateHeader)
 			return upstreamResponseCC(http.StatusOK, `{"data":"v2"}`, "public, max-age=300"), nil
 		}
@@ -1067,8 +1072,11 @@ func TestCacheFilter_Revalidation_DirectDispatchToBackend(t *testing.T) {
 		if !ctx2.FServed {
 			t.Fatal("expected stale entry to be served")
 		}
-		if revalidatedScheme != "https" || revalidatedHost != "origin.example" {
-			t.Fatalf("revalidation request went to %s://%s, want https://origin.example (ctx.BackendUrl(), not the listener)", revalidatedScheme, revalidatedHost)
+		if revalidatedScheme != "https" || revalidatedURLHost != "origin.example" {
+			t.Fatalf("revalidation request went to %s://%s, want https://origin.example (ctx.BackendUrl(), not the listener)", revalidatedScheme, revalidatedURLHost)
+		}
+		if revalidatedWireHost != "origin.example:443" {
+			t.Fatalf("revalidation request carried wire Host %q, want ctx.OutgoingHost() %q, not the client-facing Host", revalidatedWireHost, "origin.example:443")
 		}
 		if revalidateHeaderValue != "" {
 			t.Fatalf("direct-dispatch request carried %s=%q to the real backend; this internal header must only be set for self-loopback", revalidateHeader, revalidateHeaderValue)
@@ -1194,12 +1202,16 @@ func TestRevalidationDispatch_RFCModeIgnoresBackendUrl(t *testing.T) {
 		FRequest:         req,
 		FOriginalRequest: req,
 		FBackendUrl:      "https://origin.example", // present, but RFC mode must ignore it
+		FOutgoingHost:    "origin.example",         // present, but RFC mode must ignore it too
 	}
 
-	gotReq, gotBackendURL := revalidationDispatch(ctx, true /* rfcMode */)
+	gotReq, gotBackendURL, gotOutgoingHost := revalidationDispatch(ctx, true /* rfcMode */)
 
 	if gotBackendURL != "" {
 		t.Fatalf("rfcMode=true: got backendURL %q, want empty (must fall back to self-loopback)", gotBackendURL)
+	}
+	if gotOutgoingHost != "" {
+		t.Fatalf("rfcMode=true: got outgoingHost %q, want empty (self-loopback keeps the client-facing Host)", gotOutgoingHost)
 	}
 	if gotReq != req {
 		t.Fatalf("rfcMode=true: got a different request than revalidationRequest(ctx) would return")
@@ -1210,6 +1222,8 @@ func TestRevalidationDispatch_RFCModeIgnoresBackendUrl(t *testing.T) {
 // counterpart: with a resolvable static backend, dispatch should go directly
 // there using ctx.Request() (not ctx.OriginalRequest()), since ctx.Request()
 // is what earlier filters already transformed into the backend-ready form.
+// It should also report ctx.OutgoingHost() as the Host header to send, not
+// the client-facing Host ctx.Request() still carries.
 func TestRevalidationDispatch_ForceModeUsesBackendUrl(t *testing.T) {
 	mutated, _ := http.NewRequest("GET", "http://backend.example/spaces/abc/entries", nil)
 	original, _ := http.NewRequest("GET", "http://backend.example/api/contentful/spaces/abc/entries", nil)
@@ -1217,12 +1231,16 @@ func TestRevalidationDispatch_ForceModeUsesBackendUrl(t *testing.T) {
 		FRequest:         mutated,
 		FOriginalRequest: original,
 		FBackendUrl:      "https://origin.example",
+		FOutgoingHost:    "origin.example",
 	}
 
-	gotReq, gotBackendURL := revalidationDispatch(ctx, false /* rfcMode */)
+	gotReq, gotBackendURL, gotOutgoingHost := revalidationDispatch(ctx, false /* rfcMode */)
 
 	if gotBackendURL != "https://origin.example" {
 		t.Fatalf("rfcMode=false, BackendUrl set: got backendURL %q, want %q", gotBackendURL, "https://origin.example")
+	}
+	if gotOutgoingHost != "origin.example" {
+		t.Fatalf("rfcMode=false, BackendUrl set: got outgoingHost %q, want %q", gotOutgoingHost, "origin.example")
 	}
 	if gotReq != mutated {
 		t.Fatalf("rfcMode=false, BackendUrl set: should use ctx.Request() (filter-transformed), not ctx.OriginalRequest()")
