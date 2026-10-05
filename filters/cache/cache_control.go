@@ -69,7 +69,11 @@ func parseRequestCacheControl(h http.Header) requestCacheDirectives {
 // Uses Header.Values to handle multiple header lines; matches names
 // case-insensitively per RFC 9111 §5.2.
 func parseCacheControl(h http.Header) cacheDirectives {
-	d := cacheDirectives{maxAge: -1, sMaxAge: -1, staleWhileRevalidate: -1}
+	d := cacheDirectives{
+		maxAge:               -1,
+		sMaxAge:              -1,
+		staleWhileRevalidate: -1,
+	}
 	for _, line := range h.Values("Cache-Control") {
 		for token := range strings.SplitSeq(line, ",") {
 			parts := strings.SplitN(strings.TrimSpace(token), "=", 2)
