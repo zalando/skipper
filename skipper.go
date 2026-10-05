@@ -2078,14 +2078,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	defer sp.Close()
 	for _, p := range o.CredentialsPaths {
 		if err := sp.Add(p); err != nil {
-			log.Errorf("Failed to add credentials file: %s: %v", p, err)
+			log.Fatalf("Failed to add credentials file: %s: %v", p, err)
 		}
 	}
 
 	if o.OAuthTokenExchangeURL != "" {
 		if o.OAuthTokenExchangeClientSecretFile != "" {
 			if err := sp.Add(o.OAuthTokenExchangeClientSecretFile); err != nil {
-				log.Errorf("Failed to add token exchange client secret file: %v", err)
+				log.Fatalf("Failed to add token exchange client secret file: %v", err)
 			}
 		}
 		o.CustomFilters = append(o.CustomFilters,
