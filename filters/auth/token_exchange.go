@@ -253,5 +253,11 @@ func (f *tokenExchangeFilter) exchangeToken(ctx filters.FilterContext, subjectTo
 	if te.AccessToken == "" {
 		return nil, nil, 0, fmt.Errorf("token exchange response missing access_token")
 	}
+	if te.IssuedTokenType == "" {
+		return nil, nil, 0, fmt.Errorf("token exchange response missing issued_token_type")
+	}
+	if te.TokenType == "" {
+		return nil, nil, 0, fmt.Errorf("token exchange response missing token_type")
+	}
 	return raw, nil, resp.StatusCode, nil
 }
