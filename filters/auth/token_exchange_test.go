@@ -116,6 +116,12 @@ func TestTokenExchange(t *testing.T) {
 			msg:          "successful exchange serves RFC 8693 JSON to client",
 			incomingAuth: authHeaderPrefix + testToken,
 			tokenEndpointFn: func(w http.ResponseWriter, r *http.Request) {
+				// RFC 6749 §2.3.1: client credentials via HTTP Basic auth
+				clientID, clientSecret, ok := r.BasicAuth()
+				if !ok || clientID != testClientID || clientSecret != testClientSecret {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
 				// RFC 8693 §2.1: validate required request parameters
 				if r.FormValue("grant_type") != tokenExchangeGrantType {
 					w.WriteHeader(http.StatusBadRequest)
@@ -129,8 +135,29 @@ func TestTokenExchange(t *testing.T) {
 					w.WriteHeader(http.StatusBadRequest)
 					return
 				}
-				if r.FormValue("client_id") != testClientID {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(tokenExchangeResponse{
+					AccessToken:     testExchanged,
+					IssuedTokenType: tokenExchangeAccessTokenType,
+					TokenType:       "Bearer",
+					ExpiresIn:       3600,
+				})
+			},
+			expectedStatus: http.StatusOK,
+			bodyContains:   testExchanged,
+		},
+		{
+			// RFC 6749 §2.3.1: client_id and client_secret must NOT appear in the form body
+			msg:          "client credentials are sent as Basic auth not in request body",
+			incomingAuth: authHeaderPrefix + testToken,
+			tokenEndpointFn: func(w http.ResponseWriter, r *http.Request) {
+				if r.FormValue("client_id") != "" || r.FormValue("client_secret") != "" {
 					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				_, _, ok := r.BasicAuth()
+				if !ok {
+					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}
 				w.Header().Set("Content-Type", "application/json")

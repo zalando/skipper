@@ -203,17 +203,16 @@ func serveTokenExchangeError(ctx filters.FilterContext, code, description string
 //     the raw response body (RFC 6749 §5.2 JSON) to forward to the caller
 //   - (nil, nil, 0, err) on transport or internal failure; caller should serve 502
 func (f *tokenExchangeFilter) exchangeToken(ctx filters.FilterContext, subjectToken string) ([]byte, []byte, int, error) {
+	secret, ok := f.secretsReader.GetSecret(f.clientSecretFile)
+	if !ok {
+		return nil, nil, 0, fmt.Errorf("failed to find client_secret")
+	}
+
 	form := url.Values{}
 	form.Set("grant_type", tokenExchangeGrantType)
 	form.Set("subject_token", subjectToken)
 	form.Set("subject_token_type", tokenExchangeAccessTokenType)
 	form.Set("requested_token_type", tokenExchangeAccessTokenType)
-	form.Set("client_id", f.clientID)
-	if secret, ok := f.secretsReader.GetSecret(f.clientSecretFile); ok {
-		form.Set("client_secret", string(secret))
-	} else {
-		return nil, nil, 0, fmt.Errorf("failed to find client_secret")
-	}
 
 	if f.audience != "" {
 		form.Set("audience", f.audience)
@@ -227,6 +226,7 @@ func (f *tokenExchangeFilter) exchangeToken(ctx filters.FilterContext, subjectTo
 		return nil, nil, 0, err
 	}
 	req = req.WithContext(ctx.Request().Context())
+	req.SetBasicAuth(f.clientID, string(secret))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Cache-Control", "no-store")
 	req.Header.Set("Pragma", "no-cache")
