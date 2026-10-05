@@ -1867,9 +1867,11 @@ On success the filter serves the raw RFC 8693 JSON response from the token
 endpoint (`200 OK`, `Content-Type: application/json`). On error it responds:
 
 - No `Authorization: Bearer <token>` header → `401 Unauthorized`
-- Token endpoint returns non-200 or network error → `502 Bad Gateway`
+- Token endpoint returns non-200 → the IdP's status code and body are forwarded
+  as-is with `Content-Type: application/json` (RFC 8693 §2.2.2 / RFC 6749 §5.2)
+- Transport or network error → `502 Bad Gateway` with RFC 6749 §5.2 JSON error body
 - Token endpoint returns 200 but the body is unparseable or missing
-  `access_token` → `502 Bad Gateway`
+  `access_token` → `502 Bad Gateway` with RFC 6749 §5.2 JSON error body
 
 The token endpoint URL, client ID is static, and client secret is a
 file to be externally rotated. The configuration supplied at

@@ -185,29 +185,55 @@ func TestTokenExchange(t *testing.T) {
 			bodyContains:   testExchanged,
 		},
 		{
-			// RFC 8693 §2.2: token endpoint 4xx/5xx → proxy returns 502
-			msg:          "token endpoint returns 400 results in 502",
+			// RFC 8693 §2.2.2: token endpoint error → forward the IdP's RFC 6749 §5.2 response
+			msg:          "token endpoint returns 400 with RFC 6749 body forwards status and body",
+			incomingAuth: authHeaderPrefix + testToken,
+			tokenEndpointFn: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tokenExchangeErrorResponse{
+					Error:            "invalid_grant",
+					ErrorDescription: "subject token is invalid",
+				})
+			},
+			expectedStatus: http.StatusBadRequest,
+			bodyContains:   "invalid_grant",
+		},
+		{
+			msg:          "token endpoint returns 401 with RFC 6749 body forwards status and body",
+			incomingAuth: authHeaderPrefix + testToken,
+			tokenEndpointFn: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusUnauthorized)
+				json.NewEncoder(w).Encode(tokenExchangeErrorResponse{
+					Error:            "invalid_client",
+					ErrorDescription: "client authentication failed",
+				})
+			},
+			expectedStatus: http.StatusUnauthorized,
+			bodyContains:   "invalid_client",
+		},
+		{
+			msg:          "token endpoint returns 500 with RFC 6749 body forwards status and body",
+			incomingAuth: authHeaderPrefix + testToken,
+			tokenEndpointFn: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(tokenExchangeErrorResponse{
+					Error: "server_error",
+				})
+			},
+			expectedStatus: http.StatusInternalServerError,
+			bodyContains:   "server_error",
+		},
+		{
+			// Empty non-200 body is forwarded with the IdP's status code.
+			msg:          "token endpoint returns 400 with no body forwards 400",
 			incomingAuth: authHeaderPrefix + testToken,
 			tokenEndpointFn: func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 			},
-			expectedStatus: http.StatusBadGateway,
-		},
-		{
-			msg:          "token endpoint returns 401 results in 502",
-			incomingAuth: authHeaderPrefix + testToken,
-			tokenEndpointFn: func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusUnauthorized)
-			},
-			expectedStatus: http.StatusBadGateway,
-		},
-		{
-			msg:          "token endpoint returns 500 results in 502",
-			incomingAuth: authHeaderPrefix + testToken,
-			tokenEndpointFn: func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusInternalServerError)
-			},
-			expectedStatus: http.StatusBadGateway,
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			msg:          "token endpoint returns invalid JSON results in 502",
