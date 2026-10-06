@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"sync"
@@ -12,8 +13,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/filters/fadein"
 	"github.com/zalando/skipper/loadbalancer"
+	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 )
 
 const (
@@ -399,6 +405,125 @@ func repeatedSlice(v float64, n int) []float64 {
 		s = append(s, v)
 	}
 	return s
+}
+
+func TestFilterFadeInLazyFiltering(t *testing.T) {
+	for _, algorithm := range []loadbalancer.Algorithm{
+		loadbalancer.PowerOfRandomNChoices,
+		loadbalancer.Random,
+		loadbalancer.RoundRobin,
+		loadbalancer.ConsistentHash,
+		loadbalancer.WeightedRoundRobin,
+		loadbalancer.LeastRequests,
+	} {
+		t.Run(algorithm.String(), func(t *testing.T) {
+			route, proxy, _ := initializeEndpoints(repeatedSlice(2, 3), algorithm.String(), defaultFadeInDurationHuge)
+			defer proxy.Close()
+
+			got := proxy.fadein.filterFadeIn(route.LBEndpoints, route)
+			assert.Equal(t, route.LBEndpoints, got)
+			if &got[0] != &route.LBEndpoints[0] {
+				t.Fatal("expected the steady-state result to reuse the input slice")
+			}
+		})
+	}
+}
+
+type fadeInMutatingLBAlgorithm struct{}
+
+func (fadeInMutatingLBAlgorithm) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+	ctx.LBEndpoints[0], ctx.LBEndpoints[1] = ctx.LBEndpoints[1], ctx.LBEndpoints[0]
+	return ctx.LBEndpoints[0]
+}
+
+type fadeInMutatingLBPostProcessor struct{}
+
+func (fadeInMutatingLBPostProcessor) Do(routes []*routing.Route) []*routing.Route {
+	detected := time.Now().Add(-2 * time.Hour)
+	for _, route := range routes {
+		if route.BackendType != eskip.LBBackend {
+			continue
+		}
+		route.LBAlgorithm = fadeInMutatingLBAlgorithm{}
+		for i := range route.LBEndpoints {
+			route.LBEndpoints[i].Metrics.SetDetected(detected)
+		}
+	}
+	return routes
+}
+
+func TestFadeInPreservesRouteSliceForCustomLBAlgorithm(t *testing.T) {
+	backendA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("A"))
+	}))
+	backendB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("B"))
+	}))
+	defer backendA.Close()
+	defer backendB.Close()
+
+	logger := loggingtest.New()
+	registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	dataClient := testdataclient.New([]*eskip.Route{{
+		Id:          "fadeInCustomLB",
+		BackendType: eskip.LBBackend,
+		LBAlgorithm: loadbalancer.RoundRobin.String(),
+		LBEndpoints: []*eskip.LBEndpoint{{Address: backendA.URL}, {Address: backendB.URL}},
+		Filters: []*eskip.Filter{{
+			Name: filters.FadeInName,
+			Args: []any{time.Hour},
+		}},
+	}})
+	rt := routing.New(routing.Options{
+		SignalFirstLoad: true,
+		FilterRegistry:  builtin.MakeRegistry(),
+		DataClients:     []routing.DataClient{dataClient},
+		PostProcessors: []routing.PostProcessor{
+			loadbalancer.NewAlgorithmProvider(),
+			registry,
+			fadein.NewPostProcessor(fadein.PostProcessorOptions{EndpointRegistry: registry}),
+			fadeInMutatingLBPostProcessor{},
+		},
+		Log: logger,
+	})
+	<-rt.FirstLoad()
+	p := WithParams(Params{Routing: rt, EndpointRegistry: registry, AccessLogDisabled: true})
+	defer func() {
+		_ = p.Close()
+		if tr, ok := p.roundTripper.(*http.Transport); ok {
+			tr.CloseIdleConnections()
+		}
+		rt.Close()
+		dataClient.Close()
+		logger.Close()
+	}()
+
+	route, _ := rt.Route(httptest.NewRequest(http.MethodGet, "http://example.test/", nil))
+	if route == nil || len(route.LBEndpoints) != 2 {
+		t.Fatal("expected a two-endpoint load-balancer route")
+	}
+	wantOrder := []string{route.LBEndpoints[0].Host, route.LBEndpoints[1].Host}
+	if wantOrder[0] == wantOrder[1] {
+		t.Fatal("expected distinct endpoints")
+	}
+
+	request := func() string {
+		response := httptest.NewRecorder()
+		p.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/", nil))
+		if response.Code != http.StatusOK {
+			t.Fatalf("got status %d, want %d", response.Code, http.StatusOK)
+		}
+		current, _ := rt.Route(httptest.NewRequest(http.MethodGet, "http://example.test/", nil))
+		gotOrder := []string{current.LBEndpoints[0].Host, current.LBEndpoints[1].Host}
+		assert.Equal(t, wantOrder, gotOrder)
+		return response.Body.String()
+	}
+
+	first := request()
+	second := request()
+	if first != second {
+		t.Fatalf("custom algorithm selected different endpoints after mutation: first %q, second %q", first, second)
+	}
 }
 
 func BenchmarkFadeIn(b *testing.B) {
