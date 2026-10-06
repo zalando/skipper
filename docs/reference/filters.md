@@ -446,6 +446,12 @@ approach of certain LB implementations.
 
 
 ## HTTP Path
+
+Filters in this section rewrite the request path. Once one of them has run, the original,
+pre-filter-chain request is only reachable from later filters through
+`ctx.OriginalRequest()`, which stays `nil` unless the `-proxy-preserve-original` flag is set
+(`false` by default). See [Preserving the Original Request](../operation/operation.md#preserving-the-original-request).
+
 ### modPath
 
 Replace all matched regex expressions in the path.
@@ -4155,7 +4161,17 @@ routes.
 
 Stale-while-revalidate (SWR): a stale entry within the SWR window is served
 immediately while a background fetch refreshes the entry. Concurrent cold-miss
-requests for the same key are coalesced into a single upstream fetch.
+requests for the same key are coalesced into a single upstream fetch. The SWR
+window's source depends on the mode: in force mode it's the operator-supplied
+`swrWindow` parameter below; in RFC mode it's the response's own
+[`stale-while-revalidate`](https://www.rfc-editor.org/rfc/rfc5861#section-3)
+`Cache-Control` directive — if the upstream never sends that directive, RFC-mode
+entries have no SWR window and simply expire at TTL. The background fetch is
+dispatched directly to the route's backend when possible (force mode with a
+static backend), otherwise it loops back through skipper's own listener; see
+`cache.reval_backend_dispatch` in the
+[operation guide](../operation/operation.md#cache) for the observability
+difference between the two.
 
 Unsafe methods (`POST`, `PUT`, `DELETE`, `PATCH`) invalidate the cached entry on
 success. `HEAD 200` freshens stored headers without replacing the body.

@@ -1695,6 +1695,22 @@ If the second interpretation gets considered the right way, and the
 other one a bug, then the default value for this flag may become to
 be on.
 
+## Preserving the Original Request
+
+Filters that need the request or response as they were before any filter in the
+route ran can call `ctx.OriginalRequest()` / `ctx.OriginalResponse()`. By default these return
+`nil`: cloning that metadata on every request has a cost, so it is opt-in.
+
+Set `-proxy-preserve-original` to enable it on the main listener. The `-debug-listener` (see
+[Debugging Requests](#debugging-requests)) always has this behavior enabled internally, regardless
+of this flag, since it needs the original request to produce its diff output.
+
+Any filter that rewrites the request, such as
+[`modPath`](../reference/filters.md#modpath) or [`setPath`](../reference/filters.md#setpath),
+makes the pre-filter-chain request unavailable through `ctx.Request()` to filters
+running later in the chain. Those later filters need `-proxy-preserve-original` set to recover it
+via `ctx.OriginalRequest()`; without the flag it silently returns `nil`.
+
 ## Debugging Requests
 
 Skipper provides [filters](../reference/filters.md), that can change
@@ -2056,6 +2072,11 @@ flowchart TD
 - `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
 - `cache.reval_error`: Counter, background revalidation fetch failures
 - `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
+- `cache.reval_backend_dispatch`: Counter, revalidation fetches sent directly to the
+  backend, bypassing skipper's proxy pipeline (force mode, static backend
+  only) - so they're invisible to `MeasureBackend*` metrics and the access
+  log. Self-loopback revalidations aren't counted here since they go
+  through the listener normally.
 
 **L2 (if Valkey or Redis is configured):**
 

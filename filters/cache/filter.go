@@ -246,7 +246,7 @@ func (s *cacheSpec) revalidationWorker() {
 			if job.filter != nil {
 				s.metrics.MeasureSince("cache.reval_wait_duration", job.enqueuedAt)
 				start := time.Now()
-				job.filter.doRevalidate(job.key, job.req)
+				job.filter.doRevalidate(job.key, job.req, job.backendURL, job.outgoingHost)
 				s.metrics.MeasureSince("cache.reval_duration", start)
 			}
 		case <-s.ctx.Done():
@@ -275,10 +275,12 @@ func (s *cacheSpec) updateMetrics() {
 }
 
 type revalJob struct {
-	key        string
-	req        *http.Request // cloned via Request.Clone
-	filter     *cacheFilter  // instance whose doRevalidate to call
-	enqueuedAt time.Time     // wall-clock time the job entered the queue; used to measure wait time
+	key          string
+	req          *http.Request // cloned via Request.Clone
+	backendURL   string        // non-empty: dial here directly instead of looping through listenAddr
+	outgoingHost string        // Host header to send with backendURL; see revalidationDispatch
+	filter       *cacheFilter  // instance whose doRevalidate to call
+	enqueuedAt   time.Time     // wall-clock time the job entered the queue; used to measure wait time
 }
 
 // cacheFilter does not implement filters.FilterCloser. The routing layer calls
@@ -411,11 +413,13 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 				Request:    ctx.Request(), // link response to originating request per net/http convention
 			}
 			ctx.Serve(notModified)
-			f.enqueueRevalidation(key, ctx.Request())
+			revalReq, backendURL, outgoingHost := revalidationDispatch(ctx, f.rfcMode)
+			f.enqueueRevalidation(key, revalReq, backendURL, outgoingHost)
 			return
 		}
 		ctx.Serve(headBodyOmitted(method, rsp))
-		f.enqueueRevalidation(key, ctx.Request())
+		revalReq, backendURL, outgoingHost := revalidationDispatch(ctx, f.rfcMode)
+		f.enqueueRevalidation(key, revalReq, backendURL, outgoingHost)
 		return
 	}
 
@@ -516,10 +520,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			}, nil
 		}
 		ttl, shouldStore := f.resolveTTL(resp.StatusCode, resp.Header, directives)
-		swr := f.swrWindow
-		if resp.StatusCode != http.StatusOK {
-			swr = 0
-		}
+		swr := f.resolveSWR(resp.StatusCode, directives)
 		cia := correctedInitialAge(requestTime, responseTime, resp.Header)
 		coalescedHeader := resp.Header.Clone()
 		stripHopByHop(coalescedHeader)
@@ -679,6 +680,7 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	if !shouldStore {
 		return
 	}
+	swr := f.resolveSWR(rsp.StatusCode, directives)
 
 	if ctx.Request().Header.Get("Authorization") != "" && !directives.public && !directives.mustRevalidate {
 		return
@@ -706,7 +708,7 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 		sentinel := &Entry{
 			CreatedAt:            time.Now(),
 			TTL:                  ttl,
-			StaleWhileRevalidate: f.swrWindow,
+			StaleWhileRevalidate: swr,
 			VaryHeaders:          varyNames,
 		}
 		if err := f.storage.Set(ctx.Request().Context(), "vary:"+baseKey, sentinel); err != nil {
@@ -715,10 +717,6 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 		}
 	}
 
-	swr := f.swrWindow
-	if rsp.StatusCode != http.StatusOK {
-		swr = 0
-	}
 	responseTime := time.Now()
 	var requestTime time.Time
 	if rt, ok := ctx.StateBag()[stateBagRequestTime].(time.Time); ok {
@@ -749,17 +747,76 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	}
 }
 
+// revalidationDispatch decides how background revalidation should reach the
+// origin: directly at the route's resolved backend when safe (force mode,
+// static network backend — ctx.BackendUrl() non-empty), or via self-loopback
+// through skipper's own listener otherwise (RFC mode, or a load-balanced /
+// dynamic backend with no single resolvable URL — BackendUrl() is empty for
+// both per its own doc comment).
+//
+// The two branches deliberately use different request objects. Direct
+// dispatch uses ctx.Request() — already transformed by earlier filters
+// (modPath, setRequestHeader, ...) into exactly what should be sent to the
+// backend. Using the pre-filter request here would be wrong: it would send
+// the client-facing path/host straight to the backend, bypassing whatever
+// those filters did. The self-loopback fallback still needs revalidationRequest
+// (ctx.OriginalRequest(), falling back to ctx.Request()) because it has to
+// re-match a route, which requires the pre-mutation path.
+//
+// outgoingHost is the Host header to send with the direct-dispatch request —
+// ctx.OutgoingHost() (the same value the main proxy pipeline would use for this
+// route), not the client-facing Host that ctx.Request() still carries. It is
+// empty for self-loopback, which must keep the client-facing Host to re-match
+// a route on re-entry.
+//
+// Note: RFC mode always uses self-loopback, never direct dispatch, even when
+// ctx.BackendUrl() is non-empty. A Response()-filter positioned after cache()
+// could rewrite Cache-Control; only the self-loopback path re-runs the full
+// filter chain and sees that rewritten value before doRevalidate reads it for
+// TTL and stale-while-revalidate purposes (resolveTTL, resolveSWR). Direct
+// dispatch would read the pre-rewrite upstream headers instead.
+func revalidationDispatch(ctx filters.FilterContext, rfcMode bool) (req *http.Request, backendURL string, outgoingHost string) {
+	if !rfcMode {
+		if b := ctx.BackendUrl(); b != "" {
+			return ctx.Request(), b, ctx.OutgoingHost()
+		}
+	}
+	return revalidationRequest(ctx), "", ""
+}
+
+// revalidationRequest returns the request to replay for background revalidation.
+// It must be ctx.OriginalRequest(), not ctx.Request(): by the time this filter's
+// Request() runs, earlier filters (e.g. modPath stripping a path prefix before
+// forwarding) may have already mutated ctx.Request() in place. doRevalidate loops
+// the request back through skipper's own listener so the full filter chain reruns
+// on it; replaying the already-mutated request can no longer match the route that
+// produced that mutation, so revalidation permanently fails with a routing error
+// and a stale entry (e.g. a cached error) never gets refreshed.
+// ctx.OriginalRequest() can be nil per its interface contract, so fall back to
+// ctx.Request() rather than passing nil into enqueueRevalidation.
+func revalidationRequest(ctx filters.FilterContext) *http.Request {
+	if orig := ctx.OriginalRequest(); orig != nil {
+		return orig
+	}
+	return ctx.Request()
+}
+
 // enqueueRevalidation sends a revalidation job to the background worker.
 // The request is cloned in the calling goroutine before orig is released.
+// backendURL and outgoingHost, when non-empty, tell doRevalidate to dispatch
+// directly to that backend using that Host header instead of looping back
+// through skipper's own listener (see revalidationDispatch).
 // If the queue is full the job is dropped and reval_dropped is incremented.
 // The closure captures f.doRevalidate so the spec-level worker respects this route's config.
-func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
+func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request, backendURL, outgoingHost string) {
 	cloned := orig.Clone(context.Background())
 	job := revalJob{
-		key:        key,
-		req:        cloned,
-		filter:     f,
-		enqueuedAt: time.Now(),
+		key:          key,
+		req:          cloned,
+		backendURL:   backendURL,
+		outgoingHost: outgoingHost,
+		filter:       f,
+		enqueuedAt:   time.Now(),
 	}
 	select {
 	case f.revalJobs <- job:
@@ -773,11 +830,42 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request) {
 // doRevalidate revalidates key against the upstream. It sends a conditional
 // request (If-None-Match / If-Modified-Since) when the stored entry carries
 // validators; a 304 response reuses the stored payload and merges new headers.
-func (f *cacheFilter) doRevalidate(key string, req *http.Request) {
+// backendURL, when non-empty, is dialed directly using outgoingHost as the
+// Host header, bypassing skipper's proxy pipeline (force mode, static backend
+// only) - so it's invisible to MeasureBackend* metrics and the access log;
+// cache.reval_backend_dispatch is incremented instead. Otherwise the request
+// loops back through skipper's own listener (f.listenAddr), which is counted
+// normally.
+func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL, outgoingHost string) {
 	f.revalSF.Do(key, func() (any, error) { //nolint:errcheck
-		req.Header.Set(revalidateHeader, "1")
-		req.URL.Scheme = "http"
-		req.URL.Host = f.listenAddr
+		if backendURL != "" {
+			u, err := url.Parse(backendURL)
+			if err != nil {
+				f.metrics.IncCounter("cache.reval_error")
+				log.WithFields(log.Fields{
+					"backendURL": backendURL,
+				}).WithError(err).Warn("cache: invalid backend URL for direct revalidation dispatch")
+				return nil, nil
+			}
+			req.URL.Scheme, req.URL.Host = u.Scheme, u.Host
+			// req.Host, not just req.URL.Host: net/http sends req.Host verbatim as
+			// the wire Host header when set, falling back to req.URL.Host only when
+			// empty. Left untouched, req.Host would still carry the client-facing
+			// Host from ctx.Request() (populated by the HTTP server on the original
+			// inbound request), so the real backend would see the client's Host
+			// instead of the one skipper's own proxy pipeline would send for this
+			// route (ctx.OutgoingHost(), applied here via outgoingHost).
+			req.Host = outgoingHost
+			f.metrics.IncCounter("cache.reval_backend_dispatch")
+		} else {
+			// revalidateHeader only matters for self-loopback: it tells this
+			// filter's own Request() to skip the cache lookup when the request
+			// re-enters skipper. Direct dispatch never re-enters skipper, so
+			// setting it there would just leak an internal header to the real
+			// origin.
+			req.Header.Set(revalidateHeader, "1")
+			req.URL.Scheme, req.URL.Host = "http", f.listenAddr
+		}
 		req.RequestURI = ""
 
 		if stored, err := f.storage.Get(context.Background(), key); err == nil && stored != nil {
@@ -852,7 +940,7 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request) {
 			Payload:              body,
 			CreatedAt:            responseTime,
 			TTL:                  ttl,
-			StaleWhileRevalidate: f.swrWindow,
+			StaleWhileRevalidate: f.resolveSWR(statusCode, directives),
 			StaleIfError:         f.staleIfError,
 			ETag:                 responseHeader.Get("ETag"),
 			LastModified:         responseHeader.Get("Last-Modified"),
@@ -920,6 +1008,26 @@ func (f *cacheFilter) resolveTTL(statusCode int, header http.Header, directives 
 	// Store even when TTL=0 (expired/invalid Expires or max-age=0) so
 	// ETag/Last-Modified are preserved for conditional revalidation (§5.2.2.4).
 	return ttl, true
+}
+
+// resolveSWR decides the stale-while-revalidate window for a stored entry.
+//
+// Force mode (rfcMode==false): operator swrWindow is authoritative, matching
+// resolveTTL's force-mode behavior.
+//
+// RFC mode (rfcMode==true): honors the response's stale-while-revalidate
+// directive (RFC 5861 §3) when present; otherwise there is no SWR window.
+func (f *cacheFilter) resolveSWR(statusCode int, directives cacheDirectives) time.Duration {
+	if statusCode != http.StatusOK {
+		return 0
+	}
+	if !f.rfcMode {
+		return f.swrWindow
+	}
+	if directives.staleWhileRevalidate >= 0 {
+		return time.Duration(directives.staleWhileRevalidate) * time.Second
+	}
+	return 0
 }
 
 // cacheKey builds a deterministic cache key from the route ID and request.
