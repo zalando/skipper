@@ -78,6 +78,7 @@ func initApplicationLog(o Options) {
 
 func createAccessLog(o Options) *AccessLogger {
 	l := logrus.New()
+	defaultText := false
 	if o.AccessLogFormatter != nil {
 		l.Formatter = o.AccessLogFormatter
 	} else if o.AccessLogJSONEnabled {
@@ -88,13 +89,15 @@ func createAccessLog(o Options) *AccessLogger {
 		}
 	} else {
 		l.Formatter = &accessLogFormatter{accessLogFormat}
+		defaultText = true
 	}
 	l.Out = o.AccessLogOutput
 	l.Level = logrus.InfoLevel
 
 	return &AccessLogger{
-		stripQuery: o.AccessLogStripQuery,
-		log:        l,
+		stripQuery:  o.AccessLogStripQuery,
+		log:         l,
+		defaultText: defaultText,
 	}
 }
 

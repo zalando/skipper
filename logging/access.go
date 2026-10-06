@@ -54,8 +54,9 @@ type AccessEntry struct {
 }
 
 type AccessLogger struct {
-	log        *logrus.Logger
-	stripQuery bool
+	log         *logrus.Logger
+	stripQuery  bool
+	defaultText bool
 }
 
 // strip port from addresses with hostname, ipv4 or ipv6
@@ -93,6 +94,10 @@ func omitWhitespace(h string) string {
 }
 
 func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
+	if len(e.Data) == 0 && e.Message != "" {
+		return []byte(e.Message), nil
+	}
+
 	keys := []string{
 		"host", "auth-user", "timestamp", "method", "uri", "proto",
 		"status", "response-size", "referer", "user-agent",
@@ -179,6 +184,32 @@ func (alog *AccessLogger) LogAccess(entry *AccessEntry, additional map[string]an
 		}
 
 		auditHeader = entry.Request.Header.Get(logFilter.UnverifiedAuditHeader)
+	}
+
+	if alog.defaultText && len(additional) == 0 {
+		message := fmt.Sprintf(
+			accessLogFormat,
+			omitWhitespace(host),
+			omitWhitespace(authUser),
+			omitWhitespace(ts),
+			omitWhitespace(method),
+			omitWhitespace(uri),
+			omitWhitespace(proto),
+			status,
+			responseSize,
+			omitWhitespace(referer),
+			omitWhitespace(userAgent),
+			duration,
+			omitWhitespace(requestedHost),
+			omitWhitespace(flowID),
+			omitWhitespace(auditHeader),
+		)
+		if entry.Request != nil {
+			alog.log.WithContext(entry.Request.Context()).Info(message)
+		} else {
+			alog.log.Info(message)
+		}
+		return
 	}
 
 	logData := logrus.Fields{
