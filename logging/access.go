@@ -95,7 +95,11 @@ func omitWhitespace(h string) string {
 
 func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	if len(e.Data) == 0 && e.Message != "" {
-		return []byte(e.Message), nil
+		if e.Buffer == nil {
+			return []byte(e.Message), nil
+		}
+		_, _ = e.Buffer.WriteString(e.Message)
+		return e.Buffer.Bytes(), nil
 	}
 
 	keys := []string{
