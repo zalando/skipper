@@ -153,64 +153,25 @@ func (s *cacheSpec) Close() error {
 
 func (s *cacheSpec) CreateFilter(args []any) (filters.Filter, error) {
 	// Valid arg counts:
-	//   0              → RFC mode, no keyHeaders
-	//   1              → RFC mode, arg0 = keyHeaders (comma-separated header names)
+	//   0, 1           → RFC mode: cache() or cache(keyHeaders)
 	//   3, 4, 5        → force mode: ttl, errorTTL, swrWindow[, staleIfError[, keyHeaders]]
-	if len(args) == 2 || len(args) > 5 {
-		return nil, fmt.Errorf("cache: expected 0, 1, or 3-5 args (RFC: [keyHeaders]; force: ttl, errorTTL, swrWindow[, staleIfError[, keyHeaders]]), got %d: %w", len(args), filters.ErrInvalidFilterParameters)
-	}
-
-	rfcMode := len(args) <= 1 // zero or one arg → RFC mode
-
-	var ttl, errorTTL, swr, staleIfError time.Duration
-	if len(args) >= 3 {
-		var err error
-		ttl, err = toDuration(args[0])
-		if err != nil {
-			return nil, fmt.Errorf("cache: arg 0 (ttl): %v: %w", err, filters.ErrInvalidFilterParameters)
-		}
-
-		errorTTL, err = toDuration(args[1])
-		if err != nil {
-			return nil, fmt.Errorf("cache: arg 1 (errorTTL): %v: %w", err, filters.ErrInvalidFilterParameters)
-		}
-
-		swr, err = toDuration(args[2])
-		if err != nil {
-			return nil, fmt.Errorf("cache: arg 2 (swrWindow): %v: %w", err, filters.ErrInvalidFilterParameters)
-		}
-
-		if len(args) >= 4 {
-			if _, ok := args[3].(string); !ok {
-				return nil, fmt.Errorf("cache: arg 3 (staleIfError): expected string, got %T: %w", args[3], filters.ErrInvalidFilterParameters)
-			}
-			staleIfError, err = time.ParseDuration(args[3].(string))
-			if err != nil {
-				return nil, fmt.Errorf("cache: arg 3 (staleIfError): %v: %w", err, filters.ErrInvalidFilterParameters)
-			}
-		}
-	}
-
-	var keyHeaders []string
-	var keyHeadersRaw string
+	var (
+		rfcMode                          bool
+		ttl, errorTTL, swr, staleIfError time.Duration
+		keyHeaders                       []string
+		err                              error
+	)
 	switch {
-	case len(args) == 1:
-		raw, ok := args[0].(string)
-		if !ok {
-			return nil, fmt.Errorf("cache: arg 0 (keyHeaders): expected string, got %T: %w", args[0], filters.ErrInvalidFilterParameters)
-		}
-		keyHeadersRaw = raw
-	case len(args) == 5:
-		raw, ok := args[4].(string)
-		if !ok {
-			return nil, fmt.Errorf("cache: arg 4 (keyHeaders): expected string, got %T: %w", args[4], filters.ErrInvalidFilterParameters)
-		}
-		keyHeadersRaw = raw
+	case len(args) <= 1:
+		rfcMode = true
+		keyHeaders, err = parseRFCModeArgs(args)
+	case len(args) >= 3 && len(args) <= 5:
+		ttl, errorTTL, swr, staleIfError, keyHeaders, err = parseForceModeArgs(args)
+	default:
+		err = fmt.Errorf("cache: expected 0, 1, or 3-5 args (RFC: [keyHeaders]; force: ttl, errorTTL, swrWindow[, staleIfError[, keyHeaders]]), got %d: %w", len(args), filters.ErrInvalidFilterParameters)
 	}
-	for h := range strings.SplitSeq(keyHeadersRaw, ",") {
-		if name := strings.TrimSpace(h); name != "" {
-			keyHeaders = append(keyHeaders, http.CanonicalHeaderKey(name))
-		}
+	if err != nil {
+		return nil, err
 	}
 
 	sort.Strings(keyHeaders) // canonical order for registry key
@@ -247,6 +208,74 @@ func (s *cacheSpec) CreateFilter(args []any) (filters.Filter, error) {
 	cf.fetch = s.client.Do
 	s.filters[fk] = cf
 	return cf, nil
+}
+
+// parseRFCModeArgs handles cache() and cache(keyHeaders) — 0 or 1 argument.
+// RFC mode has no other configurable knobs: upstream Cache-Control is
+// authoritative.
+func parseRFCModeArgs(args []any) ([]string, error) {
+	if len(args) == 0 {
+		return nil, nil
+	}
+	raw, ok := args[0].(string)
+	if !ok {
+		return nil, fmt.Errorf("cache: arg 0 (keyHeaders): expected string, got %T: %w", args[0], filters.ErrInvalidFilterParameters)
+	}
+	return canonicalKeyHeaders(raw), nil
+}
+
+// parseForceModeArgs handles cache(ttl, errorTTL, swrWindow[, staleIfError[, keyHeaders]])
+// — 3 to 5 arguments. Force mode: operator-supplied values are authoritative;
+// upstream Cache-Control freshness directives are ignored.
+func parseForceModeArgs(args []any) (ttl, errorTTL, swr, staleIfError time.Duration, keyHeaders []string, err error) {
+	ttl, err = toDuration(args[0])
+	if err != nil {
+		return 0, 0, 0, 0, nil, fmt.Errorf("cache: arg 0 (ttl): %v: %w", err, filters.ErrInvalidFilterParameters)
+	}
+
+	errorTTL, err = toDuration(args[1])
+	if err != nil {
+		return 0, 0, 0, 0, nil, fmt.Errorf("cache: arg 1 (errorTTL): %v: %w", err, filters.ErrInvalidFilterParameters)
+	}
+
+	swr, err = toDuration(args[2])
+	if err != nil {
+		return 0, 0, 0, 0, nil, fmt.Errorf("cache: arg 2 (swrWindow): %v: %w", err, filters.ErrInvalidFilterParameters)
+	}
+
+	if len(args) >= 4 {
+		raw, ok := args[3].(string)
+		if !ok {
+			return 0, 0, 0, 0, nil, fmt.Errorf("cache: arg 3 (staleIfError): expected string, got %T: %w", args[3], filters.ErrInvalidFilterParameters)
+		}
+		staleIfError, err = time.ParseDuration(raw)
+		if err != nil {
+			return 0, 0, 0, 0, nil, fmt.Errorf("cache: arg 3 (staleIfError): %v: %w", err, filters.ErrInvalidFilterParameters)
+		}
+	}
+
+	if len(args) == 5 {
+		raw, ok := args[4].(string)
+		if !ok {
+			return 0, 0, 0, 0, nil, fmt.Errorf("cache: arg 4 (keyHeaders): expected string, got %T: %w", args[4], filters.ErrInvalidFilterParameters)
+		}
+		keyHeaders = canonicalKeyHeaders(raw)
+	}
+
+	return ttl, errorTTL, swr, staleIfError, keyHeaders, nil
+}
+
+// canonicalKeyHeaders splits a comma-separated header-name list into
+// canonical form. Shared by RFC-mode (1-arg) and force-mode (5-arg) keyHeaders
+// parsing — the only part of arg parsing that's genuinely common to both modes.
+func canonicalKeyHeaders(raw string) []string {
+	var keyHeaders []string
+	for h := range strings.SplitSeq(raw, ",") {
+		if name := strings.TrimSpace(h); name != "" {
+			keyHeaders = append(keyHeaders, http.CanonicalHeaderKey(name))
+		}
+	}
+	return keyHeaders
 }
 
 // revalidationWorker is the single background goroutine (spec-level, shared across
