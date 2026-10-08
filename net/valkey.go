@@ -2,6 +2,8 @@ package net
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"math"
@@ -74,6 +76,11 @@ type ValkeyOptions struct {
 	// Hook see https://pkg.go.dev/github.com/valkey-io/valkey-go/valkeyhook
 	Hook valkeyhook.Hook
 
+	EnableTLS bool
+
+	Certificates []tls.Certificate
+	CA           *x509.CertPool
+
 	// EnableOTel enables OpenTelemetry adapter, see https://pkg.go.dev/github.com/valkey-io/valkey-go/valkeyotel
 	EnableOTel bool
 	// OTelOptions
@@ -117,6 +124,12 @@ func createValkeyClient(addr string, opt *ValkeyOptions) (valkey.Client, error) 
 		err error
 	)
 
+	if opt.EnableTLS {
+		clientOptions.TLSConfig = &tls.Config{
+			Certificates: opt.Certificates,
+			RootCAs:      opt.CA,
+		}
+	}
 	if opt.EnableOTel {
 		cli, err = valkeyotel.NewClient(clientOptions, opt.OTelOptions...)
 	} else {

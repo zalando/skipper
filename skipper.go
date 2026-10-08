@@ -1180,6 +1180,9 @@ type Options struct {
 	SwarmValkeyKeepAlive          time.Duration
 	SwarmValkeyConnLifetime       time.Duration
 	SwarmValkeyUpdateInterval     time.Duration
+	SwarmValkeyEnableTLS          bool
+	SwarmValkeyCertificates       []tls.Certificate
+	SwarmValkeyCA                 *x509.CertPool
 	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
@@ -2262,6 +2265,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				DialTimeout:      o.SwarmValkeyDialTimeout,
 				KeepAlive:        o.SwarmValkeyKeepAlive,
 				ConnLifetime:     o.SwarmValkeyConnLifetime,
+				EnableTLS:        o.SwarmValkeyEnableTLS,
+				Certificates:     o.SwarmValkeyCertificates,
+				CA:               o.SwarmValkeyCA,
 				Tracer:           tracer,
 				Log:              log.New(),
 			}
