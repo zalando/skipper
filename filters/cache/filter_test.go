@@ -719,6 +719,9 @@ func TestCacheFilter_ColdMissCoalescing_FetchError_CoalesceErrorMetric(t *testin
 			t.Errorf("expected cache.coalesce_error==1, got %d", counters["cache.coalesce_error"])
 		}
 	})
+	if got, _ := mockMetrics.CacheResultCount("coalesce_error", "n/a"); got != 1 {
+		t.Errorf("expected labeled coalesce_error/n_a=1, got %d", got)
+	}
 }
 
 func TestCacheFilter_RequestNoStore_NotCached(t *testing.T) {
@@ -3517,6 +3520,173 @@ func TestCacheSpec_FilterRegistry_InFlightJobsSurviveRebuild(t *testing.T) {
 	}
 }
 
+func TestCacheFilter_LabeledMetrics_CacheResultHit2xx(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/test", "", "route1")
+	f.Request(ctx1)
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/test", "", "route1")
+	f.Request(ctx2)
+	if ctx2.FResponse == nil {
+		t.Fatal("expected HIT")
+	}
+	if ctx2.FResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", ctx2.FResponse.StatusCode)
+	}
+	if got, _ := mockMetrics.CacheResultCount("hit", "2xx"); got != 1 {
+		t.Errorf("expected labeled hit/2xx=1, got %d", got)
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_CacheResultHit4xx(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusNotFound, "not found", "max-age=60")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/notfound", "", "route1")
+	f.Request(ctx1)
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/notfound", "", "route1")
+	f.Request(ctx2)
+	if ctx2.FResponse == nil {
+		t.Fatal("expected HIT")
+	}
+	if ctx2.FResponse.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", ctx2.FResponse.StatusCode)
+	}
+	if got, _ := mockMetrics.CacheResultCount("hit", "4xx"); got != 1 {
+		t.Errorf("expected labeled hit/4xx=1 — this is the cache-poisoning signal (serving a cached error as a hit), got %d", got)
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_CacheResultHit5xx(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusServiceUnavailable, "unavailable", "max-age=30")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/unavail", "", "route1")
+	f.Request(ctx1)
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/unavail", "", "route1")
+	f.Request(ctx2)
+	if ctx2.FResponse == nil {
+		t.Fatal("expected HIT")
+	}
+	if ctx2.FResponse.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", ctx2.FResponse.StatusCode)
+	}
+	if got, _ := mockMetrics.CacheResultCount("hit", "5xx"); got != 1 {
+		t.Errorf("expected labeled hit/5xx=1, got %d", got)
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_CacheResultMiss(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx := newCtxWithRoute(http.MethodGet, "http://example.com/miss", "", "route1")
+	f.Request(ctx)
+	if ctx.FResponse == nil {
+		t.Fatal("expected response")
+	}
+	if ctx.FResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", ctx.FResponse.StatusCode)
+	}
+	if got, _ := mockMetrics.CacheResultCount("miss", "2xx"); got != 1 {
+		t.Errorf("expected labeled miss/2xx=1, got %d", got)
+	}
+	// The LRU-bytes bug fix: the gauge must update on miss too, not just hit.
+	if _, ok := mockMetrics.CacheLRUBytes("route1"); !ok {
+		t.Error("expected per-route LRU bytes gauge to be set on a miss, got none")
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_CacheResultStale(t *testing.T) {
+	// newTestFilter is force mode: ttl/errorTTL/swrWindow are operator-set and
+	// upstream Cache-Control is ignored, so the fixture must use these directly
+	// rather than a Cache-Control max-age (which force mode does not consult).
+	f := newTestFilter(t, time.Second, 10*time.Second, 5*time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusOK, "body", "")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/stale", "", "route1")
+	f.Request(ctx1)
+
+	time.Sleep(2 * time.Second) // past the 1s TTL, still within the 5s SWR window
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/stale", "", "route1")
+	f.Request(ctx2)
+	if ctx2.FResponse == nil {
+		t.Fatal("expected STALE response")
+	}
+	if got := ctx2.FResponse.Header.Get(cacheStatusHeader); got != cacheStatusStale {
+		t.Fatalf("expected X-Cache-Status: %s, got %q", cacheStatusStale, got)
+	}
+	if got, _ := mockMetrics.CacheResultCount("stale", "2xx"); got != 1 {
+		t.Errorf("expected labeled stale/2xx=1, got %d", got)
+	}
+	// The LRU-bytes bug fix: the gauge must update on stale too, not just hit.
+	if _, ok := mockMetrics.CacheLRUBytes("route1"); !ok {
+		t.Error("expected per-route LRU bytes gauge to be set on a stale serve, got none")
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_RouteLabeledLRUBytes(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusOK, "body content", "max-age=300")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/lru1", "", "route1")
+	f.Request(ctx1)
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/lru2", "", "route2")
+	f.Request(ctx2)
+
+	if f.storage == nil {
+		t.Fatal("storage not initialized")
+	}
+	b1, ok1 := mockMetrics.CacheLRUBytes("route1")
+	if !ok1 || b1 <= 0 {
+		t.Errorf("expected positive LRU bytes gauge for route1, got %v (ok=%v)", b1, ok1)
+	}
+	b2, ok2 := mockMetrics.CacheLRUBytes("route2")
+	if !ok2 || b2 <= 0 {
+		t.Errorf("expected positive LRU bytes gauge for route2, got %v (ok=%v)", b2, ok2)
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_StorageError(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	f.storage = &failingSetStorage{f.storage}
+	rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx := newCtxWithRoute(http.MethodGet, "http://example.com/storage-error", "", "route1")
+	f.Request(ctx)
+
+	if got, _ := mockMetrics.CacheResultCount("storage_error", "n/a"); got != 1 {
+		t.Errorf("expected labeled storage_error/n_a=1 (cold-miss Set failure), got %d", got)
+	}
+}
+
 func Benchmark_malicious_matchesETag(b *testing.B) {
 	ifNoneMatch := strings.Repeat(",", http.DefaultMaxHeaderBytes)
 	b.ReportAllocs()
@@ -4924,6 +5094,9 @@ func TestCacheFilter_Coalesce_LeaderNeverRefetches(t *testing.T) {
 			t.Errorf("expected cache.coalesce_bypass_error == 0, got %d", got)
 		}
 	})
+	if got, want := func() int64 { v, _ := mockMetrics.CacheResultCount("coalesce_bypass", "n/a"); return v }(), int64(N-1); got != want {
+		t.Errorf("expected labeled coalesce_bypass/n_a == %d, got %d", want, got)
+	}
 
 	for i, ctx := range results {
 		if !ctx.FServed {
@@ -5018,6 +5191,9 @@ func TestCacheFilter_Coalesce_VaryMismatch_IndependentFetch(t *testing.T) {
 			t.Errorf("expected cache.coalesce_bypass_error == 0, got %d", got)
 		}
 	})
+	if got, want := func() int64 { v, _ := mockMetrics.CacheResultCount("coalesce_bypass", "n/a"); return v }(), fetchCount.Load()-1; got != want {
+		t.Errorf("expected labeled coalesce_bypass/n_a == %d (fetchCount-1), got %d", want, got)
+	}
 
 	for i, ctx := range results {
 		if !ctx.FServed {
