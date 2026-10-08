@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -392,6 +393,97 @@ func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	l2SetFallback, _ = m.Counter("cache.l2_set_fallback")
 	if l2SetFallback != 1 {
 		t.Errorf("l2_set_fallback should still be 1, got %d", l2SetFallback)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_L2Miss(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	if _, err := s.Get(context.Background(), "missing"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l2_miss", "n/a"); got != 1 {
+		t.Errorf("expected labeled l2_miss/n_a=1, got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_L2GetError(t *testing.T) {
+	stub := newBrokenStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	if _, err := s.Get(context.Background(), "k"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l2_get_error", "n/a"); got != 1 {
+		t.Errorf("expected labeled l2_get_error/n_a=1, got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_L2Hit(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil) // l1TTL=0: write-around, forces a real L2 Get
+
+	ctx := context.Background()
+	if err := s.Set(ctx, "k", &Entry{StatusCode: http.StatusNotFound, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	if _, err := s.Get(ctx, "k"); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l2_hit", "4xx"); got != 1 {
+		t.Errorf("expected labeled l2_hit/4xx=1 (entry StatusCode 404), got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_L1Hit(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 60*time.Second, valkey.IsValkeyNil) // l1TTL>0: write-through warms L1
+
+	ctx := context.Background()
+	if err := s.Set(ctx, "k", &Entry{StatusCode: http.StatusOK, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	stub.broken = true // any Get must now be served from the warmed L1
+	if _, err := s.Get(ctx, "k"); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l1_hit", "2xx"); got != 1 {
+		t.Errorf("expected labeled l1_hit/2xx=1, got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_L2SetFallback(t *testing.T) {
+	stub := newBrokenStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	if err := s.Set(context.Background(), "k", &Entry{StatusCode: http.StatusOK, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("Set should fall back to L1, not error: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l2_set_fallback", "2xx"); got != 1 {
+		t.Errorf("expected labeled l2_set_fallback/2xx=1, got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_StorageErrorOnDelete(t *testing.T) {
+	stub := newBrokenStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	_ = s.Delete(context.Background(), "k") // Valkey Delete errors; L1 delete still runs
+	if got, _ := m.CacheResultCount("storage_error", "n/a"); got != 1 {
+		t.Errorf("expected labeled storage_error/n_a=1, got %d", got)
 	}
 }
 

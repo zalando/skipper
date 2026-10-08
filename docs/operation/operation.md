@@ -322,6 +322,14 @@ To monitor skipper we recommend the following queries:
 - P99 response filter duration (depends on label selector): `histogram_quantile(0.99, sum(rate(skipper_filter_response_duration_seconds_bucket{application="skipper-ingress"}[1m])) by (le) )`
 - If you use Kubernetes limits or Linux cgroup CFS quotas (depends on label selector): `sum(rate(container_cpu_cfs_throttled_periods_total{container_name="skipper-ingress"}[1m]))`
 
+#### Cache filter metrics
+
+When the cache filter is active, the following labeled metrics are exposed:
+
+- `skipper_cache_result_total{result="...", code_class="2xx|4xx|5xx|other|n/a"}` - Counter for cache-related outcomes by result type and HTTP status code class. `result` covers the same outcomes as the flat `skipper_custom_total{key="cache.*"}` counters below — `hit`, `miss`, `stale`, `storage_error`, `coalesce_error`, `coalesce_bypass`, `coalesce_bypass_error`, and, when an L2 (Valkey) store is configured, `l1_hit`, `l2_hit`, `l2_miss`, `l2_get_error`, `l2_set_fallback`. `code_class` is only meaningful for outcomes with a cached response in hand (`hit`, `miss`, `stale`, `l1_hit`, `l2_hit`, `l2_set_fallback`); for outcomes with no response to classify (`storage_error`, `coalesce_error`, `coalesce_bypass`, `coalesce_bypass_error`, `l2_miss`, `l2_get_error`) it is the literal string `n/a`. A rising `hit`/`4xx` or `hit`/`5xx` series indicates the cache is serving an error response as a hit — investigate the upstream response and cache-control directives for that route. Cardinality is bounded by the number of distinct (result, code_class) pairs actually emitted.
+- `skipper_cache_lru_bytes{route="..."}` - Gauge for per-route LRU (L1) cache storage consumption in bytes, updated on every hit, miss, and stale serve. Cardinality bounded by the number of distinct routes.
+- The flat-key counters `skipper_custom_total{key="cache.hit"}`, `cache.miss`, `cache.stale`, and the rest of the `cache.*` keys above are the primary, directly-emitted metrics — `skipper_cache_result_total`/`skipper_cache_lru_bytes` are an additional labeled breakdown of the same underlying events, not a replacement for them.
+
 You may add static metrics labels like `version` using Prometheus [relabeling feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config).
 
 ### Prometheus native histograms
