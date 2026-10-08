@@ -22,6 +22,19 @@ const logExtendedJSONOutput = `{"audit":"","auth-user":"","duration":42,"extra":
 type accessCustomFormatter struct{}
 type accessLogContextKey struct{}
 
+type accessEntryHook struct {
+	context   context.Context
+	status    any
+	hasStatus bool
+}
+
+func (h *accessEntryHook) Levels() []logrus.Level { return []logrus.Level{logrus.InfoLevel} }
+func (h *accessEntryHook) Fire(entry *logrus.Entry) error {
+	h.context = entry.Context
+	h.status, h.hasStatus = entry.Data["status"]
+	return nil
+}
+
 func (c accessCustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 	if entry.Context != nil {
@@ -114,6 +127,25 @@ func TestAccessLogFormatFull(t *testing.T) {
 	testAccessLogDefault(t, testAccessEntry(), logOutput)
 }
 
+func TestAccessLogDefaultRetainsRequestContext(t *testing.T) {
+	entry := testAccessEntry()
+	ctx := context.WithValue(entry.Request.Context(), accessLogContextKey{}, "default-text")
+	entry.Request = entry.Request.WithContext(ctx)
+
+	var buf bytes.Buffer
+	logger := NewAccessLogger(Options{AccessLogOutput: &buf})
+	hook := &accessEntryHook{}
+	logger.log.AddHook(hook)
+	logger.LogAccess(entry, nil)
+
+	if hook.context != ctx {
+		t.Fatal("access log entry did not keep the incoming request context")
+	}
+	if got := buf.Bytes(); len(got) == 0 || got[len(got)-1] != '\n' {
+		t.Fatalf("access log line has no newline: %q", got)
+	}
+}
+
 func TestAccessLogFormatJSON(t *testing.T) {
 	testAccessLog(t, testAccessEntry(), logJSONOutput, Options{AccessLogJSONEnabled: true})
 }
@@ -133,6 +165,43 @@ func TestAccessLogFormatJSONWithMaskedQueryParameters(t *testing.T) {
 		`{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif?foo=5234164152756840025","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
+}
+
+func TestAccessLogDefaultWithAdditionalData(t *testing.T) {
+	entry := testAccessEntryWithQueryParameters(url.Values{"foo": {"bar"}})
+	additional := map[string]any{
+		al.KeyMaskedQueryParams: map[string]struct{}{"foo": {}},
+		"status":                http.StatusCreated,
+		"response-size":         int64(10),
+	}
+
+	var buf bytes.Buffer
+	logger := NewAccessLogger(Options{AccessLogOutput: &buf})
+	logger.LogAccess(entry, additional)
+
+	if _, ok := additional[al.KeyMaskedQueryParams]; ok {
+		t.Fatal("masked query data was not removed from the supplemental map")
+	}
+
+	const want = `127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif?foo=5234164152756840025 HTTP/1.1" 201 10 "-" "-" 42 example.com - -` + "\n"
+	if got := buf.String(); got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestAccessLogDefaultRejectsUnsupportedAdditionalValue(t *testing.T) {
+	var buf bytes.Buffer
+	logger := NewAccessLogger(Options{AccessLogOutput: &buf})
+	hook := &accessEntryHook{}
+	logger.log.AddHook(hook)
+	logger.LogAccess(testAccessEntry(), map[string]any{"status": func() {}})
+
+	if hook.hasStatus {
+		t.Fatalf("unsupported status value reached the log entry: %v", hook.status)
+	}
+	if got := buf.Bytes(); len(got) == 0 || got[len(got)-1] != '\n' {
+		t.Fatalf("access log line has no newline: %q", got)
+	}
 }
 
 func TestAccessLogIgnoresEmptyEntry(t *testing.T) {

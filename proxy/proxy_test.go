@@ -2160,6 +2160,112 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 	}
 }
 
+func TestConcurrentAccessLogValueCopy(t *testing.T) {
+	var output bytes.Buffer
+	accessLogger := logging.NewAccessLogger(logging.Options{AccessLogOutput: &output})
+	accessLoggerCopy := *accessLogger
+
+	doc := `
+		fast: Path("/fast") -> status(200) -> inlineContent("some bytes") -> <shunt>;
+		masked: Path("/masked") -> maskAccessLogQuery("token") -> status(200) -> inlineContent("some bytes") -> <shunt>;
+	`
+	tp, err := newTestProxyWithParams(doc, Params{
+		AccessLogDisabled: false,
+		AccessLogger:      &accessLoggerCopy,
+		Flags:             FlagsNone,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tp.close()
+
+	const requestsPerPath = 16
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	startRequest := func(fn func()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			fn()
+		}()
+	}
+
+	for i := 0; i < requestsPerPath; i++ {
+		i := i
+		startRequest(func() {
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("http://example.org/fast?request=%d", i), nil)
+			r.RequestURI = r.URL.RequestURI()
+			w := httptest.NewRecorder()
+			tp.proxy.ServeHTTP(w, r)
+			if w.Code != http.StatusOK || w.Body.String() != "some bytes" {
+				t.Errorf("fast response = %d %q", w.Code, w.Body.String())
+			}
+		})
+		startRequest(func() {
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("http://example.org/masked?request=%d&token=secret-%d", i, i), nil)
+			r.RequestURI = r.URL.RequestURI()
+			w := httptest.NewRecorder()
+			tp.proxy.ServeHTTP(w, r)
+			if w.Code != http.StatusOK || w.Body.String() != "some bytes" {
+				t.Errorf("masked response = %d %q", w.Code, w.Body.String())
+			}
+		})
+		startRequest(func() {
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("http://example.org/direct/%d", i), nil)
+			r.RequestURI = r.URL.RequestURI()
+			accessLogger.LogAccess(&logging.AccessEntry{
+				Request:      r,
+				StatusCode:   http.StatusOK,
+				ResponseSize: int64(len("some bytes")),
+				RequestTime:  time.Now(),
+				Duration:     time.Millisecond,
+			}, nil)
+		})
+	}
+	close(start)
+	wg.Wait()
+
+	text := output.String()
+	if !strings.HasSuffix(text, "\n") {
+		t.Fatalf("access log output is not newline-terminated: %q", text)
+	}
+	lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+	if len(lines) != 3*requestsPerPath {
+		t.Fatalf("got %d log lines, want %d", len(lines), 3*requestsPerPath)
+	}
+
+	counts := map[string]int{"direct": 0, "fast": 0, "masked": 0}
+	seen := make(map[string]struct{}, len(lines))
+	for _, line := range lines {
+		if !strings.Contains(line, `HTTP/1.1" 200 10 `) {
+			t.Errorf("incomplete access log line: %q", line)
+		}
+		if strings.Contains(line, "secret-") {
+			t.Errorf("masked query value leaked in access log line: %q", line)
+		}
+		if _, ok := seen[line]; ok {
+			t.Errorf("duplicate access log line: %q", line)
+		}
+		seen[line] = struct{}{}
+		switch {
+		case strings.Contains(line, `"GET /direct/`):
+			counts["direct"]++
+		case strings.Contains(line, `"GET /fast?request=`):
+			counts["fast"]++
+		case strings.Contains(line, `"GET /masked?request=`):
+			counts["masked"]++
+		default:
+			t.Errorf("unexpected access log line: %q", line)
+		}
+	}
+	for path, count := range counts {
+		if count != requestsPerPath {
+			t.Errorf("got %d %s log lines, want %d", count, path, requestsPerPath)
+		}
+	}
+}
+
 func TestHopHeaderRemovalDisabled(t *testing.T) {
 	payload := []byte("Hello World!")
 
