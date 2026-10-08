@@ -197,6 +197,24 @@ If you have [routesrv proxy](https://opensource.zalando.com/skipper/kubernetes/i
 you need to configure Skipper with the flag `-swarm-valkey-remote=http://<routesrv-service-name>.<routesrv-namespace>.svc.cluster.local/swarm/valkey/shards`.
 `Routesrv` will be responsible for collecting Valkey endpoints and Skipper will poll them from it.
 
+#### TLS / mutual TLS
+
+To connect to Valkey over mutual TLS, enable TLS and provide Skipper's client
+keypair plus the CA bundle that signs the Valkey server certificate:
+
+```
+-swarm-valkey-enable-tls
+-swarm-valkey-client-cert=/path/client.crt
+-swarm-valkey-client-key=/path/client.key
+-swarm-valkey-ca=/path/ca.crt
+```
+
+Skipper presents the client certificate to Valkey and verifies the Valkey
+server certificate against the CA bundle. The server certificate must carry a
+SAN matching the address Skipper dials via `-swarm-valkey-urls`. Multiple CA
+files may be given comma-separated. Only one client cert and one key file are
+supported, and the keypair is loaded once at startup (no rotation).
+
 #### Implementation
 
 The implementation use [Valkey-Go
