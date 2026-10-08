@@ -100,6 +100,10 @@ type Options struct {
 	// endpointslices instead of endpoints to scale more than 1000 pods within a service
 	KubernetesEnableEndpointslices bool
 
+	// KubernetesListChunkSize configures the chunk size (limit parameter) when listing
+	// Kubernetes resources. If 0 or negative, pagination is disabled.
+	KubernetesListChunkSize int
+
 	// *DEPRECATED* KubernetesEnableEastWest if set adds automatically routes
 	// with "%s.%s.skipper.cluster.local" domain pattern
 	KubernetesEnableEastWest bool

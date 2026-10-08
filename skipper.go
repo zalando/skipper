@@ -296,6 +296,10 @@ type Options struct {
 	// in the cluster-scope.
 	KubernetesNamespace string
 
+	// KubernetesListChunkSize configures the chunk size (limit parameter) when listing
+	// Kubernetes resources. If 0 or negative, pagination is disabled.
+	KubernetesListChunkSize int
+
 	// KubernetesEnableEndpointslices if set skipper will fetch
 	// endpointslices instead of endpoints to scale more than 1000
 	// pods within a service
@@ -1234,6 +1238,7 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		KubernetesURL:                                  o.KubernetesURL,
 		TokenFile:                                      o.KubernetesTokenFile,
 		KubernetesNamespace:                            o.KubernetesNamespace,
+		KubernetesListChunkSize:                        o.KubernetesListChunkSize,
 		KubernetesEnableEastWest:                       o.KubernetesEnableEastWest,
 		KubernetesEnableEndpointslices:                 o.KubernetesEnableEndpointslices,
 		KubernetesEastWestDomain:                       o.KubernetesEastWestDomain,

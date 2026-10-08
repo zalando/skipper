@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -230,7 +231,9 @@ func parseSelectors(r *http.Request) map[string]string {
 	selectors := map[string]string{}
 	for selector := range strings.SplitSeq(rawSelector, ",") {
 		kv := strings.Split(selector, "=")
-		selectors[kv[0]] = kv[1]
+		if len(kv) == 2 {
+			selectors[kv[0]] = kv[1]
+		}
 	}
 
 	return selectors
@@ -238,7 +241,10 @@ func parseSelectors(r *http.Request) map[string]string {
 
 func serve(w http.ResponseWriter, r *http.Request, resources []byte, name string) {
 	selectors := parseSelectors(r)
-	if name == "" && len(selectors) == 0 {
+	limitStr := r.URL.Query().Get("limit")
+	continueToken := r.URL.Query().Get("continue")
+
+	if name == "" && len(selectors) == 0 && limitStr == "" && continueToken == "" {
 		w.Write(resources)
 		return
 	}
@@ -296,8 +302,45 @@ func serve(w http.ResponseWriter, r *http.Request, resources []byte, name string
 		}
 	}
 
+	var limit int
+	if limitStr != "" {
+		var err error
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil || limit < 0 {
+			http.Error(w, "invalid limit parameter", http.StatusBadRequest)
+			return
+		}
+	}
+
+	offset := 0
+	if continueToken != "" {
+		var err error
+		offset, err = strconv.Atoi(continueToken)
+		if err != nil || offset < 0 {
+			http.Error(w, "invalid continue token", http.StatusBadRequest)
+			return
+		}
+		if offset > len(filteredItems) {
+			w.WriteHeader(http.StatusGone)
+			return
+		}
+	}
+
+	var nextContinue string
+	if limit > 0 {
+		end := offset + limit
+		if end < len(filteredItems) {
+			nextContinue = strconv.Itoa(end)
+			filteredItems = filteredItems[offset:end]
+		} else if offset <= len(filteredItems) {
+			filteredItems = filteredItems[offset:]
+		}
+	} else if offset > 0 {
+		filteredItems = filteredItems[offset:]
+	}
+
 	var result []byte
-	if err := itemsJSON(&result, filteredItems); err != nil {
+	if err := itemsJSONWithContinue(&result, filteredItems, nextContinue); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	} else {
 		w.Write(result)
@@ -333,7 +376,16 @@ func initNamespace(kinds map[string][]any) (ns namespace, err error) {
 }
 
 func itemsJSON(b *[]byte, o []any) error {
+	return itemsJSONWithContinue(b, o, "")
+}
+
+func itemsJSONWithContinue(b *[]byte, o []any, continueToken string) error {
 	items := map[string]any{"items": o}
+	if continueToken != "" {
+		items["metadata"] = map[string]any{
+			"continue": continueToken,
+		}
+	}
 
 	// converting back to YAML, because we have YAMLToJSON() for bytes, and
 	// the data in `o` contains YAML parser style keys of type interface{}
