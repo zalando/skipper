@@ -64,6 +64,9 @@ func (s *L2Storage) Get(ctx context.Context, key string) (*Entry, error) {
 	if e, err := s.l1.Get(ctx, key); err == nil && e != nil {
 		if !e.IsStale(time.Now()) {
 			s.metrics.IncCounter("cache.l1_hit")
+			if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
+				p.IncCacheResult("l1_hit", statusCodeClass(e.StatusCode))
+			}
 			return e, nil
 		}
 		// Stale L1 entry — fall through to L2.
@@ -73,9 +76,15 @@ func (s *L2Storage) Get(ctx context.Context, key string) (*Entry, error) {
 	if err != nil {
 		if s.isNoErr(err) {
 			s.metrics.IncCounter("cache.l2_miss")
+			if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
+				p.IncCacheResult("l2_miss", "n/a")
+			}
 			return nil, nil
 		}
 		s.metrics.IncCounter("cache.l2_get_error")
+		if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
+			p.IncCacheResult("l2_get_error", "n/a")
+		}
 		log.WithError(err).Error("cache: L2 Get failed, treating as miss")
 		return nil, nil
 	}
@@ -84,6 +93,9 @@ func (s *L2Storage) Get(ctx context.Context, key string) (*Entry, error) {
 		return nil, fmt.Errorf("cache: decode L2 entry: %w", err)
 	}
 	s.metrics.IncCounter("cache.l2_hit")
+	if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
+		p.IncCacheResult("l2_hit", statusCodeClass(e.StatusCode))
+	}
 	// Write-through: warm L1 so subsequent requests on this process avoid L2 round-trips.
 	// Use remaining freshness to avoid extending L1 beyond L2's actual expiry.
 	if s.l1TTL > 0 && e.TTL > 0 {
@@ -110,6 +122,9 @@ func (s *L2Storage) Set(ctx context.Context, key string, entry *Entry) error {
 
 	if err := s.l2client.SetWithExpire(ctx, key, string(data), l2TTL); err != nil {
 		s.metrics.IncCounter("cache.l2_set_fallback")
+		if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
+			p.IncCacheResult("l2_set_fallback", statusCodeClass(entry.StatusCode))
+		}
 		log.WithError(err).Error("cache: L2 Set failed, falling back to L1")
 		return s.l1.Set(ctx, key, entry)
 	}
@@ -135,6 +150,9 @@ func (s *L2Storage) Delete(ctx context.Context, key string) error {
 	if _, err := s.l2client.Del(ctx, key); err != nil {
 		log.WithError(err).Error("cache: L2 Delete failed")
 		s.metrics.IncCounter("cache.storage_error")
+		if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
+			p.IncCacheResult("storage_error", "n/a")
+		}
 	}
 	return s.l1.Delete(ctx, key)
 }
