@@ -88,7 +88,26 @@ type cacheSpec struct {
 	filters    map[filterCacheKey]*cacheFilter
 }
 
-// NewCacheFilter returns a Spec for the cache() filter.
+// statusCodeClass buckets an HTTP status code for the cache.result_total
+// code_class label.
+func statusCodeClass(code int) string {
+	switch {
+	case code >= 200 && code < 300:
+		return "2xx"
+	case code >= 400 && code < 500:
+		return "4xx"
+	case code >= 500 && code < 600:
+		return "5xx"
+	default:
+		return "other"
+	}
+}
+
+// NewCacheFilter returns a Spec for the cache() filter. maxBytes is the
+// in-memory storage budget for the shared LRU cache backing all filter
+// instances created from this Spec.
+// listenAddr is Skipper's own listener address (e.g. ":9090"); revalidation
+// requests are sent back through Skipper so the full filter chain runs.
 //
 // Route usage (RFC mode — upstream Cache-Control is fully authoritative):
 //
@@ -372,6 +391,18 @@ func tagSpan(ctx filters.FilterContext, status string, ttlRemainingMs int64) {
 	}
 }
 
+// updateLRUBytesGauge records the current per-route L1 (LRU) footprint. It
+// reads f.lruStorage directly rather than f.storage, since f.storage may be
+// an *L2Storage wrapping L1 — f.lruStorage is always a direct, non-nil
+// reference to L1 regardless of whether L2 is configured for this route.
+// Called once per request outcome (hit/miss/stale) so the gauge stays
+// accurate under any traffic mix, not just hit-heavy routes.
+func (f *cacheFilter) updateLRUBytesGauge(ctx filters.FilterContext) {
+	if p, ok := f.metrics.(interface{ SetCacheLRUBytes(string, float64) }); ok {
+		p.SetCacheLRUBytes(ctx.RouteId(), float64(f.lruStorage.lru.Bytes()))
+	}
+}
+
 // Request checks the cache. On a hit it calls ctx.Serve() to short-circuit the
 // backend roundtrip. On a stale hit it serves stale and fires a background
 // revalidation. On a miss it stores the computed key in the state bag so
@@ -455,6 +486,10 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 		tagSpan(ctx, cacheStatusStale, -1)
 		setAgeHeader(rsp, entry, now)
 		f.metrics.IncCounter("cache.stale")
+		if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+			p.IncCacheResult("stale", statusCodeClass(entry.StatusCode))
+		}
+		f.updateLRUBytesGauge(ctx)
 		method := ctx.Request().Method
 		if isCacheableMethod(method) && evaluateConditionals(ctx.Request(), entry) {
 			notModified := &http.Response{
@@ -495,6 +530,10 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	tagSpan(ctx, cacheStatusHit, max(0, entry.TTL-time.Since(entry.CreatedAt)).Milliseconds())
 	setAgeHeader(rsp, entry, time.Now())
 	f.metrics.IncCounter("cache.hit")
+	if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+		p.IncCacheResult("hit", statusCodeClass(entry.StatusCode))
+	}
+	f.updateLRUBytesGauge(ctx)
 	method := ctx.Request().Method
 	if isCacheableMethod(method) && evaluateConditionals(ctx.Request(), entry) {
 		notModified := &http.Response{
@@ -599,6 +638,9 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			if err := f.storage.Set(context.Background(), key, entry); err != nil {
 				log.WithError(err).Warn("cache: Set failed (cold-miss store)")
 				f.metrics.IncCounter("cache.storage_error")
+				if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+					p.IncCacheResult("storage_error", "n/a")
+				}
 			}
 		}
 		return &coalesceResult{
@@ -614,6 +656,9 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 	case res := <-ch:
 		if res.Err != nil || res.Val == nil {
 			f.metrics.IncCounter("cache.coalesce_error")
+			if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+				p.IncCacheResult("coalesce_error", "n/a")
+			}
 			return
 		}
 		cr := res.Val.(*coalesceResult)
@@ -646,9 +691,15 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		identityMatchesLeader := len(f.keyHeaders) > 0 || sameVaryDimension
 		if req != cr.leaderReq && !cr.storeable && !identityMatchesLeader {
 			f.metrics.IncCounter("cache.coalesce_bypass")
+			if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+				p.IncCacheResult("coalesce_bypass", "n/a")
+			}
 			resp, err := f.fetch(req)
 			if err != nil {
 				f.metrics.IncCounter("cache.coalesce_bypass_error")
+				if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+					p.IncCacheResult("coalesce_bypass_error", "n/a")
+				}
 				return
 			}
 			defer resp.Body.Close()
@@ -664,6 +715,10 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		rsp.Header.Set(cacheStatusHeader, cacheStatusMiss)
 		tagSpan(ctx, cacheStatusMiss, -1)
 		f.metrics.IncCounter("cache.miss")
+		if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+			p.IncCacheResult("miss", statusCodeClass(entry.StatusCode))
+		}
+		f.updateLRUBytesGauge(ctx)
 		ctx.Serve(headBodyOmitted(ctx.Request().Method, rsp))
 	case <-ctx.Request().Context().Done():
 		// Client disconnected. Remaining waiters still receive their result.
@@ -700,6 +755,9 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 			if err := f.storage.Set(ctx.Request().Context(), key, stored); err != nil {
 				log.WithError(err).Warn("cache: Set failed (HEAD freshen)")
 				f.metrics.IncCounter("cache.storage_error")
+				if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+					p.IncCacheResult("storage_error", "n/a")
+				}
 			}
 		}
 		return
@@ -716,10 +774,16 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 		if err := f.storage.Delete(ctx.Request().Context(), key); err != nil {
 			log.WithError(err).Warn("cache: Delete failed (unsafe method invalidation)")
 			f.metrics.IncCounter("cache.storage_error")
+			if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+				p.IncCacheResult("storage_error", "n/a")
+			}
 		}
 		if err := f.storage.Delete(ctx.Request().Context(), "vary:"+key); err != nil {
 			log.WithError(err).Warn("cache: Delete failed (vary sentinel invalidation)")
 			f.metrics.IncCounter("cache.storage_error")
+			if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+				p.IncCacheResult("storage_error", "n/a")
+			}
 		}
 		for _, hdrName := range []string{"Location", "Content-Location"} {
 			if loc := rsp.Header.Get(hdrName); loc != "" && sameOrigin(ctx.Request(), loc) {
@@ -727,10 +791,16 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 					if err := f.storage.Delete(ctx.Request().Context(), locKey); err != nil {
 						log.WithError(err).Warn("cache: Delete failed (Location invalidation)")
 						f.metrics.IncCounter("cache.storage_error")
+						if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+							p.IncCacheResult("storage_error", "n/a")
+						}
 					}
 					if err := f.storage.Delete(ctx.Request().Context(), "vary:"+locKey); err != nil {
 						log.WithError(err).Warn("cache: Delete failed (vary sentinel for Location)")
 						f.metrics.IncCounter("cache.storage_error")
+						if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+							p.IncCacheResult("storage_error", "n/a")
+						}
 					}
 				}
 			}
@@ -790,6 +860,9 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 		if err := f.storage.Set(ctx.Request().Context(), "vary:"+baseKey, sentinel); err != nil {
 			log.WithError(err).Warn("cache: Set failed (vary sentinel)")
 			f.metrics.IncCounter("cache.storage_error")
+			if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+				p.IncCacheResult("storage_error", "n/a")
+			}
 		}
 	}
 
@@ -820,6 +893,9 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	if err := f.storage.Set(ctx.Request().Context(), storeKey, entry); err != nil {
 		log.WithError(err).Warn("cache: Set failed (response store)")
 		f.metrics.IncCounter("cache.storage_error")
+		if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+			p.IncCacheResult("storage_error", "n/a")
+		}
 	}
 }
 
@@ -1022,6 +1098,9 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL, ou
 		if err := f.storage.Set(context.Background(), key, entry); err != nil {
 			log.WithError(err).Warn("cache: Set failed (background revalidation)")
 			f.metrics.IncCounter("cache.storage_error")
+			if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+				p.IncCacheResult("storage_error", "n/a")
+			}
 		}
 		return nil, nil
 	})
