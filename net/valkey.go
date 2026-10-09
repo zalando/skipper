@@ -78,8 +78,19 @@ type ValkeyOptions struct {
 
 	EnableTLS bool
 
-	Certificates []tls.Certificate
-	CA           *x509.CertPool
+	CA *x509.CertPool
+
+	// ClientCertFile is the path to a PEM-encoded client certificate for mTLS to backends.
+	// Must be set together with ClientKeyFile. When set, GetClientCertificate is used for cert rotation.
+	ClientCertFile string
+
+	// ClientKeyFile is the path to a PEM-encoded private key for mTLS to backends.
+	// Must be set together with ClientCertFile.
+	ClientKeyFile string
+
+	// ClientCertRefreshInterval is how often ClientCertFile/ClientKeyFile are re-read.
+	// Defaults to 5 minutes if zero.
+	ClientCertRefreshInterval time.Duration
 
 	// EnableOTel enables OpenTelemetry adapter, see https://pkg.go.dev/github.com/valkey-io/valkey-go/valkeyotel
 	EnableOTel bool
@@ -124,12 +135,14 @@ func createValkeyClient(addr string, opt *ValkeyOptions) (valkey.Client, error) 
 		err error
 	)
 
-	if opt.EnableTLS {
+	if opt.EnableTLS && opt.ClientCertFile != "" && opt.ClientKeyFile != "" {
+		cr := MustNewCertReloader(opt.ClientCertFile, opt.ClientKeyFile, opt.ClientCertRefreshInterval, opt.Log)
 		clientOptions.TLSConfig = &tls.Config{
-			Certificates: opt.Certificates,
-			RootCAs:      opt.CA,
+			GetClientCertificate: cr.GetClientCertificate,
+			RootCAs:              opt.CA,
 		}
 	}
+
 	if opt.EnableOTel {
 		cli, err = valkeyotel.NewClient(clientOptions, opt.OTelOptions...)
 	} else {

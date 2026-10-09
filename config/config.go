@@ -352,21 +352,21 @@ type Config struct {
 	SwarmRedisUpdateInterval     time.Duration `yaml:"swarm-redis-update-interval"`
 	SwarmRedisHeartbeatFrequency time.Duration `yaml:"swarm-redis-heartbeat-frequency"`
 	// valkey based
-	SwarmValkeyURLs               *listFlag         `yaml:"swarm-valkey-urls"`
-	SwarmValkeyEndpointsRemoteURL string            `yaml:"swarm-valkey-remote"`
-	SwarmValkeyUsername           string            `yaml:"swarm-valkey-username"`
-	SwarmValkeyPassword           string            `yaml:"swarm-valkey-password"`
-	SwarmValkeyConnLifetime       time.Duration     `yaml:"swarm-valkey-conn-lifetime"`
-	SwarmValkeyConnWriteTimeout   time.Duration     `yaml:"swarm-valkey-conn-timeout"`
-	SwarmValkeyDialTimeout        time.Duration     `yaml:"swarm-valkey-dial-timeout"`
-	SwarmValkeyKeepAlive          time.Duration     `yaml:"swarm-valkey-keepalive"`
-	SwarmValkeyUpdateInterval     time.Duration     `yaml:"swarm-valkey-update-interval"`
-	SwarmValkeyEnableTLS          bool              `yaml:"swarm-valkey-enable-tls"`
-	SwarmValkeyCaFile             string            `yaml:"swarm-valkey-ca"`
-	SwarmValkeyClientCert         string            `yaml:"swarm-valkey-client-cert"`
-	SwarmValkeyClientKey          string            `yaml:"swarm-valkey-client-key"`
-	SwarmValkeyCertificates       []tls.Certificate `yaml:"-"`
-	SwarmValkeyCA                 *x509.CertPool    `yaml:"-"`
+	SwarmValkeyURLs               *listFlag     `yaml:"swarm-valkey-urls"`
+	SwarmValkeyEndpointsRemoteURL string        `yaml:"swarm-valkey-remote"`
+	SwarmValkeyUsername           string        `yaml:"swarm-valkey-username"`
+	SwarmValkeyPassword           string        `yaml:"swarm-valkey-password"`
+	SwarmValkeyConnLifetime       time.Duration `yaml:"swarm-valkey-conn-lifetime"`
+	SwarmValkeyConnWriteTimeout   time.Duration `yaml:"swarm-valkey-conn-timeout"`
+	SwarmValkeyDialTimeout        time.Duration `yaml:"swarm-valkey-dial-timeout"`
+	SwarmValkeyKeepAlive          time.Duration `yaml:"swarm-valkey-keepalive"`
+	SwarmValkeyUpdateInterval     time.Duration `yaml:"swarm-valkey-update-interval"`
+	SwarmEnableTLS                bool          `yaml:"swarm-enable-tls"`
+	// swarm TLS
+	SwarmCaFile         string         `yaml:"swarm-ca"`
+	SwarmClientCertFile string         `yaml:"swarm-client-cert"`
+	SwarmClientKeyFile  string         `yaml:"swarm-client-key"`
+	SwarmCA             *x509.CertPool `yaml:"-"`
 
 	// swim based
 	SwarmKubernetesNamespace          string        `yaml:"swarm-namespace"`
@@ -783,10 +783,10 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.SwarmValkeyDialTimeout, "swarm-valkey-dial-timeout", net.DefaultDialTimeout, "set valkey client dial timeout")
 	flag.DurationVar(&cfg.SwarmValkeyKeepAlive, "swarm-valkey-keepalive", net.DefaultKeepAlive, "set valkey keepalive probes interval")
 	flag.DurationVar(&cfg.SwarmValkeyUpdateInterval, "swarm-valkey-update-interval", net.DefaultUpdateInterval, "set update interval to update valkey addresses")
-	flag.StringVar(&cfg.SwarmValkeyClientCert, "swarm-valkey-client-cert", "", "valkey client certificate")
-	flag.StringVar(&cfg.SwarmValkeyClientKey, "swarm-valkey-client-key", "", "valkey client key")
-	flag.StringVar(&cfg.SwarmValkeyCaFile, "swarm-valkey-ca", "", "Comma-separated CA bundle file paths used to verify the valkey server certificate")
-	flag.BoolVar(&cfg.SwarmValkeyEnableTLS, "swarm-valkey-enable-tls", false, "Enables mutual TLS for the valkey swarm connection. It uses -swarm-valkey-client-cert and -swarm-valkey-client-key as the client keypair and -swarm-valkey-ca to verify the valkey server certificate. It only supports one cert and one key file.")
+	flag.StringVar(&cfg.SwarmClientCertFile, "swarm-client-cert", "", "valkey client certificate")
+	flag.StringVar(&cfg.SwarmClientKeyFile, "swarm-client-key", "", "valkey client key")
+	flag.StringVar(&cfg.SwarmCaFile, "swarm-ca", "", "Comma-separated CA bundle file paths used to verify the valkey server certificate")
+	flag.BoolVar(&cfg.SwarmEnableTLS, "swarm-enable-tls", false, "Enables mutual TLS for the valkey swarm connection. It uses -swarm-valkey-client-cert and -swarm-valkey-client-key as the client keypair and -swarm-valkey-ca to verify the valkey server certificate. It only supports one cert and one key file.")
 	// swim
 	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
@@ -952,23 +952,16 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 		c.Certificates = certificates
 	}
 
-	if c.SwarmValkeyEnableTLS && c.SwarmValkeyClientCert != "" && c.SwarmValkeyClientKey != "" {
-		certificate, err := tls.LoadX509KeyPair(c.SwarmValkeyClientCert, c.SwarmValkeyClientKey)
-		if err != nil {
-			return fmt.Errorf("valkey: invalid key/cert pair: %w", err)
+	if c.SwarmCaFile != "" {
+		if c.SwarmCA == nil {
+			c.SwarmCA = x509.NewCertPool()
 		}
-		c.SwarmValkeyCertificates = []tls.Certificate{certificate}
-	}
-	if c.SwarmValkeyCaFile != "" {
-		if c.SwarmValkeyCA == nil {
-			c.SwarmValkeyCA = x509.NewCertPool()
-		}
-		for f := range strings.SplitSeq(c.SwarmValkeyCaFile, ",") {
+		for f := range strings.SplitSeq(c.SwarmCaFile, ",") {
 			pem, err := os.ReadFile(f)
 			if err != nil {
 				return fmt.Errorf("valkey failed to read %q: %v", f, err)
 			}
-			if !c.SwarmValkeyCA.AppendCertsFromPEM(pem) {
+			if !c.SwarmCA.AppendCertsFromPEM(pem) {
 				return fmt.Errorf("valkey failed to append CA cert %q", f)
 			}
 		}
@@ -1286,9 +1279,11 @@ func (c *Config) ToOptions() skipper.Options {
 		SwarmValkeyDialTimeout:        c.SwarmValkeyDialTimeout,
 		SwarmValkeyKeepAlive:          c.SwarmValkeyKeepAlive,
 		SwarmValkeyUpdateInterval:     c.SwarmValkeyUpdateInterval,
-		SwarmValkeyEnableTLS:          c.SwarmValkeyEnableTLS,
-		SwarmValkeyCertificates:       c.SwarmValkeyCertificates,
-		SwarmValkeyCA:                 c.SwarmValkeyCA,
+		SwarmEnableTLS:                c.SwarmEnableTLS,
+		SwarmClientCertFile:           c.SwarmClientCertFile,
+		SwarmClientKeyFile:            c.SwarmClientKeyFile,
+		SwarmCA:                       c.SwarmCA,
+		SwarmClientRefreshInterval:    c.ClientCertRefreshInterval,
 		// swim based
 		SwarmKubernetesNamespace:          c.SwarmKubernetesNamespace,
 		SwarmKubernetesLabelSelectorKey:   c.SwarmKubernetesLabelSelectorKey,
