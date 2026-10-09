@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -63,6 +64,9 @@ type CertReloader struct {
 // GetClientCertificate returns the new rotated *tls.Certificate.
 // You have to use Close() in order to not leak a goroutine.
 func NewCertReloader(certFile, keyFile string, interval time.Duration, log logging.Logger) (*CertReloader, error) {
+	if interval <= 0 {
+		interval = defaultRefreshInterval
+	}
 	sp := secrets.NewSecretPaths(interval)
 	if err := sp.Add(certFile); err != nil {
 		sp.Close()
@@ -99,6 +103,14 @@ func NewCertReloader(certFile, keyFile string, interval time.Duration, log loggi
 	cr.cert.Store(&cert)
 	go cr.refreshLoop(interval)
 	return cr, nil
+}
+func MustNewCertReloader(certFile, keyFile string, interval time.Duration, log logging.Logger) *CertReloader {
+	cr, err := NewCertReloader(certFile, keyFile, interval, log)
+	if err != nil {
+		log.Errorf("Failed to initialize cert reloader: %v", err)
+		os.Exit(2)
+	}
+	return cr
 }
 
 func (cr *CertReloader) refreshLoop(interval time.Duration) {

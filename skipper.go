@@ -1153,6 +1153,13 @@ type Options struct {
 	SwarmValkeyKeepAlive          time.Duration
 	SwarmValkeyConnLifetime       time.Duration
 	SwarmValkeyUpdateInterval     time.Duration
+	// swarm TLS
+	SwarmEnableTLS             bool
+	SwarmCA                    *x509.CertPool
+	SwarmClientCertFile        string
+	SwarmClientKeyFile         string
+	SwarmClientRefreshInterval time.Duration
+
 	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
@@ -2194,37 +2201,47 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			log.Infof("Valkey based swarm with %d shards", len(o.SwarmValkeyURLs))
 
 			valkeyOptions = &skpnet.ValkeyOptions{
-				Addrs:            o.SwarmValkeyURLs,
-				UpdateInterval:   o.SwarmValkeyUpdateInterval,
-				Username:         o.SwarmValkeyUsername,
-				Password:         o.SwarmValkeyPassword,
-				ConnWriteTimeout: o.SwarmValkeyConnWriteTimeout,
-				DialTimeout:      o.SwarmValkeyDialTimeout,
-				KeepAlive:        o.SwarmValkeyKeepAlive,
-				ConnLifetime:     o.SwarmValkeyConnLifetime,
-				Tracer:           tracer,
-				Log:              log.New(),
+				Addrs:                     o.SwarmValkeyURLs,
+				UpdateInterval:            o.SwarmValkeyUpdateInterval,
+				Username:                  o.SwarmValkeyUsername,
+				Password:                  o.SwarmValkeyPassword,
+				ConnWriteTimeout:          o.SwarmValkeyConnWriteTimeout,
+				DialTimeout:               o.SwarmValkeyDialTimeout,
+				KeepAlive:                 o.SwarmValkeyKeepAlive,
+				ConnLifetime:              o.SwarmValkeyConnLifetime,
+				EnableTLS:                 o.SwarmEnableTLS,
+				ClientCertFile:            o.SwarmClientCertFile,
+				ClientKeyFile:             o.SwarmClientKeyFile,
+				ClientCertRefreshInterval: o.SwarmClientRefreshInterval,
+				CA:                        o.SwarmCA,
+				Tracer:                    tracer,
+				Log:                       log.New(),
 			}
 
 		} else if len(o.SwarmRedisURLs) > 0 || o.KubernetesRedisServiceName != "" || o.SwarmRedisEndpointsRemoteURL != "" {
 			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
 
 			redisOptions = &skpnet.RedisOptions{
-				Addrs:               o.SwarmRedisURLs,
-				Username:            o.SwarmRedisUsername,
-				Password:            o.SwarmRedisPassword,
-				HashAlgorithm:       o.SwarmRedisHashAlgorithm,
-				DialTimeout:         o.SwarmRedisDialTimeout,
-				ReadTimeout:         o.SwarmRedisReadTimeout,
-				WriteTimeout:        o.SwarmRedisWriteTimeout,
-				PoolTimeout:         o.SwarmRedisPoolTimeout,
-				MinIdleConns:        o.SwarmRedisMinIdleConns,
-				MaxIdleConns:        o.SwarmRedisMaxIdleConns,
-				ConnMetricsInterval: o.SwarmRedisConnMetricsInterval,
-				UpdateInterval:      o.SwarmRedisUpdateInterval,
-				HeartbeatFrequency:  o.SwarmRedisHeartbeatFrequency,
-				Tracer:              tracer,
-				Log:                 log.New(),
+				Addrs:                     o.SwarmRedisURLs,
+				Username:                  o.SwarmRedisUsername,
+				Password:                  o.SwarmRedisPassword,
+				HashAlgorithm:             o.SwarmRedisHashAlgorithm,
+				DialTimeout:               o.SwarmRedisDialTimeout,
+				ReadTimeout:               o.SwarmRedisReadTimeout,
+				WriteTimeout:              o.SwarmRedisWriteTimeout,
+				PoolTimeout:               o.SwarmRedisPoolTimeout,
+				MinIdleConns:              o.SwarmRedisMinIdleConns,
+				MaxIdleConns:              o.SwarmRedisMaxIdleConns,
+				ConnMetricsInterval:       o.SwarmRedisConnMetricsInterval,
+				UpdateInterval:            o.SwarmRedisUpdateInterval,
+				HeartbeatFrequency:        o.SwarmRedisHeartbeatFrequency,
+				EnableTLS:                 o.SwarmEnableTLS,
+				ClientCertFile:            o.SwarmClientCertFile,
+				ClientKeyFile:             o.SwarmClientKeyFile,
+				ClientCertRefreshInterval: o.SwarmClientRefreshInterval,
+				CA:                        o.SwarmCA,
+				Tracer:                    tracer,
+				Log:                       log.New(),
 			}
 
 		} else {

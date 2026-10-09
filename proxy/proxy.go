@@ -842,21 +842,11 @@ func WithParams(p Params) *Proxy {
 	log := &logging.DefaultLog{}
 	var cr *snet.CertReloader
 	if p.EnableMTLS && p.ClientCertFile != "" && p.ClientKeyFile != "" {
-		interval := p.ClientCertRefreshInterval
-		if interval == 0 {
-			interval = 5 * time.Minute
+		cr = snet.MustNewCertReloader(p.ClientCertFile, p.ClientKeyFile, p.ClientCertRefreshInterval, log)
+		if tr.TLSClientConfig == nil {
+			tr.TLSClientConfig = &tls.Config{}
 		}
-		var err error
-		cr, err = snet.NewCertReloader(p.ClientCertFile, p.ClientKeyFile, interval, log)
-		if err != nil {
-			log.Errorf("Failed to initialize cert reloader in proxy: %v", err)
-			os.Exit(2)
-		} else {
-			if tr.TLSClientConfig == nil {
-				tr.TLSClientConfig = &tls.Config{}
-			}
-			tr.TLSClientConfig.GetClientCertificate = cr.GetClientCertificate
-		}
+		tr.TLSClientConfig.GetClientCertificate = cr.GetClientCertificate
 	}
 
 	h2cTr := newTransport(p)
