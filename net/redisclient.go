@@ -2,6 +2,8 @@ package net
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"sync"
@@ -78,6 +80,22 @@ type RedisOptions struct {
 
 	// HashAlgorithm is one of rendezvous, rendezvousVnodes, jump, mpchash, defaults to github.com/go-redis/redis default
 	HashAlgorithm string
+
+	EnableTLS bool
+
+	CA *x509.CertPool
+
+	// ClientCertFile is the path to a PEM-encoded client certificate for mTLS to backends.
+	// Must be set together with ClientKeyFile. When set, GetClientCertificate is used for cert rotation.
+	ClientCertFile string
+
+	// ClientKeyFile is the path to a PEM-encoded private key for mTLS to backends.
+	// Must be set together with ClientCertFile.
+	ClientKeyFile string
+
+	// ClientCertRefreshInterval is how often ClientCertFile/ClientKeyFile are re-read.
+	// Defaults to 5 minutes if zero.
+	ClientCertRefreshInterval time.Duration
 }
 
 // RedisRingClient is a redis client that does access redis by
@@ -225,6 +243,13 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 			// This prevents the client from sending CLIENT MAINT_NOTIFICATIONS ON
 			opt.MaintNotificationsConfig = &maintnotifications.Config{
 				Mode: maintnotifications.ModeDisabled,
+			}
+			if ro.EnableTLS && ro.ClientCertFile != "" && ro.ClientKeyFile != "" {
+				cr := MustNewCertReloader(ro.ClientCertFile, ro.ClientKeyFile, ro.ClientCertRefreshInterval, ro.Log)
+				opt.TLSConfig = &tls.Config{
+					GetClientCertificate: cr.GetClientCertificate,
+					RootCAs:              ro.CA,
+				}
 			}
 
 			return redis.NewClient(opt)
