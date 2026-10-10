@@ -171,6 +171,9 @@ func (spec *admissionControlPost) Do(routes []*routing.Route) []*routing.Route {
 type AdmissionControlSpec struct {
 	tracer   opentracing.Tracer
 	testRand bool
+
+	mu      sync.Mutex
+	filters []*admissionControl
 }
 
 type admissionControl struct {
@@ -185,6 +188,7 @@ type admissionControl struct {
 
 	mode                 mode
 	windowSize           int
+	windowIndex          int
 	minRps               int
 	d                    time.Duration
 	successThreshold     float64 // (0,1]
@@ -227,6 +231,16 @@ func (*AdmissionControlSpec) PostProcessor() *admissionControlPost {
 }
 
 func (*AdmissionControlSpec) Name() string { return filters.AdmissionControlName }
+
+// StepWindows manually advances the sliding window for all active admission control
+// filters created by this spec. It enables fast, deterministic tests without relying on wall-clock tickers.
+func (spec *AdmissionControlSpec) StepWindows() {
+	spec.mu.Lock()
+	defer spec.mu.Unlock()
+	for _, f := range spec.filters {
+		f.step()
+	}
+}
 
 // CreateFilter creates a new admissionControl filter with passed configuration:
 //
@@ -340,6 +354,11 @@ func (spec *AdmissionControlSpec) CreateFilter(args []any) (filters.Filter, erro
 		successCounter:   new(atomic.Int64),
 		rand:             r,
 	}
+
+	spec.mu.Lock()
+	spec.filters = append(spec.filters, ac)
+	spec.mu.Unlock()
+
 	go ac.tickWindows(d)
 	return ac, nil
 }
@@ -353,27 +372,28 @@ func (ac *admissionControl) Close() error {
 	return nil
 }
 
+func (ac *admissionControl) step() {
+	val := ac.counter.Swap(0)
+	ok := ac.successCounter.Swap(0)
+
+	ac.mu.Lock()
+	ac.totals[ac.windowIndex] = val
+	ac.success[ac.windowIndex] = ok
+	ac.windowIndex = (ac.windowIndex + 1) % ac.windowSize
+	ac.mu.Unlock()
+}
+
 func (ac *admissionControl) tickWindows(d time.Duration) {
 	t := time.NewTicker(d)
 	defer t.Stop()
-	i := 0
 
 	for {
 		select {
 		case <-ac.quit:
 			return
 		case <-t.C:
+			ac.step()
 		}
-
-		val := ac.counter.Swap(0)
-		ok := ac.successCounter.Swap(0)
-
-		ac.mu.Lock()
-		ac.totals[i] = val
-		ac.success[i] = ok
-		ac.mu.Unlock()
-
-		i = (i + 1) % ac.windowSize
 	}
 }
 
