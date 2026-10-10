@@ -659,34 +659,40 @@ func TestPredicateCacheClean(t *testing.T) {
 			t.Fatal("Failed to match")
 		}
 
+		reg.mu.Lock()
 		if l := len(reg.predicateMap); l != 1 {
+			reg.mu.Unlock()
 			t.Fatalf("Failed to get predicateMap of len 1, got: %d", l)
 		}
+		reg.mu.Unlock()
 
+		pred := p.(*predicate)
 		ok := false
-		for _, p := range reg.predicateMap {
-			p.cache.Range(func(k, v any) bool {
-				ok = true
-				return true
-			})
-		}
+		pred.cache.Range(func(k, v any) bool {
+			ok = true
+			return true
+		})
 		if !ok {
 			t.Fatal("Failed to get cache filled")
 		}
 
 		time.Sleep(time.Hour + time.Minute)
 
-		ok = true
-		for _, p := range reg.predicateMap {
-			p.cache.Range(func(k, v any) bool {
-				ok = false
-				return true
-			})
+		reg.mu.Lock()
+		if l := len(reg.predicateMap); l != 0 {
+			reg.mu.Unlock()
+			t.Fatalf("Failed to get predicateMap cleaned, got: %d", l)
 		}
+		reg.mu.Unlock()
+
+		ok = true
+		pred.cache.Range(func(k, v any) bool {
+			ok = false
+			return true
+		})
 		if !ok {
 			t.Fatal("Failed to get cache cleaned")
 		}
-
 	})
 }
 

@@ -97,6 +97,7 @@ func (r *registry) clean() {
 			for _, p := range r.predicateMap {
 				p.cache.Clear()
 			}
+			clear(r.predicateMap)
 			r.mu.Unlock()
 		}
 	}
