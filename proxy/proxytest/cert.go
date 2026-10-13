@@ -10,9 +10,11 @@ import (
 
 func NewCertificate(hosts ...string) tls.Certificate {
 	now := time.Now()
+	dnsNames, ipAddrs := nettest.SplitHosts(hosts)
 	certPEM, keyPEM, _, _, err := nettest.GenCert(nettest.CertOptions{
 		CN:           "Zalando SE",
-		Hosts:        hosts,
+		SanDNS:       dnsNames,
+		SanIP:        ipAddrs,
 		NotBefore:    now,
 		NotAfter:     now.Add(1 * time.Hour),
 		ExtKeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},

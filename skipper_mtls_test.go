@@ -47,7 +47,8 @@ func TestMTLSConfig_Validation(t *testing.T) {
 	// A self-signed CA cert/key pair used for valid configurations.
 	validCertPEM, validKeyPEM, _, _ := nettest.MustGenCert(t, nettest.CertOptions{
 		CN:        "Valid CA",
-		Hosts:     []string{"localhost", "127.0.0.1"},
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
 		NotBefore: now.Add(-time.Hour),
 		NotAfter:  now.Add(24 * time.Hour),
 	})
@@ -56,7 +57,8 @@ func TestMTLSConfig_Validation(t *testing.T) {
 	// A second CA — its key does not match validCertPEM, so they form a mismatched pair.
 	_, mismatchedKeyPEM, _, _ := nettest.MustGenCert(t, nettest.CertOptions{
 		CN:        "Other CA",
-		Hosts:     []string{"localhost", "127.0.0.1"},
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
 		NotBefore: now.Add(-time.Hour),
 		NotAfter:  now.Add(24 * time.Hour),
 	})
@@ -138,7 +140,8 @@ func TestMTLS_ProxyToBackend(t *testing.T) {
 	// CA that signs both the server cert and the proxy's client cert.
 	caPEM, caKeyPEM, caCert, caKey := nettest.MustGenCert(t, nettest.CertOptions{
 		CN:        "Test CA",
-		Hosts:     []string{"localhost", "127.0.0.1"},
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
 		NotBefore: now.Add(-time.Hour),
 		NotAfter:  now.Add(24 * time.Hour),
 	})
@@ -147,7 +150,8 @@ func TestMTLS_ProxyToBackend(t *testing.T) {
 	// Client cert that skipper presents to the backend.
 	clientCertPEM, clientKeyPEM, _, _ := nettest.MustGenCert(t, nettest.CertOptions{
 		CN:           "proxy-client",
-		Hosts:        []string{"localhost", "127.0.0.1"},
+		SanDNS:       []string{"localhost"},
+		SanIP:        []string{"127.0.0.1"},
 		NotBefore:    now.Add(-time.Hour),
 		NotAfter:     now.Add(24 * time.Hour),
 		ExtKeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},

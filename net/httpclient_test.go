@@ -586,7 +586,8 @@ func TestCertReloader(t *testing.T) {
 		CN:        "localhost",
 		NotBefore: now.Add(-1 * time.Hour),
 		NotAfter:  now.Add(24 * time.Hour),
-		Hosts:     []string{"localhost", "127.0.0.1"},
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
 	})
 	certFile, keyFile := nettest.WriteCertKey(t, certPEM, keyPEM)
 
@@ -641,7 +642,8 @@ func TestCertReloaderRotation(t *testing.T) {
 			CN:        "localhost",
 			NotBefore: now.Add(-1 * time.Hour),
 			NotAfter:  now.Add(24 * time.Hour),
-			Hosts:     []string{"localhost", "127.0.0.1"},
+			SanDNS:    []string{"localhost"},
+			SanIP:     []string{"127.0.0.1"},
 		})
 		certFile, keyFile := nettest.WriteCertKey(t, certPEM1, keyPEM1)
 
@@ -657,7 +659,8 @@ func TestCertReloaderRotation(t *testing.T) {
 			CN:        "localhost",
 			NotBefore: now.Add(-1 * time.Hour),
 			NotAfter:  now.Add(24 * time.Hour),
-			Hosts:     []string{"localhost", "127.0.0.1"},
+			SanDNS:    []string{"localhost"},
+			SanIP:     []string{"127.0.0.1"},
 		})
 		if err := os.WriteFile(certFile, certPEM2, 0600); err != nil {
 			t.Fatalf("failed to update cert file: %v", err)
@@ -682,7 +685,8 @@ func TestClientMTLSNoLeak(t *testing.T) {
 		CN:        "localhost",
 		NotBefore: now.Add(-1 * time.Hour),
 		NotAfter:  now.Add(24 * time.Hour),
-		Hosts:     []string{"localhost", "127.0.0.1"},
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
 	})
 	certFile, keyFile := nettest.WriteCertKey(t, certPEM, keyPEM)
 
@@ -724,7 +728,8 @@ func TestClientMTLS(t *testing.T) {
 				CN:        tt.cn,
 				NotBefore: now.Add(-1 * time.Hour),
 				NotAfter:  now.Add(24 * time.Hour),
-				Hosts:     []string{tt.dns, tt.ip},
+				SanDNS:    []string{tt.dns},
+				SanIP:     []string{tt.ip},
 			})
 			clientCert, err := tls.X509KeyPair(certPEM, keyPEM)
 			if err != nil {
@@ -782,7 +787,8 @@ func TestClientMTLS_SecurityAndHardening(t *testing.T) {
 		CN:        "Test Master Root CA",
 		NotBefore: now.Add(-1 * time.Hour),
 		NotAfter:  now.Add(24 * time.Hour),
-		Hosts:     []string{"localhost", "127.0.0.1"},
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
 	})
 
 	for _, tt := range []struct {
@@ -833,7 +839,7 @@ func TestClientMTLS_SecurityAndHardening(t *testing.T) {
 		{
 			name: "missing SAN (DNS/IP)",
 			modifyOptions: func(opts *nettest.CertOptions) {
-				opts.Hosts = nil
+				opts.SanDNS, opts.SanIP = nil, nil
 			},
 			serverMinTLS: tls.VersionTLS13, // Force server to demand modern TLS 1.3
 			wantErr:      true,
@@ -848,7 +854,8 @@ func TestClientMTLS_SecurityAndHardening(t *testing.T) {
 			// Default valid options signed by our trusted Master CA
 			opts := nettest.CertOptions{
 				CN:        "localhost",
-				Hosts:     []string{"localhost", "127.0.0.1"},
+				SanDNS:    []string{"localhost"},
+				SanIP:     []string{"127.0.0.1"},
 				NotBefore: now.Add(-1 * time.Hour),
 				NotAfter:  now.Add(1 * time.Hour),
 				ExtKeyUsages: []x509.ExtKeyUsage{
@@ -947,12 +954,14 @@ func TestClientMTLS_RotationFallback(t *testing.T) {
 		CN:        "Master Root CA",
 		NotBefore: now.Add(-1 * time.Hour),
 		NotAfter:  now.Add(24 * time.Hour),
-		Hosts:     []string{"localhost", "127.0.0.1"},
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
 	})
 
 	opts := nettest.CertOptions{
 		CN:        "localhost",
-		Hosts:     []string{"localhost", "127.0.0.1"},
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
 		NotBefore: now.Add(-1 * time.Hour),
 		NotAfter:  now.Add(1 * time.Hour),
 		ExtKeyUsages: []x509.ExtKeyUsage{

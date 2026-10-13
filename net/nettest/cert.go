@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,10 +21,12 @@ import (
 type CertOptions struct {
 	// CN is the certificate subject common name.
 	CN string
-	// Hosts are the subject alternative names. Each entry is added as an IP
-	// SAN when it parses as an IP address, otherwise as a DNS SAN. Empty
-	// entries are skipped.
-	Hosts []string
+	// SanDNS are DNS subject alternative names.
+	SanDNS []string
+	// SanIP are IP-address subject alternative names (each parsed with net.ParseIP).
+	SanIP []string
+	// SanURI are URI subject alternative names (each parsed with url.Parse).
+	SanURI []string
 	// NotBefore and NotAfter bound the validity period.
 	NotBefore time.Time
 	NotAfter  time.Time
@@ -66,15 +69,20 @@ func GenCert(opts CertOptions) (certPEM, keyPEM []byte, cert *x509.Certificate, 
 		ExtKeyUsage:           opts.ExtKeyUsages,
 		BasicConstraintsValid: true,
 	}
-	for _, h := range opts.Hosts {
-		if h == "" {
-			continue
+	tmpl.DNSNames = opts.SanDNS
+	for _, s := range opts.SanIP {
+		ip := net.ParseIP(s)
+		if ip == nil {
+			return nil, nil, nil, nil, fmt.Errorf("invalid IP SAN %q", s)
 		}
-		if ip := net.ParseIP(h); ip != nil {
-			tmpl.IPAddresses = append(tmpl.IPAddresses, ip)
-		} else {
-			tmpl.DNSNames = append(tmpl.DNSNames, h)
+		tmpl.IPAddresses = append(tmpl.IPAddresses, ip)
+	}
+	for _, s := range opts.SanURI {
+		u, err := url.Parse(s)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("invalid URI SAN %q: %w", s, err)
 		}
+		tmpl.URIs = append(tmpl.URIs, u)
 	}
 
 	parent, parentKey := tmpl, key
@@ -101,6 +109,22 @@ func GenCert(opts CertOptions) (certPEM, keyPEM []byte, cert *x509.Certificate, 
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 	return certPEM, keyPEM, cert, key, nil
+}
+
+// SplitHosts partitions hosts into DNS names and IP addresses using
+// net.ParseIP; empty entries are skipped.
+func SplitHosts(hosts []string) (dnsNames, ipAddrs []string) {
+	for _, h := range hosts {
+		if h == "" {
+			continue
+		}
+		if net.ParseIP(h) != nil {
+			ipAddrs = append(ipAddrs, h)
+		} else {
+			dnsNames = append(dnsNames, h)
+		}
+	}
+	return
 }
 
 // CA is a generated certificate authority able to sign server and client
@@ -130,10 +154,12 @@ func (ca *CA) ServerCert(t testing.TB, hosts ...string) (certPEM, keyPEM []byte)
 	if len(hosts) == 0 {
 		hosts = []string{"127.0.0.1"}
 	}
+	dnsNames, ipAddrs := SplitHosts(hosts)
 	now := time.Now()
 	certPEM, keyPEM, _, _ = MustGenCert(t, CertOptions{
 		CN:           "nettest-server",
-		Hosts:        hosts,
+		SanDNS:       dnsNames,
+		SanIP:        ipAddrs,
 		NotBefore:    now.Add(-1 * time.Hour),
 		NotAfter:     now.Add(24 * time.Hour),
 		ExtKeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
