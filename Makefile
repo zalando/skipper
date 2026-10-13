@@ -153,7 +153,7 @@ deps: ## install dependencies to run everything
 	@go install honnef.co/go/tools/cmd/staticcheck@latest
 	@go install github.com/securego/gosec/v2/cmd/gosec@latest
 	@go install golang.org/x/vuln/cmd/govulncheck@latest
-	@go install github.com/google/osv-scanner/cmd/osv-scanner@v1
+	@go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
 	@go install github.com/google/capslock/cmd/capslock@latest
 
 .PHONY: vet
@@ -187,7 +187,7 @@ capslock: ## run capslock
 
 .PHONY: osv-scanner
 osv-scanner: $(SOURCES) ## run osv-scanner see https://osv.dev/
-	osv-scanner -r ./
+	osv-scanner scan --all-packages go.mod
 
 .PHONY: fmt
 fmt: $(SOURCES) ## format code
