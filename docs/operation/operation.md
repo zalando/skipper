@@ -99,14 +99,55 @@ Enable h2c on the listener (for clients that speak h2c to skipper):
     -enable-h2c-server
         enable h2c (HTTP/2 cleartext) on the incoming listener; no effect when TLS is configured
 
-Skipper uses HTTP/2 cleartext for any backend whose URL scheme is
-`h2c://`. Skipper sets the `h2c://` scheme automatically when one of
-the following points are true:
+Enable h2c on outgoing backend connections (opt-in, disabled by default):
+
+    -enable-h2c-backend
+        enable HTTP/2 cleartext transport for backends with the h2c:// URL scheme;
+        when not set, h2c:// routes fall back to plain http:// (HTTP/1.1)
+
+Skipper sets the `h2c://` scheme automatically when one of the following is true:
 
 - The Ingress or RouteGroup has the annotation `zalando.org/skipper-backend-protocol: h2c`
 - The EndpointSlice port has `appProtocol: kubernetes.io/h2c` and
-  `-enable-kubernetes-endpointslices` is active (the annotation takes precedence if both
+  `-enable-kubernetes-endpointslices` is active (the annotation takes precedence when both
   are set)
+
+The `-enable-h2c-backend` flag must be set for these automatic assignments to take effect.
+Without it, the backend connection uses HTTP/1.1 regardless of the scheme or annotation.
+
+### HTTP/2 over TLS (h2)
+
+Skipper can connect to backends over HTTP/2 with TLS using the `h2://` URL scheme.
+This is disabled by default:
+
+    -enable-h2-backend
+        enable HTTP/2 over TLS transport for backends with the h2:// URL scheme;
+        when not set, h2:// routes fall back to plain https:// (HTTP/1.1 over TLS)
+
+The backend must present a valid TLS certificate. Use `-insecure` to skip verification for
+self-signed or internal certificates.
+
+Route example:
+
+    h2:    * -> "h2://my-service:443";
+    h2_lb: * -> <roundRobin, "h2://my-service-a:443", "h2://my-service-b:443">;
+
+### HTTP/3 over QUIC (h3)
+
+Skipper can connect to backends over HTTP/3 (QUIC) using the `h3://` URL scheme.
+This is disabled by default:
+
+    -enable-h3-backend
+        enable HTTP/3 over QUIC transport for backends with the h3:// URL scheme;
+        when not set, h3:// routes fall back to plain https:// (HTTP/1.1 over TLS)
+
+The backend must present a valid TLS certificate. Use `-insecure` to skip verification for
+self-signed or internal certificates.
+
+Route example:
+
+    h3:    * -> "h3://my-service:443";
+    h3_lb: * -> <roundRobin, "h3://my-service-a:443", "h3://my-service-b:443">;
 
 ### Client
 
