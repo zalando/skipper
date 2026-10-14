@@ -133,6 +133,89 @@ PathRegexp("/foo/bar/")
 PathRegexp("^/foo/(bar|qux)")
 ```
 
+### PathPrefix
+
+Similar to [PathRegexp](#pathregexp) — belongs to the second evaluation group, not the path tree.
+Matches if the decoded request path (`URL.Path`) starts with the given prefix string.
+Use this over `PathRegexp` when a simple prefix check suffices — it is faster and allocates nothing.
+
+Because Skipper does not use Go's `http.ServeMux`, double slashes in the request path are **not**
+redirected and are preserved in `URL.Path`. `PathPrefix` can therefore match paths with double slashes.
+For paths containing percent-encoded characters such as `%2F`, use [RawPathPrefix](#rawpathprefix).
+
+Parameters:
+
+* PathPrefix (string)
+
+Examples:
+
+```
+PathPrefix("/api/")
+PathPrefix("/foo/bar")
+PathPrefix("//special")    // matches a path starting with double slash
+```
+
+### PathRegexpMatch
+
+Similar to [PathRegexp](#pathregexp) but implemented as a plugin predicate, not a built-in.
+Matches the decoded request path (`URL.Path`) against a regular expression.
+A route may combine `PathRegexpMatch` with `PathRegexp` freely.
+
+Because Skipper does not use Go's `http.ServeMux`, double slashes are preserved in `URL.Path` and
+can be matched with a regexp. For percent-encoded characters such as `%2F`, use [RawPathRegexpMatch](#rawpathregexpmatch).
+
+Parameters:
+
+* PathRegexpMatch (regex)
+
+Examples:
+
+```
+PathRegexpMatch("^/api/v[0-9]+/")
+PathRegexpMatch("/foo/bar$")
+PathRegexpMatch("^//foo")    // matches a path starting with double slash
+```
+
+### RawPathPrefix
+
+Similar to [PathRegexp](#pathregexp) — belongs to the second evaluation group, not the path tree.
+Matches if the **raw (URL-encoded) request path** (`URL.RawPath`) starts with the given prefix string.
+Falls back to `URL.Path` when the URL contains no percent-encoded characters.
+
+Use this specifically when the path contains percent-encoded reserved characters such as `%2F` (encoded
+slash) that Go's HTTP server decodes into `/` in `URL.Path`. For plain double slashes, [PathPrefix](#pathprefix)
+is sufficient since double slashes are not percent-encoded and appear directly in `URL.Path`.
+
+Parameters:
+
+* RawPathPrefix (string)
+
+Examples:
+
+```
+RawPathPrefix("/api%2F")
+RawPathPrefix("/tenant%2Fname/resource")
+```
+
+### RawPathRegexpMatch
+
+Similar to [PathRegexp](#pathregexp) but matches against the **raw (URL-encoded) request path** (`URL.RawPath`).
+Falls back to `URL.Path` when the URL contains no percent-encoded characters.
+
+Use this specifically when you need regexp matching on paths containing percent-encoded reserved
+characters such as `%2F`. For plain double slashes, [PathRegexpMatch](#pathregexpmatch) is sufficient.
+
+Parameters:
+
+* RawPathRegexpMatch (regex)
+
+Examples:
+
+```
+RawPathRegexpMatch("%2F")
+RawPathRegexpMatch("^/api%2F[a-z]+")
+```
+
 ## Host
 
 Regular expressions that the host header in the request must match.
