@@ -1,16 +1,10 @@
 package skipper
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"math/big"
-	"net"
 	"net/http"
 	"os"
 	"syscall"
@@ -19,64 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper/net/nettest"
 )
-
-// mtlsGenCert generates an ECDSA P-256 certificate. When signerCert/signerKey
-// are nil the cert is self-signed and marked as a CA.
-func mtlsGenCert(t *testing.T, cn, dns, ip string, notBefore, notAfter time.Time, extKeyUsages []x509.ExtKeyUsage, signerCert *x509.Certificate, signerKey *ecdsa.PrivateKey) (certPEM, keyPEM []byte, cert *x509.Certificate, key *ecdsa.PrivateKey) {
-	t.Helper()
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-
-	tmpl := &x509.Certificate{
-		SerialNumber:          big.NewInt(time.Now().UnixNano()),
-		Subject:               pkix.Name{CommonName: cn},
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:           extKeyUsages,
-		BasicConstraintsValid: true,
-	}
-	if dns != "" {
-		tmpl.DNSNames = []string{dns}
-	}
-	if ip != "" {
-		if parsed := net.ParseIP(ip); parsed != nil {
-			tmpl.IPAddresses = []net.IP{parsed}
-		}
-	}
-
-	parent, parentKey := tmpl, key
-	if signerCert != nil && signerKey != nil {
-		parent, parentKey = signerCert, signerKey
-	} else {
-		tmpl.IsCA = true
-		tmpl.KeyUsage |= x509.KeyUsageCertSign
-	}
-
-	der, err := x509.CreateCertificate(rand.Reader, tmpl, parent, &key.PublicKey, parentKey)
-	require.NoError(t, err)
-	cert, err = x509.ParseCertificate(der)
-	require.NoError(t, err)
-
-	keyDER, err := x509.MarshalECPrivateKey(key)
-	require.NoError(t, err)
-	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
-	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-	return
-}
-
-func mtlsWriteTempFiles(t *testing.T, certPEM, keyPEM []byte) (certFile, keyFile string) {
-	t.Helper()
-	cf, err := os.CreateTemp("", "skipper-mtls-cert-*.crt")
-	require.NoError(t, err)
-	kf, err := os.CreateTemp("", "skipper-mtls-key-*.key")
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(cf.Name(), certPEM, 0644))
-	require.NoError(t, os.WriteFile(kf.Name(), keyPEM, 0600))
-	t.Cleanup(func() { os.Remove(cf.Name()); os.Remove(kf.Name()) })
-	return cf.Name(), kf.Name()
-}
 
 // startMTLSBackend starts a TLS listener that requires client certs signed by
 // clientCAs. Returns the backend's https:// URL.
@@ -107,14 +45,24 @@ func TestMTLSConfig_Validation(t *testing.T) {
 	now := time.Now()
 
 	// A self-signed CA cert/key pair used for valid configurations.
-	validCertPEM, validKeyPEM, _, _ := mtlsGenCert(t, "Valid CA", "localhost", "127.0.0.1",
-		now.Add(-time.Hour), now.Add(24*time.Hour), nil, nil, nil)
-	validCertFile, validKeyFile := mtlsWriteTempFiles(t, validCertPEM, validKeyPEM)
+	validCertPEM, validKeyPEM, _, _ := nettest.MustGenCert(t, nettest.CertOptions{
+		CN:        "Valid CA",
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
+		NotBefore: now.Add(-time.Hour),
+		NotAfter:  now.Add(24 * time.Hour),
+	})
+	validCertFile, validKeyFile := nettest.WriteCertKey(t, validCertPEM, validKeyPEM)
 
 	// A second CA — its key does not match validCertPEM, so they form a mismatched pair.
-	_, mismatchedKeyPEM, _, _ := mtlsGenCert(t, "Other CA", "localhost", "127.0.0.1",
-		now.Add(-time.Hour), now.Add(24*time.Hour), nil, nil, nil)
-	_, mismatchedKeyFile := mtlsWriteTempFiles(t, validCertPEM, mismatchedKeyPEM)
+	_, mismatchedKeyPEM, _, _ := nettest.MustGenCert(t, nettest.CertOptions{
+		CN:        "Other CA",
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
+		NotBefore: now.Add(-time.Hour),
+		NotAfter:  now.Add(24 * time.Hour),
+	})
+	_, mismatchedKeyFile := nettest.WriteCertKey(t, validCertPEM, mismatchedKeyPEM)
 
 	for _, tt := range []struct {
 		name        string
@@ -190,18 +138,27 @@ func TestMTLS_ProxyToBackend(t *testing.T) {
 	now := time.Now()
 
 	// CA that signs both the server cert and the proxy's client cert.
-	caPEM, caKeyPEM, caCert, caKey := mtlsGenCert(t, "Test CA", "localhost", "127.0.0.1",
-		now.Add(-time.Hour), now.Add(24*time.Hour), nil, nil, nil)
+	caPEM, caKeyPEM, caCert, caKey := nettest.MustGenCert(t, nettest.CertOptions{
+		CN:        "Test CA",
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
+		NotBefore: now.Add(-time.Hour),
+		NotAfter:  now.Add(24 * time.Hour),
+	})
 	_ = caKeyPEM
 
 	// Client cert that skipper presents to the backend.
-	clientCertPEM, clientKeyPEM, _, _ := mtlsGenCert(t,
-		"proxy-client", "localhost", "127.0.0.1",
-		now.Add(-time.Hour), now.Add(24*time.Hour),
-		[]x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		caCert, caKey,
-	)
-	certFile, keyFile := mtlsWriteTempFiles(t, clientCertPEM, clientKeyPEM)
+	clientCertPEM, clientKeyPEM, _, _ := nettest.MustGenCert(t, nettest.CertOptions{
+		CN:           "proxy-client",
+		SanDNS:       []string{"localhost"},
+		SanIP:        []string{"127.0.0.1"},
+		NotBefore:    now.Add(-time.Hour),
+		NotAfter:     now.Add(24 * time.Hour),
+		ExtKeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		SignerCert:   caCert,
+		SignerKey:    caKey,
+	})
+	certFile, keyFile := nettest.WriteCertKey(t, clientCertPEM, clientKeyPEM)
 
 	// Backend TLS: server cert = CA cert, client cert must be signed by CA.
 	clientCAs := x509.NewCertPool()
