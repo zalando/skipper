@@ -839,6 +839,18 @@ type Options struct {
 	// EnableH2cServer enables h2c (HTTP/2 cleartext) on the incoming listener.
 	EnableH2cServer bool
 
+	// EnableH2CBackend enables unencrypted HTTP/2 to backends via the h2c:// URL scheme.
+	// Disabled by default.
+	EnableH2CBackend bool
+
+	// EnableH2Backend enables HTTP/2 to backends via the h2:// URL scheme.
+	// Disabled by default.
+	EnableH2Backend bool
+
+	// EnableH3Backend enables HTTP/3 (QUIC) to backends via the h3:// URL scheme.
+	// Disabled by default.
+	EnableH3Backend bool
+
 	// MaxLoopbacks defines the maximum number of loops that the proxy can execute when the routing table
 	// contains loop backends (<loopback>).
 	MaxLoopbacks int
@@ -2811,6 +2823,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ClientCertRefreshInterval:        o.ClientCertRefreshInterval,
 		EnableMTLS:                       o.EnableMTLS,
 		AllowInsecureBackend:             o.AllowInsecureBackend,
+		EnableH2CBackend:                 o.EnableH2CBackend,
+		EnableH2Backend:                  o.EnableH2Backend,
+		EnableH3Backend:                  o.EnableH3Backend,
 		CustomHttpRoundTripperWrap:       o.CustomHttpRoundTripperWrap,
 		RateLimiters:                     ratelimitRegistry,
 		EndpointRegistry:                 endpointRegistry,

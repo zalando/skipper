@@ -25,8 +25,46 @@ func newH2cBackend(t *testing.T, gotProto *string) *httptest.Server {
 	return srv
 }
 
+// TestH2CBackendDisabledByDefault verifies that without EnableH2CBackend, an h2c://
+// route falls through to the default HTTP/1.1 transport.
+func TestH2CBackendDisabledByDefault(t *testing.T) {
+	var gotProto string
+	backend := newH2cBackend(t, &gotProto)
+
+	h2cURL := "h2c" + backend.URL[len("http"):]
+	tp, err := newTestProxyWithParams(
+		fmt.Sprintf(`* -> "%s"`, h2cURL),
+		Params{},
+	)
+	if err != nil {
+		t.Fatalf("failed to create test proxy: %v", err)
+	}
+	defer tp.close()
+
+	if tp.proxy.h2cRoundTripper != nil {
+		t.Error("expected h2cRoundTripper to be nil when EnableH2CBackend is false")
+	}
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	rsp, err := ps.Client().Get(ps.URL + "/")
+	if err != nil {
+		t.Fatalf("proxy request failed: %v", err)
+	}
+	rsp.Body.Close()
+
+	if rsp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", rsp.StatusCode)
+	}
+	if gotProto != "HTTP/1.1" {
+		t.Errorf("expected HTTP/1.1 fallback, got %q", gotProto)
+	}
+}
+
 // TestH2cProxy verifies that a route with an h2c:// backend URL reaches the
-// backend over HTTP/2 cleartext, while http:// backends use HTTP/1.x.
+// backend over HTTP/2 cleartext when EnableH2CBackend is set, while http://
+// backends use HTTP/1.x.
 func TestH2cProxy(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
@@ -55,7 +93,7 @@ func TestH2cProxy(t *testing.T) {
 
 			tp, err := newTestProxyWithParams(
 				fmt.Sprintf(`* -> "%s"`, backendURL),
-				Params{},
+				Params{EnableH2CBackend: true},
 			)
 			if err != nil {
 				t.Fatalf("failed to create test proxy: %v", err)
@@ -82,7 +120,7 @@ func TestH2cProxy(t *testing.T) {
 }
 
 // TestH2cScheme_LBEndpointUsesH2cTransport verifies that LB endpoints with h2c://
-// scheme reach the backend via HTTP/2 cleartext without any flag set.
+// scheme reach the backend via HTTP/2 cleartext when EnableH2CBackend is set.
 func TestH2cScheme_LBEndpointUsesH2cTransport(t *testing.T) {
 	var gotProto string
 	backend := newH2cBackend(t, &gotProto)
@@ -91,7 +129,7 @@ func TestH2cScheme_LBEndpointUsesH2cTransport(t *testing.T) {
 
 	tp, err := newTestProxyWithParams(
 		fmt.Sprintf(`* -> <"%s">`, h2cURL),
-		Params{},
+		Params{EnableH2CBackend: true},
 	)
 	if err != nil {
 		t.Fatalf("failed to create test proxy: %v", err)
@@ -116,7 +154,7 @@ func TestH2cScheme_LBEndpointUsesH2cTransport(t *testing.T) {
 }
 
 // TestH2cServer_H2cTransportConfigured verifies that the proxy's h2c round-tripper
-// has UnencryptedHTTP2 enabled.
+// has UnencryptedHTTP2 enabled when EnableH2CBackend is set.
 func TestH2cServer_H2cTransportConfigured(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -125,7 +163,7 @@ func TestH2cServer_H2cTransportConfigured(t *testing.T) {
 
 	tp, err := newTestProxyWithParams(
 		fmt.Sprintf(`* -> "%s"`, backend.URL),
-		Params{},
+		Params{EnableH2CBackend: true},
 	)
 	if err != nil {
 		t.Fatalf("failed to create test proxy: %v", err)
