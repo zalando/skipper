@@ -8,10 +8,6 @@ package opaauthorizerequest
 // fail open. Additionally, the semaphore is acquired for only the compressed size,
 // allowing far more concurrent requests than intended.
 //
-// Two failure modes are tested:
-//   A. Policy bypass: gzip admin body must be denied (403), not allowed (200).
-//   B. Semaphore accuracy: a body whose decompressed size exceeds maxBodyBytes
-//      must not be treated as fitting within the limit.
 
 import (
 	"bytes"
@@ -175,17 +171,10 @@ func TestGzipBodyPolicyBypass(t *testing.T) {
 	}
 }
 
-// TestGzipBodySemaphoreAccuracy is failure-mode-B.
-// The semaphore must be acquired for the decompressed body size, not the
-// compressed size.  We configure a very small maxBodyBytes (64 bytes) and
-// send a gzip payload whose compressed form is under 64 bytes but whose
-// decompressed form exceeds it.
-//
-// Before the fix, compressed Content-Length drives semaphore acquisition so
-// the body is not semaphore-rejected, and OPA sees null parsed_body → 200 OK.
-// After the fix, the decompressed size drives acquisition; the body is either
-// truncated (truncated_body=true) or the semaphore rejects excess concurrency.
-// Either way the proxy must not return 200 while OPA saw null parsed_body.
+// The decompressed body (280 bytes) exceeds maxBodyBytes (64 bytes), so the
+// body is truncated and OPA receives x-envoy-auth-partial-body: true.
+// A policy that denies partial bodies proves OPA saw decompressed-then-truncated
+// bytes, not the raw compressed bytes that fit within maxBodyBytes unchanged.
 func TestGzipBodySemaphoreAccuracy(t *testing.T) {
 	// Produce a payload that is small when compressed but large when decompressed.
 	// Repeating a short pattern compresses very well.
@@ -197,13 +186,62 @@ func TestGzipBodySemaphoreAccuracy(t *testing.T) {
 
 	const maxBodyBytes = 64
 
-	proxy := buildGzipBypassProxy(t,
-		func(w http.ResponseWriter, r *http.Request) {
-			_, _ = io.Copy(io.Discard, r.Body)
-			w.WriteHeader(http.StatusOK)
-		},
-		openpolicyagent.WithMaxRequestBodyBytes(maxBodyBytes),
+	// Use a dedicated proxy whose policy denies requests with a partial (truncated) body.
+	// x-envoy-auth-partial-body is set to "true" by the adapter when truncated=true,
+	// which only happens when the decompressed size exceeds maxBodyBytes.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(upstream.Close)
+
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/test", map[string]string{
+			"main.rego": `
+				package envoy.authz
+
+				import rego.v1
+
+				default allow := true
+
+				allow := false if {
+					input.attributes.request.http.headers["x-envoy-auth-partial-body"] == "true"
+				}
+			`,
+		}),
 	)
+	t.Cleanup(opaControlPlane.Stop)
+
+	config := fmt.Appendf(nil, `{
+		"services": {"test": {"url": %q}},
+		"bundles": {"test": {"resource": "/bundles/{{ .bundlename }}"}},
+		"labels": {"environment": "test"},
+		"plugins": {"envoy_ext_authz_grpc": {"path": "envoy/authz/allow", "dry-run": false}}
+	}`, opaControlPlane.URL())
+
+	instanceOpts := []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error{
+		openpolicyagent.WithConfigTemplate(config),
+	}
+	registryOpts := []func(*openpolicyagent.OpenPolicyAgentRegistry) error{
+		openpolicyagent.WithTracer(tracingtest.NewTracer()),
+		openpolicyagent.WithOpenPolicyAgentInstanceConfig(instanceOpts...),
+		openpolicyagent.WithMaxRequestBodyBytes(maxBodyBytes),
+	}
+
+	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(registryOpts...)
+	if err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+
+	fr := make(filters.Registry)
+	fr.Register(NewOpaAuthorizeRequestWithBodySpec(opaFactory))
+	fr.Register(builtin.NewSetPath())
+
+	r := eskip.MustParse(fmt.Sprintf(
+		`* -> opaAuthorizeRequestWithBody("test") -> "%s"`, upstream.URL))
+
+	proxy := proxytest.New(fr, r...)
+	t.Cleanup(func() { _ = proxy.Close() })
 
 	req, err := http.NewRequest(http.MethodPost, proxy.URL+"/priv", bytes.NewReader(compressed))
 	if err != nil {
@@ -219,15 +257,13 @@ func TestGzipBodySemaphoreAccuracy(t *testing.T) {
 	_, _ = io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
 
-	// The decompressed body (280 bytes) exceeds maxBodyBytes (64 bytes).
-	// After the fix the body is decompressed first, so the semaphore is acquired
-	// for up to maxBodyBytes decompressed bytes — not the tiny compressed size.
-	// The observable signal is: OPA must NOT receive a 400 from trying to parse
-	// raw gzip bytes as JSON. A 400 means the body reached OPA still compressed.
-	if resp.StatusCode == http.StatusBadRequest {
-		t.Errorf("GHSA-j3r3-rjcc-vh4q semaphore: got 400; OPA received raw gzip bytes "+
-			"(compressed %d bytes) instead of the decompressed body — "+
-			"semaphore was acquired for compressed size, not decompressed size",
-			len(compressed))
+	// decompressed body (280 bytes) > maxBodyBytes (64 bytes) →
+	// truncated → x-envoy-auth-partial-body: true → policy denies → 403.
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("GHSA-j3r3-rjcc-vh4q semaphore: got %d, want 403; "+
+			"expected gzip body (compressed %d bytes, decompressed %d bytes) to be "+
+			"decompressed before semaphore acquisition so the %d-byte limit triggers "+
+			"truncation and x-envoy-auth-partial-body: true",
+			resp.StatusCode, len(compressed), len(plain), maxBodyBytes)
 	}
 }
