@@ -2,6 +2,7 @@ package openpolicyagent
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1322,6 +1323,19 @@ func bodyUpperBound(contentLength, maxBodyBytes int64) int64 {
 func (opa *OpenPolicyAgentInstance) ExtractHttpBodyOptionally(req *http.Request) (io.ReadCloser, []byte, bool, func(), error) {
 	body := req.Body
 
+	// Decompress gzip-encoded request bodies before handing them to OPA.
+	if strings.EqualFold(req.Header.Get("Content-Encoding"), "gzip") && body != nil {
+		gr, err := gzip.NewReader(body)
+		if err != nil {
+			return body, nil, false, func() {}, fmt.Errorf("invalid gzip body: %w", err)
+		}
+		req.Body = io.NopCloser(gr)
+		req.ContentLength = -1
+		req.Header.Del("Content-Encoding")
+		req.Header.Del("Content-Length")
+		body = req.Body
+	}
+
 	// `req.ContentLength == -1` is set by net/http when the client uses
 	// Transfer-Encoding: chunked (HTTP/1.1) or omits content-length in
 	// HTTP/2 framing. Treat unknown-length bodies as up-to-max-bytes and
@@ -1348,7 +1362,15 @@ func (opa *OpenPolicyAgentInstance) ExtractHttpBodyOptionally(req *http.Request)
 			rawBody = rawBody[:opa.maxBodyBytes]
 			truncated = true
 		}
-		return wrapper, rawBody, truncated, func() { opa.registry.maxMemoryBodyParsingSem.Release(requestedBodyBytes) }, err
+
+		// For gzip bodies, requestedBodyBytes was maxBodyBytes (decompressed size unknown upfront).
+		// Release the unused portion immediately so other requests aren't starved by the over-reservation.
+		actualBodyBytes := int64(len(rawBody))
+		if actualBodyBytes < requestedBodyBytes {
+			opa.registry.maxMemoryBodyParsingSem.Release(requestedBodyBytes - actualBodyBytes)
+		}
+
+		return wrapper, rawBody, truncated, func() { opa.registry.maxMemoryBodyParsingSem.Release(actualBodyBytes) }, err
 	}
 
 	return req.Body, nil, false, func() {}, nil
