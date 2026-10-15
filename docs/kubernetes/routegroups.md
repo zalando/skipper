@@ -652,8 +652,13 @@ Ingress (`pathType: ImplementationSpecific`): | RouteGroup:
 ### zalando.org/skipper-backend-protocol
 
 The annotation `zalando.org/skipper-backend-protocol` sets the backend protocol for all
-service backends in the RouteGroup. Set it to `h2c` to use HTTP/2 cleartext when
-connecting to backends.
+service backends in the RouteGroup.
+
+When connecting to backends set it to:
+
+- `h2c` to use HTTP/2 cleartext - requires `-enable-h2c-backend`
+- `h2` to use HTTP/2 - requires `-enable-h2-backend`
+- `h3` to use HTTP/3 - requires `-enable-h3-backend`
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -675,9 +680,26 @@ spec:
 ```
 
 When using EndpointSlices (`-enable-kubernetes-endpointslices`), the annotation is not
-needed if the Service port has `appProtocol: kubernetes.io/h2c` — skipper will
-automatically use h2c in that case. The annotation always takes precedence when both are
-set.
+needed if the Service port has `appProtocol: kubernetes.io/h2c` setting, example:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-svc
+spec:
+  ports:
+  - port: 80
+    appProtocol: kubernetes.io/h2c
+```
+
+Supported `appProtocol` values are:
+
+- `kubernetes.io/h2c` to use `h2c://` scheme in routes
+- `zalando.org/h2` to use `h2://` scheme in routes
+- `zalando.org/h3` to use `h3://` scheme in routes
+
+The annotation `zalando.org/skipper-backend-protocol` always takes precedence when both are set.
 
 ### zalando.org/traffic-zone-aware
 
