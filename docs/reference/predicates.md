@@ -221,6 +221,18 @@ RawPathPrefix("/api%2F")
 RawPathPrefix("/tenant%2Fname/resource")
 ```
 
+Caveat:
+
+In case [RawPath](https://pkg.go.dev/net/url#URL.RawPath) is not an empty string, a `<loopback>` backend will result that a changed path via [setPath()](filters.md#setpath) will not be visible to the next route match for RawPathPrefix.
+
+```
+r1: * -> setPath("%2F") -> <loopback>;
+r2: RawPathPrefix("%2F") -> status(200) -> inlineContent("here") -> <shunt>;
+```
+
+Any call that reaches route `r1` will loop forever.
+
+
 #### RawPathRegexpMatch
 
 Similar to [PathRegexp](#pathregexp) but matches against the **raw (URL-encoded) request path** (`request.URL.RawPath`).
@@ -239,6 +251,17 @@ Examples:
 RawPathRegexpMatch("%2F")
 RawPathRegexpMatch("^/api%2F[a-z]+")
 ```
+
+Caveat:
+
+In case [RawPath](https://pkg.go.dev/net/url#URL.RawPath) is not an empty string, a `<loopback>` backend will result that a changed path via [setPath()](filters.md#setpath) will not be visible to the next route match for RawPathRegexpMatch.
+
+```
+r1: * -> setPath("%2F") -> <loopback>;
+r2: RawPathRegexpMatch("%2F") -> status(200) -> inlineContent("here") -> <shunt>;
+```
+
+Any call that reaches route `r1` will loop forever.
 
 ## Host
 
