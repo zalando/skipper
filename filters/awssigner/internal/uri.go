@@ -7,26 +7,32 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 )
 
-var noEscape [256]bool
+var (
+	noEscape   [256]bool
+	escapeOnce sync.Once
+)
 
 func InitializeEscape() {
-	for i := 0; i < len(noEscape); i++ {
-		// AWS expects every character except these to be escaped
-		noEscape[i] = (i >= 'A' && i <= 'Z') ||
-			(i >= 'a' && i <= 'z') ||
-			(i >= '0' && i <= '9') ||
-			i == '-' ||
-			i == '.' ||
-			i == '_' ||
-			i == '~'
-	}
+	escapeOnce.Do(func() {
+		for i := 0; i < len(noEscape); i++ {
+			// AWS expects every character except these to be escaped
+			noEscape[i] = (i >= 'A' && i <= 'Z') ||
+				(i >= 'a' && i <= 'z') ||
+				(i >= '0' && i <= '9') ||
+				i == '-' ||
+				i == '.' ||
+				i == '_' ||
+				i == '~'
+		}
+	})
 }
 
 // EscapePath escapes part of a URL path in Amazon style.
 func EscapePath(path string, encodeSep bool) string {
-	InitializeEscape() //TODO : is getting initialized every time
+	InitializeEscape()
 	var buf bytes.Buffer
 	for i := 0; i < len(path); i++ {
 		c := path[i]
