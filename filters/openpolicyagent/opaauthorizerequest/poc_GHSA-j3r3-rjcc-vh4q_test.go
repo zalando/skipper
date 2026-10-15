@@ -7,7 +7,6 @@ package opaauthorizerequest
 // bytes to OPA, so input.parsed_body is null and deny-on-body-field Rego policies
 // fail open. Additionally, the semaphore is acquired for only the compressed size,
 // allowing far more concurrent requests than intended.
-//
 
 import (
 	"bytes"
@@ -100,7 +99,6 @@ func buildGzipBypassProxy(
 	return proxy
 }
 
-// TestGzipBodyPolicyBypass is failure-mode-A (primary).
 // A gzip-encoded body containing {"admin":true} must be denied (403).
 // Without the fix, ExtractHttpBodyOptionally hands raw compressed bytes to OPA;
 // input.parsed_body is null; the deny rule fails open and the proxy returns 200.
