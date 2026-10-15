@@ -133,11 +133,27 @@ PathRegexp("/foo/bar/")
 PathRegexp("^/foo/(bar|qux)")
 ```
 
-### PathPrefix
+### Special Path Matching Predicates
+
+These predicates work on not normalized data of the `Request.URL`:
+
+- [Path](https://pkg.go.dev/net/url#URL.Path)
+- [RawPath](https://pkg.go.dev/net/url#URL.RawPath)
+
+You can use these to match in special cases like:
+
+- double slash: `/foo/bar//`
+- percent encoded path: `/foo%2f/bar`
+
+#### PathPrefix
+
+In the default case for path prefix scan you want to use [PathSubtree](#pathsubtree).
 
 Similar to [PathRegexp](#pathregexp) — belongs to the second evaluation group, not the path tree.
-Matches if the decoded request path (`URL.Path`) starts with the given prefix string.
-Use this over `PathRegexp` when a simple prefix check suffices — it is faster and allocates nothing.
+Matching is similar to [PathSubtree](#pathsubtree) but this here is working on not normalized path data without tree lookup.
+
+Matches if the decoded request path (`request.URL.Path`) starts with the given prefix string.
+The request path in this predicate is not normalized so it can contain double slashes for example.
 
 Because Skipper does not use Go's `http.ServeMux`, double slashes in the request path are **not**
 redirected and are preserved in `URL.Path`. `PathPrefix` can therefore match paths with double slashes.
@@ -152,14 +168,16 @@ Examples:
 ```
 PathPrefix("/api/")
 PathPrefix("/foo/bar")
-PathPrefix("//special")    // matches a path starting with double slash
+PathPrefix("//special")      // matches a path starting with double slash
+PathPrefix("/path/items//")  // matches a path with double slash suffix
 ```
 
-### PathRegexpMatch
+#### PathRegexpMatch
 
-Similar to [PathRegexp](#pathregexp) but implemented as a plugin predicate, not a built-in.
-Matches the decoded request path (`URL.Path`) against a regular expression.
-A route may combine `PathRegexpMatch` with `PathRegexp` freely.
+In the default case for path regexp match you want to use [PathRegexp](#pathregexp).
+
+Similar to [PathRegexp](#pathregexp) but working on not normalized path data.
+Matches the decoded request path (`request.URL.Path`) against a regular expression.
 
 Because Skipper does not use Go's `http.ServeMux`, double slashes are preserved in `URL.Path` and
 can be matched with a regexp. For percent-encoded characters such as `%2F`, use [RawPathRegexpMatch](#rawpathregexpmatch).
@@ -173,18 +191,24 @@ Examples:
 ```
 PathRegexpMatch("^/api/v[0-9]+/")
 PathRegexpMatch("/foo/bar$")
-PathRegexpMatch("^//foo")    // matches a path starting with double slash
+PathRegexpMatch("^//foo")         // matches a path starting with double slash
+PathRegexpMatch("^/foo/bar//")    // matches a path with double slash suffix
 ```
 
-### RawPathPrefix
+#### RawPathPrefix
+
+In the default case for path prefix scan you want to use [PathSubtree](#pathsubtree).
 
 Similar to [PathRegexp](#pathregexp) — belongs to the second evaluation group, not the path tree.
-Matches if the **raw (URL-encoded) request path** (`URL.RawPath`) starts with the given prefix string.
+Matching is similar to [PathSubtree](#pathsubtree) but this here is working on not normalized raw path data without tree lookup.
+
+
+Matches if the **raw (URL-encoded) request path** (`request.URL.RawPath`) starts with the given prefix string.
 Falls back to `URL.Path` when the URL contains no percent-encoded characters.
 
 Use this specifically when the path contains percent-encoded reserved characters such as `%2F` (encoded
-slash) that Go's HTTP server decodes into `/` in `URL.Path`. For plain double slashes, [PathPrefix](#pathprefix)
-is sufficient since double slashes are not percent-encoded and appear directly in `URL.Path`.
+slash) that Go's HTTP server decodes into `/` in `request.URL.Path`. For plain double slash matching, [PathPrefix](#pathprefix)
+is sufficient since double slashes are not percent-encoded and appear directly in `request.URL.Path`.
 
 Parameters:
 
@@ -197,10 +221,10 @@ RawPathPrefix("/api%2F")
 RawPathPrefix("/tenant%2Fname/resource")
 ```
 
-### RawPathRegexpMatch
+#### RawPathRegexpMatch
 
-Similar to [PathRegexp](#pathregexp) but matches against the **raw (URL-encoded) request path** (`URL.RawPath`).
-Falls back to `URL.Path` when the URL contains no percent-encoded characters.
+Similar to [PathRegexp](#pathregexp) but matches against the **raw (URL-encoded) request path** (`request.URL.RawPath`).
+Falls back to `request.URL.Path` when the URL contains no percent-encoded characters.
 
 Use this specifically when you need regexp matching on paths containing percent-encoded reserved
 characters such as `%2F`. For plain double slashes, [PathRegexpMatch](#pathregexpmatch) is sufficient.
