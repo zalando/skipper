@@ -577,7 +577,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		}
 
 		directives := parseCacheControl(resp.Header)
-		ttl, store := f.storeDecision(req, resp.StatusCode, resp.Header, directives)
+		ttl, shouldStore := f.storeDecision(req, resp.StatusCode, resp.Header, directives)
 		swr := f.resolveSWR(resp.StatusCode, directives)
 		cia := correctedInitialAge(requestTime, responseTime, resp.Header)
 		coalescedHeader := resp.Header.Clone()
@@ -595,7 +595,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			CorrectedInitialAge:  cia,
 			ResponseTime:         responseTime,
 		}
-		if store {
+		if shouldStore {
 			if err := f.storage.Set(context.Background(), key, entry); err != nil {
 				log.WithError(err).Warn("cache: Set failed (cold-miss store)")
 				f.metrics.IncCounter("cache.storage_error")
@@ -604,7 +604,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		return &coalesceResult{
 			entry:     entry,
 			stored:    sieStored,
-			storeable: store,
+			storeable: shouldStore,
 			varyNames: parseVaryNames(resp.Header.Get("Vary")),
 			leaderReq: req,
 		}, nil
