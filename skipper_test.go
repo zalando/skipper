@@ -19,7 +19,6 @@ import (
 	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
 	"github.com/valkey-io/valkey-go"
-	"modernc.org/libc/signal"
 
 	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/filters"
@@ -450,7 +449,7 @@ func TestSupportServer(t *testing.T) {
 		InlineRoutes:            `r: PathSubtree("/auth") -> oauthOidcUserInfo("https://accounts.google.com", "client_id", "client_secret", "http://target.example.com/subpath/callback", "email profile", "name email picture", "parameter=value", "X-Auth-Authorization:claims.email", "0") -> <shunt>;`,
 	}
 
-	sigs := make(chan os.Signal, signal.SIGUSR1)
+	sigs := make(chan os.Signal, syscall.SIGUSR1)
 	go run(o, sigs, nil)
 	// cleanup spawned process
 	defer func() {
