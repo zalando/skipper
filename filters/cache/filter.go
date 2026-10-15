@@ -166,7 +166,9 @@ func (s *cacheSpec) CreateFilter(args []any) (filters.Filter, error) {
 		rfcMode = true
 		keyHeaders, err = parseRFCModeArgs(args)
 	case len(args) >= 3 && len(args) <= 5:
-		ttl, errorTTL, swr, staleIfError, keyHeaders, err = parseForceModeArgs(args)
+		var fc forceModeConfig
+		fc, err = parseForceModeArgs(args)
+		ttl, errorTTL, swr, staleIfError, keyHeaders = fc.ttl, fc.errorTTL, fc.swr, fc.staleIfError, fc.keyHeaders
 	default:
 		err = fmt.Errorf("cache: expected 0, 1, or 3-5 args (RFC: [keyHeaders]; force: ttl, errorTTL, swrWindow[, staleIfError[, keyHeaders]]), got %d: %w", len(args), filters.ErrInvalidFilterParameters)
 	}
@@ -224,45 +226,51 @@ func parseRFCModeArgs(args []any) ([]string, error) {
 	return canonicalKeyHeaders(raw), nil
 }
 
+// forceModeConfig holds the parsed arguments for force mode.
+type forceModeConfig struct {
+	ttl, errorTTL, swr, staleIfError time.Duration
+	keyHeaders                       []string
+}
+
 // parseForceModeArgs handles cache(ttl, errorTTL, swrWindow[, staleIfError[, keyHeaders]])
 // — 3 to 5 arguments. Force mode: operator-supplied values are authoritative;
 // upstream Cache-Control freshness directives are ignored.
-func parseForceModeArgs(args []any) (ttl, errorTTL, swr, staleIfError time.Duration, keyHeaders []string, err error) {
-	ttl, err = toDuration(args[0])
+func parseForceModeArgs(args []any) (c forceModeConfig, err error) {
+	c.ttl, err = toDuration(args[0])
 	if err != nil {
-		return 0, 0, 0, 0, nil, fmt.Errorf("cache: arg 0 (ttl): %v: %w", err, filters.ErrInvalidFilterParameters)
+		return forceModeConfig{}, fmt.Errorf("cache: arg 0 (ttl): %v: %w", err, filters.ErrInvalidFilterParameters)
 	}
 
-	errorTTL, err = toDuration(args[1])
+	c.errorTTL, err = toDuration(args[1])
 	if err != nil {
-		return 0, 0, 0, 0, nil, fmt.Errorf("cache: arg 1 (errorTTL): %v: %w", err, filters.ErrInvalidFilterParameters)
+		return forceModeConfig{}, fmt.Errorf("cache: arg 1 (errorTTL): %v: %w", err, filters.ErrInvalidFilterParameters)
 	}
 
-	swr, err = toDuration(args[2])
+	c.swr, err = toDuration(args[2])
 	if err != nil {
-		return 0, 0, 0, 0, nil, fmt.Errorf("cache: arg 2 (swrWindow): %v: %w", err, filters.ErrInvalidFilterParameters)
+		return forceModeConfig{}, fmt.Errorf("cache: arg 2 (swrWindow): %v: %w", err, filters.ErrInvalidFilterParameters)
 	}
 
 	if len(args) >= 4 {
 		raw, ok := args[3].(string)
 		if !ok {
-			return 0, 0, 0, 0, nil, fmt.Errorf("cache: arg 3 (staleIfError): expected string, got %T: %w", args[3], filters.ErrInvalidFilterParameters)
+			return forceModeConfig{}, fmt.Errorf("cache: arg 3 (staleIfError): expected string, got %T: %w", args[3], filters.ErrInvalidFilterParameters)
 		}
-		staleIfError, err = time.ParseDuration(raw)
+		c.staleIfError, err = time.ParseDuration(raw)
 		if err != nil {
-			return 0, 0, 0, 0, nil, fmt.Errorf("cache: arg 3 (staleIfError): %v: %w", err, filters.ErrInvalidFilterParameters)
+			return forceModeConfig{}, fmt.Errorf("cache: arg 3 (staleIfError): %v: %w", err, filters.ErrInvalidFilterParameters)
 		}
 	}
 
 	if len(args) == 5 {
 		raw, ok := args[4].(string)
 		if !ok {
-			return 0, 0, 0, 0, nil, fmt.Errorf("cache: arg 4 (keyHeaders): expected string, got %T: %w", args[4], filters.ErrInvalidFilterParameters)
+			return forceModeConfig{}, fmt.Errorf("cache: arg 4 (keyHeaders): expected string, got %T: %w", args[4], filters.ErrInvalidFilterParameters)
 		}
-		keyHeaders = canonicalKeyHeaders(raw)
+		c.keyHeaders = canonicalKeyHeaders(raw)
 	}
 
-	return ttl, errorTTL, swr, staleIfError, keyHeaders, nil
+	return c, nil
 }
 
 // canonicalKeyHeaders splits a comma-separated header-name list into
