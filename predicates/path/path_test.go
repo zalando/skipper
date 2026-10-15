@@ -14,24 +14,24 @@ func TestArgs(t *testing.T) {
 		spec routing.PredicateSpec
 		args []any
 	}{
-		// PathPrefix
-		{spec: NewPathPrefix(), args: []any{}},
-		{spec: NewPathPrefix(), args: []any{"/foo", "/bar"}},
-		{spec: NewPathPrefix(), args: []any{42}},
-		// PathRegexpMatch
-		{spec: NewPathRegexpMatch(), args: []any{}},
-		{spec: NewPathRegexpMatch(), args: []any{"^/foo", "extra"}},
-		{spec: NewPathRegexpMatch(), args: []any{42}},
-		{spec: NewPathRegexpMatch(), args: []any{`\`}}, // invalid regexp
-		// RawPathPrefix
-		{spec: NewRawPathPrefix(), args: []any{}},
-		{spec: NewRawPathPrefix(), args: []any{"/foo", "/bar"}},
-		{spec: NewRawPathPrefix(), args: []any{42}},
-		// RawPathRegexpMatch
-		{spec: NewRawPathRegexpMatch(), args: []any{}},
-		{spec: NewRawPathRegexpMatch(), args: []any{"^/foo", "extra"}},
-		{spec: NewRawPathRegexpMatch(), args: []any{42}},
-		{spec: NewRawPathRegexpMatch(), args: []any{`\`}}, // invalid regexp
+		// UrlPathPrefix
+		{spec: NewUrlPathPrefix(), args: []any{}},
+		{spec: NewUrlPathPrefix(), args: []any{"/foo", "/bar"}},
+		{spec: NewUrlPathPrefix(), args: []any{42}},
+		// UrlPathRegexp
+		{spec: NewUrlPathRegexp(), args: []any{}},
+		{spec: NewUrlPathRegexp(), args: []any{"^/foo", "extra"}},
+		{spec: NewUrlPathRegexp(), args: []any{42}},
+		{spec: NewUrlPathRegexp(), args: []any{`\`}}, // invalid regexp
+		// UrlRawPathPrefix
+		{spec: NewUrlRawPathPrefix(), args: []any{}},
+		{spec: NewUrlRawPathPrefix(), args: []any{"/foo", "/bar"}},
+		{spec: NewUrlRawPathPrefix(), args: []any{42}},
+		// UrlRawPathRegexp
+		{spec: NewUrlRawPathRegexp(), args: []any{}},
+		{spec: NewUrlRawPathRegexp(), args: []any{"^/foo", "extra"}},
+		{spec: NewUrlRawPathRegexp(), args: []any{42}},
+		{spec: NewUrlRawPathRegexp(), args: []any{`\`}}, // invalid regexp
 	} {
 		t.Run(fmt.Sprintf("%s(%v)", tc.spec.Name(), tc.args), func(t *testing.T) {
 			if _, err := tc.spec.Create(tc.args); err == nil {
@@ -49,49 +49,49 @@ func TestMatch(t *testing.T) {
 		rawPath string
 		match   bool
 	}{
-		// PathPrefix: matches on URL.Path
-		{spec: NewPathPrefix(), arg: "/foo", path: "/foo/bar", match: true},
-		{spec: NewPathPrefix(), arg: "/foo/", path: "/foo/bar", match: true},
-		{spec: NewPathPrefix(), arg: "/foo/bar", path: "/foo/bar", match: true},
-		{spec: NewPathPrefix(), arg: "/foo/bar/", path: "/foo/bar", match: false},
-		{spec: NewPathPrefix(), arg: "/baz", path: "/foo/bar", match: false},
-		{spec: NewPathPrefix(), arg: "", path: "/foo/bar", match: true},
-		{spec: NewPathPrefix(), arg: "//foo", path: "//foo/bar", match: true},
-		{spec: NewPathPrefix(), arg: "/foo//", path: "/foo//bar", match: true},
-		{spec: NewPathPrefix(), arg: "//foo", path: "/foo/bar", match: false},
+		// UrlPathPrefix: matches on URL.Path
+		{spec: NewUrlPathPrefix(), arg: "/foo", path: "/foo/bar", match: true},
+		{spec: NewUrlPathPrefix(), arg: "/foo/", path: "/foo/bar", match: true},
+		{spec: NewUrlPathPrefix(), arg: "/foo/bar", path: "/foo/bar", match: true},
+		{spec: NewUrlPathPrefix(), arg: "/foo/bar/", path: "/foo/bar", match: false},
+		{spec: NewUrlPathPrefix(), arg: "/baz", path: "/foo/bar", match: false},
+		{spec: NewUrlPathPrefix(), arg: "", path: "/foo/bar", match: true},
+		{spec: NewUrlPathPrefix(), arg: "//foo", path: "//foo/bar", match: true},
+		{spec: NewUrlPathPrefix(), arg: "/foo//", path: "/foo//bar", match: true},
+		{spec: NewUrlPathPrefix(), arg: "//foo", path: "/foo/bar", match: false},
 
-		// PathRegexpMatch: matches on URL.Path
-		{spec: NewPathRegexpMatch(), arg: "^/foo", path: "/foo/bar", match: true},
-		{spec: NewPathRegexpMatch(), arg: "/bar$", path: "/foo/bar", match: true},
-		{spec: NewPathRegexpMatch(), arg: "^/baz", path: "/foo/bar", match: false},
-		{spec: NewPathRegexpMatch(), arg: "^/foo/bar$", path: "/foo/bar", match: true},
-		{spec: NewPathRegexpMatch(), arg: "^//foo", path: "//foo/bar", match: true},
-		{spec: NewPathRegexpMatch(), arg: "/foo//bar", path: "/foo//bar", match: true},
-		{spec: NewPathRegexpMatch(), arg: "^//foo", path: "/foo/bar", match: false},
-		// %2F in URL.Path is decoded to /, PathRegexpMatch sees /
-		{spec: NewPathRegexpMatch(), arg: "%2F", path: "/foo/bar", match: false},
+		// UrlPathRegexp: matches on URL.Path
+		{spec: NewUrlPathRegexp(), arg: "^/foo", path: "/foo/bar", match: true},
+		{spec: NewUrlPathRegexp(), arg: "/bar$", path: "/foo/bar", match: true},
+		{spec: NewUrlPathRegexp(), arg: "^/baz", path: "/foo/bar", match: false},
+		{spec: NewUrlPathRegexp(), arg: "^/foo/bar$", path: "/foo/bar", match: true},
+		{spec: NewUrlPathRegexp(), arg: "^//foo", path: "//foo/bar", match: true},
+		{spec: NewUrlPathRegexp(), arg: "/foo//bar", path: "/foo//bar", match: true},
+		{spec: NewUrlPathRegexp(), arg: "^//foo", path: "/foo/bar", match: false},
+		// %2F in URL.Path is decoded to /, UrlPathRegexp sees /
+		{spec: NewUrlPathRegexp(), arg: "%2F", path: "/foo/bar", match: false},
 
-		// RawPathPrefix: matches on URL.RawPath, fallback to URL.Path
-		{spec: NewRawPathPrefix(), arg: "/foo%2F", path: "/foo/bar", rawPath: "/foo%2Fbar", match: true},
-		{spec: NewRawPathPrefix(), arg: "/foo%2Fbar", path: "/foo/bar", rawPath: "/foo%2Fbar", match: true},
-		{spec: NewRawPathPrefix(), arg: "/foo/", path: "/foo/bar", rawPath: "/foo%2Fbar", match: false},
+		// UrlRawPathPrefix: matches on URL.RawPath, fallback to URL.Path
+		{spec: NewUrlRawPathPrefix(), arg: "/foo%2F", path: "/foo/bar", rawPath: "/foo%2Fbar", match: true},
+		{spec: NewUrlRawPathPrefix(), arg: "/foo%2Fbar", path: "/foo/bar", rawPath: "/foo%2Fbar", match: true},
+		{spec: NewUrlRawPathPrefix(), arg: "/foo/", path: "/foo/bar", rawPath: "/foo%2Fbar", match: false},
 		// RawPath empty: fall back to URL.Path
-		{spec: NewRawPathPrefix(), arg: "/foo", path: "/foo/bar", match: true},
-		{spec: NewRawPathPrefix(), arg: "/baz", path: "/foo/bar", match: false},
+		{spec: NewUrlRawPathPrefix(), arg: "/foo", path: "/foo/bar", match: true},
+		{spec: NewUrlRawPathPrefix(), arg: "/baz", path: "/foo/bar", match: false},
 		// double slash preserved in URL.Path (no encoding, so RawPath is empty)
-		{spec: NewRawPathPrefix(), arg: "//foo", path: "//foo/bar", match: true},
+		{spec: NewUrlRawPathPrefix(), arg: "//foo", path: "//foo/bar", match: true},
 		// decoded path does not match encoded prefix — key differentiator
-		{spec: NewRawPathPrefix(), arg: "/foo%2F", path: "/foo/bar", match: false},
+		{spec: NewUrlRawPathPrefix(), arg: "/foo%2F", path: "/foo/bar", match: false},
 
-		// RawPathRegexpMatch: matches on URL.RawPath, fallback to URL.Path
-		{spec: NewRawPathRegexpMatch(), arg: "%2F", path: "/foo/bar", rawPath: "/foo%2Fbar", match: true},
-		{spec: NewRawPathRegexpMatch(), arg: "^/foo%2F", path: "/foo/bar", rawPath: "/foo%2Fbar", match: true},
-		{spec: NewRawPathRegexpMatch(), arg: "^/foo/", path: "/foo/bar", rawPath: "/foo%2Fbar", match: false},
+		// UrlRawPathRegexp: matches on URL.RawPath, fallback to URL.Path
+		{spec: NewUrlRawPathRegexp(), arg: "%2F", path: "/foo/bar", rawPath: "/foo%2Fbar", match: true},
+		{spec: NewUrlRawPathRegexp(), arg: "^/foo%2F", path: "/foo/bar", rawPath: "/foo%2Fbar", match: true},
+		{spec: NewUrlRawPathRegexp(), arg: "^/foo/", path: "/foo/bar", rawPath: "/foo%2Fbar", match: false},
 		// RawPath empty: fall back to URL.Path
-		{spec: NewRawPathRegexpMatch(), arg: "^/foo", path: "/foo/bar", match: true},
-		{spec: NewRawPathRegexpMatch(), arg: "%2F", path: "/foo/bar", match: false},
+		{spec: NewUrlRawPathRegexp(), arg: "^/foo", path: "/foo/bar", match: true},
+		{spec: NewUrlRawPathRegexp(), arg: "%2F", path: "/foo/bar", match: false},
 		// double slash with no encoding
-		{spec: NewRawPathRegexpMatch(), arg: "^//foo", path: "//foo/bar", match: true},
+		{spec: NewUrlRawPathRegexp(), arg: "^//foo", path: "//foo/bar", match: true},
 	} {
 		t.Run(fmt.Sprintf("%s(%q) path=%s raw=%s", tc.spec.Name(), tc.arg, tc.path, tc.rawPath), func(t *testing.T) {
 			p, err := tc.spec.Create([]any{tc.arg})
@@ -108,8 +108,8 @@ func TestMatch(t *testing.T) {
 
 var matchSink bool
 
-func BenchmarkPathPrefix(b *testing.B) {
-	s := NewPathPrefix()
+func BenchmarkUrlPathPrefix(b *testing.B) {
+	s := NewUrlPathPrefix()
 	p, err := s.Create([]any{"/api/v1"})
 	if err != nil {
 		b.Fatal(err)
@@ -126,8 +126,8 @@ func BenchmarkPathPrefix(b *testing.B) {
 	}
 }
 
-func BenchmarkPathRegexpMatch(b *testing.B) {
-	s := NewPathRegexpMatch()
+func BenchmarkUrlPathRegexp(b *testing.B) {
+	s := NewUrlPathRegexp()
 	p, err := s.Create([]any{"^/api/v1"})
 	if err != nil {
 		b.Fatal(err)
@@ -144,8 +144,8 @@ func BenchmarkPathRegexpMatch(b *testing.B) {
 	}
 }
 
-func BenchmarkRawPathPrefix(b *testing.B) {
-	s := NewRawPathPrefix()
+func BenchmarkUrlRawPathPrefix(b *testing.B) {
+	s := NewUrlRawPathPrefix()
 	p, err := s.Create([]any{"/api%2Fv1"})
 	if err != nil {
 		b.Fatal(err)
@@ -162,8 +162,8 @@ func BenchmarkRawPathPrefix(b *testing.B) {
 	}
 }
 
-func BenchmarkRawPathRegexpMatch(b *testing.B) {
-	s := NewRawPathRegexpMatch()
+func BenchmarkUrlRawPathRegexp(b *testing.B) {
+	s := NewUrlRawPathRegexp()
 	p, err := s.Create([]any{"^/api%2F"})
 	if err != nil {
 		b.Fatal(err)

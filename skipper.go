@@ -2579,10 +2579,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	// include bundled custom predicates
 	o.CustomPredicates = append(o.CustomPredicates,
-		ppath.NewPathPrefix(),
-		ppath.NewRawPathPrefix(),
-		ppath.NewPathRegexpMatch(),
-		ppath.NewRawPathRegexpMatch(),
+		ppath.NewUrlPathPrefix(),
+		ppath.NewUrlRawPathPrefix(),
+		ppath.NewUrlPathRegexp(),
+		ppath.NewUrlRawPathRegexp(),
 		source.New(),
 		source.NewFromLast(),
 		source.NewClientIP(),
