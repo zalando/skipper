@@ -11,7 +11,14 @@ func TestValkeytest(t *testing.T) {
 	defer done()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := ping(ctx, r, "", ""); err != nil {
+	if err := pingPlain(ctx, r, "", ""); err != nil {
 		t.Fatalf("Failed to ping valkey: %v", err)
 	}
+}
+
+func TestValkeytestTLS(t *testing.T) {
+	// newValkeyWithTLS starts a mutual-TLS valkey container and pings it over
+	// TLS during startup, so a successful return proves the mTLS setup works.
+	_, done := newValkeyWithTLS(t)
+	defer done()
 }
