@@ -113,6 +113,21 @@ func MustNewCertReloader(certFile, keyFile string, interval time.Duration, log l
 	return cr
 }
 
+// newSwarmClientTLS builds a client *tls.Config and its CertReloader for a swarm
+// ring (Valkey or Redis), shared by every shard. It returns (nil, nil) when TLS
+// is disabled or the client keypair is not configured. The caller owns the
+// returned CertReloader and must Close() it when the ring is torn down.
+func newSwarmClientTLS(enable bool, certFile, keyFile string, ca *x509.CertPool, interval time.Duration, log logging.Logger) (*tls.Config, *CertReloader) {
+	if !enable || certFile == "" || keyFile == "" {
+		return nil, nil
+	}
+	cr := MustNewCertReloader(certFile, keyFile, interval, log)
+	return &tls.Config{
+		GetClientCertificate: cr.GetClientCertificate,
+		RootCAs:              ca,
+	}, cr
+}
+
 func (cr *CertReloader) refreshLoop(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
