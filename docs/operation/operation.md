@@ -134,6 +134,29 @@ Route example:
 
 ### HTTP/3 over QUIC (h3)
 
+Skipper supports HTTP/3 (QUIC) in two directions: on the incoming listener and on
+outgoing backend connections. Both are disabled by default.
+
+#### h3 server (incoming listener)
+
+Enable HTTP/3 on the listener so that clients can connect to skipper over QUIC.
+Requires TLS to be configured (`-tls-cert` / `-tls-key`); silently ignored otherwise.
+
+    -enable-h3-server
+        enable HTTP/3 (QUIC) on the incoming listener; requires TLS
+
+When enabled, skipper:
+- opens a UDP listener on the same address and port as the TLS listener
+- sets an `Alt-Svc: h3=":<port>"; ma=86400` response header on every response so that
+  clients discover the QUIC endpoint and upgrade automatically
+
+Example — start skipper with TLS and h3 enabled:
+
+    skipper -tls-cert cert.pem -tls-key key.pem -enable-h3-server \
+        -inline-routes='r: * -> status(200) -> <shunt>'
+
+#### h3 backend (outgoing connections)
+
 Skipper can connect to backends over HTTP/3 (QUIC) using the `h3://` URL scheme.
 This is disabled by default:
 
@@ -148,6 +171,14 @@ Route example:
 
     h3:    * -> "h3://my-service:443";
     h3_lb: * -> <roundRobin, "h3://my-service-a:443", "h3://my-service-b:443">;
+
+Skipper sets the `h3://` scheme automatically when one of the following is true:
+
+- The Ingress or RouteGroup has the annotation `zalando.org/skipper-backend-protocol: h3`
+- The EndpointSlice port has `appProtocol: zalando.org/h3` and
+  `-enable-kubernetes-endpointslices` is set
+
+The `-enable-h3-backend` flag must be set for these automatic assignments to take effect.
 
 ### Client
 
