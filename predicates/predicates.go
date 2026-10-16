@@ -17,6 +17,10 @@ const (
 	// at https://pkg.go.dev/github.com/zalando/skipper/eskip)
 	PathSubtreeName           = "PathSubtree"
 	PathRegexpName            = "PathRegexp"
+	UrlPathPrefixName         = "UrlPathPrefix"
+	UrlPathRegexpName         = "UrlPathRegexp"
+	UrlRawPathPrefixName      = "UrlRawPathPrefix"
+	UrlRawPathRegexpName      = "UrlRawPathRegexp"
 	HostName                  = "Host"
 	HostAnyName               = "HostAny"
 	ForwardedHostName         = "ForwardedHost"

@@ -66,6 +66,7 @@ import (
 	"github.com/zalando/skipper/predicates/interval"
 	"github.com/zalando/skipper/predicates/methods"
 	skpotel "github.com/zalando/skipper/predicates/otel"
+	ppath "github.com/zalando/skipper/predicates/path"
 	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/predicates/source"
@@ -2578,6 +2579,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	// include bundled custom predicates
 	o.CustomPredicates = append(o.CustomPredicates,
+		ppath.NewUrlPathPrefix(),
+		ppath.NewUrlRawPathPrefix(),
+		ppath.NewUrlPathRegexp(),
+		ppath.NewUrlRawPathRegexp(),
 		source.New(),
 		source.NewFromLast(),
 		source.NewClientIP(),
