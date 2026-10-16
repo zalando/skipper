@@ -513,7 +513,7 @@ type RoutesMatcher struct {
 // NewRoutesMatcher compiles defs into a RoutesMatcher that satisfies the
 // proxy.PriorityRoute interface. Matching options are taken from o.MatchingOptions.
 func NewRoutesMatcher(o *Options, defs []*eskip.Route) (*RoutesMatcher, error) {
-	routes, err := compileRoute(o, defs)
+	routes, err := processAllRoutes(o, defs)
 	if err != nil {
 		return nil, err
 	}

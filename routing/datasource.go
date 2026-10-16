@@ -568,7 +568,7 @@ func mapPredicates(cps []PredicateSpec) map[string]PredicateSpec {
 	return cpm
 }
 
-func compileRoute(o *Options, defs []*eskip.Route) ([]*Route, error) {
+func processAllRoutes(o *Options, defs []*eskip.Route) ([]*Route, error) {
 	routes := make([]*Route, 0)
 	cpm := mapPredicates(o.Predicates)
 	for _, def := range defs {
