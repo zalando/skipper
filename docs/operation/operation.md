@@ -1573,8 +1573,7 @@ priority route matches, routing proceeds normally.
 
 This is useful when you need a small, operator-controlled set of routes
 that must always win regardless of what the rest of the routing table
-contains — for example: blocking a path cluster-wide, redirecting a
-decommissioned endpoint, or injecting a maintenance-mode response.
+contains — for example blocking a pattern cluster-wide.
 
 ### Inline priority routes
 
@@ -1583,10 +1582,10 @@ Supply routes as an eskip string directly on the command line:
     -priority-routes string
         priority routes in eskip format, matched before all data-client routes
 
-Example — block all requests to `/admin` with a 403:
+Example — block all requests that contain `../` with a 403:
 
 ```sh
-skipper -priority-routes='block: Path("/admin") -> status(403) -> inlineContent("Forbidden") -> <shunt>' \
+skipper -priority-routes='block: UrlRawPathRegexp(/[.][.][/]/) -> status(403) -> inlineContent("Forbidden") -> <shunt>' \
         -inline-routes='app: * -> "http://localhost:8080"'
 ```
 
@@ -1600,7 +1599,7 @@ Load priority routes from an eskip file:
 Example file `priority.eskip`:
 
 ```eskip
-block_admin: Path("/admin") -> status(403) -> inlineContent("Forbidden") -> <shunt>;
+block_path_traversal: UrlRawPathRegexp(/[.][.][/]/) -> status(403) -> inlineContent("Forbidden") -> <shunt>;
 maintenance: Path("/api") -> status(503) -> inlineContent("Under maintenance") -> <shunt>;
 ```
 
@@ -1613,40 +1612,6 @@ skipper -priority-routes-file=priority.eskip \
 
 Both `-priority-routes` and `-priority-routes-file` can be used at the
 same time; their routes are merged into a single priority matcher.
-
-### Path normalisation and security
-
-The priority matcher applies the same path normalisation as the regular
-routing table. Specifically, `httppath.Clean` is run on `request.URL.Path`
-before matching, which resolves dot-segments and collapses duplicate
-slashes. This means:
-
-| Incoming path | Normalised to | Matches `Path("/admin")` |
-|---|---|---|
-| `/admin` | `/admin` | yes |
-| `//admin` | `/admin` | yes |
-| `/../admin` | `/admin` | yes |
-| `/safe/../admin` | `/admin` | yes |
-| `/%61%64%6d%69%6e` | `/admin` | yes |
-| `/admin/` | `/admin/` | no (trailing slash is preserved) |
-| `/admin/../other` | `/other` | no |
-| `/admin%2F..%2Fother` | `/other` | no |
-
-Operators should be aware that a path-traversal sequence that resolves
-**to** a protected path will be correctly caught by the priority route.
-Sequences that resolve **away** from the protected path fall through to
-the regular routing table.
-
-To protect an entire path subtree rather than a single path, use
-`PathSubtree` instead of `Path`:
-
-```eskip
-block_subtree: PathSubtree("/admin") -> status(403) -> inlineContent("Forbidden") -> <shunt>;
-```
-
-`PathSubtree("/admin")` matches `/admin`, `/admin/`, `/admin/settings`,
-and any deeper path — including traversal sequences that normalise into
-the subtree.
 
 ### Relationship to the regular routing table
 
