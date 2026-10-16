@@ -1,6 +1,7 @@
 package skipper
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -292,5 +293,96 @@ func TestH3BackendEndToEnd(t *testing.T) {
 	mu.Unlock()
 	if gotProto != "HTTP/3.0" {
 		t.Errorf("expected proxy-to-backend h3 proto HTTP/3.0, got %q", gotProto)
+	}
+}
+
+// TestH3ServerEndToEnd verifies that skipper accepts HTTP/3 (QUIC) connections
+// when EnableH3Server is set and TLS is configured, and that the Alt-Svc header
+// is present in the response.
+func TestH3ServerEndToEnd(t *testing.T) {
+	if !testListener() {
+		t.Skip("skipping listener test; pass -args listener to enable")
+	}
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(backend.Close)
+
+	dc, err := routestring.New(fmt.Sprintf(`r0: * -> "%s"`, backend.URL))
+	if err != nil {
+		t.Fatalf("failed to create data client: %v", err)
+	}
+
+	MuFindAddress.Lock()
+	addr := FindAddress(t)
+	MuFindAddress.Unlock()
+
+	// Generate TLS cert for skipper's listener.
+	ca := nettest.NewCA(t)
+	host, _, _ := net.SplitHostPort(addr)
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	certPEM, keyPEM := ca.ServerCert(t, host)
+	certFile, keyFile := nettest.WriteCertKey(t, certPEM, keyPEM)
+
+	roots := x509.NewCertPool()
+	roots.AddCert(ca.Cert)
+
+	rt := routing.New(routing.Options{
+		FilterRegistry: builtin.MakeRegistry(),
+		DataClients:    []routing.DataClient{dc},
+	})
+	defer rt.Close()
+
+	p := proxy.WithParams(proxy.Params{
+		Routing: rt,
+		Flags:   proxy.Flags(proxy.OptionsNone),
+		Metrics: &metricstest.MockMetrics{},
+	})
+	defer p.Close() //nolint:errcheck
+
+	o := &Options{
+		Address:        addr,
+		CertPathTLS:    certFile,
+		KeyPathTLS:     keyFile,
+		EnableH3Server: true,
+	}
+
+	sigs := make(chan os.Signal, 1)
+	go func() {
+		listenAndServeQuit(p, o, sigs, nil, nil, nil) //nolint:errcheck
+	}()
+	t.Cleanup(func() { sigs <- syscall.SIGTERM })
+
+	h3Transport := &http3.Transport{
+		TLSClientConfig: &tls.Config{RootCAs: roots},
+	}
+	defer h3Transport.Close()
+	h3Client := &http.Client{Transport: h3Transport, Timeout: 5 * time.Second}
+
+	var rsp *http.Response
+	var reqErr error
+	for range 30 {
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+addr+"/", nil)
+		rsp, reqErr = h3Client.Do(req)
+		cancel()
+		if reqErr == nil {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if reqErr != nil {
+		t.Fatalf("h3 client request failed: %v", reqErr)
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", rsp.StatusCode)
+	}
+	if rsp.Header.Get("Alt-Svc") == "" {
+		t.Error("expected Alt-Svc header to be set")
 	}
 }
