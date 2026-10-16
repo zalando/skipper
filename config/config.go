@@ -323,6 +323,7 @@ type Config struct {
 	EnableH2CBackend             bool          `yaml:"enable-h2c-backend"`
 	EnableH2Backend              bool          `yaml:"enable-h2-backend"`
 	EnableH3Backend              bool          `yaml:"enable-h3-backend"`
+	EnableH3Server               bool          `yaml:"enable-h3-server"`
 	ReadTimeoutServer            time.Duration `yaml:"read-timeout-server"`
 	ReadHeaderTimeoutServer      time.Duration `yaml:"read-header-timeout-server"`
 	WriteTimeoutServer           time.Duration `yaml:"write-timeout-server"`
@@ -747,6 +748,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.EnableH2CBackend, "enable-h2c-backend", false, "enable HTTP/2 cleartext (h2c) to backends using the h2c:// URL scheme; disabled by default")
 	flag.BoolVar(&cfg.EnableH2Backend, "enable-h2-backend", false, "enable HTTP/2 over TLS to backends using the h2:// URL scheme; disabled by default")
 	flag.BoolVar(&cfg.EnableH3Backend, "enable-h3-backend", false, "enable HTTP/3 (QUIC) to backends using the h3:// URL scheme; disabled by default")
+	flag.BoolVar(&cfg.EnableH3Server, "enable-h3-server", false, "enable HTTP/3 (QUIC) on the incoming listener; requires TLS to be configured")
 	flag.DurationVar(&cfg.ReadTimeoutServer, "read-timeout-server", 5*time.Minute, "set ReadTimeout for http server connections")
 	flag.DurationVar(&cfg.ReadHeaderTimeoutServer, "read-header-timeout-server", 60*time.Second, "set ReadHeaderTimeout for http server connections")
 	flag.DurationVar(&cfg.WriteTimeoutServer, "write-timeout-server", 60*time.Second, "set WriteTimeout for http server connections")
@@ -1226,6 +1228,7 @@ func (c *Config) ToOptions() skipper.Options {
 		EnableH2CBackend:             c.EnableH2CBackend,
 		EnableH2Backend:              c.EnableH2Backend,
 		EnableH3Backend:              c.EnableH3Backend,
+		EnableH3Server:               c.EnableH3Server,
 		ReadTimeoutServer:            c.ReadTimeoutServer,
 		ReadHeaderTimeoutServer:      c.ReadHeaderTimeoutServer,
 		WriteTimeoutServer:           c.WriteTimeoutServer,
