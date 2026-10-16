@@ -24,6 +24,50 @@ Known security issues in predicates:
 - [ClientIP](#clientip) can be tricked if the attacker is able to forge its IP.
 - [OTelBaggage](#otelbaggage) can be tricked if the attacker adds valid OTEL http headers into their HTTP request.
 
+### Path normalisation and security
+
+The priority matcher applies the same path normalisation as the regular
+routing table. Specifically, `httppath.Clean` is run on `request.URL.Path`
+before matching, which resolves dot-segments and collapses duplicate
+slashes. This means:
+
+| Incoming path | Normalised to | Matches `Path("/admin")` |
+|---|---|---|
+| `/admin` | `/admin` | yes |
+| `//admin` | `/admin` | yes |
+| `/../admin` | `/admin` | yes |
+| `/safe/../admin` | `/admin` | yes |
+| `/%61%64%6d%69%6e` | `/admin` | yes |
+| `/admin/` | `/admin/` | no (trailing slash is preserved) |
+| `/admin/../other` | `/other` | no |
+| `/admin%2F..%2Fother` | `/other` | no |
+
+Operators should be aware that a path-traversal sequence that resolves
+**to** a protected path will be correctly caught by the priority route.
+Sequences that resolve **away** from the protected path fall through to
+the regular routing table.
+
+To protect an entire path subtree rather than a single path, use
+`PathSubtree` instead of `Path`:
+
+```eskip
+block_subtree: PathSubtree("/admin") -> status(403) -> inlineContent("Forbidden") -> <shunt>;
+```
+
+`PathSubtree("/admin")` matches `/admin`, `/admin/`, `/admin/settings`,
+and any deeper path — including traversal sequences that normalise into
+the subtree.
+
+If you want to block all requests that contain path traversal `../` or path confusion `/` vs `%2F` patterns,
+you can use [priority routes](../operation/operation.md#priority-routes).
+
+Example route passed to `-priority-routes` or `-priority-routes-file`:
+
+```eskip
+block_path_traversal: UrlRawPathRegexp(/[.][.][/]/) -> status(403) -> inlineContent("Forbidden") -> <shunt>;
+block_path_connfusion: UrlRawPathRegexp(/%2[fF]/) -> status(403) -> inlineContent("Forbidden") -> <shunt>;
+```
+
 ## Predicate arguments
 
 The predicate arguments can be strings, regular expressions or numbers (float64, int). In the eskip syntax

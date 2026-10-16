@@ -1563,6 +1563,64 @@ potentially contradicting filter configurations and race conditions, i.e.
 you should specify a specific filter either on the Ingress resource or as
 a default filter.
 
+## Priority Routes
+
+Priority routes are matched against every incoming request **before** any
+route from the regular data sources (files, Kubernetes, etcd, inline
+routes). If a priority route matches, its filters and backend are used
+and the regular routing table is never consulted for that request. If no
+priority route matches, routing proceeds normally.
+
+This is useful when you need a small, operator-controlled set of routes
+that must always win regardless of what the rest of the routing table
+contains — for example blocking a pattern cluster-wide.
+
+### Inline priority routes
+
+Supply routes as an eskip string directly on the command line:
+
+    -priority-routes string
+        priority routes in eskip format, matched before all data-client routes
+
+Example — block all requests that contain `../` with a 403:
+
+```sh
+skipper -priority-routes='block: UrlRawPathRegexp(/[.][.][/]/) -> status(403) -> inlineContent("Forbidden") -> <shunt>' \
+        -inline-routes='app: * -> "http://localhost:8080"'
+```
+
+### Priority routes from a file
+
+Load priority routes from an eskip file:
+
+    -priority-routes-file string
+        file containing priority route definitions in eskip format
+
+Example file `priority.eskip`:
+
+```eskip
+block_path_traversal: UrlRawPathRegexp(/[.][.][/]/) -> status(403) -> inlineContent("Forbidden") -> <shunt>;
+maintenance: Path("/api") -> status(503) -> inlineContent("Under maintenance") -> <shunt>;
+```
+
+Start skipper with:
+
+```sh
+skipper -priority-routes-file=priority.eskip \
+        -routes-file=app.eskip
+```
+
+Both `-priority-routes` and `-priority-routes-file` can be used at the
+same time; their routes are merged into a single priority matcher.
+
+### Relationship to the regular routing table
+
+Priority routes are matched at the proxy level, before the routing table
+is consulted. They do **not** appear in the `/routes` endpoint output
+(which shows only data-client routes), and they are not subject to
+dataclient polling or route updates. To change them, restart skipper with
+a new value for `-priority-routes` or a modified `-priority-routes-file`.
+
 ## Scheduler
 
 HTTP request schedulers change the queuing behavior of in-flight
