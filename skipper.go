@@ -530,6 +530,10 @@ type Options struct {
 	// PriorityRouteString which will be parsed by inline routes
 	PriorityRouteString string
 
+	// PriorityRoutesFile is a file containing eskip route definitions that are
+	// used as priority routes, matched before all standard routes.
+	PriorityRoutesFile string
+
 	// Specifications of custom, user defined predicates.
 	CustomPredicates []routing.PredicateSpec
 
@@ -2001,10 +2005,22 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		if err != nil {
 			return fmt.Errorf("error while creating dataclient for priority routes string: %w", err)
 		}
-		prioRoutes, err = ir.LoadAll()
+		parsed, err := ir.LoadAll()
 		if err != nil {
 			return fmt.Errorf("error while parsing eskip priority routes string: %w", err)
 		}
+		prioRoutes = append(prioRoutes, parsed...)
+	}
+	if o.PriorityRoutesFile != "" {
+		f, err := eskipfile.Open(o.PriorityRoutesFile)
+		if err != nil {
+			return fmt.Errorf("error while opening priority routes file: %w", err)
+		}
+		parsed, err := f.LoadAll()
+		if err != nil {
+			return fmt.Errorf("error while loading priority routes file: %w", err)
+		}
+		prioRoutes = append(prioRoutes, parsed...)
 	}
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)

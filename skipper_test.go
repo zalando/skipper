@@ -21,6 +21,8 @@ import (
 	"github.com/valkey-io/valkey-go"
 
 	"github.com/zalando/skipper/dataclients/routestring"
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/filters"
 	flog "github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/auth"
@@ -1004,4 +1006,197 @@ func TestDataClients(t *testing.T) {
 
 	})
 
+}
+
+// newTestRoutingProxy builds a routing.Routing + proxy.Proxy backed by the
+// given data clients and priority routes, starts an httptest.Server and
+// returns the server URL and a cleanup function.
+func newTestRoutingProxy(t *testing.T, dcs []routing.DataClient, prs []proxy.PriorityRoute) (string, func()) {
+	t.Helper()
+	fr := builtin.MakeRegistry()
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	ro := routing.Options{
+		SignalFirstLoad: true,
+		FilterRegistry:  fr,
+		DataClients:     dcs,
+		PostProcessors:  []routing.PostProcessor{loadbalancer.NewAlgorithmProvider(), endpointRegistry},
+		SuppressLogs:    true,
+	}
+	rt := routing.New(ro)
+	<-rt.FirstLoad()
+	pr := proxy.WithParams(proxy.Params{
+		Routing:        rt,
+		PriorityRoutes: prs,
+	})
+	srv := stdlibhttptest.NewServer(pr)
+	return srv.URL, func() {
+		srv.Close()
+		pr.Close()
+		rt.Close()
+		endpointRegistry.Close()
+	}
+}
+
+func TestPriorityRoutesInline(t *testing.T) {
+	// backend that answers all requests so we can distinguish by status code
+	backend := stdlibhttptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	// standard route: catch-all, proxies to backend (200)
+	standardDoc := `std: * -> "` + backend.URL + `";`
+	dc, err := routestring.New(standardDoc)
+	require.NoError(t, err)
+
+	// priority route: /admin returns 201 shunt (does not reach backend)
+	prioDoc := `prio: Path("/admin") -> status(201) -> inlineContent("") -> <shunt>;`
+	prioDefs, err := eskip.Parse(prioDoc)
+	require.NoError(t, err)
+
+	ro := routing.Options{FilterRegistry: builtin.MakeRegistry()}
+	rm, err := routing.NewRoutesMatcher(&ro, prioDefs)
+	require.NoError(t, err)
+
+	srvURL, cleanup := newTestRoutingProxy(t,
+		[]routing.DataClient{dc},
+		[]proxy.PriorityRoute{rm},
+	)
+	defer cleanup()
+
+	for _, tt := range []struct {
+		name       string
+		path       string
+		wantStatus int
+	}{
+		{"priority route matched", "/admin", 201},
+		{"standard route matched for other path", "/other", 200},
+		// traversal that resolves to /admin must hit priority route
+		{"double-slash resolves to /admin", "//admin", 201},
+		{"dot-segment traversal resolves to /admin", "/safe/../admin", 201},
+		// traversal escaping /admin falls through to standard route
+		{"traversal away from /admin hits standard route", "/admin/../other", 200},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rsp, err := http.Get(srvURL + tt.path)
+			require.NoError(t, err)
+			rsp.Body.Close()
+			assert.Equal(t, tt.wantStatus, rsp.StatusCode)
+		})
+	}
+}
+
+func TestPriorityRoutesFile(t *testing.T) {
+	backend := stdlibhttptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	// write priority routes to a temp file
+	prioContent := `priofile: Path("/secure") -> status(202) -> inlineContent("") -> <shunt>;`
+	f, err := os.CreateTemp("", "prio_routes_*.eskip")
+	require.NoError(t, err)
+	_, err = f.WriteString(prioContent)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	defer os.Remove(f.Name())
+
+	// load priority routes from the file the same way skipper.go does
+	ef, err := eskipfile.Open(f.Name())
+	require.NoError(t, err)
+	prioDefs, err := ef.LoadAll()
+	require.NoError(t, err)
+
+	ro := routing.Options{FilterRegistry: builtin.MakeRegistry()}
+	rm, err := routing.NewRoutesMatcher(&ro, prioDefs)
+	require.NoError(t, err)
+
+	standardDoc := `std: * -> "` + backend.URL + `";`
+	dc, err := routestring.New(standardDoc)
+	require.NoError(t, err)
+
+	srvURL, cleanup := newTestRoutingProxy(t,
+		[]routing.DataClient{dc},
+		[]proxy.PriorityRoute{rm},
+	)
+	defer cleanup()
+
+	for _, tt := range []struct {
+		name       string
+		path       string
+		wantStatus int
+	}{
+		{"priority file route matched", "/secure", 202},
+		{"standard route matched for other path", "/other", 200},
+		// traversal resolving to /secure hits priority route
+		{"dot-segment traversal resolves to /secure", "/x/../secure", 202},
+		// traversal escaping /secure falls through to standard
+		{"traversal away from /secure hits standard route", "/secure/../other", 200},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rsp, err := http.Get(srvURL + tt.path)
+			require.NoError(t, err)
+			rsp.Body.Close()
+			assert.Equal(t, tt.wantStatus, rsp.StatusCode)
+		})
+	}
+}
+
+func TestPriorityRoutesInlineAndFileComposed(t *testing.T) {
+	backend := stdlibhttptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	// inline priority route
+	inlineDoc := `inlineprio: Path("/inline") -> status(201) -> inlineContent("") -> <shunt>;`
+	inlineDefs, err := eskip.Parse(inlineDoc)
+	require.NoError(t, err)
+
+	// file priority route
+	fileContent := `fileprio: Path("/file") -> status(202) -> inlineContent("") -> <shunt>;`
+	f, err := os.CreateTemp("", "prio_routes_*.eskip")
+	require.NoError(t, err)
+	_, err = f.WriteString(fileContent)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	defer os.Remove(f.Name())
+
+	ef, err := eskipfile.Open(f.Name())
+	require.NoError(t, err)
+	fileDefs, err := ef.LoadAll()
+	require.NoError(t, err)
+
+	// combine both sets of priority route definitions
+	allPrioDefs := append(inlineDefs, fileDefs...)
+	ro := routing.Options{FilterRegistry: builtin.MakeRegistry()}
+	rm, err := routing.NewRoutesMatcher(&ro, allPrioDefs)
+	require.NoError(t, err)
+
+	standardDoc := `std: * -> "` + backend.URL + `";`
+	dc, err := routestring.New(standardDoc)
+	require.NoError(t, err)
+
+	srvURL, cleanup := newTestRoutingProxy(t,
+		[]routing.DataClient{dc},
+		[]proxy.PriorityRoute{rm},
+	)
+	defer cleanup()
+
+	for _, tt := range []struct {
+		name       string
+		path       string
+		wantStatus int
+	}{
+		{"inline priority route matched", "/inline", 201},
+		{"file priority route matched", "/file", 202},
+		{"standard route matched", "/other", 200},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rsp, err := http.Get(srvURL + tt.path)
+			require.NoError(t, err)
+			rsp.Body.Close()
+			assert.Equal(t, tt.wantStatus, rsp.StatusCode)
+		})
+	}
 }
