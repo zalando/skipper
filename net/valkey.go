@@ -107,7 +107,7 @@ type ValkeyOptions struct {
 	Log logging.Logger
 }
 
-func createValkeyClient(addr string, opt *ValkeyOptions) (valkey.Client, error) {
+func createValkeyClient(addr string, opt *ValkeyOptions, tlsConfig *tls.Config) (valkey.Client, error) {
 	clientOptions := valkey.ClientOption{
 		Username:    opt.Username,
 		Password:    opt.Password,
@@ -135,12 +135,8 @@ func createValkeyClient(addr string, opt *ValkeyOptions) (valkey.Client, error) 
 		err error
 	)
 
-	if opt.EnableTLS && opt.ClientCertFile != "" && opt.ClientKeyFile != "" {
-		cr := MustNewCertReloader(opt.ClientCertFile, opt.ClientKeyFile, opt.ClientCertRefreshInterval, opt.Log)
-		clientOptions.TLSConfig = &tls.Config{
-			GetClientCertificate: cr.GetClientCertificate,
-			RootCAs:              opt.CA,
-		}
+	if tlsConfig != nil {
+		clientOptions.TLSConfig = tlsConfig
 	}
 
 	if opt.EnableOTel {
@@ -158,6 +154,11 @@ func createValkeyClient(addr string, opt *ValkeyOptions) (valkey.Client, error) 
 type valkeyRing struct {
 	opt *ValkeyOptions
 
+	// tlsConfig is shared by all shard clients; nil when TLS is disabled.
+	// certReloader backs it
+	tlsConfig    *tls.Config
+	certReloader *CertReloader
+
 	// maps int to client for sharding, trades memory for concurrent access
 	// most operations only have to use this lock-free structure
 	shards       [ringSize]atomic.Pointer[valkey.Client]
@@ -173,9 +174,14 @@ func newValkeyRing(opt *ValkeyOptions) (*valkeyRing, error) {
 		opt:       opt,
 		clientMap: make(map[string]valkey.Client),
 	}
+	ring.tlsConfig, ring.certReloader = newSwarmClientTLS(opt.EnableTLS, opt.ClientCertFile, opt.ClientKeyFile, opt.CA, opt.ClientCertRefreshInterval, opt.Log)
+
 	for _, ep := range opt.Addrs {
-		cl, err := createValkeyClient(ep, opt)
+		cl, err := createValkeyClient(ep, opt, ring.tlsConfig)
 		if err != nil {
+			if ring.certReloader != nil {
+				ring.certReloader.Close()
+			}
 			return nil, err
 		}
 		ring.clientMap[ep] = cl
@@ -248,7 +254,7 @@ func (vr *valkeyRing) SetAddr(addr []string) error {
 
 	// create new clients
 	for _, addr := range newAddr {
-		cli, err := createValkeyClient(addr, vr.opt)
+		cli, err := createValkeyClient(addr, vr.opt, vr.tlsConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create valkey client on SetAddr: %w", err)
 		}
@@ -448,6 +454,9 @@ func (vrc *ValkeyRingClient) Close() error {
 			cli.Close()
 		}
 		vrc.ring.mu.Unlock()
+		if vrc.ring.certReloader != nil {
+			vrc.ring.certReloader.Close()
+		}
 	})
 	return nil
 }

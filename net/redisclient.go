@@ -105,6 +105,7 @@ type RedisOptions struct {
 // to be in the hot path of low latency production requests.
 type RedisRingClient struct {
 	ring          *redis.Ring
+	certReloader  *CertReloader
 	log           logging.Logger
 	metrics       metrics.Metrics
 	metricsPrefix string
@@ -223,6 +224,13 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		tracer:  &opentracing.NoopTracer{},
 	}
 
+	// Build the client TLS config and its cert reloader once, shared by every
+	// shard.
+	var tlsConfig *tls.Config
+	if ro != nil {
+		tlsConfig, r.certReloader = newSwarmClientTLS(ro.EnableTLS, ro.ClientCertFile, ro.ClientKeyFile, ro.CA, ro.ClientCertRefreshInterval, ro.Log)
+	}
+
 	ringOptions := &redis.RingOptions{
 		Addrs: map[string]string{},
 		NewClient: func(opt *redis.Options) *redis.Client {
@@ -244,12 +252,8 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 			opt.MaintNotificationsConfig = &maintnotifications.Config{
 				Mode: maintnotifications.ModeDisabled,
 			}
-			if ro.EnableTLS && ro.ClientCertFile != "" && ro.ClientKeyFile != "" {
-				cr := MustNewCertReloader(ro.ClientCertFile, ro.ClientKeyFile, ro.ClientCertRefreshInterval, ro.Log)
-				opt.TLSConfig = &tls.Config{
-					GetClientCertificate: cr.GetClientCertificate,
-					RootCAs:              ro.CA,
-				}
+			if tlsConfig != nil {
+				opt.TLSConfig = tlsConfig
 			}
 
 			return redis.NewClient(opt)
@@ -424,6 +428,9 @@ func (r *RedisRingClient) Close() error {
 		close(r.quit)
 		if r.ring != nil {
 			err = r.ring.Close()
+		}
+		if r.certReloader != nil {
+			r.certReloader.Close()
 		}
 	})
 	return err

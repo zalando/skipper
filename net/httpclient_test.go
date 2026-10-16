@@ -1033,3 +1033,66 @@ func TestClientMTLS_RotationFallback(t *testing.T) {
 		t.Errorf("Unexpected fallback status code: %d", rspFallback.StatusCode)
 	}
 }
+
+func TestNewSwarmClientTLS(t *testing.T) {
+	ca := nettest.NewCA(t)
+	certPEM, keyPEM := ca.ClientCert(t)
+	certFile, keyFile := nettest.WriteCertKey(t, certPEM, keyPEM)
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(ca.CertPEM) {
+		t.Fatal("failed to append CA PEM")
+	}
+	log := &logging.DefaultLog{}
+
+	t.Run("disabled returns nil", func(t *testing.T) {
+		cfg, cr := newSwarmClientTLS(false, certFile, keyFile, pool, time.Minute, log)
+		if cfg != nil || cr != nil {
+			t.Fatalf("expected nil, got cfg=%v cr=%v", cfg, cr)
+		}
+	})
+
+	t.Run("missing keypair returns nil", func(t *testing.T) {
+		cfg, cr := newSwarmClientTLS(true, certFile, "", pool, time.Minute, log)
+		if cfg != nil || cr != nil {
+			t.Fatalf("expected nil, got cfg=%v cr=%v", cfg, cr)
+		}
+	})
+
+	t.Run("enabled builds config and reloader", func(t *testing.T) {
+		cfg, cr := newSwarmClientTLS(true, certFile, keyFile, pool, time.Minute, log)
+		if cr == nil {
+			t.Fatal("expected a reloader")
+		}
+		defer cr.Close()
+		if cfg.RootCAs != pool {
+			t.Error("RootCAs not wired")
+		}
+		if cfg.GetClientCertificate == nil {
+			t.Fatal("GetClientCertificate not set")
+		}
+		got, err := cfg.GetClientCertificate(&tls.CertificateRequestInfo{})
+		if err != nil {
+			t.Fatalf("GetClientCertificate: %v", err)
+		}
+		want, err := tls.X509KeyPair(certPEM, keyPEM)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got.Certificate[0], want.Certificate[0]) {
+			t.Error("served certificate mismatch")
+		}
+	})
+}
+
+func TestNewSwarmClientTLSNoLeak(t *testing.T) {
+	noleak.Check(t)
+	ca := nettest.NewCA(t)
+	certPEM, keyPEM := ca.ClientCert(t)
+	certFile, keyFile := nettest.WriteCertKey(t, certPEM, keyPEM)
+
+	cfg, cr := newSwarmClientTLS(true, certFile, keyFile, nil, time.Minute, &logging.DefaultLog{})
+	if cfg == nil || cr == nil {
+		t.Fatal("expected tls config and reloader")
+	}
+	cr.Close()
+}
