@@ -13,9 +13,13 @@ import (
 )
 
 type options struct {
-	username string
-	password string
-	image    string
+	username   string
+	password   string
+	image      string
+	certFile   string
+	certKey    string
+	tlsPort    string
+	caCertFile string
 }
 
 func NewTestValkey(t testing.TB) (address string, done func()) {
@@ -30,6 +34,18 @@ func newTestValkeyWithOptions(t testing.TB, opts options) (address string, done 
 	var args []string
 	if opts.password != "" {
 		args = append(args, "--requirepass", opts.password)
+	}
+
+	logStrategy := wait.ForLog("* Ready to accept connections tcp")
+
+	if opts.caCertFile != "" && opts.certFile != "" && opts.certKey != "" && opts.tlsPort != "" {
+		args = append(args, "--port", "0")
+		args = append(args, "--tls-port", "6379")
+		args = append(args, "--tls-key-file", opts.certKey)
+		args = append(args, "--tls-cert-file", opts.certFile)
+		args = append(args, "--tls-ca-cert-file", opts.caCertFile)
+		args = append(args, "--tls-auth-clients", "yes")
+		logStrategy = wait.ForLog("* Ready to accept connections tls")
 	}
 
 	start := time.Now()
@@ -60,7 +76,7 @@ func newTestValkeyWithOptions(t testing.TB, opts options) (address string, done 
 			ExposedPorts: []string{"6379/tcp"},
 			Networks:     []string{network.Name},
 			WaitingFor: wait.ForAll(
-				wait.ForLog("* Ready to accept connections tcp"),
+				logStrategy,
 				wait.NewHostPortStrategy(port.Port()),
 			),
 		},
