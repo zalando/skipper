@@ -2,9 +2,12 @@ package kubernetes_test
 
 import (
 	"bytes"
+	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/zalando/skipper/dataclients/kubernetes"
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 )
 
@@ -313,4 +317,184 @@ func TestLoggingInterval(t *testing.T) {
 
 		assert.Equal(t, 1+n+i, countMessages(), "a new message expected for each subsequent update when log level is debug")
 	}
+}
+
+func TestClusterClient_Pagination(t *testing.T) {
+	type pageResponse struct {
+		Metadata struct {
+			Continue string `json:"continue"`
+		} `json:"metadata"`
+		Items []definitions.IngressV1Item `json:"items"`
+	}
+
+	var mu sync.Mutex
+	var receivedRequests []string
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		receivedRequests = append(receivedRequests, r.URL.String())
+		mu.Unlock()
+
+		limit := r.URL.Query().Get("limit")
+		continueToken := r.URL.Query().Get("continue")
+
+		assert.Equal(t, "2", limit)
+
+		var resp pageResponse
+		switch continueToken {
+		case "":
+			resp.Metadata.Continue = "token-1"
+			resp.Items = []definitions.IngressV1Item{
+				{Metadata: &definitions.Metadata{Namespace: "default", Name: "app-1"}},
+				{Metadata: &definitions.Metadata{Namespace: "default", Name: "app-2"}},
+			}
+		case "token-1":
+			resp.Metadata.Continue = "token-2"
+			resp.Items = []definitions.IngressV1Item{
+				{Metadata: &definitions.Metadata{Namespace: "default", Name: "app-3"}},
+				{Metadata: &definitions.Metadata{Namespace: "default", Name: "app-4"}},
+			}
+		case "token-2":
+			resp.Metadata.Continue = ""
+			resp.Items = []definitions.IngressV1Item{
+				{Metadata: &definitions.Metadata{Namespace: "default", Name: "app-5"}},
+			}
+		default:
+			http.Error(w, "invalid continue token", http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer s.Close()
+
+	client, err := kubernetes.NewClusterClient(
+		kubernetes.Options{
+			KubernetesListChunkSize: 2,
+		},
+		s.URL,
+		"",
+		"",
+		nil,
+	)
+	require.NoError(t, err)
+
+	items, err := client.LoadIngressesV1()
+	require.NoError(t, err)
+	require.Len(t, items, 5)
+
+	assert.Equal(t, "app-1", items[0].Metadata.Name)
+	assert.Equal(t, "app-2", items[1].Metadata.Name)
+	assert.Equal(t, "app-3", items[2].Metadata.Name)
+	assert.Equal(t, "app-4", items[3].Metadata.Name)
+	assert.Equal(t, "app-5", items[4].Metadata.Name)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, receivedRequests, 3)
+	assert.Equal(t, "/apis/networking.k8s.io/v1/ingresses?limit=2", receivedRequests[0])
+	assert.Equal(t, "/apis/networking.k8s.io/v1/ingresses?limit=2&continue=token-1", receivedRequests[1])
+	assert.Equal(t, "/apis/networking.k8s.io/v1/ingresses?limit=2&continue=token-2", receivedRequests[2])
+}
+
+func TestClusterClient_PaginationDisabled(t *testing.T) {
+	type pageResponse struct {
+		Metadata struct {
+			Continue string `json:"continue"`
+		} `json:"metadata"`
+		Items []definitions.IngressV1Item `json:"items"`
+	}
+
+	var mu sync.Mutex
+	var receivedRequests []string
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		receivedRequests = append(receivedRequests, r.URL.String())
+		mu.Unlock()
+
+		assert.Empty(t, r.URL.Query().Get("limit"))
+		assert.Empty(t, r.URL.Query().Get("continue"))
+
+		var resp pageResponse
+		resp.Items = []definitions.IngressV1Item{
+			{Metadata: &definitions.Metadata{Namespace: "default", Name: "app-1"}},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer s.Close()
+
+	client, err := kubernetes.NewClusterClient(
+		kubernetes.Options{
+			KubernetesListChunkSize: 0,
+		},
+		s.URL,
+		"",
+		"",
+		nil,
+	)
+	require.NoError(t, err)
+
+	items, err := client.LoadIngressesV1()
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, receivedRequests, 1)
+	assert.Equal(t, "/apis/networking.k8s.io/v1/ingresses", receivedRequests[0])
+}
+
+func TestClusterClient_PaginationWithLabelSelectors(t *testing.T) {
+	type pageResponse struct {
+		Metadata struct {
+			Continue string `json:"continue"`
+		} `json:"metadata"`
+		Items []definitions.IngressV1Item `json:"items"`
+	}
+
+	var mu sync.Mutex
+	var receivedRequests []string
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		receivedRequests = append(receivedRequests, r.URL.String())
+		mu.Unlock()
+
+		assert.Equal(t, "env=prod", r.URL.Query().Get("labelSelector"))
+		assert.Equal(t, "1", r.URL.Query().Get("limit"))
+
+		var resp pageResponse
+		resp.Items = []definitions.IngressV1Item{
+			{Metadata: &definitions.Metadata{Namespace: "default", Name: "app-prod"}},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer s.Close()
+
+	client, err := kubernetes.NewClusterClient(
+		kubernetes.Options{
+			KubernetesListChunkSize: 1,
+			IngressLabelSelectors:   map[string]string{"env": "prod"},
+		},
+		s.URL,
+		"",
+		"",
+		nil,
+	)
+	require.NoError(t, err)
+
+	items, err := client.LoadIngressesV1()
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, receivedRequests, 1)
+	assert.Equal(t, "/apis/networking.k8s.io/v1/ingresses?labelSelector=env%3Dprod&limit=1", receivedRequests[0])
 }
