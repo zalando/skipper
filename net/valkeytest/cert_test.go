@@ -8,23 +8,23 @@ import (
 )
 
 func TestNewTestCerts(t *testing.T) {
-	c := NewTestCerts(t, "127.0.0.1")
+	c := newTestCerts(t, "127.0.0.1")
 
 	// Server and client keypairs must load.
-	if _, err := tls.X509KeyPair(c.ServerCertPEM, c.ServerKeyPEM); err != nil {
+	if _, err := tls.X509KeyPair(c.serverCertPEM, c.serverKeyPEM); err != nil {
 		t.Fatalf("server keypair: %v", err)
 	}
-	if _, err := tls.X509KeyPair(c.ClientCertPEM, c.ClientKeyPEM); err != nil {
+	if _, err := tls.X509KeyPair(c.clientCertPEM, c.clientKeyPEM); err != nil {
 		t.Fatalf("client keypair: %v", err)
 	}
 
 	// Both leaves must verify against the CA.
 	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(c.CAPEM) {
+	if !pool.AppendCertsFromPEM(c.caPEM) {
 		t.Fatal("failed to append CA PEM to pool")
 	}
 
-	serverLeaf := parseLeaf(t, c.ServerCertPEM)
+	serverLeaf := parseLeaf(t, c.serverCertPEM)
 	if _, err := serverLeaf.Verify(x509.VerifyOptions{
 		Roots:     pool,
 		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
@@ -33,7 +33,7 @@ func TestNewTestCerts(t *testing.T) {
 		t.Fatalf("server leaf verify: %v", err)
 	}
 
-	clientLeaf := parseLeaf(t, c.ClientCertPEM)
+	clientLeaf := parseLeaf(t, c.clientCertPEM)
 	if _, err := clientLeaf.Verify(x509.VerifyOptions{
 		Roots:     pool,
 		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
