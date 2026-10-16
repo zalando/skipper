@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/quic-go/quic-go/http3"
+	snettest "github.com/zalando/skipper/net/nettest"
 )
 
 // newH3Backend starts an HTTP/3 (QUIC) backend server using a self-signed TLS
@@ -21,14 +22,8 @@ import (
 func newH3Backend(t *testing.T, gotProto *string) (addr string, roots *x509.CertPool, cleanup func()) {
 	t.Helper()
 
-	now := time.Now()
-	certPEM, keyPEM, parsedCert, _ := generateMTLSCert(t, mtlsCertOptions{
-		cn:        "h3-test",
-		dns:       "localhost",
-		ip:        "127.0.0.1",
-		notBefore: now.Add(-time.Hour),
-		notAfter:  now.Add(24 * time.Hour),
-	})
+	ca := snettest.NewCA(t)
+	certPEM, keyPEM := ca.ServerCert(t, "127.0.0.1")
 
 	tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
@@ -36,7 +31,7 @@ func newH3Backend(t *testing.T, gotProto *string) (addr string, roots *x509.Cert
 	}
 
 	roots = x509.NewCertPool()
-	roots.AddCert(parsedCert)
+	roots.AddCert(ca.Cert)
 
 	tlsConf := http3.ConfigureTLSConfig(&tls.Config{
 		Certificates: []tls.Certificate{tlsCert},
