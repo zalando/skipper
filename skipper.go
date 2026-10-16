@@ -523,9 +523,12 @@ type Options struct {
 	// lookup.
 	IgnoreTrailingSlash bool
 
-	// Priority routes that are matched against the requests before
+	// PriorityRoutes that are matched against the requests before
 	// the standard routes from the data clients.
 	PriorityRoutes []proxy.PriorityRoute
+
+	// PriorityRouteString which will be parsed by inline routes
+	PriorityRouteString string
 
 	// Specifications of custom, user defined predicates.
 	CustomPredicates []routing.PredicateSpec
@@ -1992,6 +1995,18 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		log.Warning("no route source specified")
 	}
 
+	var prioRoutes []*eskip.Route
+	if o.PriorityRouteString != "" {
+		ir, err := routestring.New(o.PriorityRouteString)
+		if err != nil {
+			return fmt.Errorf("error while creating dataclient for priority routes string: %w", err)
+		}
+		prioRoutes, err = ir.LoadAll()
+		if err != nil {
+			return fmt.Errorf("error while parsing eskip priority routes string: %w", err)
+		}
+	}
+
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 
 	var (
@@ -2663,6 +2678,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			builtin.CommentPostProcessor{},
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
+	}
+
+	if len(prioRoutes) != 0 {
+		rm, err := routing.NewRoutesMatcher(&ro, prioRoutes)
+		if err != nil {
+			return fmt.Errorf("error while building priority routes matcher: %w", err)
+		}
+		o.PriorityRoutes = append(o.PriorityRoutes, rm)
 	}
 
 	if failClosedRatelimitPostProcessor != nil {

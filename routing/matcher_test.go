@@ -1309,3 +1309,39 @@ func BenchmarkConstructionMass(b *testing.B) {
 		}
 	}
 }
+
+func TestNewRoutesMatcher(t *testing.T) {
+	defs, err := eskip.Parse(`prio: Path("/prio") -> <shunt>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	o := &Options{}
+	rm, err := NewRoutesMatcher(o, defs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tt := range []struct {
+		name    string
+		path    string
+		routeID string
+	}{
+		{"matches priority path", "/prio", "prio"},
+		{"no match on non-priority path", "/other", ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", "http://example.com"+tt.path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			route, _ := rm.Match(req)
+			if tt.routeID != "" && (route == nil || route.Id != tt.routeID) {
+				t.Errorf("expected route %q, got %v", tt.routeID, route)
+			}
+			if tt.routeID == "" && route != nil {
+				t.Errorf("expected no match, got route %s", route.Id)
+			}
+		})
+	}
+}

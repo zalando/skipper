@@ -568,6 +568,19 @@ func mapPredicates(cps []PredicateSpec) map[string]PredicateSpec {
 	return cpm
 }
 
+func compileRoute(o *Options, defs []*eskip.Route) ([]*Route, error) {
+	routes := make([]*Route, 0)
+	cpm := mapPredicates(o.Predicates)
+	for _, def := range defs {
+		route, err := processRouteDef(o, cpm, def)
+		if err != nil {
+			return nil, err
+		}
+		routes = append(routes, route)
+	}
+	return routes, nil
+}
+
 // processes a set of route definitions for the routing table
 func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalidDefs []*eskip.Route, invalidErrors map[string]string) {
 	cpm := mapPredicates(o.Predicates)
