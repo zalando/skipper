@@ -2668,6 +2668,12 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// filter cache (a noop when disabled), so register it unconditionally
 	ro.PostProcessors = append(ro.PostProcessors, apiUsageMonitoringFilter.(routing.PostProcessor))
 
+	for _, p := range o.CustomPredicates {
+		if pp, ok := p.(routing.PostProcessor); ok {
+			ro.PostProcessors = append(ro.PostProcessors, pp)
+		}
+	}
+
 	if o.DefaultFilters != nil {
 		ro.PreProcessors = append(ro.PreProcessors, o.DefaultFilters)
 	}
