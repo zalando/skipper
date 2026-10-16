@@ -317,6 +317,10 @@ type Config struct {
 	ExperimentalUpgrade          bool          `yaml:"experimental-upgrade"`
 	ExperimentalUpgradeAudit     bool          `yaml:"experimental-upgrade-audit"`
 	EnableH2cServer              bool          `yaml:"enable-h2c-server"`
+	EnableH2CBackend             bool          `yaml:"enable-h2c-backend"`
+	EnableH2Backend              bool          `yaml:"enable-h2-backend"`
+	EnableH3Backend              bool          `yaml:"enable-h3-backend"`
+	EnableH3Server               bool          `yaml:"enable-h3-server"`
 	ReadTimeoutServer            time.Duration `yaml:"read-timeout-server"`
 	ReadHeaderTimeoutServer      time.Duration `yaml:"read-header-timeout-server"`
 	WriteTimeoutServer           time.Duration `yaml:"write-timeout-server"`
@@ -735,6 +739,10 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.ExperimentalUpgrade, "experimental-upgrade", false, "enable experimental feature to handle upgrade protocol requests")
 	flag.BoolVar(&cfg.ExperimentalUpgradeAudit, "experimental-upgrade-audit", false, "enable audit logging of the request line and the messages during the experimental web socket upgrades")
 	flag.BoolVar(&cfg.EnableH2cServer, "enable-h2c-server", false, "enable h2c (HTTP/2 cleartext) on the incoming listener")
+	flag.BoolVar(&cfg.EnableH2CBackend, "enable-h2c-backend", false, "enable HTTP/2 cleartext (h2c) to backends using the h2c:// URL scheme; disabled by default")
+	flag.BoolVar(&cfg.EnableH2Backend, "enable-h2-backend", false, "enable HTTP/2 over TLS to backends using the h2:// URL scheme; disabled by default")
+	flag.BoolVar(&cfg.EnableH3Backend, "enable-h3-backend", false, "enable HTTP/3 (QUIC) to backends using the h3:// URL scheme; disabled by default")
+	flag.BoolVar(&cfg.EnableH3Server, "enable-h3-server", false, "enable HTTP/3 (QUIC) on the incoming listener; requires TLS to be configured")
 	flag.DurationVar(&cfg.ReadTimeoutServer, "read-timeout-server", 5*time.Minute, "set ReadTimeout for http server connections")
 	flag.DurationVar(&cfg.ReadHeaderTimeoutServer, "read-header-timeout-server", 60*time.Second, "set ReadHeaderTimeout for http server connections")
 	flag.DurationVar(&cfg.WriteTimeoutServer, "write-timeout-server", 60*time.Second, "set WriteTimeout for http server connections")
@@ -1208,6 +1216,10 @@ func (c *Config) ToOptions() skipper.Options {
 		ExperimentalUpgrade:          c.ExperimentalUpgrade,
 		ExperimentalUpgradeAudit:     c.ExperimentalUpgradeAudit,
 		EnableH2cServer:              c.EnableH2cServer,
+		EnableH2CBackend:             c.EnableH2CBackend,
+		EnableH2Backend:              c.EnableH2Backend,
+		EnableH3Backend:              c.EnableH3Backend,
+		EnableH3Server:               c.EnableH3Server,
 		ReadTimeoutServer:            c.ReadTimeoutServer,
 		ReadHeaderTimeoutServer:      c.ReadHeaderTimeoutServer,
 		WriteTimeoutServer:           c.WriteTimeoutServer,
