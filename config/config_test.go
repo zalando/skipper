@@ -947,3 +947,35 @@ func TestH2H3BackendFlags_ParseAndToOptions(t *testing.T) {
 		})
 	}
 }
+
+func TestH3ServerFlag_ParseAndToOptions(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		args         []string
+		wantH3Server bool
+	}{
+		{
+			name: "default is false",
+			args: []string{"skipper"},
+		},
+		{
+			name:         "enable-h3-server",
+			args:         []string{"skipper", "-enable-h3-server"},
+			wantH3Server: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			if err := cfg.ParseArgs(tt.args[0], tt.args[1:]); err != nil {
+				t.Fatalf("ParseArgs failed: %v", err)
+			}
+			if cfg.EnableH3Server != tt.wantH3Server {
+				t.Errorf("EnableH3Server: got %v, want %v", cfg.EnableH3Server, tt.wantH3Server)
+			}
+			opts := cfg.ToOptions()
+			if opts.EnableH3Server != tt.wantH3Server {
+				t.Errorf("ToOptions EnableH3Server: got %v, want %v", opts.EnableH3Server, tt.wantH3Server)
+			}
+		})
+	}
+}
