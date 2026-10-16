@@ -137,6 +137,27 @@ If you have [routesrv proxy](https://opensource.zalando.com/skipper/kubernetes/i
 you need to configure Skipper with the flag `-swarm-redis-remote=http://<routesrv-service-name>.<routesrv-namespace>.svc.cluster.local/swarm/redis/shards`.
 `Routesrv` will be responsible for collecting Redis endpoints and Skipper will poll them from it.
 
+#### TLS / mutual TLS
+
+To connect to Redis over mutual TLS, enable TLS and provide Skipper's client
+keypair plus the CA bundle that signs the Redis server certificate:
+
+```
+-enable-swarm-tls
+-swarm-client-cert=/path/client.crt
+-swarm-client-key=/path/client.key
+-swarm-ca=/path/ca.crt
+```
+
+Skipper presents the client certificate to Redis and verifies the Redis server
+certificate against the CA bundle. The server certificate must carry a SAN
+matching the address Skipper dials via `-swarm-redis-urls`. Multiple CA files
+may be given comma-separated; when `-swarm-ca` is omitted, verification falls
+back to the system root store. `-enable-swarm-tls` has no effect unless both
+`-swarm-client-cert` and `-swarm-client-key` are set. The keypair is re-read
+periodically (`-client-tls-cert-refresh-interval`, default 5 minutes) without
+restarting Skipper. The same flags secure a Valkey swarm (see below).
+
 #### Implementation
 
 The implementation use [Redis ring](https://pkg.go.dev/github.com/go-redis/redis#Ring)
@@ -203,17 +224,21 @@ To connect to Valkey over mutual TLS, enable TLS and provide Skipper's client
 keypair plus the CA bundle that signs the Valkey server certificate:
 
 ```
--swarm-valkey-enable-tls
--swarm-valkey-client-cert=/path/client.crt
--swarm-valkey-client-key=/path/client.key
--swarm-valkey-ca=/path/ca.crt
+-enable-swarm-tls
+-swarm-client-cert=/path/client.crt
+-swarm-client-key=/path/client.key
+-swarm-ca=/path/ca.crt
 ```
 
 Skipper presents the client certificate to Valkey and verifies the Valkey
 server certificate against the CA bundle. The server certificate must carry a
 SAN matching the address Skipper dials via `-swarm-valkey-urls`. Multiple CA
-files may be given comma-separated. Only one client cert and one key file are
-supported, and the keypair is loaded once at startup (no rotation).
+files may be given comma-separated; when `-swarm-ca` is omitted, verification
+falls back to the system root store. `-enable-swarm-tls` has no effect unless
+both `-swarm-client-cert` and `-swarm-client-key` are set. The keypair is
+re-read periodically (`-client-tls-cert-refresh-interval`, default 5 minutes)
+and the new certificate is used for subsequent connections without restarting
+Skipper. These flags are shared with the Redis swarm (see above).
 
 #### Implementation
 

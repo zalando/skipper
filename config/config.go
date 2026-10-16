@@ -361,7 +361,7 @@ type Config struct {
 	SwarmValkeyDialTimeout        time.Duration `yaml:"swarm-valkey-dial-timeout"`
 	SwarmValkeyKeepAlive          time.Duration `yaml:"swarm-valkey-keepalive"`
 	SwarmValkeyUpdateInterval     time.Duration `yaml:"swarm-valkey-update-interval"`
-	SwarmEnableTLS                bool          `yaml:"swarm-enable-tls"`
+	EnableSwarmTLS                bool          `yaml:"enable-swarm-tls"`
 	// swarm TLS
 	SwarmCaFile         string         `yaml:"swarm-ca"`
 	SwarmClientCertFile string         `yaml:"swarm-client-cert"`
@@ -783,10 +783,10 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.SwarmValkeyDialTimeout, "swarm-valkey-dial-timeout", net.DefaultDialTimeout, "set valkey client dial timeout")
 	flag.DurationVar(&cfg.SwarmValkeyKeepAlive, "swarm-valkey-keepalive", net.DefaultKeepAlive, "set valkey keepalive probes interval")
 	flag.DurationVar(&cfg.SwarmValkeyUpdateInterval, "swarm-valkey-update-interval", net.DefaultUpdateInterval, "set update interval to update valkey addresses")
-	flag.StringVar(&cfg.SwarmClientCertFile, "swarm-client-cert", "", "valkey client certificate")
-	flag.StringVar(&cfg.SwarmClientKeyFile, "swarm-client-key", "", "valkey client key")
-	flag.StringVar(&cfg.SwarmCaFile, "swarm-ca", "", "Comma-separated CA bundle file paths used to verify the valkey server certificate")
-	flag.BoolVar(&cfg.SwarmEnableTLS, "swarm-enable-tls", false, "Enables mutual TLS for the valkey swarm connection. It uses -swarm-valkey-client-cert and -swarm-valkey-client-key as the client keypair and -swarm-valkey-ca to verify the valkey server certificate. It only supports one cert and one key file.")
+	flag.StringVar(&cfg.SwarmClientCertFile, "swarm-client-cert", "", "path to the client certificate Skipper presents to the valkey/redis swarm for mutual TLS")
+	flag.StringVar(&cfg.SwarmClientKeyFile, "swarm-client-key", "", "path to the client private key for the swarm mutual TLS certificate")
+	flag.StringVar(&cfg.SwarmCaFile, "swarm-ca", "", "Comma-separated CA bundle file paths used to verify the valkey/redis swarm server certificate")
+	flag.BoolVar(&cfg.EnableSwarmTLS, "enable-swarm-tls", false, "Enables mutual TLS for the valkey/redis swarm connection. It uses -swarm-client-cert and -swarm-client-key as the client keypair and -swarm-ca to verify the swarm server certificate. It only supports one cert and one key file.")
 	// swim
 	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
@@ -1279,7 +1279,7 @@ func (c *Config) ToOptions() skipper.Options {
 		SwarmValkeyDialTimeout:        c.SwarmValkeyDialTimeout,
 		SwarmValkeyKeepAlive:          c.SwarmValkeyKeepAlive,
 		SwarmValkeyUpdateInterval:     c.SwarmValkeyUpdateInterval,
-		SwarmEnableTLS:                c.SwarmEnableTLS,
+		EnableSwarmTLS:                c.EnableSwarmTLS,
 		SwarmClientCertFile:           c.SwarmClientCertFile,
 		SwarmClientKeyFile:            c.SwarmClientKeyFile,
 		SwarmCA:                       c.SwarmCA,

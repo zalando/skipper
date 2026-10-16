@@ -1155,7 +1155,7 @@ type Options struct {
 	SwarmValkeyConnLifetime       time.Duration
 	SwarmValkeyUpdateInterval     time.Duration
 	// swarm TLS
-	SwarmEnableTLS             bool
+	EnableSwarmTLS             bool
 	SwarmCA                    *x509.CertPool
 	SwarmClientCertFile        string
 	SwarmClientKeyFile         string
@@ -2210,7 +2210,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				DialTimeout:               o.SwarmValkeyDialTimeout,
 				KeepAlive:                 o.SwarmValkeyKeepAlive,
 				ConnLifetime:              o.SwarmValkeyConnLifetime,
-				EnableTLS:                 o.SwarmEnableTLS,
+				EnableTLS:                 o.EnableSwarmTLS,
 				ClientCertFile:            o.SwarmClientCertFile,
 				ClientKeyFile:             o.SwarmClientKeyFile,
 				ClientCertRefreshInterval: o.SwarmClientRefreshInterval,
@@ -2236,7 +2236,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				ConnMetricsInterval:       o.SwarmRedisConnMetricsInterval,
 				UpdateInterval:            o.SwarmRedisUpdateInterval,
 				HeartbeatFrequency:        o.SwarmRedisHeartbeatFrequency,
-				EnableTLS:                 o.SwarmEnableTLS,
+				EnableTLS:                 o.EnableSwarmTLS,
 				ClientCertFile:            o.SwarmClientCertFile,
 				ClientKeyFile:             o.SwarmClientKeyFile,
 				ClientCertRefreshInterval: o.SwarmClientRefreshInterval,
