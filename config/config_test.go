@@ -351,6 +351,23 @@ func Test_Validate(t *testing.T) {
 			wantErr: true,
 			want:    errors.New(`unable to parse histogram-metric-buckets: strconv.ParseFloat: parsing "10kb": invalid syntax`),
 		},
+		{
+			name: "enable-swarm-tls without client cert and key",
+			change: func(c *Config) {
+				c.EnableSwarmTLS = true
+			},
+			wantErr: true,
+			want:    errors.New("enable-swarm-tls requires swarm-client-cert and swarm-client-key"),
+		},
+		{
+			name: "enable-swarm-tls with client cert and key",
+			change: func(c *Config) {
+				c.EnableSwarmTLS = true
+				c.SwarmClientCertFile = "/some/cert.pem"
+				c.SwarmClientKeyFile = "/some/key.pem"
+			},
+			wantErr: false,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := NewConfig()
@@ -881,4 +898,39 @@ func TestH2cFlags_ParseAndToOptions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSwarmTLSConfig(t *testing.T) {
+	t.Run("swarm-client-cert-refresh-interval maps to options", func(t *testing.T) {
+		cfg := NewConfig()
+		err := cfg.ParseArgs("skipper", []string{
+			"-enable-swarm-tls",
+			"-swarm-client-cert=/some/cert.pem",
+			"-swarm-client-key=/some/key.pem",
+			"-swarm-client-cert-refresh-interval=2m",
+		})
+		if err != nil {
+			t.Fatalf("ParseArgs: %v", err)
+		}
+		if cfg.SwarmClientCertRefreshInterval != 2*time.Minute {
+			t.Errorf("got %v, want 2m", cfg.SwarmClientCertRefreshInterval)
+		}
+		opt := cfg.ToOptions()
+		if opt.SwarmClientRefreshInterval != 2*time.Minute {
+			t.Errorf("options interval got %v, want 2m", opt.SwarmClientRefreshInterval)
+		}
+	})
+
+	t.Run("swarm-ca not parsed when TLS disabled", func(t *testing.T) {
+		cfg := NewConfig()
+		err := cfg.ParseArgs("skipper", []string{
+			"-swarm-ca=/nonexistent/ca.pem",
+		})
+		if err != nil {
+			t.Fatalf("ParseArgs should not read CA when TLS disabled: %v", err)
+		}
+		if cfg.SwarmCA != nil {
+			t.Error("SwarmCA should be nil when enable-swarm-tls is not set")
+		}
+	})
 }

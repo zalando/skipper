@@ -361,6 +361,14 @@ type Config struct {
 	SwarmValkeyDialTimeout        time.Duration `yaml:"swarm-valkey-dial-timeout"`
 	SwarmValkeyKeepAlive          time.Duration `yaml:"swarm-valkey-keepalive"`
 	SwarmValkeyUpdateInterval     time.Duration `yaml:"swarm-valkey-update-interval"`
+	EnableSwarmTLS                bool          `yaml:"enable-swarm-tls"`
+	// swarm TLS
+	SwarmCaFile                    string         `yaml:"swarm-ca"`
+	SwarmClientCertFile            string         `yaml:"swarm-client-cert"`
+	SwarmClientKeyFile             string         `yaml:"swarm-client-key"`
+	SwarmClientCertRefreshInterval time.Duration  `yaml:"swarm-client-cert-refresh-interval"`
+	SwarmCA                        *x509.CertPool `yaml:"-"`
+
 	// swim based
 	SwarmKubernetesNamespace          string        `yaml:"swarm-namespace"`
 	SwarmKubernetesLabelSelectorKey   string        `yaml:"swarm-label-selector-key"`
@@ -776,6 +784,11 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.SwarmValkeyDialTimeout, "swarm-valkey-dial-timeout", net.DefaultDialTimeout, "set valkey client dial timeout")
 	flag.DurationVar(&cfg.SwarmValkeyKeepAlive, "swarm-valkey-keepalive", net.DefaultKeepAlive, "set valkey keepalive probes interval")
 	flag.DurationVar(&cfg.SwarmValkeyUpdateInterval, "swarm-valkey-update-interval", net.DefaultUpdateInterval, "set update interval to update valkey addresses")
+	flag.StringVar(&cfg.SwarmClientCertFile, "swarm-client-cert", "", "path to the client certificate Skipper presents to the swarm for mutual TLS")
+	flag.StringVar(&cfg.SwarmClientKeyFile, "swarm-client-key", "", "path to the client private key for the swarm mutual TLS certificate")
+	flag.DurationVar(&cfg.SwarmClientCertRefreshInterval, "swarm-client-cert-refresh-interval", 0, "How often to reload the swarm client TLS certificate and key files. Defaults to 5 minutes when enabled.")
+	flag.StringVar(&cfg.SwarmCaFile, "swarm-ca", "", "Comma-separated CA bundle file paths used to verify the swarm server certificate")
+	flag.BoolVar(&cfg.EnableSwarmTLS, "enable-swarm-tls", false, "Enables mutual TLS for the swarm connection. It uses -swarm-client-cert and -swarm-client-key as the client keypair and -swarm-ca to verify the swarm server certificate. It only supports one cert and one key file.")
 	// swim
 	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
@@ -860,6 +873,11 @@ func validate(c *Config) error {
 	if err != nil {
 		return err
 	}
+
+	if c.EnableSwarmTLS && (c.SwarmClientCertFile == "" || c.SwarmClientKeyFile == "") {
+		return fmt.Errorf("enable-swarm-tls requires swarm-client-cert and swarm-client-key")
+	}
+
 	return c.parseForwardedHeaders()
 }
 
@@ -939,6 +957,21 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 		}
 
 		c.Certificates = certificates
+	}
+
+	if c.EnableSwarmTLS && c.SwarmCaFile != "" {
+		if c.SwarmCA == nil {
+			c.SwarmCA = x509.NewCertPool()
+		}
+		for f := range strings.SplitSeq(c.SwarmCaFile, ",") {
+			pem, err := os.ReadFile(f)
+			if err != nil {
+				return fmt.Errorf("swarm failed to read CA file %q: %v", f, err)
+			}
+			if !c.SwarmCA.AppendCertsFromPEM(pem) {
+				return fmt.Errorf("swarm failed to append CA cert %q", f)
+			}
+		}
 	}
 
 	if c.TLSKeyLogFile != "" {
@@ -1253,6 +1286,11 @@ func (c *Config) ToOptions() skipper.Options {
 		SwarmValkeyDialTimeout:        c.SwarmValkeyDialTimeout,
 		SwarmValkeyKeepAlive:          c.SwarmValkeyKeepAlive,
 		SwarmValkeyUpdateInterval:     c.SwarmValkeyUpdateInterval,
+		EnableSwarmTLS:                c.EnableSwarmTLS,
+		SwarmClientCertFile:           c.SwarmClientCertFile,
+		SwarmClientKeyFile:            c.SwarmClientKeyFile,
+		SwarmCA:                       c.SwarmCA,
+		SwarmClientRefreshInterval:    c.SwarmClientCertRefreshInterval,
 		// swim based
 		SwarmKubernetesNamespace:          c.SwarmKubernetesNamespace,
 		SwarmKubernetesLabelSelectorKey:   c.SwarmKubernetesLabelSelectorKey,

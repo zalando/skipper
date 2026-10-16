@@ -2,6 +2,8 @@ package net
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"sync"
@@ -78,6 +80,22 @@ type RedisOptions struct {
 
 	// HashAlgorithm is one of rendezvous, rendezvousVnodes, jump, mpchash, defaults to github.com/go-redis/redis default
 	HashAlgorithm string
+
+	EnableTLS bool
+
+	CA *x509.CertPool
+
+	// ClientCertFile is the path to a PEM-encoded client certificate for mTLS to backends.
+	// Must be set together with ClientKeyFile. When set, GetClientCertificate is used for cert rotation.
+	ClientCertFile string
+
+	// ClientKeyFile is the path to a PEM-encoded private key for mTLS to backends.
+	// Must be set together with ClientCertFile.
+	ClientKeyFile string
+
+	// ClientCertRefreshInterval is how often ClientCertFile/ClientKeyFile are re-read.
+	// Defaults to 5 minutes if zero.
+	ClientCertRefreshInterval time.Duration
 }
 
 // RedisRingClient is a redis client that does access redis by
@@ -87,6 +105,7 @@ type RedisOptions struct {
 // to be in the hot path of low latency production requests.
 type RedisRingClient struct {
 	ring          *redis.Ring
+	certReloader  *CertReloader
 	log           logging.Logger
 	metrics       metrics.Metrics
 	metricsPrefix string
@@ -205,6 +224,13 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		tracer:  &opentracing.NoopTracer{},
 	}
 
+	// Build the client TLS config and its cert reloader once, shared by every
+	// shard.
+	var tlsConfig *tls.Config
+	if ro != nil {
+		tlsConfig, r.certReloader = newSwarmClientTLS(ro.EnableTLS, ro.ClientCertFile, ro.ClientKeyFile, ro.CA, ro.ClientCertRefreshInterval, ro.Log)
+	}
+
 	ringOptions := &redis.RingOptions{
 		Addrs: map[string]string{},
 		NewClient: func(opt *redis.Options) *redis.Client {
@@ -225,6 +251,9 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 			// This prevents the client from sending CLIENT MAINT_NOTIFICATIONS ON
 			opt.MaintNotificationsConfig = &maintnotifications.Config{
 				Mode: maintnotifications.ModeDisabled,
+			}
+			if tlsConfig != nil {
+				opt.TLSConfig = tlsConfig
 			}
 
 			return redis.NewClient(opt)
@@ -399,6 +428,9 @@ func (r *RedisRingClient) Close() error {
 		close(r.quit)
 		if r.ring != nil {
 			err = r.ring.Close()
+		}
+		if r.certReloader != nil {
+			r.certReloader.Close()
 		}
 	})
 	return err
