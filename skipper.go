@@ -527,11 +527,12 @@ type Options struct {
 	// the standard routes from the data clients.
 	PriorityRoutes []proxy.PriorityRoute
 
-	// PriorityRouteString which will be parsed by inline routes
+	// PriorityRouteString is a route string that will be parsed
+	// by inline routes and used as priority routes.
 	PriorityRouteString string
 
 	// PriorityRoutesFile is a file containing eskip route definitions that are
-	// used as priority routes, matched before all standard routes.
+	// used as priority routes.
 	PriorityRoutesFile string
 
 	// Specifications of custom, user defined predicates.
