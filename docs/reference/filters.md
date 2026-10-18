@@ -410,7 +410,8 @@ headerToQuery("X-Foo-Header", "foo-query-param")
 ```
 
 The above filter will set `foo-query-param` query param respectively to the `X-Foo-Header` header
-and will override the value if the queryparam exists already
+and will override the value if the queryparam exists already.
+If the request has no `X-Foo-Header` header, the query is left unchanged.
 
 ### flowId
 
