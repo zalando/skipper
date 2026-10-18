@@ -57,6 +57,7 @@ import (
 	"github.com/zalando/skipper/metrics"
 	skpnet "github.com/zalando/skipper/net"
 	sotel "github.com/zalando/skipper/otel"
+	"github.com/zalando/skipper/predicates"
 	pauth "github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/content"
 	"github.com/zalando/skipper/predicates/cookie"
@@ -2669,8 +2670,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	ro.PostProcessors = append(ro.PostProcessors, apiUsageMonitoringFilter.(routing.PostProcessor))
 
 	for _, p := range o.CustomPredicates {
-		if pp, ok := p.(routing.PostProcessor); ok {
-			ro.PostProcessors = append(ro.PostProcessors, pp)
+		if pp, ok := p.(predicates.PostProcessor); ok && pp.PostProcessor() {
+			if rpp, ok := p.(routing.PostProcessor); ok {
+				ro.PostProcessors = append(ro.PostProcessors, rpp)
+			}
 		}
 	}
 

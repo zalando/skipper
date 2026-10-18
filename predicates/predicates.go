@@ -6,6 +6,12 @@ import "errors"
 // ErrInvalidPredicateParameters is used in case of invalid predicate parameters.
 var ErrInvalidPredicateParameters = errors.New("invalid predicate parameters")
 
+// PostProcessor is an opt-in interface for predicates that want to
+// participate in route table post-processing (e.g. cache cleanup).
+type PostProcessor interface {
+	PostProcessor() bool
+}
+
 // All Skipper Predicate names
 const (
 	// PathName represents the name of builtin path predicate.

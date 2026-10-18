@@ -81,9 +81,10 @@ type (
 )
 
 var (
-	_ routing.PostProcessor = &registry{}
-	_ routing.PostProcessor = &spec{}
-)	
+	_ predicates.PostProcessor = &spec{}
+	_ routing.PostProcessor    = &registry{}
+	_ routing.PostProcessor    = &spec{}
+)
 
 func (r *registry) Close() {
 	close(r.quit)
@@ -175,6 +176,11 @@ func NewJWTPayloadAllKVRegexp() routing.PredicateSpec {
 		matchMode:     matchModeRegexp,
 		reg:           reg,
 	}
+}
+
+// PostProcessor implements predicates.PostProcessor opting in to route post-processing.
+func (s *spec) PostProcessor() bool {
+	return s.reg != nil
 }
 
 func (s *spec) Name() string {
