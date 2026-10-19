@@ -113,7 +113,7 @@ func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 	var bodyTruncated bool
 	if f.bodyParsing {
 		if req.Header.Get("Content-Encoding") != "" {
-			f.opa.HandleEvaluationError(fc, span, nil, fmt.Errorf("body inspection not supported for Content-Encoding: %s", req.Header.Get("Content-Encoding")), true, http.StatusUnsupportedMediaType)
+			f.opa.HandleEvaluationError(fc, span, nil, fmt.Errorf("body inspection not supported for Content-Encoding: %q", req.Header.Get("Content-Encoding")), true, http.StatusUnsupportedMediaType)
 			return
 		}
 
