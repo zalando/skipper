@@ -130,6 +130,10 @@ func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
 			f.opa.HandleInvalidDecisionError(fc, span, nil, err, !f.opa.EnvoyPluginConfig().DryRun)
 			return
 		}
+		if len(rawBodyBytes) > 0 && !bodyTruncated && !json.Valid(rawBodyBytes) {
+			f.opa.HandleEvaluationError(fc, span, nil, fmt.Errorf("body is not valid JSON"), !f.opa.EnvoyPluginConfig().DryRun, http.StatusBadRequest)
+			return
+		}
 		req.Body = body
 	}
 
