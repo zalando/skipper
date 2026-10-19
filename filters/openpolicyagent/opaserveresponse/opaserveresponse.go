@@ -3,6 +3,7 @@
 package opaserveresponse
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -123,6 +124,10 @@ func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 		defer finalizer()
 		if err != nil {
 			f.opa.ServeInvalidDecisionError(fc, span, nil, err)
+			return
+		}
+		if len(rawBodyBytes) > 0 && !bodyTruncated && !json.Valid(rawBodyBytes) {
+			f.opa.HandleEvaluationError(fc, span, nil, fmt.Errorf("body is not valid JSON"), true, http.StatusBadRequest)
 			return
 		}
 		req.Body = body

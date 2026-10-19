@@ -6,10 +6,10 @@ package opaauthorizerequest
 // automatically decode the body. Passing encoded bytes to OPA means
 // input.parsed_body is null and deny-on-body-field Rego policies fail open.
 //
-// The fix rejects encoded bodies early with 415 Unsupported Media Type when
-// body parsing is enabled (opaAuthorizeRequestWithBody). This ensures OPA
-// always receives a plain, parseable body or the request is rejected before
-// policy evaluation.
+// The fix has two layers:
+//   1. Any Content-Encoding header is rejected with 415 before body extraction.
+//   2. Any non-JSON body bytes (e.g. compressed without Content-Encoding) are
+//      rejected with 400, preventing silent null in input.parsed_body.
 
 import (
 	"bytes"
@@ -251,5 +251,62 @@ func TestContentEncodingAllowedWithoutBodyParsing(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status = %d, want 200; Content-Encoding should not be rejected when body parsing is disabled", resp.StatusCode)
+	}
+}
+
+// TestNonJSONBodyRejected verifies that a body which is not valid JSON is
+// rejected with 400 even when no Content-Encoding header is set. This closes
+// the bypass where an attacker sends compressed (or otherwise non-JSON) bytes
+// with Content-Type: application/json but omits Content-Encoding.
+func TestNonJSONBodyRejected(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		body       []byte
+		wantStatus int
+	}{
+		{
+			name:       "valid JSON is accepted",
+			body:       []byte(`{"admin":false}`),
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "gzip bytes without Content-Encoding are rejected with 400",
+			body:       gzipCompress([]byte(`{"admin":true}`)),
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "arbitrary non-JSON bytes are rejected with 400",
+			body:       []byte{0x00, 0x01, 0x02, 0x03},
+			wantStatus: http.StatusBadRequest,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var upstreamCalled bool
+			proxy := buildBodyParsingProxy(t, func(w http.ResponseWriter, r *http.Request) {
+				upstreamCalled = true
+				_, _ = io.Copy(io.Discard, r.Body)
+				w.WriteHeader(http.StatusOK)
+			})
+
+			req, err := http.NewRequest(http.MethodPost, proxy.URL+"/priv", bytes.NewReader(tc.body))
+			if err != nil {
+				t.Fatalf("build request: %v", err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := proxy.Client().Do(req)
+			if err != nil {
+				t.Fatalf("do request: %v", err)
+			}
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
+
+			if resp.StatusCode != tc.wantStatus {
+				t.Errorf("status = %d, want %d", resp.StatusCode, tc.wantStatus)
+			}
+			if tc.wantStatus != http.StatusOK && upstreamCalled {
+				t.Errorf("upstream must not be called on rejection")
+			}
+		})
 	}
 }
