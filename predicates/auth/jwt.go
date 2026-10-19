@@ -80,6 +80,12 @@ type (
 	}
 )
 
+var (
+	_ predicates.PostProcessor = &spec{}
+	_ routing.PostProcessor    = &registry{}
+	_ routing.PostProcessor    = &spec{}
+)
+
 func (r *registry) Close() {
 	close(r.quit)
 }
@@ -100,6 +106,30 @@ func (r *registry) clean() {
 			r.mu.Unlock()
 		}
 	}
+}
+
+// Do implements routing.PostProcessor and drops predicates cached in
+// predicateMap that are no longer used by any active route.
+func (r *registry) Do(routes []*routing.Route) []*routing.Route {
+	inUse := make(map[*predicate]struct{})
+	for _, route := range routes {
+		for _, pred := range route.Predicates {
+			if p, ok := pred.(*predicate); ok {
+				inUse[p] = struct{}{}
+			}
+		}
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for key, p := range r.predicateMap {
+		if _, ok := inUse[p]; !ok {
+			delete(r.predicateMap, key)
+		}
+	}
+
+	return routes
 }
 
 func NewJWTPayloadAnyKV() routing.PredicateSpec {
@@ -148,8 +178,21 @@ func NewJWTPayloadAllKVRegexp() routing.PredicateSpec {
 	}
 }
 
+// PostProcessor implements predicates.PostProcessor opting in to route post-processing.
+func (s *spec) PostProcessor() bool {
+	return s.reg != nil
+}
+
 func (s *spec) Name() string {
 	return s.name
+}
+
+// Do implements routing.PostProcessor delegating to the registry if configured.
+func (s *spec) Do(routes []*routing.Route) []*routing.Route {
+	if s.reg != nil {
+		return s.reg.Do(routes)
+	}
+	return routes
 }
 
 func (s *spec) Create(args []any) (routing.Predicate, error) {
