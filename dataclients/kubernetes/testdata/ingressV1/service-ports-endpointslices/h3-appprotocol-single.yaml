@@ -9,7 +9,7 @@ spec:
   ports:
     - name: this-is-my-service-port-name
       port: 8080
-      protocol: TCP
+      protocol: UDP
       targetPort: my-port
   selector:
     app: myapp
@@ -49,5 +49,5 @@ endpoints:
 ports:
   - name: this-is-my-service-port-name
     port: 80
-    protocol: TCP
+    protocol: UDP
     appProtocol: zalando.org/h3
