@@ -1290,9 +1290,10 @@ spec:
 
 ### H2c via EndpointSlice AppProtocol (automatic, requires EndpointSlices)
 
-When using EndpointSlices (`-enable-kubernetes-endpointslices`), skipper automatically
-uses h2c for ports with `appProtocol: kubernetes.io/h2c` on the EndpointSlice. No
-annotation is required on the Ingress.
+When using EndpointSlices (`-enable-kubernetes-endpointslices` and
+`-enable-h2-backend`), skipper automatically uses h2c for ports with
+`appProtocol: kubernetes.io/h2c` on the EndpointSlice. No annotation
+is required on the Ingress.
 
 The `appProtocol` field is set by Kubernetes when the Service port has `appProtocol: kubernetes.io/h2c`:
 
@@ -1343,9 +1344,10 @@ spec:
 
 ### H2 via EndpointSlice AppProtocol (automatic, requires EndpointSlices)
 
-When using EndpointSlices (`-enable-kubernetes-endpointslices`), skipper automatically
-uses h2 for ports with `appProtocol: zalando.org/h2` on the EndpointSlice. No
-annotation is required on the Ingress.
+When using EndpointSlices (`-enable-kubernetes-endpointslices` and
+`-enable-h2-backend`), skipper automatically uses h2 for ports with
+`appProtocol: zalando.org/h2` on the EndpointSlice. No annotation is
+required on the Ingress.
 
 The `appProtocol` field is set by Kubernetes when the Service port has `appProtocol: zalando.org/h2`:
 
@@ -1365,7 +1367,7 @@ The annotation `zalando.org/skipper-backend-protocol` always takes precedence ov
 
 ## HTTP/3 Backends
 
-Skipper can use HTTP/3 (h3) when connecting to backends that speak h23.
+Skipper can use HTTP/3 (h3) when connecting to backends that speak h3.
 You have to enable `h3://` via `-enable-h3-backend`
 This is useful for proxying to HTTP/3 endpoints.
 
@@ -1396,9 +1398,10 @@ spec:
 
 ### H3 via EndpointSlice AppProtocol (automatic, requires EndpointSlices)
 
-When using EndpointSlices (`-enable-kubernetes-endpointslices`), skipper automatically
-uses h2c for ports with `appProtocol: zalando.org/h3` on the EndpointSlice. No
-annotation is required on the Ingress.
+When using EndpointSlices (`-enable-kubernetes-endpointslices` and
+`-enable-h3-backend`), skipper automatically uses h3 for ports with
+`appProtocol: zalando.org/h3` on the EndpointSlice. No annotation is
+required on the Ingress.
 
 The `appProtocol` field is set by Kubernetes when the Service port has `appProtocol: zalando.org/h3`:
 
