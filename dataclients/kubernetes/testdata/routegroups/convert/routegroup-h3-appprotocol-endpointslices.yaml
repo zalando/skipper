@@ -22,7 +22,7 @@ metadata:
 spec:
   ports:
   - port: 80
-    protocol: TCP
+    protocol: UDP
     targetPort: 80
   selector:
     application: myapp
@@ -45,5 +45,5 @@ endpoints:
     zone: my-zone-2
 ports:
   - port: 80
-    protocol: TCP
+    protocol: UDP
     appProtocol: zalando.org/h3
