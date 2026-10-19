@@ -1309,3 +1309,250 @@ func BenchmarkConstructionMass(b *testing.B) {
 		}
 	}
 }
+
+func TestNewRoutesMatcher(t *testing.T) {
+	// Priority route protects /admin; a safe catch-all represents normal traffic.
+	// The test verifies that attack paths meant to reach /admin either:
+	//   - are correctly matched as /admin (traversal resolved to the protected path), or
+	//   - are not matched at all (traversal escapes the protected subtree).
+	// In both cases the priority matcher must never silently skip a request that
+	// resolves to /admin nor incorrectly block a request that does not.
+	defs, err := eskip.Parse(`admin: Path("/admin") -> <shunt>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	o := &Options{}
+	rm, err := NewRoutesMatcher(o, defs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tt := range []struct {
+		name    string
+		url     string
+		routeID string // empty = expect no match
+	}{
+		// --- exact match ---
+		{
+			name:    "exact path matches",
+			url:     "http://example.com/admin",
+			routeID: "admin",
+		},
+		{
+			name: "different path does not match",
+			url:  "http://example.com/other",
+		},
+
+		// --- path traversal: sequences that resolve TO /admin ---
+		// These should match because httppath.Clean normalises them.
+		{
+			name:    "double-slash prefix resolves to /admin",
+			url:     "http://example.com//admin",
+			routeID: "admin",
+		},
+		{
+			name:    "dot-segment traversal resolves to /admin",
+			url:     "http://example.com/safe/../admin",
+			routeID: "admin",
+		},
+		{
+			name:    "leading traversal resolves to /admin",
+			url:     "http://example.com/../admin",
+			routeID: "admin",
+		},
+		{
+			name:    "triple double-slash resolves to /admin",
+			url:     "http://example.com///admin",
+			routeID: "admin",
+		},
+		{
+			name:    "dot traversal resolves to /admin",
+			url:     "http://example.com/./admin",
+			routeID: "admin",
+		},
+		{
+			name:    "percent-encoded pct-letters spell /admin",
+			url:     "http://example.com/%61%64%6d%69%6e",
+			routeID: "admin",
+		},
+
+		// --- path traversal: sequences that escape /admin ---
+		// These must NOT match the /admin priority route.
+		{
+			name: "traversal away from /admin does not match",
+			url:  "http://example.com/admin/../other",
+		},
+		{
+			name: "encoded-slash traversal away from /admin does not match",
+			url:  "http://example.com/admin%2F..%2Fother",
+		},
+		{
+			name: "traversal to /secret does not match /admin",
+			url:  "http://example.com/admin/../secret",
+		},
+
+		// --- double slash / confusion ---
+		{
+			name: "double slash mid-path does not reach /admin",
+			url:  "http://example.com//other//path",
+		},
+
+		// --- trailing slash ---
+		// With default options (no IgnoreTrailingSlash), /admin/ is distinct from /admin.
+		{
+			name: "trailing slash does not match exact /admin",
+			url:  "http://example.com/admin/",
+		},
+
+		// --- method does not affect path matching ---
+		{
+			name:    "POST to /admin matches",
+			url:     "http://example.com/admin",
+			routeID: "admin",
+		},
+
+		// --- path parameter injection ---
+		{
+			name: "semicolon path param suffix does not match /admin",
+			url:  "http://example.com/admin;jsessionid=evil",
+		},
+
+		// --- null byte / control chars ---
+		// Go's net/url preserves %00 as a literal NUL in url.Path, so the
+		// cleaned path is "/admin\x00" which does not equal "/admin".
+		{
+			name: "null-byte suffix prevents match",
+			url:  "http://example.com/admin%00",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", tt.url, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			route, _ := rm.Match(req)
+			if tt.routeID != "" && (route == nil || route.Id != tt.routeID) {
+				t.Errorf("expected route %q, got %v", tt.routeID, route)
+			}
+			if tt.routeID == "" && route != nil {
+				t.Errorf("expected no match, got route %s", route.Id)
+			}
+		})
+	}
+}
+
+func TestNewRoutesMatcherIgnoreTrailingSlash(t *testing.T) {
+	defs, err := eskip.Parse(`admin: Path("/admin") -> <shunt>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	o := &Options{MatchingOptions: IgnoreTrailingSlash}
+	rm, err := NewRoutesMatcher(o, defs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tt := range []struct {
+		name    string
+		url     string
+		routeID string
+	}{
+		{
+			name:    "exact path matches",
+			url:     "http://example.com/admin",
+			routeID: "admin",
+		},
+		{
+			name:    "trailing slash ignored, matches /admin",
+			url:     "http://example.com/admin/",
+			routeID: "admin",
+		},
+		{
+			name: "different path does not match",
+			url:  "http://example.com/other/",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", tt.url, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			route, _ := rm.Match(req)
+			if tt.routeID != "" && (route == nil || route.Id != tt.routeID) {
+				t.Errorf("expected route %q, got %v", tt.routeID, route)
+			}
+			if tt.routeID == "" && route != nil {
+				t.Errorf("expected no match, got route %s", route.Id)
+			}
+		})
+	}
+}
+
+func TestNewRoutesMatcherWildcard(t *testing.T) {
+	// Wildcard priority route: protect the entire /admin/ subtree.
+	defs, err := eskip.Parse(`admin: PathSubtree("/admin") -> <shunt>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	o := &Options{}
+	rm, err := NewRoutesMatcher(o, defs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tt := range []struct {
+		name    string
+		url     string
+		routeID string
+	}{
+		{
+			name:    "root of subtree matches",
+			url:     "http://example.com/admin",
+			routeID: "admin",
+		},
+		{
+			name:    "child path matches",
+			url:     "http://example.com/admin/settings",
+			routeID: "admin",
+		},
+		{
+			name:    "deep child path matches",
+			url:     "http://example.com/admin/settings/users",
+			routeID: "admin",
+		},
+		{
+			name:    "traversal resolving into subtree matches",
+			url:     "http://example.com/safe/../admin/settings",
+			routeID: "admin",
+		},
+		{
+			name: "traversal escaping subtree does not match",
+			url:  "http://example.com/admin/../other",
+		},
+		{
+			name: "sibling path does not match",
+			url:  "http://example.com/adminfake",
+		},
+		{
+			name: "unrelated path does not match",
+			url:  "http://example.com/public",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", tt.url, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			route, _ := rm.Match(req)
+			if tt.routeID != "" && (route == nil || route.Id != tt.routeID) {
+				t.Errorf("expected route %q, got %v", tt.routeID, route)
+			}
+			if tt.routeID == "" && route != nil {
+				t.Errorf("expected no match, got route %s", route.Id)
+			}
+		})
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/dimfeld/httppath"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/pathmux"
 )
 
@@ -501,4 +502,30 @@ func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 	}
 
 	return nil, nil
+}
+
+// RoutesMatcher implements proxy.PriorityRoute for a static set of compiled
+// routes. Use NewRoutesMatcher to construct one.
+type RoutesMatcher struct {
+	m *matcher
+}
+
+// NewRoutesMatcher compiles defs into a RoutesMatcher that satisfies the
+// proxy.PriorityRoute interface. Matching options are taken from o.MatchingOptions.
+func NewRoutesMatcher(o *Options, defs []*eskip.Route) (*RoutesMatcher, error) {
+	routes, err := processAllRoutes(o, defs)
+	if err != nil {
+		return nil, err
+	}
+	m, errs := newMatcher(routes, o.MatchingOptions)
+	if len(errs) > 0 {
+		return nil, errs[0]
+	}
+	return &RoutesMatcher{m: m}, nil
+}
+
+// Match returns the first route from the static set that matches req, along
+// with any path wildcard parameters. Returns nil, nil when no route matches.
+func (rm *RoutesMatcher) Match(req *http.Request) (*Route, map[string]string) {
+	return rm.m.match(req)
 }

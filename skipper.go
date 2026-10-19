@@ -523,9 +523,17 @@ type Options struct {
 	// lookup.
 	IgnoreTrailingSlash bool
 
-	// Priority routes that are matched against the requests before
+	// PriorityRoutes that are matched against the requests before
 	// the standard routes from the data clients.
 	PriorityRoutes []proxy.PriorityRoute
+
+	// PriorityRouteString is a route string that will be parsed
+	// by inline routes and used as priority routes.
+	PriorityRouteString string
+
+	// PriorityRoutesFile is a file containing eskip route definitions that are
+	// used as priority routes.
+	PriorityRoutesFile string
 
 	// Specifications of custom, user defined predicates.
 	CustomPredicates []routing.PredicateSpec
@@ -1992,6 +2000,30 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		log.Warning("no route source specified")
 	}
 
+	var prioRoutes []*eskip.Route
+	if o.PriorityRouteString != "" {
+		ir, err := routestring.New(o.PriorityRouteString)
+		if err != nil {
+			return fmt.Errorf("error while creating dataclient for priority routes string: %w", err)
+		}
+		parsed, err := ir.LoadAll()
+		if err != nil {
+			return fmt.Errorf("error while parsing eskip priority routes string: %w", err)
+		}
+		prioRoutes = append(prioRoutes, parsed...)
+	}
+	if o.PriorityRoutesFile != "" {
+		f, err := eskipfile.Open(o.PriorityRoutesFile)
+		if err != nil {
+			return fmt.Errorf("error while opening priority routes file: %w", err)
+		}
+		parsed, err := f.LoadAll()
+		if err != nil {
+			return fmt.Errorf("error while loading priority routes file: %w", err)
+		}
+		prioRoutes = append(prioRoutes, parsed...)
+	}
+
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 
 	var (
@@ -2663,6 +2695,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			builtin.CommentPostProcessor{},
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
+	}
+
+	if len(prioRoutes) != 0 {
+		rm, err := routing.NewRoutesMatcher(&ro, prioRoutes)
+		if err != nil {
+			return fmt.Errorf("error while building priority routes matcher: %w", err)
+		}
+		o.PriorityRoutes = append(o.PriorityRoutes, rm)
 	}
 
 	if failClosedRatelimitPostProcessor != nil {
