@@ -17,17 +17,17 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598
 	github.com/docker/go-connections v0.8.2
-	github.com/envoyproxy/go-control-plane/envoy v1.39.0
-	github.com/go-jose/go-jose/v4 v4.1.5
+	github.com/envoyproxy/go-control-plane/envoy v1.40.0
+	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/memberlist v0.7.0
 	github.com/instana/go-sensor v1.79.0
-	github.com/klauspost/compress v1.20.1
+	github.com/klauspost/compress v1.20.3
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.73
-	github.com/molecule-man/go-brrr v1.2.0
+	github.com/molecule-man/go-brrr v1.3.0
 	github.com/oklog/ulid v1.3.1
 	github.com/open-policy-agent/eopa v1.46.1-0.20260410145035-769c001a4008
 	github.com/open-policy-agent/opa v1.15.2
@@ -49,9 +49,9 @@ require (
 	github.com/tsenart/vegeta v12.7.0+incompatible
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
-	github.com/valkey-io/valkey-go v1.0.78
-	github.com/valkey-io/valkey-go/valkeyhook v1.0.78
-	github.com/valkey-io/valkey-go/valkeyotel v1.0.78
+	github.com/valkey-io/valkey-go v1.0.79
+	github.com/valkey-io/valkey-go/valkeyhook v1.0.79
+	github.com/valkey-io/valkey-go/valkeyotel v1.0.79
 	github.com/yookoala/gofast v0.8.0
 	github.com/yuin/gopher-lua v1.1.2
 	go.opentelemetry.io/contrib/exporters/autoexport v0.72.0
