@@ -1,12 +1,15 @@
 package opaauthorizerequest
 
-// Test for GHSA-j3r3-rjcc-vh4q: OPA body inspection bypass via Content-Encoding: gzip.
+// Test for GHSA-j3r3-rjcc-vh4q: OPA body inspection bypass via Content-Encoding.
 //
-// When a request body is gzip-compressed (Content-Encoding: gzip), Go's net/http
-// does not auto-decompress it. ExtractHttpBodyOptionally passes the raw compressed
-// bytes to OPA, so input.parsed_body is null and deny-on-body-field Rego policies
-// fail open. Additionally, the semaphore is acquired for only the compressed size,
-// allowing far more concurrent requests than intended.
+// When a request carries any Content-Encoding header, Go's net/http does not
+// automatically decode the body. Passing encoded bytes to OPA means
+// input.parsed_body is null and deny-on-body-field Rego policies fail open.
+//
+// The fix rejects encoded bodies early with 415 Unsupported Media Type when
+// body parsing is enabled (opaAuthorizeRequestWithBody). This ensures OPA
+// always receives a plain, parseable body or the request is rejected before
+// policy evaluation.
 
 import (
 	"bytes"
@@ -35,14 +38,9 @@ func gzipCompress(src []byte) []byte {
 	return buf.Bytes()
 }
 
-// buildGzipBypassProxy creates a proxy backed by an OPA instance that denies
-// requests whose parsed body contains admin == true.  extraOpts are appended
-// to the registry options (use them to set maxBodyBytes etc.).
-func buildGzipBypassProxy(
-	t *testing.T,
-	upstreamHandler http.HandlerFunc,
-	extraOpts ...func(*openpolicyagent.OpenPolicyAgentRegistry) error,
-) *proxytest.TestProxy {
+// buildBodyParsingProxy creates a proxy backed by an OPA instance that denies
+// requests whose parsed body contains admin == true.
+func buildBodyParsingProxy(t *testing.T, upstreamHandler http.HandlerFunc) *proxytest.TestProxy {
 	t.Helper()
 
 	upstream := httptest.NewServer(upstreamHandler)
@@ -75,12 +73,10 @@ func buildGzipBypassProxy(
 	instanceOpts := []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error{
 		openpolicyagent.WithConfigTemplate(config),
 	}
-
 	registryOpts := []func(*openpolicyagent.OpenPolicyAgentRegistry) error{
 		openpolicyagent.WithTracer(tracingtest.NewTracer()),
 		openpolicyagent.WithOpenPolicyAgentInstanceConfig(instanceOpts...),
 	}
-	registryOpts = append(registryOpts, extraOpts...)
 
 	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(registryOpts...)
 	if err != nil {
@@ -99,10 +95,11 @@ func buildGzipBypassProxy(
 	return proxy
 }
 
-// A gzip-encoded body containing {"admin":true} must be denied (403).
-// Without the fix, ExtractHttpBodyOptionally hands raw compressed bytes to OPA;
-// input.parsed_body is null; the deny rule fails open and the proxy returns 200.
-func TestGzipBodyPolicyBypass(t *testing.T) {
+// TestContentEncodingRejected verifies that any request carrying a
+// Content-Encoding header is rejected with 415 Unsupported Media Type when
+// body parsing is enabled. This prevents policy bypass via encoded bodies
+// (GHSA-j3r3-rjcc-vh4q).
+func TestContentEncodingRejected(t *testing.T) {
 	plaintext := []byte(`{"admin":true}`)
 	compressed := gzipCompress(plaintext)
 
@@ -121,23 +118,37 @@ func TestGzipBodyPolicyBypass(t *testing.T) {
 			wantUpstreamCalled: true,
 		},
 		{
-			name:               "plaintext admin body is denied (negative control)",
+			name:               "plaintext admin body is denied by policy",
 			body:               plaintext,
 			contentEncoding:    "",
 			wantStatus:         http.StatusForbidden,
 			wantUpstreamCalled: false,
 		},
 		{
-			name:               "gzip-encoded admin body must be denied",
+			name:               "gzip-encoded body is rejected with 415",
 			body:               compressed,
 			contentEncoding:    "gzip",
-			wantStatus:         http.StatusForbidden, // BUG before fix: returns 200
+			wantStatus:         http.StatusUnsupportedMediaType,
+			wantUpstreamCalled: false,
+		},
+		{
+			name:               "br-encoded body is rejected with 415",
+			body:               []byte(`fake-br-data`),
+			contentEncoding:    "br",
+			wantStatus:         http.StatusUnsupportedMediaType,
+			wantUpstreamCalled: false,
+		},
+		{
+			name:               "deflate-encoded body is rejected with 415",
+			body:               []byte(`fake-deflate-data`),
+			contentEncoding:    "deflate",
+			wantStatus:         http.StatusUnsupportedMediaType,
 			wantUpstreamCalled: false,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var upstreamCalled bool
-			proxy := buildGzipBypassProxy(t, func(w http.ResponseWriter, r *http.Request) {
+			proxy := buildBodyParsingProxy(t, func(w http.ResponseWriter, r *http.Request) {
 				upstreamCalled = true
 				_, _ = io.Copy(io.Discard, r.Body)
 				w.WriteHeader(http.StatusOK)
@@ -169,24 +180,12 @@ func TestGzipBodyPolicyBypass(t *testing.T) {
 	}
 }
 
-// The decompressed body (280 bytes) exceeds maxBodyBytes (64 bytes), so the
-// body is truncated and OPA receives x-envoy-auth-partial-body: true.
-// A policy that denies partial bodies proves OPA saw decompressed-then-truncated
-// bytes, not the raw compressed bytes that fit within maxBodyBytes unchanged.
-func TestGzipBodySemaphoreAccuracy(t *testing.T) {
-	// Produce a payload that is small when compressed but large when decompressed.
-	// Repeating a short pattern compresses very well.
-	plain := bytes.Repeat([]byte(`{"admin":true}`), 20) // 280 bytes plaintext
-	compressed := gzipCompress(plain)
-	if int64(len(compressed)) >= 64 {
-		t.Skipf("gzip did not compress enough for this test (compressed=%d bytes)", len(compressed))
-	}
+// TestContentEncodingAllowedWithoutBodyParsing verifies that Content-Encoding
+// is not rejected when body parsing is disabled (opaAuthorizeRequest without
+// body). The filter only blocks encoded bodies when it would parse them.
+func TestContentEncodingAllowedWithoutBodyParsing(t *testing.T) {
+	compressed := gzipCompress([]byte(`{"admin":true}`))
 
-	const maxBodyBytes = 64
-
-	// Use a dedicated proxy whose policy denies requests with a partial (truncated) body.
-	// x-envoy-auth-partial-body is set to "true" by the adapter when truncated=true,
-	// which only happens when the decompressed size exceeds maxBodyBytes.
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(io.Discard, r.Body)
 		w.WriteHeader(http.StatusOK)
@@ -201,10 +200,6 @@ func TestGzipBodySemaphoreAccuracy(t *testing.T) {
 				import rego.v1
 
 				default allow := true
-
-				allow := false if {
-					input.attributes.request.http.headers["x-envoy-auth-partial-body"] == "true"
-				}
 			`,
 		}),
 	)
@@ -223,7 +218,6 @@ func TestGzipBodySemaphoreAccuracy(t *testing.T) {
 	registryOpts := []func(*openpolicyagent.OpenPolicyAgentRegistry) error{
 		openpolicyagent.WithTracer(tracingtest.NewTracer()),
 		openpolicyagent.WithOpenPolicyAgentInstanceConfig(instanceOpts...),
-		openpolicyagent.WithMaxRequestBodyBytes(maxBodyBytes),
 	}
 
 	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(registryOpts...)
@@ -232,11 +226,11 @@ func TestGzipBodySemaphoreAccuracy(t *testing.T) {
 	}
 
 	fr := make(filters.Registry)
-	fr.Register(NewOpaAuthorizeRequestWithBodySpec(opaFactory))
+	fr.Register(NewOpaAuthorizeRequestSpec(opaFactory)) // no body parsing
 	fr.Register(builtin.NewSetPath())
 
 	r := eskip.MustParse(fmt.Sprintf(
-		`* -> opaAuthorizeRequestWithBody("test") -> "%s"`, upstream.URL))
+		`* -> opaAuthorizeRequest("test") -> "%s"`, upstream.URL))
 
 	proxy := proxytest.New(fr, r...)
 	t.Cleanup(func() { _ = proxy.Close() })
@@ -255,13 +249,7 @@ func TestGzipBodySemaphoreAccuracy(t *testing.T) {
 	_, _ = io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
 
-	// decompressed body (280 bytes) > maxBodyBytes (64 bytes) →
-	// truncated → x-envoy-auth-partial-body: true → policy denies → 403.
-	if resp.StatusCode != http.StatusForbidden {
-		t.Errorf("GHSA-j3r3-rjcc-vh4q semaphore: got %d, want 403; "+
-			"expected gzip body (compressed %d bytes, decompressed %d bytes) to be "+
-			"decompressed before semaphore acquisition so the %d-byte limit triggers "+
-			"truncation and x-envoy-auth-partial-body: true",
-			resp.StatusCode, len(compressed), len(plain), maxBodyBytes)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want 200; Content-Encoding should not be rejected when body parsing is disabled", resp.StatusCode)
 	}
 }
