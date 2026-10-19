@@ -529,7 +529,10 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext, cookies []*
 		return
 	}
 
-	redirectUrl := ctx.Request().URL.String()
+	redirectUrl := ctx.Request().URL.RequestURI()
+	if strings.HasPrefix(redirectUrl, "//") {
+		redirectUrl = "/" + strings.TrimLeft(redirectUrl, "/")
+	}
 	statePlain, err := createState(nonce, redirectUrl)
 	if err != nil {
 		ctx.Logger().Errorf("Failed to create oauth2 state: %v.", err)
