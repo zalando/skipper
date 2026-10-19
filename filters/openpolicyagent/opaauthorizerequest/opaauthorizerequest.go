@@ -116,6 +116,11 @@ func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
 	var rawBodyBytes []byte
 	var bodyTruncated bool
 	if f.bodyParsing {
+		if req.Header.Get("Content-Encoding") != "" {
+			f.opa.HandleEvaluationError(fc, span, nil, fmt.Errorf("body inspection not supported for Content-Encoding: %s", req.Header.Get("Content-Encoding")), !f.opa.EnvoyPluginConfig().DryRun, http.StatusUnsupportedMediaType)
+			return
+		}
+
 		var body io.ReadCloser
 		var err error
 		var finalizer func()
