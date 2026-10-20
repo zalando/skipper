@@ -212,7 +212,7 @@ func TestServeResponseContentEncodingAllowedWithoutBodyParsing(t *testing.T) {
 	fr := make(filters.Registry)
 	fr.Register(NewOpaServeResponseSpec(opaFactory)) // no body parsing
 
-	r := eskip.MustParse(fmt.Sprint(`* -> opaServeResponse("test") -> <shunt>`))
+	r := eskip.MustParse(`* -> opaServeResponse("test") -> <shunt>`)
 
 	proxy := proxytest.New(fr, r...)
 	t.Cleanup(func() { _ = proxy.Close() })
