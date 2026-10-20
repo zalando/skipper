@@ -30,11 +30,16 @@ import (
 )
 
 // gzipCompress compresses src and returns the gzip bytes.
-func gzipCompress(src []byte) []byte {
+func gzipCompress(t *testing.T, src []byte) []byte {
+	t.Helper()
 	var buf bytes.Buffer
 	w := gzip.NewWriter(&buf)
-	_, _ = w.Write(src)
-	_ = w.Close()
+	if _, err := w.Write(src); err != nil {
+		t.Fatalf("gzipCompress: write: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("gzipCompress: close: %v", err)
+	}
 	return buf.Bytes()
 }
 
@@ -101,7 +106,7 @@ func buildBodyParsingProxy(t *testing.T, upstreamHandler http.HandlerFunc) *prox
 // (GHSA-j3r3-rjcc-vh4q).
 func TestContentEncodingRejected(t *testing.T) {
 	plaintext := []byte(`{"admin":true}`)
-	compressed := gzipCompress(plaintext)
+	compressed := gzipCompress(t, plaintext)
 
 	for _, tc := range []struct {
 		name               string
@@ -184,7 +189,7 @@ func TestContentEncodingRejected(t *testing.T) {
 // is not rejected when body parsing is disabled (opaAuthorizeRequest without
 // body). The filter only blocks encoded bodies when it would parse them.
 func TestContentEncodingAllowedWithoutBodyParsing(t *testing.T) {
-	compressed := gzipCompress([]byte(`{"admin":true}`))
+	compressed := gzipCompress(t, []byte(`{"admin":true}`))
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(io.Discard, r.Body)
@@ -271,7 +276,7 @@ func TestNonJSONBodyRejected(t *testing.T) {
 		},
 		{
 			name:       "gzip bytes without Content-Encoding are rejected with 400",
-			body:       gzipCompress([]byte(`{"admin":true}`)),
+			body:       gzipCompress(t, []byte(`{"admin":true}`)),
 			wantStatus: http.StatusBadRequest,
 		},
 		{
