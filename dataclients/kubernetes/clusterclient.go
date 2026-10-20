@@ -14,6 +14,7 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,6 +79,7 @@ type clusterClient struct {
 	routeGroupsLabelSelectors    string
 
 	enableEndpointSlices bool
+	listChunkSize        int
 
 	loggedMissingRouteGroups bool
 	routeGroupValidator      *definitions.RouteGroupValidator
@@ -177,6 +179,7 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		routeGroupValidator:          &definitions.RouteGroupValidator{EnableAdvancedValidation: false},
 		ingressValidator:             &definitions.IngressV1Validator{EnableAdvancedValidation: false},
 		enableEndpointSlices:         o.KubernetesEnableEndpointslices,
+		listChunkSize:                o.KubernetesListChunkSize,
 		zone:                         o.TopologyZone,
 		ingressStatusFromService:     o.IngressStatusFromService,
 	}
@@ -327,6 +330,55 @@ func (c *clusterClient) getJSON(uri string, a any) error {
 	return err
 }
 
+type listMetadata struct {
+	Continue string `json:"continue"`
+}
+
+type paginatedList[T any] struct {
+	Metadata listMetadata `json:"metadata"`
+	Items    []T          `json:"items"`
+}
+
+func appendQueryParam(uri, key, val string) string {
+	sep := "?"
+	if strings.Contains(uri, "?") {
+		sep = "&"
+	}
+	return uri + sep + url.QueryEscape(key) + "=" + url.QueryEscape(val)
+}
+
+func loadChunkedList[T any](c *clusterClient, uri string) ([]T, error) {
+	if c.listChunkSize <= 0 {
+		var list paginatedList[T]
+		if err := c.getJSON(uri, &list); err != nil {
+			return nil, err
+		}
+		return list.Items, nil
+	}
+
+	var items []T
+	continueToken := ""
+	for {
+		pageURI := appendQueryParam(uri, "limit", strconv.Itoa(c.listChunkSize))
+		if continueToken != "" {
+			pageURI = appendQueryParam(pageURI, "continue", continueToken)
+		}
+
+		var page paginatedList[T]
+		if err := c.getJSON(pageURI, &page); err != nil {
+			return nil, err
+		}
+
+		items = append(items, page.Items...)
+		if page.Metadata.Continue == "" {
+			break
+		}
+		continueToken = page.Metadata.Continue
+	}
+
+	return items, nil
+}
+
 func (c *clusterClient) clusterHasRouteGroups() (bool, error) {
 	var crl ClusterResourceList
 	if err := c.getJSON(ZalandoResourcesClusterURI, &crl); err != nil { // it probably should bounce once
@@ -391,14 +443,14 @@ func sortByMetadata(slice any, getMetadata func(int) *definitions.Metadata) {
 }
 
 func (c *clusterClient) loadIngressesV1() ([]*definitions.IngressV1Item, error) {
-	var il definitions.IngressV1List
-	if err := c.getJSON(c.ingressesURI+c.ingressLabelSelectors, &il); err != nil {
+	items, err := loadChunkedList[*definitions.IngressV1Item](c, c.ingressesURI+c.ingressLabelSelectors)
+	if err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
 		return nil, err
 	}
-	log.Debugf("all ingresses received: %d", len(il.Items))
+	log.Debugf("all ingresses received: %d", len(items))
 
-	fItems := c.filterIngressesV1ByClass(il.Items)
+	fItems := c.filterIngressesV1ByClass(items)
 	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
 
 	sortByMetadata(fItems, func(i int) *definitions.Metadata { return fItems[i].Metadata })
@@ -416,12 +468,12 @@ func (c *clusterClient) loadIngressesV1() ([]*definitions.IngressV1Item, error) 
 }
 
 func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error) {
-	var rgl definitions.RouteGroupList
-	if err := c.getJSON(c.routeGroupsURI+c.routeGroupsLabelSelectors, &rgl); err != nil {
+	items, err := loadChunkedList[*definitions.RouteGroupItem](c, c.routeGroupsURI+c.routeGroupsLabelSelectors)
+	if err != nil {
 		return nil, err
 	}
-	log.Debugf("all routegroups received: %d", len(rgl.Items))
-	rgl = definitions.NewRouteGroupListWithSharedCache(rgl.Items)
+	log.Debugf("all routegroups received: %d", len(items))
+	rgl := definitions.NewRouteGroupListWithSharedCache(items)
 
 	rgs := make([]*definitions.RouteGroupItem, 0, len(rgl.Items))
 	for _, i := range rgl.Items {
@@ -451,16 +503,16 @@ func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error)
 }
 
 func (c *clusterClient) loadServices() (map[definitions.ResourceID]*service, error) {
-	var services serviceList
-	if err := c.getJSON(c.servicesURI+c.servicesLabelSelectors, &services); err != nil {
+	items, err := loadChunkedList[*service](c, c.servicesURI+c.servicesLabelSelectors)
+	if err != nil {
 		log.Debugf("requesting all services failed: %v", err)
 		return nil, err
 	}
-	log.Debugf("all services received: %d", len(services.Items))
+	log.Debugf("all services received: %d", len(items))
 
 	result := make(map[definitions.ResourceID]*service)
 	var hasInvalidService bool
-	for _, service := range services.Items {
+	for _, service := range items {
 		if service == nil || service.Meta == nil || service.Spec == nil {
 			hasInvalidService = true
 			continue
@@ -477,15 +529,15 @@ func (c *clusterClient) loadServices() (map[definitions.ResourceID]*service, err
 }
 
 func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error) {
-	var secrets secretList
-	if err := c.getJSON(c.secretsURI+c.secretsLabelSelectors, &secrets); err != nil {
+	items, err := loadChunkedList[*secret](c, c.secretsURI+c.secretsLabelSelectors)
+	if err != nil {
 		log.Debugf("requesting all secrets failed: %v", err)
 		return nil, err
 	}
-	log.Debugf("all secrets received: %d", len(secrets.Items))
+	log.Debugf("all secrets received: %d", len(items))
 
 	result := make(map[definitions.ResourceID]*secret)
-	for _, secret := range secrets.Items {
+	for _, secret := range items {
 		if secret == nil || secret.Metadata == nil {
 			continue
 		}
@@ -497,15 +549,15 @@ func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error
 }
 
 func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, error) {
-	var endpoints endpointList
-	if err := c.getJSON(c.endpointsURI+c.endpointsLabelSelectors, &endpoints); err != nil {
+	items, err := loadChunkedList[*endpoint](c, c.endpointsURI+c.endpointsLabelSelectors)
+	if err != nil {
 		log.Debugf("requesting all endpoints failed: %v", err)
 		return nil, err
 	}
-	log.Debugf("all endpoints received: %d", len(endpoints.Items))
+	log.Debugf("all endpoints received: %d", len(items))
 
 	result := make(map[definitions.ResourceID]*endpoint)
-	for _, endpoint := range endpoints.Items {
+	for _, endpoint := range items {
 		resID := endpoint.Meta.ToResourceID()
 		result[resID] = endpoint
 	}
@@ -523,14 +575,14 @@ func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, e
 // non-terminating endpoints that should be in the load balancer of a
 // given service, check [endpointSlice.ToResourceID].
 func (c *clusterClient) loadEndpointSlices() (map[definitions.ResourceID]*skipperEndpointSlice, error) {
-	var endpointSlices endpointSliceList
-	if err := c.getJSON(c.endpointSlicesURI+c.endpointSlicesLabelSelectors, &endpointSlices); err != nil {
+	items, err := loadChunkedList[*endpointSlice](c, c.endpointSlicesURI+c.endpointSlicesLabelSelectors)
+	if err != nil {
 		log.Debugf("requesting all endpointslices failed: %v", err)
 		return nil, err
 	}
-	log.Debugf("all endpointslices received: %d", len(endpointSlices.Items))
+	log.Debugf("all endpointslices received: %d", len(items))
 
-	return collectReadyEndpoints(&endpointSlices), nil
+	return collectReadyEndpoints(&endpointSliceList{Items: items}), nil
 }
 
 func collectReadyEndpoints(endpointSlices *endpointSliceList) map[definitions.ResourceID]*skipperEndpointSlice {
