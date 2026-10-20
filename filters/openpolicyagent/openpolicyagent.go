@@ -1348,7 +1348,12 @@ func (opa *OpenPolicyAgentInstance) ExtractHttpBodyOptionally(req *http.Request)
 			rawBody = rawBody[:opa.maxBodyBytes]
 			truncated = true
 		}
-		return wrapper, rawBody, truncated, func() { opa.registry.maxMemoryBodyParsingSem.Release(requestedBodyBytes) }, err
+		actualBodyBytes := int64(len(rawBody))
+		if actualBodyBytes < requestedBodyBytes {
+			opa.registry.maxMemoryBodyParsingSem.Release(requestedBodyBytes - actualBodyBytes)
+		}
+
+		return wrapper, rawBody, truncated, func() { opa.registry.maxMemoryBodyParsingSem.Release(actualBodyBytes) }, err
 	}
 
 	return req.Body, nil, false, func() {}, nil
