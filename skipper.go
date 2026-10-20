@@ -1718,7 +1718,12 @@ func listenAndServeQuit(
 		tlsConfig.NextProtos = append(tlsConfig.NextProtos, "h3")
 		handler = altSvcHandler(address, proxy)
 		h3tlsConf := http3.ConfigureTLSConfig(tlsConfig.Clone())
-		h3srv = &http3.Server{Handler: handler, TLSConfig: h3tlsConf}
+		h3srv = &http3.Server{
+			Handler:        handler,
+			TLSConfig:      h3tlsConf,
+			IdleTimeout:    o.IdleTimeoutServer,
+			MaxHeaderBytes: o.MaxHeaderBytes,
+		}
 	}
 
 	srv := &http.Server{
