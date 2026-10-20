@@ -30,11 +30,16 @@ import (
 	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
-func gzipBytes(src []byte) []byte {
+func gzipBytes(t *testing.T, src []byte) []byte {
+	t.Helper()
 	var buf bytes.Buffer
 	w := gzip.NewWriter(&buf)
-	_, _ = w.Write(src)
-	_ = w.Close()
+	if _, err := w.Write(src); err != nil {
+		t.Fatalf("gzipBytes: write: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("gzipBytes: close: %v", err)
+	}
 	return buf.Bytes()
 }
 
@@ -109,7 +114,7 @@ func buildServeResponseProxy(t *testing.T, upstream http.Handler) *proxytest.Tes
 // via encoded bodies (GHSA-j3r3-rjcc-vh4q).
 func TestServeResponseContentEncodingRejected(t *testing.T) {
 	plaintext := []byte(`{"admin":true}`)
-	compressed := gzipBytes(plaintext)
+	compressed := gzipBytes(t, plaintext)
 
 	for _, tc := range []struct {
 		name            string
@@ -176,7 +181,7 @@ func TestServeResponseContentEncodingRejected(t *testing.T) {
 // (opaServeResponse without body). The filter only blocks encoded bodies when
 // it would parse them.
 func TestServeResponseContentEncodingAllowedWithoutBodyParsing(t *testing.T) {
-	compressed := gzipBytes([]byte(`{"admin":true}`))
+	compressed := gzipBytes(t, []byte(`{"admin":true}`))
 
 	opaControlPlane := opasdktest.MustNewServer(
 		opasdktest.MockBundle("/bundles/test", map[string]string{
@@ -254,7 +259,7 @@ func TestServeResponseNonJSONBodyRejected(t *testing.T) {
 		},
 		{
 			name:       "gzip bytes without Content-Encoding are rejected with 400",
-			body:       gzipBytes([]byte(`{"admin":true}`)),
+			body:       gzipBytes(t, []byte(`{"admin":true}`)),
 			wantStatus: http.StatusBadRequest,
 		},
 		{
