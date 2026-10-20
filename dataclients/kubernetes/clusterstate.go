@@ -100,7 +100,11 @@ func (state *clusterState) GetEndpointSlicesByService(zone, namespace, name, pro
 		targets = cached
 	} else {
 		if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
-			targets = eps.targetsByServicePort("TCP", protocol, annotationSet, servicePort)
+			transportProtocol := servicePort.Protocol
+			if transportProtocol == "" {
+				transportProtocol = "TCP"
+			}
+			targets = eps.targetsByServicePort(transportProtocol, protocol, annotationSet, servicePort)
 		} else {
 			return nil
 		}
