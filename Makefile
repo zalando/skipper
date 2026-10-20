@@ -1,6 +1,6 @@
 SOURCES             = $(shell find . -name '*.go' -and -not -path "./_test_plugins" -and -not -path "./_test_plugins_fail" )
 PACKAGES            = $(shell go list ./...)
-REST_PACKAGES       = $(shell go list ./... | grep -vE 'zalando/(skipper|skipper/proxy|skipper/ratelimit|skipper/net)$')
+REST_PACKAGES       = $(shell go list ./... | grep -vE 'zalando/(skipper|skipper/proxy|skipper/ratelimit|skipper/net)$$')
 CURRENT_VERSION     = $(shell git describe --tags --always --dirty)
 VERSION            ?= $(CURRENT_VERSION)
 COMMIT_HASH         = $(shell git rev-parse --short HEAD)
