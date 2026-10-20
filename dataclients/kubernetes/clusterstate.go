@@ -21,6 +21,7 @@ type clusterState struct {
 	cachedEndpoints      map[endpointID][]string
 	cachedEndpointSlices map[endpointID][]skipperEndpoint
 	enableEndpointSlices bool
+	safeZoneAwareRouting bool
 }
 
 func (state *clusterState) getService(namespace, name string) (*service, error) {
@@ -112,7 +113,7 @@ func (state *clusterState) GetEndpointSlicesByService(zone, namespace, name, pro
 		state.cachedEndpointSlices[epID] = targets
 	}
 
-	if ic.disableZoneAwareness {
+	if ic.disableZoneAwareness || !state.safeZoneAwareRouting {
 		return targets
 	}
 
@@ -203,7 +204,7 @@ func (state *clusterState) GetEndpointSlicesByTarget(zone, namespace, name, prot
 		state.cachedEndpointSlices[epID] = targets
 	}
 
-	if rgc.disableZoneAwareness {
+	if rgc.disableZoneAwareness || !state.safeZoneAwareRouting{
 		return targets
 	}
 

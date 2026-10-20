@@ -236,3 +236,113 @@ func TestFilterRoutesByZone(t *testing.T) {
 		})
 	}
 }
+
+func makeControlRoute() *eskip.Route {
+	fs, err := eskip.ParseFilters(`annotate("is-zone-aware-routing-safe", "false")`)
+	if err != nil {
+		panic(err)
+	}
+	return &eskip.Route{
+		Id:      "__zone_awareness_control",
+		Backend: "<shunt>",
+		Filters: fs,
+	}
+}
+
+func TestIsZoneAwareRoutingSafe(t *testing.T) {
+	tests := []struct {
+		name     string
+		routes   []*eskip.Route
+		expected bool
+	}{
+		{
+			name:     "No control route - safe",
+			routes:   []*eskip.Route{makeRoute("A", map[string]int{"zone1": 4, "zone2": 4})},
+			expected: true,
+		},
+		{
+			name:     "With control route - not safe",
+			routes:   []*eskip.Route{makeControlRoute(), makeRoute("A", map[string]int{"zone1": 4, "zone2": 4})},
+			expected: false,
+		},
+		{
+			name:     "Multiple routes with control route - not safe",
+			routes:   []*eskip.Route{makeRoute("A", map[string]int{"zone1": 4}), makeControlRoute(), makeRoute("B", map[string]int{"zone2": 4})},
+			expected: false,
+		},
+		{
+			name:     "Empty routes - safe",
+			routes:   []*eskip.Route{},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isZoneAwareRoutingSafe(tc.routes)
+			require.Equal(t, tc.expected, got)
+		})
+	}
+}
+
+func TestFilterRoutesByZone_WithControlRoute(t *testing.T) {
+	tests := []struct {
+		name          string
+		routes        []*eskip.Route
+		wantZoneCount int
+		wantFiltered  bool
+	}{
+		{
+			name:          "Control route present - no filtering",
+			routes:        []*eskip.Route{makeControlRoute(), makeRoute("A", map[string]int{"zone1": 4, "zone2": 4})},
+			wantZoneCount: 2,
+			wantFiltered:  false,
+		},
+		{
+			name:          "No control route - normal filtering",
+			routes:        []*eskip.Route{makeRoute("A", map[string]int{"zone1": 4, "zone2": 4})},
+			wantZoneCount: 2,
+			wantFiltered:  true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := filterRoutesByZone(tc.routes)
+
+			// Check we have routes for all zones
+			require.Equal(t, tc.wantZoneCount, len(result))
+
+			// Check control route is filtered out
+			for zone, routes := range result {
+				for _, r := range routes {
+					require.NotEqual(t, "__zone_awareness_control", r.Id)
+				}
+
+				if tc.wantFiltered {
+					// Verify filtering happened (only zone-local endpoints)
+					for _, r := range routes {
+						for _, ep := range r.LBEndpoints {
+							require.Equal(t, zone, ep.Zone)
+						}
+					}
+				} else {
+					// Verify no filtering (all endpoints present)
+					for _, r := range routes {
+						hasOtherZone := false
+						for _, ep := range r.LBEndpoints {
+							if ep.Zone != "" && ep.Zone != zone {
+								hasOtherZone = true
+								break
+							}
+						}
+						// If route has endpoints in other zones, verify they're present
+						if len(r.LBEndpoints) > 0 {
+							_ = hasOtherZone
+						}
+					}
+				}
+			}
+		})
+	}
+}

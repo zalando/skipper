@@ -192,3 +192,86 @@ func TestEndpointSliceEndpointIsReady(t *testing.T) {
 		})
 	}
 }
+
+func TestGetZones(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		endpoints []*skipperEndpoint
+		want      map[string]struct{}
+	}{
+		{
+			name:      "empty endpoints returns empty map",
+			endpoints: []*skipperEndpoint{},
+			want:      map[string]struct{}{},
+		},
+		{
+			name: "single endpoint returns single zone",
+			endpoints: []*skipperEndpoint{
+				{Address: "10.0.0.1", Zone: "zone-1"},
+			},
+			want: map[string]struct{}{"zone-1": {}},
+		},
+		{
+			name: "multiple endpoints in same zone returns single zone",
+			endpoints: []*skipperEndpoint{
+				{Address: "10.0.0.1", Zone: "zone-1"},
+				{Address: "10.0.0.2", Zone: "zone-1"},
+				{Address: "10.0.0.3", Zone: "zone-1"},
+			},
+			want: map[string]struct{}{"zone-1": {}},
+		},
+		{
+			name: "endpoints in multiple zones returns all zones",
+			endpoints: []*skipperEndpoint{
+				{Address: "10.0.0.1", Zone: "zone-1"},
+				{Address: "10.0.0.2", Zone: "zone-2"},
+				{Address: "10.0.0.3", Zone: "zone-3"},
+			},
+			want: map[string]struct{}{
+				"zone-1": {},
+				"zone-2": {},
+				"zone-3": {},
+			},
+		},
+		{
+			name: "endpoints with empty zone are ignored",
+			endpoints: []*skipperEndpoint{
+				{Address: "10.0.0.1", Zone: "zone-1"},
+				{Address: "10.0.0.2", Zone: ""},
+				{Address: "10.0.0.3", Zone: "zone-2"},
+			},
+			want: map[string]struct{}{
+				"zone-1": {},
+				"zone-2": {},
+			},
+		},
+		{
+			name: "all endpoints with empty zone returns empty map",
+			endpoints: []*skipperEndpoint{
+				{Address: "10.0.0.1", Zone: ""},
+				{Address: "10.0.0.2", Zone: ""},
+			},
+			want: map[string]struct{}{},
+		},
+		{
+			name: "duplicate zones are deduplicated",
+			endpoints: []*skipperEndpoint{
+				{Address: "10.0.0.1", Zone: "zone-1"},
+				{Address: "10.0.0.2", Zone: "zone-1"},
+				{Address: "10.0.0.3", Zone: "zone-2"},
+				{Address: "10.0.0.4", Zone: "zone-2"},
+				{Address: "10.0.0.5", Zone: "zone-1"},
+			},
+			want: map[string]struct{}{
+				"zone-1": {},
+				"zone-2": {},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			eps := &skipperEndpointSlice{Endpoints: tt.endpoints}
+			got := eps.getZones()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

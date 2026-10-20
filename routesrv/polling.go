@@ -152,6 +152,18 @@ func isZoneAwarenessDisabled(route *eskip.Route) bool {
 	return false
 }
 
+// isZoneAwareRoutingSafe checks if zone-aware routing is safe globally.
+// It returns false if a control route with Id "__zone_awareness_control" is present,
+// indicating that zone-aware routing should be disabled (fallback to cross-zone).
+func isZoneAwareRoutingSafe(routes []*eskip.Route) bool {
+	for _, route := range routes {
+		if route.Id == "__zone_awareness_control" {
+			return false
+		}
+	}
+	return true
+}
+
 func getRouteForZone(zone string, route *eskip.Route) *eskip.Route {
 	var zoneAwareEps []*eskip.LBEndpoint
 
@@ -174,6 +186,22 @@ func getRouteForZone(zone string, route *eskip.Route) *eskip.Route {
 }
 
 func filterRoutesByZone(routes []*eskip.Route) map[string][]*eskip.Route {
+	// Check if zone-aware routing is safe globally
+	if !isZoneAwareRoutingSafe(routes) {
+		// Zone-aware routing not safe - return all routes for all zones without filtering
+		// but filter out the control route
+		zones := getZones(routes)
+		zoneAwareRoutes := make(map[string][]*eskip.Route)
+		for zone := range zones {
+			for _, r := range routes {
+				if r.Id != "__zone_awareness_control" {
+					zoneAwareRoutes[zone] = append(zoneAwareRoutes[zone], r)
+				}
+			}
+		}
+		return zoneAwareRoutes
+	}
+
 	zones := getZones(routes)
 
 	zoneAwareRoutes := make(map[string][]*eskip.Route)

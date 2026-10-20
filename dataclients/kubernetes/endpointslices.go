@@ -111,6 +111,18 @@ func (eps *skipperEndpointSlice) addresses() []string {
 	return result
 }
 
+// getZones returns all unique zones where endpoints are located.
+// Endpoints with empty zone values are ignored.
+func (eps *skipperEndpointSlice) getZones() map[string]struct{} {
+	zones := make(map[string]struct{})
+	for _, ep := range eps.Endpoints {
+		if ep.Zone != "" {
+			zones[ep.Zone] = struct{}{}
+		}
+	}
+	return zones
+}
+
 func effectiveScheme(p *endpointSlicePort, schemeDefault string, annotationSet bool) string {
 	if annotationSet {
 		return schemeDefault

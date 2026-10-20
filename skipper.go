@@ -307,6 +307,20 @@ type Options struct {
 	// pods within a service
 	KubernetesEnableEndpointslices bool
 
+	// KubernetesMinZonesForZoneAwareRouting is the minimum number of zones required
+	// for zone-aware routing to be considered safe. When fewer zones are detected,
+	// zone-aware routing is disabled and traffic falls back to cross-zone.
+	// Defaults to 3. Set to 0 to disable.
+	KubernetesMinZonesForZoneAwareRouting int
+
+	// KubernetesSkipperIngressServiceName is the name of the skipper-ingress service
+	// used to detect zone coverage. Defaults to "skipper-ingress".
+	KubernetesSkipperIngressServiceName string
+
+	// KubernetesSkipperIngressServiceNamespace is the namespace of the skipper-ingress service.
+	// Defaults to "kube-system".
+	KubernetesSkipperIngressServiceNamespace string
+
 	// *DEPRECATED* KubernetesEnableEastWest enables cluster internal service to service communication, aka east-west traffic
 	KubernetesEnableEastWest bool
 
