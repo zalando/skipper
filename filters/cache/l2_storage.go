@@ -112,6 +112,9 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 	}
 	var e Entry
 	if err := json.Unmarshal([]byte(data), &e); err != nil {
+		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
+			p.IncStorageError("l2", "get")
+		}
 		return nil, fmt.Errorf("cache: decode L2 entry: %w", err)
 	}
 	if recordMetrics {
@@ -139,6 +142,9 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 func (s *L2Storage) Set(ctx context.Context, key string, entry *Entry) error {
 	data, err := json.Marshal(entry)
 	if err != nil {
+		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
+			p.IncStorageError("l2", "set")
+		}
 		return fmt.Errorf("cache: encode L2 entry: %w", err)
 	}
 
@@ -179,9 +185,8 @@ func (s *L2Storage) Delete(ctx context.Context, key string) error {
 	// fleet retain their own L1 copies until --cache-l1-ttl expires naturally.
 	if _, err := s.l2client.Del(ctx, key); err != nil {
 		log.WithError(err).Error("cache: L2 Delete failed")
-		s.metrics.IncCounter("cache.storage_error")
-		if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
-			p.IncCacheResult("storage_error", "n/a")
+		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
+			p.IncStorageError("l2", "delete")
 		}
 	}
 	return s.l1.Delete(ctx, key)

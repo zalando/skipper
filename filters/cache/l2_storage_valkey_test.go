@@ -550,8 +550,9 @@ func TestL2Storage_NewL2Storage_NegativeL1TTL_ClampsToDefault(t *testing.T) {
 
 func TestL2Storage_Get_CorruptJSON_ReturnsError(t *testing.T) {
 	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(64<<20, nil, &metricstest.MockMetrics{})
-	s := NewL2Storage(stub, lru, &metricstest.MockMetrics{}, 0, valkey.IsValkeyNil)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
 
 	// Write corrupt JSON directly into the stub, bypassing Set.
 	stub.mu.Lock()
@@ -561,6 +562,9 @@ func TestL2Storage_Get_CorruptJSON_ReturnsError(t *testing.T) {
 	_, err := s.Get(context.Background(), "bad-key")
 	if err == nil {
 		t.Fatal("expected error for corrupt JSON in L2, got nil")
+	}
+	if got, _ := m.StorageErrorCount("l2", "get"); got != 1 {
+		t.Errorf("expected labeled storage_error l2/get=1, got %d", got)
 	}
 }
 

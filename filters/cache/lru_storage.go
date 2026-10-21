@@ -43,6 +43,9 @@ func (s *LRUStorage) Get(_ context.Context, key string) (*Entry, error) {
 
 	var e Entry
 	if err := json.Unmarshal(data, &e); err != nil {
+		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
+			p.IncStorageError("l1", "get")
+		}
 		return nil, fmt.Errorf("cache: decode entry: %w", err)
 	}
 
@@ -62,6 +65,9 @@ func (s *LRUStorage) Get(_ context.Context, key string) (*Entry, error) {
 func (s *LRUStorage) Set(_ context.Context, key string, entry *Entry) error {
 	data, err := json.Marshal(entry)
 	if err != nil {
+		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
+			p.IncStorageError("l1", "set")
+		}
 		return fmt.Errorf("cache: encode entry: %w", err)
 	}
 	if s.lru.ExceedsShard(data) {
