@@ -147,17 +147,26 @@ func TestTokenExchange(t *testing.T) {
 			bodyContains:   testExchanged,
 		},
 		{
-			// RFC 6749 §2.3.1: client_id and client_secret must NOT appear in the form body
-			msg:          "client credentials are sent as Basic auth not in request body",
+			// RFC 6749 §3.2.1: client_id may be sent as a parameter; §2.3: only one
+			// authentication method per request, so client_secret must not be in the form
+			msg:          "client_id is sent in form and client secret only as Basic auth",
 			incomingAuth: authHeaderPrefix + testToken,
 			tokenEndpointFn: func(w http.ResponseWriter, r *http.Request) {
-				if r.FormValue("client_id") != "" || r.FormValue("client_secret") != "" {
+				clientID, clientSecret, ok := r.BasicAuth()
+				if !ok || clientID != testClientID || clientSecret != testClientSecret {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				if err := r.ParseForm(); err != nil {
 					w.WriteHeader(http.StatusBadRequest)
 					return
 				}
-				_, _, ok := r.BasicAuth()
-				if !ok {
-					w.WriteHeader(http.StatusUnauthorized)
+				if got, ok := r.PostForm["client_id"]; !ok || len(got) != 1 || got[0] != testClientID {
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				if _, ok := r.PostForm["client_secret"]; ok {
+					w.WriteHeader(http.StatusBadRequest)
 					return
 				}
 				w.Header().Set("Content-Type", "application/json")
