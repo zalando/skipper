@@ -355,6 +355,33 @@ func TestValkeyStorage_RecordsL2Hit(t *testing.T) {
 	}
 }
 
+func TestValkeyStorage_RecordsGetSetDuration(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	ctx := context.Background()
+	key := "l2-duration-key"
+	entry := &Entry{StatusCode: 200, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}
+
+	if err := s.Set(ctx, key, entry); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	if _, err := s.Get(ctx, key); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		if len(measures["cache.l2_set_duration"]) != 1 {
+			t.Errorf("expected exactly 1 cache.l2_set_duration measurement, got %d", len(measures["cache.l2_set_duration"]))
+		}
+		if len(measures["cache.l2_get_duration"]) != 1 {
+			t.Errorf("expected exactly 1 cache.l2_get_duration measurement, got %d", len(measures["cache.l2_get_duration"]))
+		}
+	})
+}
+
 func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	// Uses a broken stub — no Docker or live Valkey needed.
 	// Set triggers l2_set_fallback, which writes the entry to L1.

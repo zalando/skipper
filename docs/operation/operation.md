@@ -2161,6 +2161,8 @@ flowchart TD
 - `cache.l2_get_error`: Counter, L2 Get errors — request treated as a cache miss, fetched from origin
 - `cache.l2_set_fallback`: Counter, L2 Set errors — entry written to L1 only (not L2)
 - `cache.l2_hit`: Counter, successful L2 Get (entry returned from L2); L1 is warmed as a side-effect when `--cache-l1-ttl > 0`
+- `cache.l2_get_duration`: Histogram, time of the underlying Valkey/Redis `Get` round-trip, on every call (hit, miss, or error) — including internal lookups like the Vary-sentinel check
+- `cache.l2_set_duration`: Histogram, time of the underlying Valkey/Redis `SetWithExpire` round-trip, on every call (success or fallback)
 - `cache.storage_error`: Counter, any storage operation (Set or Delete) failed — covers both L2 failures and L1 eviction-path errors; the request is still served correctly
 
 **OpenTracing span tags (set on every request when a span is active):**

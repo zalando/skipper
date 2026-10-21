@@ -88,7 +88,9 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 		// Stale L1 entry — fall through to L2.
 	}
 
+	l2Start := time.Now()
 	data, err := s.l2client.Get(ctx, key)
+	s.metrics.MeasureSince("cache.l2_get_duration", l2Start)
 	if err != nil {
 		if s.isNoErr(err) {
 			if recordMetrics {
@@ -145,7 +147,10 @@ func (s *L2Storage) Set(ctx context.Context, key string, entry *Entry) error {
 		l2TTL = time.Minute
 	}
 
-	if err := s.l2client.SetWithExpire(ctx, key, string(data), l2TTL); err != nil {
+	l2Start := time.Now()
+	err = s.l2client.SetWithExpire(ctx, key, string(data), l2TTL)
+	s.metrics.MeasureSince("cache.l2_set_duration", l2Start)
+	if err != nil {
 		s.metrics.IncCounter("cache.l2_set_fallback")
 		if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
 			p.IncCacheResult("l2_set_fallback", statusCodeClass(entry.StatusCode))
