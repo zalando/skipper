@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -63,6 +64,9 @@ type CertReloader struct {
 // GetClientCertificate returns the new rotated *tls.Certificate.
 // You have to use Close() in order to not leak a goroutine.
 func NewCertReloader(certFile, keyFile string, interval time.Duration, log logging.Logger) (*CertReloader, error) {
+	if interval <= 0 {
+		interval = defaultRefreshInterval
+	}
 	sp := secrets.NewSecretPaths(interval)
 	if err := sp.Add(certFile); err != nil {
 		sp.Close()
@@ -99,6 +103,29 @@ func NewCertReloader(certFile, keyFile string, interval time.Duration, log loggi
 	cr.cert.Store(&cert)
 	go cr.refreshLoop(interval)
 	return cr, nil
+}
+func MustNewCertReloader(certFile, keyFile string, interval time.Duration, log logging.Logger) *CertReloader {
+	cr, err := NewCertReloader(certFile, keyFile, interval, log)
+	if err != nil {
+		log.Errorf("Failed to initialize cert reloader: %v", err)
+		os.Exit(2)
+	}
+	return cr
+}
+
+// newSwarmClientTLS builds a client *tls.Config and its CertReloader for a swarm
+// ring (Valkey or Redis), shared by every shard. It returns (nil, nil) when TLS
+// is disabled or the client keypair is not configured. The caller owns the
+// returned CertReloader and must Close() it when the ring is torn down.
+func newSwarmClientTLS(enable bool, certFile, keyFile string, ca *x509.CertPool, interval time.Duration, log logging.Logger) (*tls.Config, *CertReloader) {
+	if !enable || certFile == "" || keyFile == "" {
+		return nil, nil
+	}
+	cr := MustNewCertReloader(certFile, keyFile, interval, log)
+	return &tls.Config{
+		GetClientCertificate: cr.GetClientCertificate,
+		RootCAs:              ca,
+	}, cr
 }
 
 func (cr *CertReloader) refreshLoop(interval time.Duration) {

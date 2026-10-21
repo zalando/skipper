@@ -223,6 +223,10 @@ Proxy-level config (`TLSClientAuth`) requesting or requiring client certificates
 **Outbound mTLS to Backends**:
 Proxy-level config (`EnableMTLS`) presenting a client certificate when connecting to upstream backends, with hot cert rotation.
 
+**Swarm mTLS**:
+Mutual-TLS transport between skipper (the client) and a swarm shard (Valkey or Redis): skipper presents a client certificate and verifies the server certificate against a configured CA bundle. Configured via `-enable-swarm-tls` with a rotating client keypair re-read on `-client-tls-cert-refresh-interval`.
+_Avoid_: valkey TLS, redis TLS, Valkey Swarm mTLS
+
 ## Kubernetes Integration
 
 **Ingress**:
