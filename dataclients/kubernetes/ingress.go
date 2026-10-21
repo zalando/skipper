@@ -240,6 +240,10 @@ func (ing *ingress) addExtraRoutes(ic *ingressContext, ruleHost, path, pathType 
 	// add extra routes from optional annotation
 	for extraIndex, r := range ic.extraRoutes {
 		route := *r
+		if !isExternalRouteAllowed(ing.allowedExternalNames, &route) {
+			ic.logger.Errorf("Ignoring route %s with not allowed network backend or LB endpoint", route.Id)
+			continue
+		}
 		route.HostRegexps = hosts
 		route.Id = routeIDForCustom(
 			ns,
