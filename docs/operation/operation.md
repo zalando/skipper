@@ -2164,6 +2164,7 @@ flowchart TD
 - `cache.l2_get_duration`: Histogram, time of the underlying Valkey/Redis `Get` round-trip, on every call (hit, miss, or error) — including internal lookups like the Vary-sentinel check
 - `cache.l2_set_duration`: Histogram, time of the underlying Valkey/Redis `SetWithExpire` round-trip, on every call (success or fallback)
 - `cache.storage_error`: Counter, any storage operation (Set or Delete) failed — covers both L2 failures and L1 eviction-path errors; the request is still served correctly
+- `skipper_cache_storage_error_total{backend="l1|l2", op="get|set|delete"}`: Counter, labeled breakdown of storage errors by backend and operation, attributed at the point in `LRUStorage`/`L2Storage` where the backend is actually known. Also increments the flat `cache.storage_error` counter above and the labeled `skipper_cache_result_total{result="storage_error",code_class="n/a"}`, so existing consumers of either see no change — this is purely an additional breakdown. `backend="l2", op="delete"` always reports the real underlying failure, since `L2Storage.Delete` only ever returns `nil` to its caller regardless of whether the Valkey delete succeeded (L1 delete always runs); a generic `Storage.Set`/`Storage.Delete` failure from code that isn't `LRUStorage` or `L2Storage` (e.g. a test double) cannot be attributed and records nothing here.
 
 **OpenTracing span tags (set on every request when a span is active):**
 

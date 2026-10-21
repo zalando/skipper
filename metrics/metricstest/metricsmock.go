@@ -270,6 +270,27 @@ func cacheResultKey(result, codeClass string) string {
 	return fmt.Sprintf("cache_result.%s.%s", result, codeClass)
 }
 
+// IncStorageError records a labeled cache storage error (backend x op), mirroring the
+// real Prometheus skipper_cache_storage_error_total{backend,op} counter. Also increments
+// the legacy unlabeled cache.storage_error counter and the labeled
+// cache_result.storage_error.n/a counter, matching the real Prometheus implementation.
+// Use StorageErrorCount to read the labeled one back in tests.
+func (m *MockMetrics) IncStorageError(backend, op string) {
+	m.IncCounter(storageErrorKey(backend, op))
+	m.IncCounter("cache.storage_error")
+	m.IncCacheResult("storage_error", "n/a")
+}
+
+// StorageErrorCount returns the labeled cache-storage-error counter recorded via
+// IncStorageError, if any.
+func (m *MockMetrics) StorageErrorCount(backend, op string) (v int64, ok bool) {
+	return m.Counter(m.Prefix + storageErrorKey(backend, op))
+}
+
+func storageErrorKey(backend, op string) string {
+	return fmt.Sprintf("storage_error.%s.%s", backend, op)
+}
+
 // SetCacheLRUBytes records the per-route LRU bytes gauge, mirroring the real
 // Prometheus skipper_cache_lru_bytes{route} gauge. Use CacheLRUBytes to read
 // it back in tests.
