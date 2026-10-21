@@ -10,7 +10,6 @@ import (
 
 	ot "github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/auth"
@@ -88,7 +87,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			case routesCount == 0:
 				p.handleEmptyRoutes()
 			case routesCount > 0:
-				if kdc, ok := p.client.(*kubernetes.Client); ok {
+				if kdc, ok := p.client.(routing.ZoneAwareDataClient); ok {
 					p.safeZoneAwareRouting = kdc.IsZoneAwareRoutingSafe()
 				}
 				zoneAwareRoutes := p.filterRoutesByZone(routes)

@@ -62,6 +62,11 @@ type NamedDataClient interface {
 	Name() string
 }
 
+// ZoneAwareDataClient is like DataClient but has a method to check if zone-aware routing is safe.
+type ZoneAwareDataClient interface {
+	IsZoneAwareRoutingSafe() bool
+}
+
 // Predicate instances are used as custom user defined route
 // matching predicates.
 type Predicate interface {
