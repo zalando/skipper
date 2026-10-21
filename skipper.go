@@ -24,6 +24,7 @@ import (
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/quic-go/quic-go/http3"
 	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
 	"github.com/valkey-io/valkey-go"
@@ -838,6 +839,22 @@ type Options struct {
 
 	// EnableH2cServer enables h2c (HTTP/2 cleartext) on the incoming listener.
 	EnableH2cServer bool
+
+	// EnableH2CBackend enables unencrypted HTTP/2 to backends via the h2c:// URL scheme.
+	// Disabled by default.
+	EnableH2CBackend bool
+
+	// EnableH2Backend enables HTTP/2 to backends via the h2:// URL scheme.
+	// Disabled by default.
+	EnableH2Backend bool
+
+	// EnableH3Backend enables HTTP/3 (QUIC) to backends via the h3:// URL scheme.
+	// Disabled by default.
+	EnableH3Backend bool
+
+	// EnableH3Server enables HTTP/3 (QUIC) on the incoming listener.
+	// Requires TLS to be configured. Falls back silently if no TLS config is present.
+	EnableH3Server bool
 
 	// MaxLoopbacks defines the maximum number of loops that the proxy can execute when the routing table
 	// contains loop backends (<loopback>).
@@ -1695,10 +1712,24 @@ func listenAndServeQuit(
 		}
 	}
 
+	handler := proxy
+	var h3srv *http3.Server
+	if o.EnableH3Server && serveTLS {
+		tlsConfig.NextProtos = append(tlsConfig.NextProtos, "h3")
+		handler = altSvcHandler(address, proxy)
+		h3tlsConf := http3.ConfigureTLSConfig(tlsConfig.Clone())
+		h3srv = &http3.Server{
+			Handler:        handler,
+			TLSConfig:      h3tlsConf,
+			IdleTimeout:    o.IdleTimeoutServer,
+			MaxHeaderBytes: o.MaxHeaderBytes,
+		}
+	}
+
 	srv := &http.Server{
 		Addr:              address,
 		TLSConfig:         tlsConfig,
-		Handler:           proxy,
+		Handler:           handler,
 		ReadTimeout:       o.ReadTimeoutServer,
 		ReadHeaderTimeout: o.ReadHeaderTimeoutServer,
 		WriteTimeout:      o.WriteTimeoutServer,
@@ -1760,6 +1791,11 @@ func listenAndServeQuit(
 		time.Sleep(o.WaitForHealthcheckInterval)
 
 		log.Info("Start shutdown")
+		if h3srv != nil {
+			if err := h3srv.Close(); err != nil {
+				log.Errorf("Failed to close HTTP/3 server: %v", err)
+			}
+		}
 		if err := srv.Shutdown(context.Background()); err != nil {
 			log.Errorf("Failed to graceful shutdown: %v", err)
 		}
@@ -1767,6 +1803,19 @@ func listenAndServeQuit(
 	}()
 
 	if serveTLS {
+		if h3srv != nil {
+			udpConn, err := net.ListenPacket("udp", address)
+			if err != nil {
+				return fmt.Errorf("failed to start HTTP/3 listener: %w", err)
+			}
+			log.Infof("HTTP/3 (QUIC) enabled on %v", address)
+			go func() {
+				if err := h3srv.Serve(udpConn); err != nil && err != http.ErrServerClosed {
+					log.Errorf("HTTP/3 server error: %v", err)
+				}
+			}()
+		}
+
 		if o.InsecureAddress != "" {
 			log.Infof("Insecure listener on %v", o.InsecureAddress)
 
@@ -1804,6 +1853,16 @@ func listenAndServeQuit(
 	<-idleConnsCH
 	log.Infof("done.")
 	return nil
+}
+
+// altSvcHandler wraps next to inject an Alt-Svc header advertising HTTP/3 on every response.
+func altSvcHandler(addr string, next http.Handler) http.Handler {
+	_, port, _ := net.SplitHostPort(addr)
+	altSvc := fmt.Sprintf(`h3=":%s"; ma=86400`, port)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Alt-Svc", altSvc)
+		next.ServeHTTP(w, r)
+	})
 }
 
 func proxyListener(ll net.Listener, o *Options) (net.Listener, error) {
@@ -2811,6 +2870,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ClientCertRefreshInterval:        o.ClientCertRefreshInterval,
 		EnableMTLS:                       o.EnableMTLS,
 		AllowInsecureBackend:             o.AllowInsecureBackend,
+		EnableH2CBackend:                 o.EnableH2CBackend,
+		EnableH2Backend:                  o.EnableH2Backend,
+		EnableH3Backend:                  o.EnableH3Backend,
 		CustomHttpRoundTripperWrap:       o.CustomHttpRoundTripperWrap,
 		RateLimiters:                     ratelimitRegistry,
 		EndpointRegistry:                 endpointRegistry,

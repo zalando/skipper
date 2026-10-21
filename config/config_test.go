@@ -882,3 +882,100 @@ func TestH2cFlags_ParseAndToOptions(t *testing.T) {
 		})
 	}
 }
+
+func TestH2H3BackendFlags_ParseAndToOptions(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		args           []string
+		wantH2CBackend bool
+		wantH2Backend  bool
+		wantH3Backend  bool
+	}{
+		{
+			name: "defaults are false",
+			args: []string{"skipper"},
+		},
+		{
+			name:           "enable-h2c-backend only",
+			args:           []string{"skipper", "-enable-h2c-backend"},
+			wantH2CBackend: true,
+		},
+		{
+			name:          "enable-h2-backend only",
+			args:          []string{"skipper", "-enable-h2-backend"},
+			wantH2Backend: true,
+		},
+		{
+			name:          "enable-h3-backend only",
+			args:          []string{"skipper", "-enable-h3-backend"},
+			wantH3Backend: true,
+		},
+		{
+			name:           "all backend protocols enabled",
+			args:           []string{"skipper", "-enable-h2c-backend", "-enable-h2-backend", "-enable-h3-backend"},
+			wantH2CBackend: true,
+			wantH2Backend:  true,
+			wantH3Backend:  true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			if err := cfg.ParseArgs(tt.args[0], tt.args[1:]); err != nil {
+				t.Fatalf("ParseArgs failed: %v", err)
+			}
+
+			if cfg.EnableH2CBackend != tt.wantH2CBackend {
+				t.Errorf("EnableH2CBackend: got %v, want %v", cfg.EnableH2CBackend, tt.wantH2CBackend)
+			}
+			if cfg.EnableH2Backend != tt.wantH2Backend {
+				t.Errorf("EnableH2Backend: got %v, want %v", cfg.EnableH2Backend, tt.wantH2Backend)
+			}
+			if cfg.EnableH3Backend != tt.wantH3Backend {
+				t.Errorf("EnableH3Backend: got %v, want %v", cfg.EnableH3Backend, tt.wantH3Backend)
+			}
+
+			opts := cfg.ToOptions()
+			if opts.EnableH2CBackend != tt.wantH2CBackend {
+				t.Errorf("ToOptions EnableH2CBackend: got %v, want %v", opts.EnableH2CBackend, tt.wantH2CBackend)
+			}
+			if opts.EnableH2Backend != tt.wantH2Backend {
+				t.Errorf("ToOptions EnableH2Backend: got %v, want %v", opts.EnableH2Backend, tt.wantH2Backend)
+			}
+			if opts.EnableH3Backend != tt.wantH3Backend {
+				t.Errorf("ToOptions EnableH3Backend: got %v, want %v", opts.EnableH3Backend, tt.wantH3Backend)
+			}
+		})
+	}
+}
+
+func TestH3ServerFlag_ParseAndToOptions(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		args         []string
+		wantH3Server bool
+	}{
+		{
+			name: "default is false",
+			args: []string{"skipper"},
+		},
+		{
+			name:         "enable-h3-server",
+			args:         []string{"skipper", "-enable-h3-server"},
+			wantH3Server: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			if err := cfg.ParseArgs(tt.args[0], tt.args[1:]); err != nil {
+				t.Fatalf("ParseArgs failed: %v", err)
+			}
+			if cfg.EnableH3Server != tt.wantH3Server {
+				t.Errorf("EnableH3Server: got %v, want %v", cfg.EnableH3Server, tt.wantH3Server)
+			}
+			opts := cfg.ToOptions()
+			if opts.EnableH3Server != tt.wantH3Server {
+				t.Errorf("ToOptions EnableH3Server: got %v, want %v", opts.EnableH3Server, tt.wantH3Server)
+			}
+		})
+	}
+}

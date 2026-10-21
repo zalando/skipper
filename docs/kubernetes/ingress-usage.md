@@ -1260,9 +1260,10 @@ spec:
 ## HTTP/2 Cleartext (h2c) Backends
 
 Skipper can use HTTP/2 cleartext (h2c) when connecting to backends that speak h2c.
+You have to enable `h2c://` via `-enable-h2c-backend`
 This is useful for gRPC backends or any service that requires HTTP/2 without TLS.
 
-### Via annotation
+### H2c via annotation
 
 Set `zalando.org/skipper-backend-protocol: h2c` on the Ingress to use h2c for all
 endpoints of that Ingress:
@@ -1287,14 +1288,14 @@ spec:
         pathType: ImplementationSpecific
 ```
 
-### Via EndpointSlice AppProtocol (automatic, requires EndpointSlices)
+### H2c via EndpointSlice AppProtocol (automatic, requires EndpointSlices)
 
-When using EndpointSlices (`-enable-kubernetes-endpointslices`), skipper automatically
-uses h2c for ports with `appProtocol: kubernetes.io/h2c` on the EndpointSlice. No
-annotation is required on the Ingress.
+When using EndpointSlices (`-enable-kubernetes-endpointslices` and
+`-enable-h2-backend`), skipper automatically uses h2c for ports with
+`appProtocol: kubernetes.io/h2c` on the EndpointSlice. No annotation
+is required on the Ingress.
 
-The `appProtocol` field is set by Kubernetes when the Service port has `appProtocol:
-kubernetes.io/h2c`:
+The `appProtocol` field is set by Kubernetes when the Service port has `appProtocol: kubernetes.io/h2c`:
 
 ```yaml
 apiVersion: v1
@@ -1305,6 +1306,114 @@ spec:
   ports:
   - port: 80
     appProtocol: kubernetes.io/h2c
+```
+
+The annotation `zalando.org/skipper-backend-protocol` always takes precedence over
+`appProtocol` when both are set.
+
+## HTTP/2 Backends
+
+Skipper can use HTTP/2 (h2) when connecting to backends that speak h2.
+You have to enable `h2://` via `-enable-h2-backend`
+This is useful for gRPC backends or any service that requires HTTP/2.
+
+### H2 via annotation
+
+Set `zalando.org/skipper-backend-protocol: h2` on the Ingress to use h2 for all
+endpoints of that Ingress:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-backend-protocol: h2
+  name: app
+spec:
+  rules:
+  - host: app.example.org
+    http:
+      paths:
+      - backend:
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
+```
+
+### H2 via EndpointSlice AppProtocol (automatic, requires EndpointSlices)
+
+When using EndpointSlices (`-enable-kubernetes-endpointslices` and
+`-enable-h2-backend`), skipper automatically uses h2 for ports with
+`appProtocol: zalando.org/h2` on the EndpointSlice. No annotation is
+required on the Ingress.
+
+The `appProtocol` field is set by Kubernetes when the Service port has `appProtocol: zalando.org/h2`:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-svc
+spec:
+  ports:
+  - port: 80
+    appProtocol: zalando.org/h2
+```
+
+The annotation `zalando.org/skipper-backend-protocol` always takes precedence over
+`appProtocol` when both are set.
+
+## HTTP/3 Backends
+
+Skipper can use HTTP/3 (h3) when connecting to backends that speak h3.
+You have to enable `h3://` via `-enable-h3-backend`
+This is useful for proxying to HTTP/3 endpoints.
+
+### H3 via annotation
+
+Set `zalando.org/skipper-backend-protocol: h3` on the Ingress to use h3 for all
+endpoints of that Ingress:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-backend-protocol: h3
+  name: app
+spec:
+  rules:
+  - host: app.example.org
+    http:
+      paths:
+      - backend:
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
+```
+
+### H3 via EndpointSlice AppProtocol (automatic, requires EndpointSlices)
+
+When using EndpointSlices (`-enable-kubernetes-endpointslices` and
+`-enable-h3-backend`), skipper automatically uses h3 for ports with
+`appProtocol: zalando.org/h3` on the EndpointSlice. No annotation is
+required on the Ingress.
+
+The `appProtocol` field is set by Kubernetes when the Service port has `appProtocol: zalando.org/h3`:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-svc
+spec:
+  ports:
+  - port: 80
+    appProtocol: zalando.org/h3
 ```
 
 The annotation `zalando.org/skipper-backend-protocol` always takes precedence over
