@@ -81,8 +81,8 @@ type clusterClient struct {
 	enableEndpointSlices bool
 	listChunkSize        int
 
-	minZonesForZoneAwareRouting     int
-	zoneAwarenessWorkaroundServiceName string
+	skipperIngressServiceNamespace string
+	skipperIngressServiceName      string
 
 	loggedMissingRouteGroups bool
 	routeGroupValidator      *definitions.RouteGroupValidator
@@ -185,12 +185,12 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		listChunkSize:                o.KubernetesListChunkSize,
 		zone:                         o.TopologyZone,
 		ingressStatusFromService:     o.IngressStatusFromService,
-		minZonesForZoneAwareRouting:  o.MinZonesForZoneAwareRouting,
 	}
 
 	// Build the zone awareness workaround service name from namespace and name
-	if o.SkipperIngressServiceNamespace != "" && o.SkipperIngressServiceName != "" {
-		c.zoneAwarenessWorkaroundServiceName = o.SkipperIngressServiceNamespace + "/" + o.SkipperIngressServiceName
+	if o.KubernetesSkipperIngressServiceName != "" && o.KubernetesSkipperIngressServiceNamespace != "" {
+		c.skipperIngressServiceNamespace = o.KubernetesSkipperIngressServiceNamespace
+		c.skipperIngressServiceName = o.KubernetesSkipperIngressServiceName
 	}
 
 	if o.KubernetesInCluster {
@@ -771,36 +771,17 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 // If minZonesForZoneAwareRouting is 0, returns true (feature disabled).
 // Returns true if skipper-ingress pods are distributed across at least minZonesForZoneAwareRouting zones.
 func (c *clusterClient) checkZoneAwareRoutingSafe(state *clusterState) bool {
-	// Feature is disabled when minZonesForZoneAwareRouting is 0
-	if c.minZonesForZoneAwareRouting <= 0 {
-		return true
-	}
-
 	// EndpointSlices are required for zone detection
 	if !c.enableEndpointSlices {
 		return true
 	}
 
-	// If no workaround service is configured, skip the check
-	if c.zoneAwarenessWorkaroundServiceName == "" {
-		return true
-	}
-
-	// Parse namespace/name from the configured service
-	ns, name, err := parseNamespaceName(c.zoneAwarenessWorkaroundServiceName)
-	if err != nil {
-		log.Warnf("Invalid zoneAwarenessWorkaroundServiceName format: %s", c.zoneAwarenessWorkaroundServiceName)
-		return true
-	}
-
 	// Get zones from skipper-ingress endpoint slices
-	rID := newResourceID(ns, name)
+	rID := newResourceID(c.skipperIngressServiceNamespace, c.skipperIngressServiceName)
 	if eps, ok := state.endpointSlices[rID]; ok {
 		zones := eps.getZones()
-		return len(zones) >= c.minZonesForZoneAwareRouting
+		return len(zones) >= minZonesForZoneAwareRouting
 	}
-
-	log.Warnf("Zone awareness workaround service %s not found, allowing zone-aware routing", c.zoneAwarenessWorkaroundServiceName)
 	return true
 }
 

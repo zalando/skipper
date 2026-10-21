@@ -221,6 +221,8 @@ type Config struct {
 	KubernetesDefaultLoadBalancerAlgorithm               string                             `yaml:"kubernetes-default-lb-algorithm"`
 	KubernetesForceService                               bool                               `yaml:"kubernetes-force-service"`
 	KubernetesStatusFromService                          string                             `yaml:"kubernetes-status-from-service"`
+	KubernetesSkipperIngressServiceName                  string                             `yaml:"kubernetes-skipper-ingress-service-name"`
+	KubernetesSkipperIngressServiceNamespace             string                             `yaml:"kubernetes-skipper-ingress-service-namespace"`
 
 	// RouteServer
 	RouteServerFilters *defaultFiltersFlags `yaml:"route-server-filters"`

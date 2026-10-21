@@ -10,6 +10,7 @@ import (
 
 	ot "github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/auth"
@@ -44,6 +45,9 @@ type poller struct {
 	// visibility
 	tracer  ot.Tracer
 	metrics metrics.Metrics
+
+	// zone awareness
+	safeZoneAwareRouting bool
 }
 
 func (p *poller) poll(wg *sync.WaitGroup) {
@@ -84,7 +88,10 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			case routesCount == 0:
 				p.handleEmptyRoutes()
 			case routesCount > 0:
-				zoneAwareRoutes := filterRoutesByZone(routes)
+				if kdc, ok := p.client.(*kubernetes.Client); ok {
+					p.safeZoneAwareRouting = kdc.IsZoneAwareRoutingSafe()
+				}
+				zoneAwareRoutes := p.filterRoutesByZone(routes)
 				routesBytes, routesHash, initialized, updated := p.b.formatAndSet(routes, zoneAwareRoutes)
 				logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes, "hash": routesHash})
 				if initialized {
@@ -152,22 +159,10 @@ func isZoneAwarenessDisabled(route *eskip.Route) bool {
 	return false
 }
 
-// isZoneAwareRoutingSafe checks if zone-aware routing is safe globally.
-// It returns false if a control route with Id "__zone_awareness_control" is present,
-// indicating that zone-aware routing should be disabled (fallback to cross-zone).
-func isZoneAwareRoutingSafe(routes []*eskip.Route) bool {
-	for _, route := range routes {
-		if route.Id == "__zone_awareness_control" {
-			return false
-		}
-	}
-	return true
-}
-
-func getRouteForZone(zone string, route *eskip.Route) *eskip.Route {
+func (p poller) getRouteForZone(zone string, route *eskip.Route) *eskip.Route {
 	var zoneAwareEps []*eskip.LBEndpoint
 
-	if isZoneAwarenessDisabled(route) {
+	if isZoneAwarenessDisabled(route) || !p.safeZoneAwareRouting {
 		return route
 	}
 
@@ -185,29 +180,13 @@ func getRouteForZone(zone string, route *eskip.Route) *eskip.Route {
 	return route
 }
 
-func filterRoutesByZone(routes []*eskip.Route) map[string][]*eskip.Route {
-	// Check if zone-aware routing is safe globally
-	if !isZoneAwareRoutingSafe(routes) {
-		// Zone-aware routing not safe - return all routes for all zones without filtering
-		// but filter out the control route
-		zones := getZones(routes)
-		zoneAwareRoutes := make(map[string][]*eskip.Route)
-		for zone := range zones {
-			for _, r := range routes {
-				if r.Id != "__zone_awareness_control" {
-					zoneAwareRoutes[zone] = append(zoneAwareRoutes[zone], r)
-				}
-			}
-		}
-		return zoneAwareRoutes
-	}
-
+func (p poller) filterRoutesByZone(routes []*eskip.Route) map[string][]*eskip.Route {
 	zones := getZones(routes)
 
 	zoneAwareRoutes := make(map[string][]*eskip.Route)
 	for _, r := range routes {
 		for zone := range zones {
-			zoneAwareRoutes[zone] = append(zoneAwareRoutes[zone], getRouteForZone(zone, r))
+			zoneAwareRoutes[zone] = append(zoneAwareRoutes[zone], p.getRouteForZone(zone, r))
 		}
 	}
 	return zoneAwareRoutes

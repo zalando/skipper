@@ -21,14 +21,14 @@ import (
 const DefaultLoadBalancerAlgorithm = "roundRobin"
 
 const (
-	defaultIngressClass                   = "skipper"
-	defaultRouteGroupClass                = "skipper"
-	serviceHostEnvVar                     = "KUBERNETES_SERVICE_HOST"
-	servicePortEnvVar                     = "KUBERNETES_SERVICE_PORT"
-	httpRedirectRouteID                   = "kube__redirect"
-	defaultEastWestDomain                 = "skipper.cluster.local"
-	minEndpointsByZone                    = 3
-	defaultMinZonesForZoneAwareRouting    = 3
+	defaultIngressClass         = "skipper"
+	defaultRouteGroupClass      = "skipper"
+	serviceHostEnvVar           = "KUBERNETES_SERVICE_HOST"
+	servicePortEnvVar           = "KUBERNETES_SERVICE_PORT"
+	httpRedirectRouteID         = "kube__redirect"
+	defaultEastWestDomain       = "skipper.cluster.local"
+	minEndpointsByZone          = 3
+	minZonesForZoneAwareRouting = 3
 )
 
 // PathMode values are used to control the ingress path interpretation. The path mode can
@@ -289,17 +289,11 @@ type Options struct {
 	// used to detect zone coverage. When skipper-ingress runs in fewer than
 	// MinZonesForZoneAwareRouting zones, zone-aware routing is disabled.
 	// Defaults to "skipper-ingress".
-	SkipperIngressServiceName string
+	KubernetesSkipperIngressServiceName string
 
 	// SkipperIngressServiceNamespace is the namespace of the skipper-ingress service.
 	// Defaults to "kube-system".
-	SkipperIngressServiceNamespace string
-
-	// MinZonesForZoneAwareRouting is the minimum number of zones required
-	// for zone-aware routing to be considered safe. When fewer zones are
-	// detected, zone-aware routing is disabled and traffic falls back to
-	// cross-zone. Defaults to 3. Set to 0 to disable.
-	MinZonesForZoneAwareRouting int
+	KubernetesSkipperIngressServiceNamespace string
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -324,7 +318,6 @@ type Client struct {
 	// Zone-aware routing safety detection configuration
 	skipperIngressServiceName      string
 	skipperIngressServiceNamespace string
-	minZonesForZoneAwareRouting    int
 }
 
 // New creates and initializes a Kubernetes DataClient.
@@ -391,22 +384,6 @@ func New(o Options) (*Client, error) {
 	ing := newIngress(o)
 	rg := newRouteGroups(o)
 
-	// Set defaults for zone-aware routing safety detection
-	// Zone-aware routing safety detection is disabled by default (minZonesForZoneAwareRouting = 0)
-	// To enable it, set MinZonesForZoneAwareRouting to a value > 0 (typically 3)
-	skipperIngressServiceName := o.SkipperIngressServiceName
-	if skipperIngressServiceName == "" {
-		skipperIngressServiceName = "skipper-ingress"
-	}
-	skipperIngressServiceNamespace := o.SkipperIngressServiceNamespace
-	if skipperIngressServiceNamespace == "" {
-		skipperIngressServiceNamespace = "kube-system"
-	}
-	minZonesForZoneAwareRouting := defaultMinZonesForZoneAwareRouting
-	if o.MinZonesForZoneAwareRouting != 0 {
-		minZonesForZoneAwareRouting = o.MinZonesForZoneAwareRouting
-	}
-
 	return &Client{
 		ClusterClient:          clusterClient,
 		ingress:                ing,
@@ -423,9 +400,8 @@ func New(o Options) (*Client, error) {
 		zone:                   o.TopologyZone,
 
 		// Zone-aware routing safety detection
-		skipperIngressServiceName:      skipperIngressServiceName,
-		skipperIngressServiceNamespace: skipperIngressServiceNamespace,
-		minZonesForZoneAwareRouting:    minZonesForZoneAwareRouting,
+		skipperIngressServiceName:      o.KubernetesSkipperIngressServiceName,
+		skipperIngressServiceNamespace: o.KubernetesSkipperIngressServiceNamespace,
 	}, nil
 }
 
@@ -730,4 +706,15 @@ func addTLSCertToRegistry(cr *certregistry.CertRegistry, logger *logger, hosts [
 			logger.Errorf("Failed to configure certificate: %v", err)
 		}
 	}
+}
+
+func (c *Client) IsZoneAwareRoutingSafe() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.state == nil {
+		return false
+	}
+
+	return c.state.safeZoneAwareRouting
 }
