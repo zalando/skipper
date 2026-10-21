@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	stdlibhttptest "net/http/httptest"
 	"sync/atomic"
@@ -16,6 +15,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/shedder"
+	"github.com/zalando/skipper/net/nettest"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -27,7 +27,7 @@ func runAdmissionControlTest(t *testing.T, routeFormat string, fr filters.Regist
 		serverErrN := int64(37)
 		timeoutN := int64(6)
 
-		backendListener := fakeNetListen()
+		backendListener := nettest.NewFakeNetListener()
 		defer backendListener.Close()
 
 		backend := stdlibhttptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -57,16 +57,14 @@ func runAdmissionControlTest(t *testing.T, routeFormat string, fr filters.Regist
 			AccessLogDisabled: true,
 			CustomHttpRoundTripperWrap: func(rt http.RoundTripper) http.RoundTripper {
 				tr := rt.(*http.Transport)
-				tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-					return backendListener.connect(), nil
-				}
+				tr.DialContext = backendListener.DialContext()
 				return tr
 			},
 		}
 
 		p := proxytest.WithParamsAndRoutingOptionsAndWaitUnstarted(fr, pParams, rOpts, 0, r...)
 
-		proxyListener := fakeNetListen()
+		proxyListener := nettest.NewFakeNetListener()
 		defer proxyListener.Close()
 
 		p.SetListener(proxyListener)
@@ -75,9 +73,7 @@ func runAdmissionControlTest(t *testing.T, routeFormat string, fr filters.Regist
 
 		client := p.Client()
 		tr := client.Transport.(*http.Transport)
-		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return proxyListener.connect(), nil
-		}
+		tr.DialContext = proxyListener.DialContext()
 
 		req, err := http.NewRequest("GET", p.URL, nil)
 		if err != nil {
