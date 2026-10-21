@@ -412,7 +412,9 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	// (e.g. header stripping by auth) are intentionally reflected in the cache key.
 	baseKey := cacheKey(ctx.RouteId(), ctx.Request(), f.keyHeaders)
 	key := baseKey
-	if sentinel, _ := f.storage.Get(ctx.Request().Context(), "vary:"+baseKey); sentinel != nil && len(sentinel.VaryHeaders) > 0 {
+	// GetSilent: this is an internal plumbing lookup, not a real cache decision —
+	// it must not count toward hit/l1_hit/l2_hit/l2_miss/l2_get_error on every request.
+	if sentinel, _ := f.storage.GetSilent(ctx.Request().Context(), "vary:"+baseKey); sentinel != nil && len(sentinel.VaryHeaders) > 0 {
 		key = varyKey(baseKey, ctx.Request(), sentinel.VaryHeaders)
 	}
 	ctx.StateBag()[stateBagKey] = key

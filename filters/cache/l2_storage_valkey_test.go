@@ -625,3 +625,59 @@ func TestL2Storage_Set_ZeroTTL_UsesDefaultMinTTL(t *testing.T) {
 		t.Errorf("expected SetWithExpire called with %v, got %v", defaultMinTTL, gotExpire)
 	}
 }
+
+func TestL2Storage_GetSilent_DoesNotRecordMetrics(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	ctx := context.Background()
+	hitKey := "sentinel-hit-key"
+	entry := &Entry{StatusCode: 200, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}
+	if err := s.Set(ctx, hitKey, entry); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	// Isolate GetSilent's effect from the Set call above.
+	m2 := &metricstest.MockMetrics{}
+	s.metrics = m2
+
+	// Exercise hit, clean-miss, and error scenarios through GetSilent only.
+	if _, err := s.GetSilent(ctx, hitKey); err != nil {
+		t.Fatalf("GetSilent (hit case): %v", err)
+	}
+	if _, err := s.GetSilent(ctx, "sentinel-miss-key"); err != nil {
+		t.Fatalf("GetSilent (miss case): %v", err)
+	}
+	stub.broken = true
+	// L2Storage treats a transport error as a graceful miss (nil, nil) — the
+	// l2_get_error *counter* is the only signal, there's no returned Go error
+	// to assert on here (same contract as the regular Get).
+	if got, err := s.GetSilent(ctx, hitKey); err != nil || got != nil {
+		t.Errorf("GetSilent (broken-client case): expected (nil, nil), got (%v, %v)", got, err)
+	}
+	stub.broken = false
+
+	for _, counter := range []string{"cache.l1_hit", "cache.l2_hit", "cache.l2_miss", "cache.l2_get_error"} {
+		if v, _ := m2.Counter(counter); v != 0 {
+			t.Errorf("GetSilent must not record plain metrics, but %s = %d", counter, v)
+		}
+	}
+	for _, rc := range [][2]string{{"l1_hit", "2xx"}, {"l2_hit", "2xx"}, {"l2_miss", "n/a"}, {"l2_get_error", "n/a"}} {
+		if got, _ := m2.CacheResultCount(rc[0], rc[1]); got != 0 {
+			t.Errorf("GetSilent must not record labeled metrics, but %s/%s = %d", rc[0], rc[1], got)
+		}
+	}
+
+	// Sanity: the regular Get on the same storage still records metrics as usual —
+	// proves GetSilent is a distinct code path, not a global metrics kill switch.
+	// l1TTL=0 (write-around) means this entry was never warmed into L1 by any of the
+	// calls above, so a real Get here is an L2 hit, not an L1 hit.
+	if _, err := s.Get(ctx, hitKey); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if v, _ := m2.Counter("cache.l2_hit"); v != 1 {
+		t.Errorf("expected regular Get to still record l2_hit=1, got %d", v)
+	}
+}
