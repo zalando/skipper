@@ -682,6 +682,30 @@ func TestCacheFilter_ColdMissCoalescing_NonCacheable(t *testing.T) {
 	}
 }
 
+func TestCacheFilter_Coalesce_RecordsWaitDuration(t *testing.T) {
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": {"max-age=300"}},
+			Body:       io.NopCloser(strings.NewReader(`{"ok":true}`)),
+		}, nil
+	}
+
+	url := newLocalBackend(t) + "/spaces/abc/entries/wait-duration"
+	f.Request(newCtx("GET", url, ""))
+
+	mockMetrics.WithMeasures(func(measures map[string][]time.Duration) {
+		if len(measures["cache.coalesce_wait_duration"]) != 1 {
+			t.Fatalf("expected exactly 1 cache.coalesce_wait_duration measurement, got %d", len(measures["cache.coalesce_wait_duration"]))
+		}
+	})
+}
+
 func TestCacheFilter_ColdMissCoalescing_UpstreamError(t *testing.T) {
 	// When the upstream fetch fails, coalesce must not call ctx.Serve so the
 	// proxy can fall back to its own backend fetch.

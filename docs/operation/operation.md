@@ -2131,6 +2131,9 @@ flowchart TD
   it performed its own fetch instead of reusing another request's in-flight response
 - `cache.coalesce_bypass_error`: Counter, an independent bypass fetch (see
   `cache.coalesce_bypass`) returned an error
+- `cache.coalesce_wait_duration`: Histogram, time from issuing a cold-miss singleflight
+  call to the result being available — near-zero for the leader (it computes the result
+  itself), the leader's real fetch time for followers waiting on it
 
 **LRU (always active):**
 
