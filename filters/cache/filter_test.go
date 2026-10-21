@@ -3697,6 +3697,12 @@ func TestCacheFilter_LabeledMetrics_RouteLabeledLRUBytes(t *testing.T) {
 	}
 }
 
+// failingSetStorage's failure isn't attributable to a backend (it wraps the
+// Storage interface generically, not a real LRUStorage/L2Storage), so since
+// storage errors are now attributed at the point where backend is known (see
+// TestLRUStorage_Get_CorruptJSON_RecordsStorageError and the L2Storage
+// equivalents), a generic failure here records no labeled metric - only the
+// log line and the non-panicking behavior are asserted.
 func TestCacheFilter_LabeledMetrics_StorageError(t *testing.T) {
 	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
 	mockMetrics := &metricstest.MockMetrics{}
@@ -3706,10 +3712,10 @@ func TestCacheFilter_LabeledMetrics_StorageError(t *testing.T) {
 	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
 
 	ctx := newCtxWithRoute(http.MethodGet, "http://example.com/storage-error", "", "route1")
-	f.Request(ctx)
+	f.Request(ctx) // must not panic despite the injected Set failure
 
-	if got, _ := mockMetrics.CacheResultCount("storage_error", "n/a"); got != 1 {
-		t.Errorf("expected labeled storage_error/n_a=1 (cold-miss Set failure), got %d", got)
+	if got, _ := mockMetrics.CacheResultCount("storage_error", "n/a"); got != 0 {
+		t.Errorf("expected no labeled storage_error (backend unattributable here), got %d", got)
 	}
 }
 
@@ -4012,9 +4018,11 @@ func TestCacheFilter_CoalesceSetFailure_Served(t *testing.T) {
 	if !ctx.FServed {
 		t.Fatal("expected response to be served even when storage Set fails")
 	}
+	// failingSetStorage's failure isn't attributable to a backend, so it records
+	// no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error to be incremented on Set failure in coalesce")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
@@ -4091,9 +4099,11 @@ func TestCacheFilter_HEAD_Freshen_SetError(t *testing.T) {
 	}
 	f.Response(headCtx) // must not panic
 
+	// failingSetStorage's failure isn't attributable to a backend, so it records
+	// no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error incremented on HEAD freshen Set failure")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
@@ -4161,9 +4171,11 @@ func TestCacheFilter_UnsafeMethod_DeleteError_ContinuesSilently(t *testing.T) {
 	}
 	f.Response(postCtx) // must not panic
 
+	// failingDeleteStorage's failure isn't attributable to a backend, so it
+	// records no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error incremented on Delete failure in unsafe method invalidation")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
@@ -4221,13 +4233,18 @@ func TestCacheFilter_Response_VarySentinelSetError(t *testing.T) {
 	ctx.FResponse = rsp
 	f.Response(ctx) // must not panic; vary sentinel Set will fail
 
+	// failingSetStorage's failure isn't attributable to a backend, so it records
+	// no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error incremented on Vary sentinel Set failure")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
 
+// See TestCacheFilter_LabeledMetrics_StorageError: a generic storage failure
+// double isn't attributable to a backend, so no storage_error metric fires -
+// only the non-panicking behavior is asserted.
 func TestCacheFilter_Response_StorageSetError(t *testing.T) {
 	mockMetrics := &metricstest.MockMetrics{}
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
@@ -4246,8 +4263,8 @@ func TestCacheFilter_Response_StorageSetError(t *testing.T) {
 	f.Response(ctx) // must not panic
 
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error incremented on Response() storage Set failure")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
@@ -4392,7 +4409,7 @@ func TestCacheFilter_Revalidate_RFC_NoStore_NotStored(t *testing.T) {
 	})
 }
 
-func TestCacheFilter_Revalidate_SetError_MetricIncremented(t *testing.T) {
+func TestCacheFilter_Revalidate_SetError_HandledGracefully(t *testing.T) {
 	url := newLocalBackend(t) + "/reval-set-err"
 	synctest.Test(t, func(t *testing.T) {
 		mockMetrics := &metricstest.MockMetrics{}
@@ -4433,9 +4450,11 @@ func TestCacheFilter_Revalidate_SetError_MetricIncremented(t *testing.T) {
 		f.Request(ctx2)
 		synctest.Wait()
 
+		// failingSetStorage's failure isn't attributable to a backend, so it
+		// records no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 		mockMetrics.WithCounters(func(counters map[string]int64) {
-			if counters["cache.storage_error"] == 0 {
-				t.Error("expected cache.storage_error incremented on Set failure in doRevalidate")
+			if counters["cache.storage_error"] != 0 {
+				t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 			}
 		})
 	})

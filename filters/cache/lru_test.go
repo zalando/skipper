@@ -95,6 +95,23 @@ func TestLRUStorage_Delete(t *testing.T) {
 	}
 }
 
+func TestLRUStorage_Get_CorruptJSON_RecordsStorageError(t *testing.T) {
+	m := &metricstest.MockMetrics{}
+	s := NewLRUStorage(1<<20, nil, m)
+	ctx := context.Background()
+
+	// Write corrupt bytes directly into the underlying byte store, bypassing Set's
+	// JSON encoding.
+	s.lru.Set("bad-key", []byte("not json {"))
+
+	if _, err := s.Get(ctx, "bad-key"); err == nil {
+		t.Fatal("expected error for corrupt JSON, got nil")
+	}
+	if got, _ := m.StorageErrorCount("l1", "get"); got != 1 {
+		t.Errorf("expected labeled storage_error l1/get=1, got %d", got)
+	}
+}
+
 func TestLRUStorage_InPlaceUpdate(t *testing.T) {
 	sample, _ := json.Marshal(makeEntry("v1", time.Minute))
 	entrySize := int64(len(sample)) + 20
