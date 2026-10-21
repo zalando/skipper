@@ -592,6 +592,7 @@ func (f *cacheFilter) storeDecision(req *http.Request, statusCode int, header ht
 func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 	req := ctx.Request().Clone(context.Background())
 
+	waitStart := time.Now()
 	ch := f.coldSF.DoChan(key, func() (any, error) {
 		// Capture any existing stale-if-error eligible entry before fetching, so that a
 		// subsequent 5xx response cannot overwrite it in storage before we read it.
@@ -656,6 +657,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 
 	select {
 	case res := <-ch:
+		f.metrics.MeasureSince("cache.coalesce_wait_duration", waitStart)
 		if res.Err != nil || res.Val == nil {
 			f.metrics.IncCounter("cache.coalesce_error")
 			if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
