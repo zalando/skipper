@@ -21,6 +21,8 @@ import (
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/proxy/proxytest"
+
+	"github.com/valkey-io/valkey-go"
 )
 
 func newTestFilterWithCleanup(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) (*cacheFilter, func()) {
@@ -3684,6 +3686,60 @@ func TestCacheFilter_LabeledMetrics_StorageError(t *testing.T) {
 
 	if got, _ := mockMetrics.CacheResultCount("storage_error", "n/a"); got != 1 {
 		t.Errorf("expected labeled storage_error/n_a=1 (cold-miss Set failure), got %d", got)
+	}
+}
+
+// TestCacheFilter_VarySentinel_DoesNotPolluteL2Metrics proves the fix for the
+// bug where Request()'s Vary-sentinel lookup went through the regular,
+// metrics-instrumented Storage.Get() — an internal plumbing check being
+// miscounted as a real cache decision on every single request. It must go
+// through GetSilent instead, which records nothing.
+func TestCacheFilter_VarySentinel_DoesNotPolluteL2Metrics(t *testing.T) {
+	stub := newStubValkeyClient()
+	mockMetrics := &metricstest.MockMetrics{}
+	spec := NewCacheFilter(Options{
+		MaxBytes:   1 << 20,
+		ListenAddr: "localhost:9090",
+		L2Client:   stub,
+		IsNoL2Err:  valkey.IsValkeyNil,
+		Metrics:    mockMetrics,
+	})
+	defer spec.(*cacheSpec).Close()
+	created, err := spec.CreateFilter([]any{"5m", "10s", "1s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := created.(*cacheFilter)
+
+	rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
+	rsp.Header.Set("Vary", "Accept-Language")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	url := "http://example.com/vary-sentinel-test"
+	const repeats = 3
+
+	// Cold miss: stores the entry AND the Vary sentinel (response carries Vary).
+	ctx1 := newCtxWithRoute(http.MethodGet, url, "", "route1")
+	ctx1.FRequest.Header.Set("Accept-Language", "en-US")
+	f.Request(ctx1)
+
+	// Each of these repeats first reads the Vary sentinel via GetSilent (must
+	// record nothing), THEN does one real content lookup via Get (must record
+	// exactly one l1_hit or l2_hit each).
+	for i := 0; i < repeats; i++ {
+		ctx := newCtxWithRoute(http.MethodGet, url, "", "route1")
+		ctx.FRequest.Header.Set("Accept-Language", "en-US")
+		f.Request(ctx)
+		if ctx.FResponse == nil {
+			t.Fatalf("repeat %d: expected a HIT, got no response", i)
+		}
+	}
+
+	l1Hit, _ := mockMetrics.Counter("cache.l1_hit")
+	l2Hit, _ := mockMetrics.Counter("cache.l2_hit")
+	if got, want := l1Hit+l2Hit, int64(repeats); got != want {
+		t.Errorf("expected l1_hit+l2_hit = %d (one per real content hit), got %d — "+
+			"a sentinel lookup is still being counted as a cache outcome", want, got)
 	}
 }
 
