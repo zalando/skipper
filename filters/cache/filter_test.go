@@ -4888,6 +4888,65 @@ func TestProxy_L1Cache_VaryStar_NeverCached(t *testing.T) {
 	}
 }
 
+// Regression test for coalesce() passing a server-received *http.Request
+// (RequestURI set, relative URL) straight to the real http.Client: that
+// combination makes every fetch fail client-side ("Request.RequestURI can't
+// be set in client requests"), so coalesce() silently falls through to
+// skipper's normal backend path on every call instead of deduplicating
+// concurrent cold misses. The other Coalesce* tests in this file stub out
+// f.fetch directly, which bypasses net/http's client-side validation
+// entirely and can't catch this class of bug.
+func TestProxy_Coalesce_RealFetch_ConcurrentColdMiss_SingleBackendCall(t *testing.T) {
+	var backendCallCount int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&backendCallCount, 1)
+		time.Sleep(50 * time.Millisecond) // widen the window for concurrent callers to pile up
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		fmt.Fprint(w, `{"data":"cold-miss"}`)
+	}))
+	defer backend.Close()
+
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	fr := make(filters.Registry)
+	fr.Register(spec)
+
+	route := &eskip.Route{
+		Id:          "coalesce-real-fetch-route",
+		PathRegexps: []string{".*"},
+		Filters:     []*eskip.Filter{{Name: spec.Name(), Args: []any{"5m", "15s", "30s"}}},
+		Backend:     backend.URL,
+	}
+
+	proxy := proxytest.New(fr, route)
+	defer proxy.Close()
+
+	client := proxy.Client()
+
+	const n = 10
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			rsp, err := client.Get(proxy.URL + "/concurrent-cold-miss")
+			if err != nil {
+				t.Errorf("request failed: %v", err)
+				return
+			}
+			defer rsp.Body.Close()
+			if rsp.StatusCode != http.StatusOK {
+				t.Errorf("expected 200, got %d", rsp.StatusCode)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := atomic.LoadInt64(&backendCallCount); got != 1 {
+		t.Fatalf("expected exactly 1 real backend call for %d concurrent cold misses on the same key, got %d", n, got)
+	}
+}
+
 func TestProxy_L2Cache_HitAfterL1Eviction(t *testing.T) {
 	var backendCallCount int64
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
