@@ -16,18 +16,24 @@ import (
 
 func TestProxy_CacheVary304PreservesBodyMetadata(t *testing.T) {
 	for _, mode := range []string{"rfc-loopback", "force-loopback", "force-direct"} {
-		t.Run(mode, func(t *testing.T) { testProxyCacheVary304(t, mode) })
+		for _, contentLength := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/representationLength=%t", mode, contentLength), func(t *testing.T) {
+				testProxyCacheVary304(t, mode, contentLength)
+			})
+		}
 	}
 }
 
-func testProxyCacheVary304(t *testing.T, mode string) {
+func testProxyCacheVary304(t *testing.T, mode string, contentLength bool) {
 	payload := strings.Repeat("representation", 200)
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Vary", "Accept-Language")
 		w.Header().Set("ETag", `"stable"`)
 		w.Header().Set("Cache-Control", "public, max-age=15")
 		if r.Header.Get("If-None-Match") == `"stable"` {
-			w.Header().Set("Content-Length", "0")
+			if contentLength {
+				w.Header().Set("Content-Length", fmt.Sprint(len(r.Header.Get("Accept-Language")+payload)))
+			}
 			w.Header().Set("X-Revalidated", "yes")
 			w.WriteHeader(http.StatusNotModified)
 			return
