@@ -190,6 +190,7 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		oauth2Config:   oauthConfig,
 		tracer:         tracer,
 		metrics:        m,
+		isIngressControllerDistributedAcrossZones: dataclient.ClusterClient.IngressControllerDistributedAcrossZones,
 	}
 
 	rs.wg = &sync.WaitGroup{}

@@ -28,6 +28,7 @@ const (
 	httpRedirectRouteID    = "kube__redirect"
 	defaultEastWestDomain  = "skipper.cluster.local"
 	minEndpointsByZone     = 3
+	minZones               = 3
 )
 
 // PathMode values are used to control the ingress path interpretation. The path mode can
