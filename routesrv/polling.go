@@ -42,8 +42,9 @@ type poller struct {
 	cloneRoute     []*eskip.Clone
 
 	// visibility
-	tracer  ot.Tracer
-	metrics metrics.Metrics
+	tracer                                    ot.Tracer
+	metrics                                   metrics.Metrics
+	isIngressControllerDistributedAcrossZones func() bool
 }
 
 func (p *poller) poll(wg *sync.WaitGroup) {
@@ -55,8 +56,9 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 	p.setGaugeToCurrentTime("polling_started_timestamp")
 
 	var (
-		lastRoutesByID map[string]string
-		lastRoutes     []*eskip.Route
+		lastRoutesByID  map[string]string
+		lastRoutes      []*eskip.Route
+		lastDistributed bool
 	)
 
 	for {
@@ -73,47 +75,59 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 				"message", fmt.Sprintf("%s: %s", LogRoutesFetchingFailed, err),
 			)
 
-		} else if hasChanged(lastRoutes, routes) {
-			lastRoutes = routes
-
-			routes = p.process(routes)
-			routesCount := len(routes)
-			span.SetTag("routes.count", routesCount)
-
-			switch {
-			case routesCount == 0:
-				p.handleEmptyRoutes()
-			case routesCount > 0:
-				zoneAwareRoutes := filterRoutesByZone(routes)
-				routesBytes, routesHash, initialized, updated := p.b.formatAndSet(routes, zoneAwareRoutes)
-				logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes, "hash": routesHash})
-				if initialized {
-					logger.Info(LogRoutesInitialized)
-					span.SetTag("routes.initialized", true)
-					p.setGaugeToCurrentTime("routes.initialized_timestamp")
-				}
-				if updated {
-					logger.Info(LogRoutesUpdated)
-					span.SetTag("routes.updated", true)
-					p.setGaugeToCurrentTime("routes.updated_timestamp")
-					p.metrics.UpdateGauge("routes.total", float64(routesCount))
-					p.metrics.UpdateGauge("routes.byte", float64(routesBytes))
-				}
-				span.SetTag("routes.bytes", routesBytes)
-				span.SetTag("routes.hash", routesHash)
-
-				if updated && log.IsLevelEnabled(log.DebugLevel) {
-					routesByID := mapRoutes(routes)
-					logChanges(routesByID, lastRoutesByID)
-					lastRoutesByID = routesByID
-				}
-			}
 		} else {
-			log.Info(LogRoutesNoChange)
-			span.SetTag("routes.updated", false)
-			span.SetTag("routes.count", len(lastRoutes))
-			if len(routes) == 0 {
-				p.handleEmptyRoutes()
+			distributed := p.isIngressControllerDistributedAcrossZones()
+			routesChanged := hasChanged(lastRoutes, routes)
+			distributedChanged := distributed != lastDistributed
+
+			if routesChanged || distributedChanged {
+				lastRoutes = routes
+				lastDistributed = distributed
+
+				routes = p.process(routes)
+				routesCount := len(routes)
+				span.SetTag("routes.count", routesCount)
+
+				switch {
+				case routesCount == 0:
+					p.handleEmptyRoutes()
+				case routesCount > 0:
+					var zoneAwareRoutes map[string][]*eskip.Route
+					if distributed {
+						zoneAwareRoutes = filterRoutesByZone(routes)
+					} else {
+						log.Debug("skipper not covering all zones, falling back to global routing table")
+					}
+					routesBytes, routesHash, initialized, updated := p.b.formatAndSet(routes, zoneAwareRoutes)
+					logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes, "hash": routesHash})
+					if initialized {
+						logger.Info(LogRoutesInitialized)
+						span.SetTag("routes.initialized", true)
+						p.setGaugeToCurrentTime("routes.initialized_timestamp")
+					}
+					if updated {
+						logger.Info(LogRoutesUpdated)
+						span.SetTag("routes.updated", true)
+						p.setGaugeToCurrentTime("routes.updated_timestamp")
+						p.metrics.UpdateGauge("routes.total", float64(routesCount))
+						p.metrics.UpdateGauge("routes.byte", float64(routesBytes))
+					}
+					span.SetTag("routes.bytes", routesBytes)
+					span.SetTag("routes.hash", routesHash)
+
+					if updated && log.IsLevelEnabled(log.DebugLevel) {
+						routesByID := mapRoutes(routes)
+						logChanges(routesByID, lastRoutesByID)
+						lastRoutesByID = routesByID
+					}
+				}
+			} else {
+				log.Info(LogRoutesNoChange)
+				span.SetTag("routes.updated", false)
+				span.SetTag("routes.count", len(lastRoutes))
+				if len(routes) == 0 {
+					p.handleEmptyRoutes()
+				}
 			}
 		}
 

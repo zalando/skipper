@@ -84,6 +84,7 @@ type clusterClient struct {
 	loggedMissingRouteGroups bool
 	routeGroupValidator      *definitions.RouteGroupValidator
 	ingressValidator         *definitions.IngressV1Validator
+	distributedAcrossZones   bool
 }
 
 var (
@@ -750,7 +751,13 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		log.Errorf("failed to update ingress status: %v", err)
 	}
 
+	c.distributedAcrossZones = state.ingressControllerDistributedAcrossZones("kube-system", "skipper-ingress")
+
 	return state, nil
+}
+
+func (c *clusterClient) IngressControllerDistributedAcrossZones() bool {
+	return c.distributedAcrossZones
 }
 
 func parseNamespaceName(resource string) (string, string, error) {

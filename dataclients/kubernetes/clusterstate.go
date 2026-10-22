@@ -23,6 +23,25 @@ type clusterState struct {
 	enableEndpointSlices bool
 }
 
+func (state *clusterState) ingressControllerDistributedAcrossZones(namespace, name string) bool {
+	if !state.enableEndpointSlices {
+		return false
+	}
+
+	eps, ok := state.endpointSlices[newResourceID(namespace, name)]
+	if !ok {
+		return false
+	}
+
+	zones := map[string]struct{}{}
+	for _, ep := range eps.Endpoints {
+		if ep.Zone != "" {
+			zones[ep.Zone] = struct{}{}
+		}
+	}
+	return len(zones) >= minZones
+}
+
 func (state *clusterState) getService(namespace, name string) (*service, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
