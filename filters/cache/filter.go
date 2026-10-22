@@ -566,6 +566,11 @@ type coalesceResult struct {
 // that isn't the one who fetched it - a coalesce follower, or
 // background revalidation triggered by someone else's request
 func (f *cacheFilter) storeDecision(req *http.Request, statusCode int, header http.Header, d cacheDirectives) (ttl time.Duration, store bool) {
+	// A 304 has no representation body. Loopback revalidation must preserve
+	// the stored entry until the worker merges its conditional response.
+	if statusCode == http.StatusNotModified {
+		return 0, false
+	}
 	// Vary: * means every response is unique — never cache. Response() already
 	// short-circuits on this before calling storeDecision; coalesce()'s leader-fetch
 	// path has no such pre-check, so it belongs here too, in the one choke point both
