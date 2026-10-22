@@ -348,7 +348,7 @@ type revalJob struct {
 	key          string
 	req          *http.Request // cloned via Request.Clone
 	backendURL   string        // non-empty: dial here directly instead of looping through listenAddr
-	outgoingHost string        // Host header to send with backendURL; see revalidationDispatch
+	outgoingHost string        // Host header to send with backendURL; see requestDispatch
 	filter       *cacheFilter  // instance whose doRevalidate to call
 	enqueuedAt   time.Time     // wall-clock time the job entered the queue; used to measure wait time
 }
@@ -501,12 +501,12 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 				Request:    ctx.Request(), // link response to originating request per net/http convention
 			}
 			ctx.Serve(notModified)
-			revalReq, backendURL, outgoingHost := revalidationDispatch(ctx, f.rfcMode)
+			revalReq, backendURL, outgoingHost := f.requestDispatch(ctx, "cache.reval_error")
 			f.enqueueRevalidation(key, revalReq, backendURL, outgoingHost)
 			return
 		}
 		ctx.Serve(headBodyOmitted(method, rsp))
-		revalReq, backendURL, outgoingHost := revalidationDispatch(ctx, f.rfcMode)
+		revalReq, backendURL, outgoingHost := f.requestDispatch(ctx, "cache.reval_error")
 		f.enqueueRevalidation(key, revalReq, backendURL, outgoingHost)
 		return
 	}
@@ -569,7 +569,7 @@ func (f *cacheFilter) storeDecision(req *http.Request, statusCode int, header ht
 	// short-circuits on this before calling storeDecision; coalesce()'s leader-fetch
 	// path has no such pre-check, so it belongs here too, in the one choke point both
 	// callers share.
-	if header.Get("Vary") == "*" {
+	if slices.Contains(parseVaryNames(header.Get("Vary")), "*") {
 		return 0, false
 	}
 	// RFC mode only: no-store and private are semantic blockers (RFC 9111 §5.2.2).
@@ -597,15 +597,13 @@ func (f *cacheFilter) storeDecision(req *http.Request, statusCode int, header ht
 // Stale-if-error (RFC 5861 §4) is also applied here: a pre-fetch snapshot of any
 // eligible stored entry is served on 5xx instead of propagating the error.
 func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
-	req := ctx.Request().Clone(context.Background())
-	// req is a server-received request (ctx.Request()): it carries RequestURI and a
-	// relative URL, both of which f.fetch (http.Client.Do) rejects or can't dial on a
-	// client request. Resolve to the route's backend before fetching, mirroring
-	// doRevalidate's direct-dispatch path below.
-	if u, err := url.Parse(ctx.BackendUrl()); err == nil {
-		req.URL.Scheme, req.URL.Host = u.Scheme, u.Host
+	source, backendURL, outgoingHost := f.requestDispatch(ctx, "cache.coalesce_error")
+	req, err := f.prepareDispatch(source, backendURL, outgoingHost)
+	if err != nil {
+		f.metrics.IncCounter("cache.coalesce_error")
+		log.WithError(err).Warn("cache: failed to prepare cold-miss dispatch")
+		return
 	}
-	req.RequestURI = ""
 
 	waitStart := time.Now()
 	ch := f.coldSF.DoChan(key, func() (any, error) {
@@ -703,7 +701,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		// persistence check, which future requests can read back. Otherwise: fetch
 		// independently.
 		sameVaryDimension := len(cr.varyNames) > 0 && varyKey("", req, cr.varyNames) == varyKey("", cr.leaderReq, cr.varyNames)
-		identityMatchesLeader := len(f.keyHeaders) > 0 || sameVaryDimension
+		identityMatchesLeader := !slices.Contains(cr.varyNames, "*") && (len(f.keyHeaders) > 0 || sameVaryDimension)
 		if req != cr.leaderReq && !cr.storeable && !identityMatchesLeader {
 			f.metrics.IncCounter("cache.coalesce_bypass")
 			if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
@@ -886,7 +884,7 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	}
 }
 
-// revalidationDispatch decides how background revalidation should reach the
+// requestDispatch decides how cold misses and background revalidation reach the
 // origin: directly at the route's resolved backend when safe (force mode,
 // static network backend — ctx.BackendUrl() non-empty), or via self-loopback
 // through skipper's own listener otherwise (RFC mode, or a load-balanced /
@@ -914,13 +912,48 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 // filter chain and sees that rewritten value before doRevalidate reads it for
 // TTL and stale-while-revalidate purposes (resolveTTL, resolveSWR). Direct
 // dispatch would read the pre-rewrite upstream headers instead.
-func revalidationDispatch(ctx filters.FilterContext, rfcMode bool) (req *http.Request, backendURL string, outgoingHost string) {
-	if !rfcMode {
+func (f *cacheFilter) requestDispatch(ctx filters.FilterContext, errorMetric string) (req *http.Request, backendURL string, outgoingHost string) {
+	if !f.rfcMode {
 		if b := ctx.BackendUrl(); b != "" {
-			return ctx.Request(), b, ctx.OutgoingHost()
+			if _, err := parseBackendURL(b); err == nil {
+				return ctx.Request(), b, ctx.OutgoingHost()
+			} else {
+				f.metrics.IncCounter(errorMetric)
+				log.WithField("backendURL", b).WithError(err).Warn("cache: invalid backend URL, using self-loopback")
+			}
 		}
 	}
 	return revalidationRequest(ctx), "", ""
+}
+
+func parseBackendURL(backendURL string) (*url.URL, error) {
+	u, err := url.Parse(backendURL)
+	if err != nil {
+		return nil, err
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Hostname() == "" {
+		return nil, fmt.Errorf("cache: backend must be an absolute HTTP(S) URL with a host: %q", backendURL)
+	}
+	return u, nil
+}
+
+// prepareDispatch leaves the inbound request untouched. Loopback must replay
+// the original request; direct dispatch must retain earlier filter mutations.
+func (f *cacheFilter) prepareDispatch(source *http.Request, backendURL, outgoingHost string) (*http.Request, error) {
+	req := source.Clone(context.Background())
+	if backendURL != "" {
+		u, err := parseBackendURL(backendURL)
+		if err != nil {
+			return nil, err
+		}
+		req.URL.Scheme, req.URL.Host = u.Scheme, u.Host
+		req.Host = outgoingHost
+	} else {
+		req.URL.Scheme, req.URL.Host = "http", f.listenAddr
+		req.Header.Set(revalidateHeader, "1")
+	}
+	req.RequestURI = ""
+	return req, nil
 }
 
 // revalidationRequest returns the request to replay for background revalidation.
@@ -944,7 +977,7 @@ func revalidationRequest(ctx filters.FilterContext) *http.Request {
 // The request is cloned in the calling goroutine before orig is released.
 // backendURL and outgoingHost, when non-empty, tell doRevalidate to dispatch
 // directly to that backend using that Host header instead of looping back
-// through skipper's own listener (see revalidationDispatch).
+// through skipper's own listener (see requestDispatch).
 // If the queue is full the job is dropped and reval_dropped is incremented.
 // The closure captures f.doRevalidate so the spec-level worker respects this route's config.
 func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request, backendURL, outgoingHost string) {
@@ -977,35 +1010,15 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request, backen
 // normally.
 func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL, outgoingHost string) {
 	f.revalSF.Do(key, func() (any, error) { //nolint:errcheck
-		if backendURL != "" {
-			u, err := url.Parse(backendURL)
-			if err != nil {
-				f.metrics.IncCounter("cache.reval_error")
-				log.WithFields(log.Fields{
-					"backendURL": backendURL,
-				}).WithError(err).Warn("cache: invalid backend URL for direct revalidation dispatch")
-				return nil, nil
-			}
-			req.URL.Scheme, req.URL.Host = u.Scheme, u.Host
-			// req.Host, not just req.URL.Host: net/http sends req.Host verbatim as
-			// the wire Host header when set, falling back to req.URL.Host only when
-			// empty. Left untouched, req.Host would still carry the client-facing
-			// Host from ctx.Request() (populated by the HTTP server on the original
-			// inbound request), so the real backend would see the client's Host
-			// instead of the one skipper's own proxy pipeline would send for this
-			// route (ctx.OutgoingHost(), applied here via outgoingHost).
-			req.Host = outgoingHost
-			f.metrics.IncCounter("cache.reval_backend_dispatch")
-		} else {
-			// revalidateHeader only matters for self-loopback: it tells this
-			// filter's own Request() to skip the cache lookup when the request
-			// re-enters skipper. Direct dispatch never re-enters skipper, so
-			// setting it there would just leak an internal header to the real
-			// origin.
-			req.Header.Set(revalidateHeader, "1")
-			req.URL.Scheme, req.URL.Host = "http", f.listenAddr
+		req, err := f.prepareDispatch(req, backendURL, outgoingHost)
+		if err != nil {
+			f.metrics.IncCounter("cache.reval_error")
+			log.WithField("backendURL", backendURL).WithError(err).Warn("cache: failed to prepare background revalidation dispatch")
+			return nil, nil
 		}
-		req.RequestURI = ""
+		if backendURL != "" {
+			f.metrics.IncCounter("cache.reval_backend_dispatch")
+		}
 
 		if stored, err := f.storage.Get(context.Background(), key); err == nil && stored != nil {
 			if stored.ETag != "" {
