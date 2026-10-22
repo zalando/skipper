@@ -21,6 +21,8 @@ import (
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/proxy/proxytest"
+
+	"github.com/valkey-io/valkey-go"
 )
 
 func newTestFilterWithCleanup(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) (*cacheFilter, func()) {
@@ -680,6 +682,30 @@ func TestCacheFilter_ColdMissCoalescing_NonCacheable(t *testing.T) {
 	}
 }
 
+func TestCacheFilter_Coalesce_RecordsWaitDuration(t *testing.T) {
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": {"max-age=300"}},
+			Body:       io.NopCloser(strings.NewReader(`{"ok":true}`)),
+		}, nil
+	}
+
+	url := newLocalBackend(t) + "/spaces/abc/entries/wait-duration"
+	f.Request(newCtx("GET", url, ""))
+
+	mockMetrics.WithMeasures(func(measures map[string][]time.Duration) {
+		if len(measures["cache.coalesce_wait_duration"]) != 1 {
+			t.Fatalf("expected exactly 1 cache.coalesce_wait_duration measurement, got %d", len(measures["cache.coalesce_wait_duration"]))
+		}
+	})
+}
+
 func TestCacheFilter_ColdMissCoalescing_UpstreamError(t *testing.T) {
 	// When the upstream fetch fails, coalesce must not call ctx.Serve so the
 	// proxy can fall back to its own backend fetch.
@@ -719,6 +745,9 @@ func TestCacheFilter_ColdMissCoalescing_FetchError_CoalesceErrorMetric(t *testin
 			t.Errorf("expected cache.coalesce_error==1, got %d", counters["cache.coalesce_error"])
 		}
 	})
+	if got, _ := mockMetrics.CacheResultCount("coalesce_error", "n/a"); got != 1 {
+		t.Errorf("expected labeled coalesce_error/n_a=1, got %d", got)
+	}
 }
 
 func TestCacheFilter_RequestNoStore_NotCached(t *testing.T) {
@@ -3517,6 +3546,233 @@ func TestCacheSpec_FilterRegistry_InFlightJobsSurviveRebuild(t *testing.T) {
 	}
 }
 
+func TestCacheFilter_LabeledMetrics_CacheResultHit2xx(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/test", "", "route1")
+	f.Request(ctx1)
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/test", "", "route1")
+	f.Request(ctx2)
+	if ctx2.FResponse == nil {
+		t.Fatal("expected HIT")
+	}
+	if ctx2.FResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", ctx2.FResponse.StatusCode)
+	}
+	if got, _ := mockMetrics.CacheResultCount("hit", "2xx"); got != 1 {
+		t.Errorf("expected labeled hit/2xx=1, got %d", got)
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_CacheResultHit4xx(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusNotFound, "not found", "max-age=60")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/notfound", "", "route1")
+	f.Request(ctx1)
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/notfound", "", "route1")
+	f.Request(ctx2)
+	if ctx2.FResponse == nil {
+		t.Fatal("expected HIT")
+	}
+	if ctx2.FResponse.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", ctx2.FResponse.StatusCode)
+	}
+	if got, _ := mockMetrics.CacheResultCount("hit", "4xx"); got != 1 {
+		t.Errorf("expected labeled hit/4xx=1 — this is the cache-poisoning signal (serving a cached error as a hit), got %d", got)
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_CacheResultHit5xx(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusServiceUnavailable, "unavailable", "max-age=30")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/unavail", "", "route1")
+	f.Request(ctx1)
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/unavail", "", "route1")
+	f.Request(ctx2)
+	if ctx2.FResponse == nil {
+		t.Fatal("expected HIT")
+	}
+	if ctx2.FResponse.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", ctx2.FResponse.StatusCode)
+	}
+	if got, _ := mockMetrics.CacheResultCount("hit", "5xx"); got != 1 {
+		t.Errorf("expected labeled hit/5xx=1, got %d", got)
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_CacheResultMiss(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx := newCtxWithRoute(http.MethodGet, "http://example.com/miss", "", "route1")
+	f.Request(ctx)
+	if ctx.FResponse == nil {
+		t.Fatal("expected response")
+	}
+	if ctx.FResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", ctx.FResponse.StatusCode)
+	}
+	if got, _ := mockMetrics.CacheResultCount("miss", "2xx"); got != 1 {
+		t.Errorf("expected labeled miss/2xx=1, got %d", got)
+	}
+	// The LRU-bytes bug fix: the gauge must update on miss too, not just hit.
+	if _, ok := mockMetrics.CacheLRUBytes("route1"); !ok {
+		t.Error("expected per-route LRU bytes gauge to be set on a miss, got none")
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_CacheResultStale(t *testing.T) {
+	// newTestFilter is force mode: ttl/errorTTL/swrWindow are operator-set and
+	// upstream Cache-Control is ignored, so the fixture must use these directly
+	// rather than a Cache-Control max-age (which force mode does not consult).
+	f := newTestFilter(t, time.Second, 10*time.Second, 5*time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusOK, "body", "")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/stale", "", "route1")
+	f.Request(ctx1)
+
+	time.Sleep(2 * time.Second) // past the 1s TTL, still within the 5s SWR window
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/stale", "", "route1")
+	f.Request(ctx2)
+	if ctx2.FResponse == nil {
+		t.Fatal("expected STALE response")
+	}
+	if got := ctx2.FResponse.Header.Get(cacheStatusHeader); got != cacheStatusStale {
+		t.Fatalf("expected X-Cache-Status: %s, got %q", cacheStatusStale, got)
+	}
+	if got, _ := mockMetrics.CacheResultCount("stale", "2xx"); got != 1 {
+		t.Errorf("expected labeled stale/2xx=1, got %d", got)
+	}
+	// The LRU-bytes bug fix: the gauge must update on stale too, not just hit.
+	if _, ok := mockMetrics.CacheLRUBytes("route1"); !ok {
+		t.Error("expected per-route LRU bytes gauge to be set on a stale serve, got none")
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_RouteLabeledLRUBytes(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusOK, "body content", "max-age=300")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/lru1", "", "route1")
+	f.Request(ctx1)
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/lru2", "", "route2")
+	f.Request(ctx2)
+
+	if f.storage == nil {
+		t.Fatal("storage not initialized")
+	}
+	b1, ok1 := mockMetrics.CacheLRUBytes("route1")
+	if !ok1 || b1 <= 0 {
+		t.Errorf("expected positive LRU bytes gauge for route1, got %v (ok=%v)", b1, ok1)
+	}
+	b2, ok2 := mockMetrics.CacheLRUBytes("route2")
+	if !ok2 || b2 <= 0 {
+		t.Errorf("expected positive LRU bytes gauge for route2, got %v (ok=%v)", b2, ok2)
+	}
+}
+
+// failingSetStorage's failure isn't attributable to a backend (it wraps the
+// Storage interface generically, not a real LRUStorage/L2Storage), so since
+// storage errors are now attributed at the point where backend is known (see
+// TestLRUStorage_Get_CorruptJSON_RecordsStorageError and the L2Storage
+// equivalents), a generic failure here records no labeled metric - only the
+// log line and the non-panicking behavior are asserted.
+func TestCacheFilter_LabeledMetrics_StorageError(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	f.storage = &failingSetStorage{f.storage}
+	rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx := newCtxWithRoute(http.MethodGet, "http://example.com/storage-error", "", "route1")
+	f.Request(ctx) // must not panic despite the injected Set failure
+
+	if got, _ := mockMetrics.CacheResultCount("storage_error", "n/a"); got != 0 {
+		t.Errorf("expected no labeled storage_error (backend unattributable here), got %d", got)
+	}
+}
+
+// TestCacheFilter_VarySentinel_DoesNotPolluteL2Metrics proves the fix for the
+// bug where Request()'s Vary-sentinel lookup went through the regular,
+// metrics-instrumented Storage.Get() — an internal plumbing check being
+// miscounted as a real cache decision on every single request. It must go
+// through GetSilent instead, which records nothing.
+func TestCacheFilter_VarySentinel_DoesNotPolluteL2Metrics(t *testing.T) {
+	stub := newStubValkeyClient()
+	mockMetrics := &metricstest.MockMetrics{}
+	spec := NewCacheFilter(Options{
+		MaxBytes:   1 << 20,
+		ListenAddr: "localhost:9090",
+		L2Client:   stub,
+		IsNoL2Err:  valkey.IsValkeyNil,
+		Metrics:    mockMetrics,
+	})
+	defer spec.(*cacheSpec).Close()
+	created, err := spec.CreateFilter([]any{"5m", "10s", "1s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := created.(*cacheFilter)
+
+	rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
+	rsp.Header.Set("Vary", "Accept-Language")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	url := "http://example.com/vary-sentinel-test"
+	const repeats = 3
+
+	// Cold miss: stores the entry AND the Vary sentinel (response carries Vary).
+	ctx1 := newCtxWithRoute(http.MethodGet, url, "", "route1")
+	ctx1.FRequest.Header.Set("Accept-Language", "en-US")
+	f.Request(ctx1)
+
+	// Each of these repeats first reads the Vary sentinel via GetSilent (must
+	// record nothing), THEN does one real content lookup via Get (must record
+	// exactly one l1_hit or l2_hit each).
+	for i := 0; i < repeats; i++ {
+		ctx := newCtxWithRoute(http.MethodGet, url, "", "route1")
+		ctx.FRequest.Header.Set("Accept-Language", "en-US")
+		f.Request(ctx)
+		if ctx.FResponse == nil {
+			t.Fatalf("repeat %d: expected a HIT, got no response", i)
+		}
+	}
+
+	l1Hit, _ := mockMetrics.Counter("cache.l1_hit")
+	l2Hit, _ := mockMetrics.Counter("cache.l2_hit")
+	if got, want := l1Hit+l2Hit, int64(repeats); got != want {
+		t.Errorf("expected l1_hit+l2_hit = %d (one per real content hit), got %d — "+
+			"a sentinel lookup is still being counted as a cache outcome", want, got)
+	}
+}
+
 func Benchmark_malicious_matchesETag(b *testing.B) {
 	ifNoneMatch := strings.Repeat(",", http.DefaultMaxHeaderBytes)
 	b.ReportAllocs()
@@ -3762,9 +4018,11 @@ func TestCacheFilter_CoalesceSetFailure_Served(t *testing.T) {
 	if !ctx.FServed {
 		t.Fatal("expected response to be served even when storage Set fails")
 	}
+	// failingSetStorage's failure isn't attributable to a backend, so it records
+	// no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error to be incremented on Set failure in coalesce")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
@@ -3841,9 +4099,11 @@ func TestCacheFilter_HEAD_Freshen_SetError(t *testing.T) {
 	}
 	f.Response(headCtx) // must not panic
 
+	// failingSetStorage's failure isn't attributable to a backend, so it records
+	// no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error incremented on HEAD freshen Set failure")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
@@ -3911,9 +4171,11 @@ func TestCacheFilter_UnsafeMethod_DeleteError_ContinuesSilently(t *testing.T) {
 	}
 	f.Response(postCtx) // must not panic
 
+	// failingDeleteStorage's failure isn't attributable to a backend, so it
+	// records no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error incremented on Delete failure in unsafe method invalidation")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
@@ -3971,13 +4233,18 @@ func TestCacheFilter_Response_VarySentinelSetError(t *testing.T) {
 	ctx.FResponse = rsp
 	f.Response(ctx) // must not panic; vary sentinel Set will fail
 
+	// failingSetStorage's failure isn't attributable to a backend, so it records
+	// no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error incremented on Vary sentinel Set failure")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
 
+// See TestCacheFilter_LabeledMetrics_StorageError: a generic storage failure
+// double isn't attributable to a backend, so no storage_error metric fires -
+// only the non-panicking behavior is asserted.
 func TestCacheFilter_Response_StorageSetError(t *testing.T) {
 	mockMetrics := &metricstest.MockMetrics{}
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
@@ -3996,8 +4263,8 @@ func TestCacheFilter_Response_StorageSetError(t *testing.T) {
 	f.Response(ctx) // must not panic
 
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error incremented on Response() storage Set failure")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
@@ -4142,7 +4409,7 @@ func TestCacheFilter_Revalidate_RFC_NoStore_NotStored(t *testing.T) {
 	})
 }
 
-func TestCacheFilter_Revalidate_SetError_MetricIncremented(t *testing.T) {
+func TestCacheFilter_Revalidate_SetError_HandledGracefully(t *testing.T) {
 	url := newLocalBackend(t) + "/reval-set-err"
 	synctest.Test(t, func(t *testing.T) {
 		mockMetrics := &metricstest.MockMetrics{}
@@ -4183,9 +4450,11 @@ func TestCacheFilter_Revalidate_SetError_MetricIncremented(t *testing.T) {
 		f.Request(ctx2)
 		synctest.Wait()
 
+		// failingSetStorage's failure isn't attributable to a backend, so it
+		// records no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 		mockMetrics.WithCounters(func(counters map[string]int64) {
-			if counters["cache.storage_error"] == 0 {
-				t.Error("expected cache.storage_error incremented on Set failure in doRevalidate")
+			if counters["cache.storage_error"] != 0 {
+				t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 			}
 		})
 	})
@@ -4924,6 +5193,9 @@ func TestCacheFilter_Coalesce_LeaderNeverRefetches(t *testing.T) {
 			t.Errorf("expected cache.coalesce_bypass_error == 0, got %d", got)
 		}
 	})
+	if got, want := func() int64 { v, _ := mockMetrics.CacheResultCount("coalesce_bypass", "n/a"); return v }(), int64(N-1); got != want {
+		t.Errorf("expected labeled coalesce_bypass/n_a == %d, got %d", want, got)
+	}
 
 	for i, ctx := range results {
 		if !ctx.FServed {
@@ -5018,6 +5290,9 @@ func TestCacheFilter_Coalesce_VaryMismatch_IndependentFetch(t *testing.T) {
 			t.Errorf("expected cache.coalesce_bypass_error == 0, got %d", got)
 		}
 	})
+	if got, want := func() int64 { v, _ := mockMetrics.CacheResultCount("coalesce_bypass", "n/a"); return v }(), fetchCount.Load()-1; got != want {
+		t.Errorf("expected labeled coalesce_bypass/n_a == %d (fetchCount-1), got %d", want, got)
+	}
 
 	for i, ctx := range results {
 		if !ctx.FServed {

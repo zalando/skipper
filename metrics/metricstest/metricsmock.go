@@ -253,6 +253,61 @@ func (m *MockMetrics) SetInvalidRoute(routeID, reason string) {
 	m.UpdateGauge(key, 1)
 }
 
+// IncCacheResult records a labeled cache outcome (result x code_class),
+// mirroring the real Prometheus skipper_cache_result_total{result,code_class}
+// counter. Use CacheResultCount to read it back in tests.
+func (m *MockMetrics) IncCacheResult(result, codeClass string) {
+	m.IncCounter(cacheResultKey(result, codeClass))
+}
+
+// CacheResultCount returns the labeled cache-result counter recorded via
+// IncCacheResult, if any.
+func (m *MockMetrics) CacheResultCount(result, codeClass string) (v int64, ok bool) {
+	return m.Counter(m.Prefix + cacheResultKey(result, codeClass))
+}
+
+func cacheResultKey(result, codeClass string) string {
+	return fmt.Sprintf("cache_result.%s.%s", result, codeClass)
+}
+
+// IncStorageError records a labeled cache storage error (backend x op), mirroring the
+// real Prometheus skipper_cache_storage_error_total{backend,op} counter. Also increments
+// the legacy unlabeled cache.storage_error counter and the labeled
+// cache_result.storage_error.n/a counter, matching the real Prometheus implementation.
+// Use StorageErrorCount to read the labeled one back in tests.
+func (m *MockMetrics) IncStorageError(backend, op string) {
+	m.IncCounter(storageErrorKey(backend, op))
+	m.IncCounter("cache.storage_error")
+	m.IncCacheResult("storage_error", "n/a")
+}
+
+// StorageErrorCount returns the labeled cache-storage-error counter recorded via
+// IncStorageError, if any.
+func (m *MockMetrics) StorageErrorCount(backend, op string) (v int64, ok bool) {
+	return m.Counter(m.Prefix + storageErrorKey(backend, op))
+}
+
+func storageErrorKey(backend, op string) string {
+	return fmt.Sprintf("storage_error.%s.%s", backend, op)
+}
+
+// SetCacheLRUBytes records the per-route LRU bytes gauge, mirroring the real
+// Prometheus skipper_cache_lru_bytes{route} gauge. Use CacheLRUBytes to read
+// it back in tests.
+func (m *MockMetrics) SetCacheLRUBytes(route string, bytes float64) {
+	m.UpdateGauge(cacheLRUBytesKey(route), bytes)
+}
+
+// CacheLRUBytes returns the per-route LRU bytes gauge recorded via
+// SetCacheLRUBytes, if any.
+func (m *MockMetrics) CacheLRUBytes(route string) (v float64, ok bool) {
+	return m.Gauge(cacheLRUBytesKey(route))
+}
+
+func cacheLRUBytesKey(route string) string {
+	return fmt.Sprintf("cache_lru_bytes.%s", route)
+}
+
 func (*MockMetrics) Close() {}
 
 func (*MockMetrics) String() string { return "mock" }

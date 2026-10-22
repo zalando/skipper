@@ -57,35 +57,77 @@ func NewL2Storage(l2client L2Client, l1 *LRUStorage, m metrics.Metrics, l1TTL ti
 }
 
 func (s *L2Storage) Get(ctx context.Context, key string) (*Entry, error) {
+	return s.get(ctx, key, true)
+}
+
+// GetSilent behaves like Get but records none of the l1_hit/l2_hit/l2_miss/
+// l2_get_error outcome metrics (plain or labeled). Use it for internal
+// plumbing lookups — e.g. the Vary-sentinel check in filter.go — that are
+// not themselves a caching decision: every request pays for that lookup,
+// so routing it through Get would have silently counted it as a real cache
+// outcome on every single request.
+func (s *L2Storage) GetSilent(ctx context.Context, key string) (*Entry, error) {
+	return s.get(ctx, key, false)
+}
+
+func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*Entry, error) {
 	// L1-first: serve from local memory when the write-through warming populated it.
 	// LRUStorage.Get returns entries within TTL + max(StaleIfError, StaleWhileRevalidate).
 	// Only serve fresh L1 hits; stale entries fall through to L2 so a fresher copy
 	// written by another instance is not bypassed.
 	if e, err := s.l1.Get(ctx, key); err == nil && e != nil {
 		if !e.IsStale(time.Now()) {
-			s.metrics.IncCounter("cache.l1_hit")
+			if recordMetrics {
+				s.metrics.IncCounter("cache.l1_hit")
+				if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
+					p.IncCacheResult("l1_hit", statusCodeClass(e.StatusCode))
+				}
+			}
 			return e, nil
 		}
 		// Stale L1 entry — fall through to L2.
 	}
 
+	l2Start := time.Now()
 	data, err := s.l2client.Get(ctx, key)
+	s.metrics.MeasureSince("cache.l2_get_duration", l2Start)
 	if err != nil {
 		if s.isNoErr(err) {
-			s.metrics.IncCounter("cache.l2_miss")
+			if recordMetrics {
+				s.metrics.IncCounter("cache.l2_miss")
+				if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
+					p.IncCacheResult("l2_miss", "n/a")
+				}
+			}
 			return nil, nil
 		}
-		s.metrics.IncCounter("cache.l2_get_error")
+		if recordMetrics {
+			s.metrics.IncCounter("cache.l2_get_error")
+			if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
+				p.IncCacheResult("l2_get_error", "n/a")
+			}
+		}
 		log.WithError(err).Error("cache: L2 Get failed, treating as miss")
 		return nil, nil
 	}
 	var e Entry
 	if err := json.Unmarshal([]byte(data), &e); err != nil {
+		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
+			p.IncStorageError("l2", "get")
+		}
 		return nil, fmt.Errorf("cache: decode L2 entry: %w", err)
 	}
-	s.metrics.IncCounter("cache.l2_hit")
+	if recordMetrics {
+		s.metrics.IncCounter("cache.l2_hit")
+		if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
+			p.IncCacheResult("l2_hit", statusCodeClass(e.StatusCode))
+		}
+	}
 	// Write-through: warm L1 so subsequent requests on this process avoid L2 round-trips.
 	// Use remaining freshness to avoid extending L1 beyond L2's actual expiry.
+	// Unconditional (even for the silent path): this is a caching side effect of
+	// having read the entry, not an outcome metric, and skipping it would make
+	// sentinel lookups needlessly re-fetch from L2 every time.
 	if s.l1TTL > 0 && e.TTL > 0 {
 		if remaining := e.TTL - time.Since(e.CreatedAt); remaining > 0 {
 			warmed := e
@@ -100,6 +142,9 @@ func (s *L2Storage) Get(ctx context.Context, key string) (*Entry, error) {
 func (s *L2Storage) Set(ctx context.Context, key string, entry *Entry) error {
 	data, err := json.Marshal(entry)
 	if err != nil {
+		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
+			p.IncStorageError("l2", "set")
+		}
 		return fmt.Errorf("cache: encode L2 entry: %w", err)
 	}
 
@@ -108,8 +153,14 @@ func (s *L2Storage) Set(ctx context.Context, key string, entry *Entry) error {
 		l2TTL = time.Minute
 	}
 
-	if err := s.l2client.SetWithExpire(ctx, key, string(data), l2TTL); err != nil {
+	l2Start := time.Now()
+	err = s.l2client.SetWithExpire(ctx, key, string(data), l2TTL)
+	s.metrics.MeasureSince("cache.l2_set_duration", l2Start)
+	if err != nil {
 		s.metrics.IncCounter("cache.l2_set_fallback")
+		if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
+			p.IncCacheResult("l2_set_fallback", statusCodeClass(entry.StatusCode))
+		}
 		log.WithError(err).Error("cache: L2 Set failed, falling back to L1")
 		return s.l1.Set(ctx, key, entry)
 	}
@@ -134,7 +185,9 @@ func (s *L2Storage) Delete(ctx context.Context, key string) error {
 	// fleet retain their own L1 copies until --cache-l1-ttl expires naturally.
 	if _, err := s.l2client.Del(ctx, key); err != nil {
 		log.WithError(err).Error("cache: L2 Delete failed")
-		s.metrics.IncCounter("cache.storage_error")
+		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
+			p.IncStorageError("l2", "delete")
+		}
 	}
 	return s.l1.Delete(ctx, key)
 }
