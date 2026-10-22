@@ -4229,6 +4229,21 @@ Force mode with per-tenant cache key isolation:
 -> cache("5m", "15s", "30s", "0s", "X-Tenant-ID") -> "https://cdn.example.org"
 ```
 
+For static force-mode backends, place request rewrites before `cache()`.
+Cold misses and background refreshes dispatch directly from the request state
+at the cache filter; later request filters cannot modify that upstream request.
+For example, a Contentful prefix and virtual Host rewrite must precede caching:
+
+```
+-> setRequestHeader("Host", "pegasus.contentful.example")
+-> modPath("^/api/contentful", "")
+-> cache("5m", "15s", "5m", "24h", "Authorization")
+-> "https://cdn.example.org"
+```
+
+This also means cache keys use the rewritten request path. Keep authentication
+and any other required request processing before the cache filter.
+
 RFC mode with per-user cache key isolation:
 
 ```
