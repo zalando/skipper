@@ -4271,8 +4271,10 @@ The key is derived from route ID + scheme + host + path + query string,
 hashed with SHA-256 for uniform shard distribution.
 Route ID is included so entries from different routes never collide when sharing
 the same storage instance. Additional request headers can be folded in via
-`keyHeaders`. Without `keyHeaders`, all requests to the same path share one
-cache entry regardless of caller identity.
+`keyHeaders`. Cacheable `Vary` response dimensions additionally isolate stored
+variants and concurrent cold-miss followers, even when `keyHeaders` is set.
+Without `keyHeaders` or an applicable `Vary` response header, all requests to the
+same path share one cache entry regardless of caller identity.
 
 **Safety**
 
