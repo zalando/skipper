@@ -2066,6 +2066,12 @@ restore write-around behaviour. Note: on L2 write errors (`l2_set_fallback`), L1
 is always used as a fallback regardless of `--cache-l1-ttl`; L2 read errors
 (`l2_get_error`) are treated as cache misses.
 
+Background revalidation updates the local L1 on successful storage too. Before
+executing a queued refresh, the worker silently checks its exact variant key:
+if a fresh entry was stored since that job was queued, the redundant fetch is
+skipped. Failed refreshes do not renew the entry timestamp, so queued work can
+retry. This is local queue suppression, not fleet-wide refresh coordination.
+
 When an upstream responds successfully to an unsafe method (`POST`, `PUT`, `DELETE`, `PATCH`),
 the filter removes the cached entry for that URL from both L2 and the local L1.
 Only the local process's L1 is cleared — other Skipper processes in the fleet retain their
