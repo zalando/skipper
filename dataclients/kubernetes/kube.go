@@ -29,6 +29,17 @@ const (
 	defaultEastWestDomain  = "skipper.cluster.local"
 	minEndpointsByZone     = 3
 	minZones               = 3
+
+	// DefaultIngressControllerNamespace is the default namespace used to look up
+	// the ingress controller endpointslice when checking zone distribution.
+	DefaultIngressControllerNamespace = "kube-system"
+	// DefaultIngressControllerName is the default service name used to look up
+	// the ingress controller endpointslice when checking zone distribution.
+	DefaultIngressControllerName = "skipper-ingress"
+	// DefaultMaxZoneSkew is the default maximum permitted difference between
+	// the endpoint count in any zone and the global minimum across all zones,
+	// following Kubernetes TopologySpreadConstraints maxSkew semantics.
+	DefaultMaxZoneSkew = 1
 )
 
 // PathMode values are used to control the ingress path interpretation. The path mode can
@@ -284,6 +295,22 @@ type Options struct {
 	// IngressStatusFromService, when set to <namespace>/<name>, makes skipper update ingress status.loadBalancer.ingress
 	// addresses from the referenced Service object.
 	IngressStatusFromService string
+
+	// IngressControllerNamespace is the namespace of the ingress controller service
+	// whose endpoint zone distribution is checked to decide whether zone-aware routing
+	// is enabled. Defaults to "kube-system".
+	IngressControllerNamespace string
+
+	// IngressControllerName is the service name of the ingress controller whose endpoint
+	// zone distribution is checked to decide whether zone-aware routing is enabled.
+	// Defaults to "skipper-ingress".
+	IngressControllerName string
+
+	// MaxZoneSkew is the maximum permitted difference between the endpoint count in any
+	// zone and the global minimum across all zones for the ingress controller, following
+	// Kubernetes TopologySpreadConstraints maxSkew semantics.
+	// nil means use DefaultMaxZoneSkew. A pointer to 0 means no skew is tolerated.
+	MaxZoneSkew *int
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.

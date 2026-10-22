@@ -378,6 +378,22 @@ type Options struct {
 	// KubernetesTopologyZone if set to non empty string it is used to filter endpointslice endpoints by this value.
 	KubernetesTopologyZone string
 
+	// KubernetesIngressControllerNamespace is the namespace of the ingress controller service
+	// whose endpoint zone distribution is checked to decide whether zone-aware routing is enabled.
+	// Defaults to "kube-system".
+	KubernetesIngressControllerNamespace string
+
+	// KubernetesIngressControllerName is the service name of the ingress controller whose endpoint
+	// zone distribution is checked to decide whether zone-aware routing is enabled.
+	// Defaults to "skipper-ingress".
+	KubernetesIngressControllerName string
+
+	// KubernetesZoneMaxSkew is the maximum permitted difference between the endpoint count in any
+	// zone and the global minimum across all zones for the ingress controller, following Kubernetes
+	// TopologySpreadConstraints maxSkew semantics.
+	// 0 means no skew is tolerated — all zones must have an equal endpoint count.
+	KubernetesZoneMaxSkew int
+
 	// KubernetesForceService overrides the default Skipper functionality to route traffic using Kubernetes Endpoints,
 	// instead using Kubernetes Services.
 	KubernetesForceService bool
@@ -1279,6 +1295,9 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		DefaultLoadBalancerAlgorithm:                   o.KubernetesDefaultLoadBalancerAlgorithm,
 		ForwardBackendURL:                              o.ForwardBackendURL,
 		TopologyZone:                                   o.KubernetesTopologyZone,
+		IngressControllerNamespace:                     o.KubernetesIngressControllerNamespace,
+		IngressControllerName:                          o.KubernetesIngressControllerName,
+		MaxZoneSkew:                                    &o.KubernetesZoneMaxSkew,
 		IngressStatusFromService:                       o.KubernetesStatusFromService,
 		KubernetesApplicationAnnotationLabelKey:        o.KubernetesApplicationAnnotationLabelKey,
 	}

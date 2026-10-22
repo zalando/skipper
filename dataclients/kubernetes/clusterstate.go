@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"sync"
 
@@ -23,7 +24,7 @@ type clusterState struct {
 	enableEndpointSlices bool
 }
 
-func (state *clusterState) ingressControllerDistributedAcrossZones(namespace, name string) bool {
+func (state *clusterState) ingressControllerDistributedAcrossZones(namespace, name string, maxZoneSkew int) bool {
 	if !state.enableEndpointSlices {
 		return false
 	}
@@ -33,13 +34,30 @@ func (state *clusterState) ingressControllerDistributedAcrossZones(namespace, na
 		return false
 	}
 
-	zones := map[string]struct{}{}
+	zoneCounts := map[string]int{}
 	for _, ep := range eps.Endpoints {
 		if ep.Zone != "" {
-			zones[ep.Zone] = struct{}{}
+			zoneCounts[ep.Zone]++
 		}
 	}
-	return len(zones) >= minZones
+
+	if len(zoneCounts) < minZones {
+		return false
+	}
+
+	globalMin := math.MaxInt
+	for _, count := range zoneCounts {
+		if count < globalMin {
+			globalMin = count
+		}
+	}
+
+	for _, count := range zoneCounts {
+		if count-globalMin > maxZoneSkew {
+			return false
+		}
+	}
+	return true
 }
 
 func (state *clusterState) getService(namespace, name string) (*service, error) {

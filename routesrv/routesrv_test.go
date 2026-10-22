@@ -1140,7 +1140,7 @@ func TestRoutesWithZone(t *testing.T) {
 				KubernetesURL:                  ks.URL,
 				KubernetesEnableEndpointslices: true,
 			})
-
+			routesrv.SetDistributed(rs, true)
 			rs.StartUpdates()
 			defer rs.StopUpdates()
 
@@ -1175,7 +1175,7 @@ func TestEtagWithZoneAwareRoutingFallback(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
-
+	routesrv.SetDistributed(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 
@@ -1230,7 +1230,7 @@ func TestZoneAwareRoutesGzip(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
-
+	routesrv.SetDistributed(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 
@@ -1279,6 +1279,7 @@ func TestZoneAwareXCount(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
+	routesrv.SetDistributed(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1311,6 +1312,7 @@ func TestZoneAwareEtag(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
+	routesrv.SetDistributed(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1354,6 +1356,7 @@ func TestZoneAwareConditionalGetEtag(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
+	routesrv.SetDistributed(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1401,6 +1404,7 @@ func TestZoneAwareConditionalGetLastModified(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
+	routesrv.SetDistributed(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1438,6 +1442,7 @@ func TestZoneAwareFallbackToAllRoutesWhenBelowThreshold(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
+	routesrv.SetDistributed(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1464,6 +1469,53 @@ func TestZoneAwareFallbackToAllRoutesWhenBelowThreshold(t *testing.T) {
 	assert.Equal(t, fullCount, gzipResp.Header().Get(routing.RoutesCountName))
 }
 
+// TestZoneAwareRoutesNotServedWhenNotDistributed verifies that when the ingress
+// controller is not distributed across enough zones, /routes/{zone} falls back
+// to the global routing table — identical to /routes.
+func TestZoneAwareRoutesNotServedWhenNotDistributed(t *testing.T) {
+	defer tl.Reset()
+
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+	routesrv.SetDistributed(rs, false)
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	// /routes returns the full unfiltered table
+	fullResp := getRoutes(rs)
+	require.Equal(t, http.StatusOK, fullResp.Code)
+
+	// /routes/{zone} must return the same body as /routes — no zone filtering
+	zoneResp := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, zoneResp.Code)
+
+	fullRoutes := eskip.MustParse(fullResp.Body.String())
+	zoneRoutes := eskip.MustParse(zoneResp.Body.String())
+	assert.True(t, eskip.EqLists(fullRoutes, zoneRoutes), "zone response must equal global response when not distributed")
+
+	// X-Count must also match
+	assert.Equal(t,
+		fullResp.Header().Get(routing.RoutesCountName),
+		zoneResp.Header().Get(routing.RoutesCountName),
+		"X-Count must match global count when not distributed",
+	)
+
+	// same for gzip
+	gzipZoneResp := getZoneAwareRoutesGzip(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, gzipZoneResp.Code)
+	gotGzip, err := eskip.Parse(string(decompressGzip(t, gzipZoneResp.Body)))
+	require.NoError(t, err)
+	assert.True(t, eskip.EqLists(fullRoutes, gotGzip), "gzip zone response must also equal global response when not distributed")
+}
+
 func TestXCountShouldBeSameForZoneAwareAndZoneUnawareRoutes(t *testing.T) {
 	defer tl.Reset()
 
@@ -1477,6 +1529,7 @@ func TestXCountShouldBeSameForZoneAwareAndZoneUnawareRoutes(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
+	routesrv.SetDistributed(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
