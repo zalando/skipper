@@ -565,6 +565,13 @@ type coalesceResult struct {
 // that isn't the one who fetched it - a coalesce follower, or
 // background revalidation triggered by someone else's request
 func (f *cacheFilter) storeDecision(req *http.Request, statusCode int, header http.Header, d cacheDirectives) (ttl time.Duration, store bool) {
+	// Vary: * means every response is unique — never cache. Response() already
+	// short-circuits on this before calling storeDecision; coalesce()'s leader-fetch
+	// path has no such pre-check, so it belongs here too, in the one choke point both
+	// callers share.
+	if header.Get("Vary") == "*" {
+		return 0, false
+	}
 	// RFC mode only: no-store and private are semantic blockers (RFC 9111 §5.2.2).
 	if f.rfcMode && (d.noStore || d.private) {
 		return 0, false
@@ -591,6 +598,14 @@ func (f *cacheFilter) storeDecision(req *http.Request, statusCode int, header ht
 // eligible stored entry is served on 5xx instead of propagating the error.
 func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 	req := ctx.Request().Clone(context.Background())
+	// req is a server-received request (ctx.Request()): it carries RequestURI and a
+	// relative URL, both of which f.fetch (http.Client.Do) rejects or can't dial on a
+	// client request. Resolve to the route's backend before fetching, mirroring
+	// doRevalidate's direct-dispatch path below.
+	if u, err := url.Parse(ctx.BackendUrl()); err == nil {
+		req.URL.Scheme, req.URL.Host = u.Scheme, u.Host
+	}
+	req.RequestURI = ""
 
 	waitStart := time.Now()
 	ch := f.coldSF.DoChan(key, func() (any, error) {
