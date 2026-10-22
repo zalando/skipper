@@ -15,6 +15,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/loadbalancer"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/secrets/certregistry"
 )
 
@@ -103,6 +104,10 @@ type Options struct {
 	// KubernetesListChunkSize configures the chunk size (limit parameter) when listing
 	// Kubernetes resources. If 0 or negative, pagination is disabled.
 	KubernetesListChunkSize int
+
+	// Metrics is used to record Kubernetes client metrics.
+	// Defaults to metrics.Default if nil.
+	Metrics metrics.Metrics
 
 	// *DEPRECATED* KubernetesEnableEastWest if set adds automatically routes
 	// with "%s.%s.skipper.cluster.local" domain pattern
