@@ -203,6 +203,9 @@ func defaultConfig(with func(*Config)) *Config {
 		MtlsAuthnAppendCA:                       false,
 		MtlsAuthnCaFile:                         "",
 		MtlsAuthnCA:                             x509.NewCertPool(),
+		KubernetesIngressControllerNamespace:    kubernetes.DefaultIngressControllerNamespace,
+		KubernetesIngressControllerName:         kubernetes.DefaultIngressControllerName,
+		KubernetesZoneMaxSkew:                   kubernetes.DefaultMaxZoneSkew,
 	}
 	with(cfg)
 	return cfg
@@ -435,6 +438,11 @@ func Test_NewConfigWithArgs(t *testing.T) {
 		{
 			name:    "test non-existing config file throw an error",
 			args:    []string{"skipper", "-config-file=nonexistent.yaml"},
+			wantErr: true,
+		},
+		{
+			name:    "negative kubernetes-zone-max-skew is rejected",
+			args:    []string{"skipper", "-kubernetes-zone-max-skew=-1"},
 			wantErr: true,
 		},
 		{

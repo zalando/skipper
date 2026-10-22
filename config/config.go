@@ -192,6 +192,9 @@ type Config struct {
 	KubernetesListChunkSize                              int                                `yaml:"kubernetes-list-chunk-size"`
 	KubernetesEnableEndpointSlices                       bool                               `yaml:"enable-kubernetes-endpointslices"`
 	KubernetesTopologyZone                               string                             `yaml:"kubernetes-topology-zone"`
+	KubernetesIngressControllerNamespace                 string                             `yaml:"kubernetes-ingress-controller-namespace"`
+	KubernetesIngressControllerName                      string                             `yaml:"kubernetes-ingress-controller-name"`
+	KubernetesZoneMaxSkew                                int                                `yaml:"kubernetes-zone-max-skew"`
 	KubernetesEnableEastWest                             bool                               `yaml:"enable-kubernetes-east-west"`
 	KubernetesEastWestDomain                             string                             `yaml:"kubernetes-east-west-domain"`
 	KubernetesEastWestRangeDomains                       *listFlag                          `yaml:"kubernetes-east-west-range-domains"`
@@ -607,6 +610,9 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.KubernetesListChunkSize, "kubernetes-list-chunk-size", 0, "configures the chunk size (limit parameter) when listing Kubernetes resources. If 0 or negative, pagination is disabled")
 	flag.BoolVar(&cfg.KubernetesEnableEndpointSlices, "enable-kubernetes-endpointslices", false, "Enables that skipper fetches Kubernetes endpointslices instead of endpoints to scale more than 1000 pods within a service")
 	flag.StringVar(&cfg.KubernetesTopologyZone, "kubernetes-topology-zone", "", "sets the topology zone to be used for zone aware routing")
+	flag.StringVar(&cfg.KubernetesIngressControllerNamespace, "kubernetes-ingress-controller-namespace", kubernetes.DefaultIngressControllerNamespace, "namespace of the ingress controller service used for zone distribution checks")
+	flag.StringVar(&cfg.KubernetesIngressControllerName, "kubernetes-ingress-controller-name", kubernetes.DefaultIngressControllerName, "service name of the ingress controller used for zone distribution checks")
+	flag.IntVar(&cfg.KubernetesZoneMaxSkew, "kubernetes-zone-max-skew", kubernetes.DefaultMaxZoneSkew, "maximum permitted endpoint count difference between the most and least populated zone for the ingress controller, following Kubernetes TopologySpreadConstraints maxSkew semantics; 0 means no skew is tolerated")
 	flag.BoolVar(&cfg.KubernetesEnableEastWest, "enable-kubernetes-east-west", false, "*Deprecated*: use kubernetes-east-west-range feature. Enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local")
 	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", "*Deprecated*: use kubernetes-east-west-range feature. Sets the east-west domain, defaults to .skipper.cluster.local")
 	flag.Var(cfg.KubernetesEastWestRangeDomains, "kubernetes-east-west-range-domains", "set the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates")
@@ -865,6 +871,9 @@ func validate(c *Config) error {
 	_, err = c.parseHistogramBuckets(c.RequestSizeBucketsString, metrics.DefaultRequestSizeBuckets)
 	if err != nil {
 		return err
+	}
+	if c.KubernetesZoneMaxSkew < 0 {
+		return fmt.Errorf("kubernetes-zone-max-skew must be >= 0, got %d", c.KubernetesZoneMaxSkew)
 	}
 	return c.parseForwardedHeaders()
 }
@@ -1131,6 +1140,9 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesListChunkSize:                        c.KubernetesListChunkSize,
 		KubernetesEnableEndpointslices:                 c.KubernetesEnableEndpointSlices,
 		KubernetesTopologyZone:                         c.KubernetesTopologyZone,
+		KubernetesIngressControllerNamespace:           c.KubernetesIngressControllerNamespace,
+		KubernetesIngressControllerName:                c.KubernetesIngressControllerName,
+		KubernetesZoneMaxSkew:                          c.KubernetesZoneMaxSkew,
 		KubernetesEnableEastWest:                       c.KubernetesEnableEastWest,
 		KubernetesEastWestDomain:                       c.KubernetesEastWestDomain,
 		KubernetesEastWestRangeDomains:                 c.KubernetesEastWestRangeDomains.values,
