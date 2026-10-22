@@ -2131,7 +2131,9 @@ flowchart TD
   storeable and no `keyHeaders`/`Vary` proof of matching identity was available, so
   it performed its own fetch instead of reusing another request's in-flight response
 - `cache.coalesce_bypass_error`: Counter, an independent bypass fetch (see
-  `cache.coalesce_bypass`) returned an error
+  `cache.coalesce_bypass`) returned a transport or body-read error. Bypass
+  responses are buffered before serving, preserving their body after the
+  origin stream closes; an incomplete body is not served as a successful response.
 - `cache.coalesce_wait_duration`: Histogram, time from issuing a cold-miss singleflight
   call to the result being available — near-zero for the leader (it computes the result
   itself), the leader's real fetch time for followers waiting on it

@@ -716,6 +716,15 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 				return
 			}
 			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				f.metrics.IncCounter("cache.coalesce_bypass_error")
+				if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+					p.IncCacheResult("coalesce_bypass_error", "n/a")
+				}
+				return
+			}
+			resp.Body = io.NopCloser(bytes.NewReader(body))
 			ctx.Serve(headBodyOmitted(ctx.Request().Method, resp))
 			return
 		}
