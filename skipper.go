@@ -1506,6 +1506,38 @@ func (o *Options) cacheBudget() int64 {
 	return limit / cgroupFraction
 }
 
+func (o *Options) cacheNetOptions() skpnet.Options {
+	headerTimeout := o.ResponseHeaderTimeoutBackend
+	if headerTimeout == 0 {
+		headerTimeout = proxy.DefaultResponseHeaderTimeout
+	}
+	continueTimeout := o.ExpectContinueTimeoutBackend
+	if continueTimeout == 0 {
+		continueTimeout = proxy.DefaultExpectContinueTimeout
+	}
+	idleTimeout := o.CloseIdleConnsPeriod
+	if idleTimeout == 0 {
+		idleTimeout = proxy.DefaultCloseIdleConnsPeriod
+	}
+	return skpnet.Options{
+		IdleConnTimeout: idleTimeout,
+		// TimeoutBackend is dial-only, not http.Client.Timeout (which also
+		// limits response-body reads). Supply the transport to keep that scope.
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   o.TimeoutBackend,
+				KeepAlive: o.KeepAliveBackend,
+			}).DialContext,
+			ResponseHeaderTimeout: headerTimeout,
+			TLSHandshakeTimeout:   o.TLSHandshakeTimeoutBackend,
+			ExpectContinueTimeout: continueTimeout,
+			IdleConnTimeout:       idleTimeout,
+			MaxIdleConnsPerHost:   o.IdleConnectionsPerHost,
+		},
+	}
+}
+
 func selectL2CacheClient(enabled bool, configured cache.L2Client, valkeyRing *skpnet.ValkeyRingClient, redisRing *skpnet.RedisRingClient) cache.L2Client {
 	if !enabled {
 		return nil
@@ -2469,21 +2501,19 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	if !slices.Contains(o.DisabledFilters, cache.Name) {
 		l2Client := selectL2CacheClient(o.EnableL2Cache, o.L2CacheClient, valkeyRing, redisRing)
+		cacheNetOpts := o.cacheNetOptions()
+		cacheNetOpts.Tracer = tracer
+		cacheNetOpts.OpentracingComponentTag = "skipper"
+		cacheNetOpts.OpentracingSpanName = "cache_revalidation"
+		cacheNetOpts.OpentracingEventsByTag = o.OpenTracingClientTraceByTag
 		cacheSpec := cache.NewCacheFilter(
 			cache.Options{
 				MaxBytes:   o.cacheBudget(),
 				ListenAddr: o.Address,
-				NetOpts: skpnet.Options{
-					IdleConnTimeout:         o.CloseIdleConnsPeriod,
-					MaxIdleConnsPerHost:     o.IdleConnectionsPerHost,
-					Tracer:                  tracer,
-					OpentracingComponentTag: "skipper",
-					OpentracingSpanName:     "cache_revalidation",
-					OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
-				},
-				L2Client:  l2Client,
-				IsNoL2Err: isL2CacheMiss,
-				L1TTL:     o.CacheL1TTL,
+				NetOpts:    cacheNetOpts,
+				L2Client:   l2Client,
+				IsNoL2Err:  isL2CacheMiss,
+				L1TTL:      o.CacheL1TTL,
 			},
 		)
 		defer cacheSpec.(io.Closer).Close()
