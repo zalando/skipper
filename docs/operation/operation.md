@@ -2072,6 +2072,10 @@ if a fresh entry was stored since that job was queued, the redundant fetch is
 skipped. Failed refreshes do not renew the entry timestamp, so queued work can
 retry. This is local queue suppression, not fleet-wide refresh coordination.
 
+A conditional `304 Not Modified` response is never stored as a standalone
+representation. Loopback revalidation leaves the previous body intact until
+the refresh worker merges the validator response's metadata and renews the entry.
+
 When an upstream responds successfully to an unsafe method (`POST`, `PUT`, `DELETE`, `PATCH`),
 the filter removes the cached entry for that URL from both L2 and the local L1.
 Only the local process's L1 is cleared — other Skipper processes in the fleet retain their
