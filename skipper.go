@@ -1249,6 +1249,7 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		TokenFile:                                      o.KubernetesTokenFile,
 		KubernetesNamespace:                            o.KubernetesNamespace,
 		KubernetesListChunkSize:                        o.KubernetesListChunkSize,
+		Metrics:                                        o.MetricsBackend,
 		KubernetesEnableEastWest:                       o.KubernetesEnableEastWest,
 		KubernetesEnableEndpointslices:                 o.KubernetesEnableEndpointslices,
 		KubernetesEastWestDomain:                       o.KubernetesEastWestDomain,

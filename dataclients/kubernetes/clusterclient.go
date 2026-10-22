@@ -21,6 +21,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/secrets/certregistry"
 )
@@ -48,6 +49,7 @@ const (
 	serviceAccountRootCAKey    = "ca.crt"
 	labelSelectorFmt           = "%s=%s"
 	labelSelectorQueryFmt      = "?labelSelector=%s"
+	metricsResourceGoneKey     = "k8s.gone"
 )
 
 const RouteGroupsNotInstalledMessage = `RouteGroups CRD is not installed in the cluster.
@@ -80,6 +82,7 @@ type clusterClient struct {
 
 	enableEndpointSlices bool
 	listChunkSize        int
+	metrics              metrics.Metrics
 
 	loggedMissingRouteGroups bool
 	routeGroupValidator      *definitions.RouteGroupValidator
@@ -88,6 +91,7 @@ type clusterClient struct {
 
 var (
 	errResourceNotFound     = errors.New("resource not found")
+	errResourceGone         = errors.New("resource gone")
 	errServiceNotFound      = errors.New("service not found")
 	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
 	errInvalidCertificate   = errors.New("invalid CA")
@@ -158,6 +162,14 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		return nil, err
 	}
 
+	mtr := o.Metrics
+	if mtr == nil {
+		mtr = metrics.Default
+	}
+	if mtr == nil {
+		mtr = metrics.Void
+	}
+
 	c := &clusterClient{
 		ingressesURI:                 IngressesV1ClusterURI,
 		routeGroupsURI:               RouteGroupsClusterURI,
@@ -180,6 +192,7 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		ingressValidator:             &definitions.IngressV1Validator{EnableAdvancedValidation: false},
 		enableEndpointSlices:         o.KubernetesEnableEndpointslices,
 		listChunkSize:                o.KubernetesListChunkSize,
+		metrics:                      mtr,
 		zone:                         o.TopologyZone,
 		ingressStatusFromService:     o.IngressStatusFromService,
 	}
@@ -309,6 +322,13 @@ func (c *clusterClient) getJSON(uri string, a any) error {
 
 	if rsp.StatusCode == http.StatusNotFound {
 		return errResourceNotFound
+	}
+
+	if rsp.StatusCode == http.StatusGone {
+		if c.metrics != nil {
+			c.metrics.IncCounter(metricsResourceGoneKey)
+		}
+		return errResourceGone
 	}
 
 	if rsp.StatusCode != http.StatusOK {

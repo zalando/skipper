@@ -18,6 +18,7 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
+	"github.com/zalando/skipper/metrics/metricstest"
 )
 
 func containsCount(s, substr string, count int) bool {
@@ -497,4 +498,106 @@ func TestClusterClient_PaginationWithLabelSelectors(t *testing.T) {
 	defer mu.Unlock()
 	require.Len(t, receivedRequests, 1)
 	assert.Equal(t, "/apis/networking.k8s.io/v1/ingresses?labelSelector=env%3Dprod&limit=1", receivedRequests[0])
+}
+
+func TestClusterClient_GoneMetric(t *testing.T) {
+	testCases := []struct {
+		name              string
+		chunkSize         int
+		serverHandler     http.HandlerFunc
+		expectError       bool
+		expectedGoneCount int64
+	}{
+		{
+			name:      "single request encounters 410 Gone and increments counter",
+			chunkSize: 0,
+			serverHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusGone)
+				_, _ = w.Write([]byte(`{"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"too old resource version","reason":"Expired","code":410}`))
+			}),
+			expectError:       true,
+			expectedGoneCount: 1,
+		},
+		{
+			name:      "paginated list encounters 410 Gone on second page and increments counter",
+			chunkSize: 2,
+			serverHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				continueToken := r.URL.Query().Get("continue")
+				if continueToken == "" {
+					resp := struct {
+						Metadata struct {
+							Continue string `json:"continue"`
+						} `json:"metadata"`
+						Items []definitions.IngressV1Item `json:"items"`
+					}{
+						Items: []definitions.IngressV1Item{
+							{Metadata: &definitions.Metadata{Namespace: "default", Name: "app-1"}},
+						},
+					}
+					resp.Metadata.Continue = "token-1"
+					w.Header().Set("Content-Type", "application/json")
+					_ = json.NewEncoder(w).Encode(resp)
+					return
+				}
+
+				w.WriteHeader(http.StatusGone)
+				_, _ = w.Write([]byte(`{"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"too old resource version","reason":"Expired","code":410}`))
+			}),
+			expectError:       true,
+			expectedGoneCount: 1,
+		},
+		{
+			name:      "successful request does not increment gone counter",
+			chunkSize: 1,
+			serverHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				resp := struct {
+					Metadata struct {
+						Continue string `json:"continue"`
+					} `json:"metadata"`
+					Items []definitions.IngressV1Item `json:"items"`
+				}{
+					Items: []definitions.IngressV1Item{
+						{Metadata: &definitions.Metadata{Namespace: "default", Name: "app-ok"}},
+					},
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(resp)
+			}),
+			expectError:       false,
+			expectedGoneCount: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := httptest.NewServer(tc.serverHandler)
+			defer s.Close()
+
+			mockMetrics := &metricstest.MockMetrics{}
+
+			client, err := kubernetes.NewClusterClient(
+				kubernetes.Options{
+					KubernetesListChunkSize: tc.chunkSize,
+					Metrics:                 mockMetrics,
+				},
+				s.URL,
+				"",
+				"",
+				nil,
+			)
+			require.NoError(t, err)
+
+			items, err := client.LoadIngressesV1()
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NotEmpty(t, items)
+			}
+
+			mockMetrics.WithCounters(func(counters map[string]int64) {
+				assert.Equal(t, tc.expectedGoneCount, counters["k8s.gone"])
+			})
+		})
+	}
 }
