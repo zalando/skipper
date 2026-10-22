@@ -4172,9 +4172,15 @@ SWR window's source depends on the mode: in force mode it's the
 operator-supplied `swrWindow` parameter below; in RFC mode it's the response's
 own [`stale-while-revalidate`](https://www.rfc-editor.org/rfc/rfc5861#section-3)
 `Cache-Control` directive — if the upstream never sends that directive, RFC-mode
-entries have no SWR window and simply expire at TTL. The background fetch is
-dispatched directly to the route's backend when possible (force mode with a
-static backend), otherwise it loops back through skipper's own listener; see
+entries have no SWR window and simply expire at TTL. Cold-miss and background
+fetches are dispatched directly only in force mode with an absolute HTTP(S)
+backend URL containing a host. Direct dispatch preserves the already-filtered
+request path and query and uses the route's outgoing Host. Otherwise, including
+invalid backend URLs, fetches replay the original request through Skipper's own
+listener, bypassing this cache lookup so routing and filters run normally.
+Invalid backend URLs are logged and counted as `cache.coalesce_error` or
+`cache.reval_error`. RFC-mode fetches always replay the pipeline so response
+filters can determine cache policy; see
 `cache.reval_backend_dispatch` in the
 [operation guide](../operation/operation.md#cache) for the observability
 difference between the two.
