@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp
+  namespace: default
+  annotations:
+    zalando.org/skipper-routes: |
+      allowed: Header("X-Route", "allowed") -> "https://external1.example.org";
+      network: Header("X-Route", "network") -> "http://169.254.169.254";
+      lb: Header("X-Route", "lb") -> <roundRobin, "http://10.0.0.1:8080", "http://external1.example.org">;
+      shunt: Header("X-Route", "shunt") -> status(204) -> <shunt>;
+spec:
+  rules:
+  - host: example.org
+    http:
+      paths:
+      - path: /one
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: external1
+            port:
+              name: ext
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    application: myapp
+  name: external1
+spec:
+  type: ExternalName
+  externalName: external1.example.org
+  ports:
+  - name: ext
+    port: 443
+    protocol: TCP
+    targetPort: 443
