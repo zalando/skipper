@@ -2496,14 +2496,14 @@ so if requests on average have 100KB and the maximum memory is set to 100MB, on 
 
 The filter also honors the `skip-request-body-parse` of the corresponding [configuration](https://www.openpolicyagent.org/docs/latest/envoy-introduction/#configuration) that the OPA plugin uses.
 
-!!! warning "Oversized bodies appear empty to the policy"
-    When a request body exceeds the configured maximum size, it is not forwarded to the policy — `input.parsed_body` and `input.attributes.request.http.body` will be empty. If your policy uses the presence or content of the body as a condition for an authorization decision, an oversized body will silently evaluate as if no body were sent, which may grant unintended access.
+!!! warning "Oversized bodies are truncated before reaching the policy"
+    When a request body exceeds the configured maximum size, only the prefix up to the limit is forwarded to the policy — `input.parsed_body` will be `null` and `input.attributes.request.http.body` will contain only the prefix. If your policy uses the presence or content of the body as a condition for an authorization decision, an oversized body may silently bypass body-based rules, which may grant unintended access.
 
-    Use `input.attributes.request.http.truncated_body` to distinguish between a genuinely empty body and one that was truncated:
+    Use `input.truncated_body` to distinguish between a genuinely empty body and one that was truncated:
 
     ```rego
     allow if {
-        input.attributes.request.http.truncated_body == false
+        input.truncated_body == false
         # ... body-based conditions
     }
     ```
@@ -2565,14 +2565,14 @@ so if requests on average have 100KB and the maximum memory is set to 100MB, on 
 
 The filter also honors the `skip-request-body-parse` of the corresponding [configuration](https://www.openpolicyagent.org/docs/latest/envoy-introduction/#configuration) that the OPA plugin uses.
 
-!!! warning "Oversized bodies appear empty to the policy"
-    When a request body exceeds the configured maximum size, it is not forwarded to the policy — `input.parsed_body` and `input.attributes.request.http.body` will be empty. If your policy uses the presence or content of the body as a condition for an authorization decision, an oversized body will silently evaluate as if no body were sent, which may grant unintended access.
+!!! warning "Oversized bodies are truncated before reaching the policy"
+    When a request body exceeds the configured maximum size, only the prefix up to the limit is forwarded to the policy — `input.parsed_body` will be `null` and `input.attributes.request.http.body` will contain only the prefix. If your policy uses the presence or content of the body as a condition for an authorization decision, an oversized body may silently bypass body-based rules, which may grant unintended access.
 
-    Use `input.attributes.request.http.truncated_body` to distinguish between a genuinely empty body and one that was truncated:
+    Use `input.truncated_body` to distinguish between a genuinely empty body and one that was truncated:
 
     ```rego
     allow if {
-        input.attributes.request.http.truncated_body == false
+        input.truncated_body == false
         # ... body-based conditions
     }
     ```
