@@ -377,6 +377,12 @@ func tagSpan(ctx filters.FilterContext, status string, ttlRemainingMs int64) {
 // revalidation. On a miss it stores the computed key in the state bag so
 // Response() can populate the cache.
 func (f *cacheFilter) Request(ctx filters.FilterContext) {
+	// RFC 9111 §3: only GET and HEAD are understood as cacheable. Other methods
+	// bypass the cache entirely; unsafe ones still invalidate in Response().
+	if m := ctx.Request().Method; !isCacheableMethod(m) && !isUnsafeMethod(m) {
+		return
+	}
+
 	// Key is built from the already-filtered request: mutations by earlier filters
 	// (e.g. header stripping by auth) are intentionally reflected in the cache key.
 	baseKey := cacheKey(ctx.RouteId(), ctx.Request(), f.keyHeaders)
@@ -524,6 +530,11 @@ type coalesceResult struct {
 // that isn't the one who fetched it - a coalesce follower, or
 // background revalidation triggered by someone else's request
 func (f *cacheFilter) storeDecision(req *http.Request, statusCode int, header http.Header, d cacheDirectives) (ttl time.Duration, store bool) {
+	// Only a GET fetch carries the full representation for this key; a HEAD
+	// response is body-less and must never replace or seed the GET entry.
+	if req.Method != http.MethodGet {
+		return 0, false
+	}
 	// RFC mode only: no-store and private are semantic blockers (RFC 9111 §5.2.2).
 	if f.rfcMode && (d.noStore || d.private) {
 		return 0, false
@@ -549,6 +560,12 @@ func (f *cacheFilter) storeDecision(req *http.Request, statusCode int, header ht
 // Stale-if-error (RFC 5861 §4) is also applied here: a pre-fetch snapshot of any
 // eligible stored entry is served on 5xx instead of propagating the error.
 func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
+	// A HEAD miss is forwarded by the proxy as-is: its body-less response can
+	// neither be stored nor shared with a GET waiter on the same key.
+	if ctx.Request().Method == http.MethodHead {
+		return
+	}
+
 	req := ctx.Request().Clone(context.Background())
 
 	ch := f.coldSF.DoChan(key, func() (any, error) {
