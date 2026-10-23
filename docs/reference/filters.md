@@ -4179,6 +4179,8 @@ static backend), otherwise it loops back through skipper's own listener; see
 [operation guide](../operation/operation.md#cache) for the observability
 difference between the two.
 
+Only `GET` and `HEAD` requests are served from the cache and only `GET`
+responses are stored; other methods bypass the cache.
 Unsafe methods (`POST`, `PUT`, `DELETE`, `PATCH`) invalidate the cached entry on
 success. `HEAD 200` freshens stored headers without replacing the body.
 
