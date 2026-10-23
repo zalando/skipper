@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -84,7 +85,7 @@ type clusterClient struct {
 	loggedMissingRouteGroups   bool
 	routeGroupValidator        *definitions.RouteGroupValidator
 	ingressValidator           *definitions.IngressV1Validator
-	distributedAcrossZones     bool
+	distributedAcrossZones     atomic.Bool
 	ingressControllerNamespace string
 	ingressControllerName      string
 	maxZoneSkew                int
@@ -201,6 +202,9 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 	c.ingressControllerName = name
 
 	if o.MaxZoneSkew != nil {
+		if *o.MaxZoneSkew < 0 {
+			return nil, fmt.Errorf("invalid MaxZoneSkew %d: must be >= 0", *o.MaxZoneSkew)
+		}
 		c.maxZoneSkew = *o.MaxZoneSkew
 	} else {
 		c.maxZoneSkew = DefaultMaxZoneSkew
@@ -772,13 +776,13 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		log.Errorf("failed to update ingress status: %v", err)
 	}
 
-	c.distributedAcrossZones = state.ingressControllerDistributedAcrossZones(c.ingressControllerNamespace, c.ingressControllerName, c.maxZoneSkew)
+	c.distributedAcrossZones.Store(state.ingressControllerDistributedAcrossZones(c.ingressControllerNamespace, c.ingressControllerName, c.maxZoneSkew))
 
 	return state, nil
 }
 
 func (c *clusterClient) IngressControllerDistributedAcrossZones() bool {
-	return c.distributedAcrossZones
+	return c.distributedAcrossZones.Load()
 }
 
 func parseNamespaceName(resource string) (string, string, error) {

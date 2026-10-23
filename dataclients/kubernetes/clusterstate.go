@@ -31,6 +31,7 @@ func (state *clusterState) ingressControllerDistributedAcrossZones(namespace, na
 
 	eps, ok := state.endpointSlices[newResourceID(namespace, name)]
 	if !ok {
+		log.Errorf("ingress controller endpointslice %s/%s not found; zone-aware routing is disabled until -kubernetes-ingress-controller-namespace/-kubernetes-ingress-controller-name match a real service", namespace, name)
 		return false
 	}
 

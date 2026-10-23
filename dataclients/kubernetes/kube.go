@@ -310,6 +310,7 @@ type Options struct {
 	// zone and the global minimum across all zones for the ingress controller, following
 	// Kubernetes TopologySpreadConstraints maxSkew semantics.
 	// nil means use DefaultMaxZoneSkew. A pointer to 0 means no skew is tolerated.
+	// Negative values are rejected: New returns an error if *MaxZoneSkew < 0.
 	MaxZoneSkew *int
 }
 
