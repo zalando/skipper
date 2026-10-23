@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -354,6 +355,33 @@ func TestValkeyStorage_RecordsL2Hit(t *testing.T) {
 	}
 }
 
+func TestValkeyStorage_RecordsGetSetDuration(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	ctx := context.Background()
+	key := "l2-duration-key"
+	entry := &Entry{StatusCode: 200, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}
+
+	if err := s.Set(ctx, key, entry); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	if _, err := s.Get(ctx, key); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		if len(measures["cache.l2_set_duration"]) != 1 {
+			t.Errorf("expected exactly 1 cache.l2_set_duration measurement, got %d", len(measures["cache.l2_set_duration"]))
+		}
+		if len(measures["cache.l2_get_duration"]) != 1 {
+			t.Errorf("expected exactly 1 cache.l2_get_duration measurement, got %d", len(measures["cache.l2_get_duration"]))
+		}
+	})
+}
+
 func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	// Uses a broken stub — no Docker or live Valkey needed.
 	// Set triggers l2_set_fallback, which writes the entry to L1.
@@ -395,6 +423,97 @@ func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	}
 }
 
+func TestValkeyStorage_LabeledMetrics_L2Miss(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	if _, err := s.Get(context.Background(), "missing"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l2_miss", "n/a"); got != 1 {
+		t.Errorf("expected labeled l2_miss/n_a=1, got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_L2GetError(t *testing.T) {
+	stub := newBrokenStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	if _, err := s.Get(context.Background(), "k"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l2_get_error", "n/a"); got != 1 {
+		t.Errorf("expected labeled l2_get_error/n_a=1, got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_L2Hit(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil) // l1TTL=0: write-around, forces a real L2 Get
+
+	ctx := context.Background()
+	if err := s.Set(ctx, "k", &Entry{StatusCode: http.StatusNotFound, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	if _, err := s.Get(ctx, "k"); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l2_hit", "4xx"); got != 1 {
+		t.Errorf("expected labeled l2_hit/4xx=1 (entry StatusCode 404), got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_L1Hit(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 60*time.Second, valkey.IsValkeyNil) // l1TTL>0: write-through warms L1
+
+	ctx := context.Background()
+	if err := s.Set(ctx, "k", &Entry{StatusCode: http.StatusOK, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	stub.broken = true // any Get must now be served from the warmed L1
+	if _, err := s.Get(ctx, "k"); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l1_hit", "2xx"); got != 1 {
+		t.Errorf("expected labeled l1_hit/2xx=1, got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_L2SetFallback(t *testing.T) {
+	stub := newBrokenStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	if err := s.Set(context.Background(), "k", &Entry{StatusCode: http.StatusOK, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("Set should fall back to L1, not error: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l2_set_fallback", "2xx"); got != 1 {
+		t.Errorf("expected labeled l2_set_fallback/2xx=1, got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_StorageErrorOnDelete(t *testing.T) {
+	stub := newBrokenStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	_ = s.Delete(context.Background(), "k") // Valkey Delete errors; L1 delete still runs
+	if got, _ := m.CacheResultCount("storage_error", "n/a"); got != 1 {
+		t.Errorf("expected labeled storage_error/n_a=1, got %d", got)
+	}
+}
+
 func TestValkeyStorage_DeleteCleansL1EvenOnValkeyError(t *testing.T) {
 	// Valkey is broken, so Set falls back to L1. Delete must still clean L1
 	// regardless of the Delete error from Valkey.
@@ -431,8 +550,9 @@ func TestL2Storage_NewL2Storage_NegativeL1TTL_ClampsToDefault(t *testing.T) {
 
 func TestL2Storage_Get_CorruptJSON_ReturnsError(t *testing.T) {
 	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(64<<20, nil, &metricstest.MockMetrics{})
-	s := NewL2Storage(stub, lru, &metricstest.MockMetrics{}, 0, valkey.IsValkeyNil)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
 
 	// Write corrupt JSON directly into the stub, bypassing Set.
 	stub.mu.Lock()
@@ -442,6 +562,9 @@ func TestL2Storage_Get_CorruptJSON_ReturnsError(t *testing.T) {
 	_, err := s.Get(context.Background(), "bad-key")
 	if err == nil {
 		t.Fatal("expected error for corrupt JSON in L2, got nil")
+	}
+	if got, _ := m.StorageErrorCount("l2", "get"); got != 1 {
+		t.Errorf("expected labeled storage_error l2/get=1, got %d", got)
 	}
 }
 
@@ -531,5 +654,61 @@ func TestL2Storage_Set_ZeroTTL_UsesDefaultMinTTL(t *testing.T) {
 
 	if gotExpire != defaultMinTTL {
 		t.Errorf("expected SetWithExpire called with %v, got %v", defaultMinTTL, gotExpire)
+	}
+}
+
+func TestL2Storage_GetSilent_DoesNotRecordMetrics(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	ctx := context.Background()
+	hitKey := "sentinel-hit-key"
+	entry := &Entry{StatusCode: 200, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}
+	if err := s.Set(ctx, hitKey, entry); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	// Isolate GetSilent's effect from the Set call above.
+	m2 := &metricstest.MockMetrics{}
+	s.metrics = m2
+
+	// Exercise hit, clean-miss, and error scenarios through GetSilent only.
+	if _, err := s.GetSilent(ctx, hitKey); err != nil {
+		t.Fatalf("GetSilent (hit case): %v", err)
+	}
+	if _, err := s.GetSilent(ctx, "sentinel-miss-key"); err != nil {
+		t.Fatalf("GetSilent (miss case): %v", err)
+	}
+	stub.broken = true
+	// L2Storage treats a transport error as a graceful miss (nil, nil) — the
+	// l2_get_error *counter* is the only signal, there's no returned Go error
+	// to assert on here (same contract as the regular Get).
+	if got, err := s.GetSilent(ctx, hitKey); err != nil || got != nil {
+		t.Errorf("GetSilent (broken-client case): expected (nil, nil), got (%v, %v)", got, err)
+	}
+	stub.broken = false
+
+	for _, counter := range []string{"cache.l1_hit", "cache.l2_hit", "cache.l2_miss", "cache.l2_get_error"} {
+		if v, _ := m2.Counter(counter); v != 0 {
+			t.Errorf("GetSilent must not record plain metrics, but %s = %d", counter, v)
+		}
+	}
+	for _, rc := range [][2]string{{"l1_hit", "2xx"}, {"l2_hit", "2xx"}, {"l2_miss", "n/a"}, {"l2_get_error", "n/a"}} {
+		if got, _ := m2.CacheResultCount(rc[0], rc[1]); got != 0 {
+			t.Errorf("GetSilent must not record labeled metrics, but %s/%s = %d", rc[0], rc[1], got)
+		}
+	}
+
+	// Sanity: the regular Get on the same storage still records metrics as usual —
+	// proves GetSilent is a distinct code path, not a global metrics kill switch.
+	// l1TTL=0 (write-around) means this entry was never warmed into L1 by any of the
+	// calls above, so a real Get here is an L2 hit, not an L1 hit.
+	if _, err := s.Get(ctx, hitKey); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if v, _ := m2.Counter("cache.l2_hit"); v != 1 {
+		t.Errorf("expected regular Get to still record l2_hit=1, got %d", v)
 	}
 }

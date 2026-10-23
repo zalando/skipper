@@ -322,6 +322,14 @@ To monitor skipper we recommend the following queries:
 - P99 response filter duration (depends on label selector): `histogram_quantile(0.99, sum(rate(skipper_filter_response_duration_seconds_bucket{application="skipper-ingress"}[1m])) by (le) )`
 - If you use Kubernetes limits or Linux cgroup CFS quotas (depends on label selector): `sum(rate(container_cpu_cfs_throttled_periods_total{container_name="skipper-ingress"}[1m]))`
 
+#### Cache filter metrics
+
+When the cache filter is active, the following labeled metrics are exposed:
+
+- `skipper_cache_result_total{result="...", code_class="2xx|4xx|5xx|other|n/a"}` - Counter for cache-related outcomes by result type and HTTP status code class. `result` covers the same outcomes as the flat `skipper_custom_total{key="cache.*"}` counters below — `hit`, `miss`, `stale`, `storage_error`, `coalesce_error`, `coalesce_bypass`, `coalesce_bypass_error`, and, when an L2 (Valkey) store is configured, `l1_hit`, `l2_hit`, `l2_miss`, `l2_get_error`, `l2_set_fallback`. `code_class` is only meaningful for outcomes with a cached response in hand (`hit`, `miss`, `stale`, `l1_hit`, `l2_hit`, `l2_set_fallback`); for outcomes with no response to classify (`storage_error`, `coalesce_error`, `coalesce_bypass`, `coalesce_bypass_error`, `l2_miss`, `l2_get_error`) it is the literal string `n/a`. A rising `hit`/`4xx` or `hit`/`5xx` series indicates the cache is serving an error response as a hit — investigate the upstream response and cache-control directives for that route. Cardinality is bounded by the number of distinct (result, code_class) pairs actually emitted.
+- `skipper_cache_lru_bytes{route="..."}` - Gauge for per-route LRU (L1) cache storage consumption in bytes, updated on every hit, miss, and stale serve. Cardinality bounded by the number of distinct routes.
+- The flat-key counters `skipper_custom_total{key="cache.hit"}`, `cache.miss`, `cache.stale`, and the rest of the `cache.*` keys above are the primary, directly-emitted metrics — `skipper_cache_result_total`/`skipper_cache_lru_bytes` are an additional labeled breakdown of the same underlying events, not a replacement for them.
+
 You may add static metrics labels like `version` using Prometheus [relabeling feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config).
 
 ### Prometheus native histograms
@@ -2123,6 +2131,9 @@ flowchart TD
   it performed its own fetch instead of reusing another request's in-flight response
 - `cache.coalesce_bypass_error`: Counter, an independent bypass fetch (see
   `cache.coalesce_bypass`) returned an error
+- `cache.coalesce_wait_duration`: Histogram, time from issuing a cold-miss singleflight
+  call to the result being available — near-zero for the leader (it computes the result
+  itself), the leader's real fetch time for followers waiting on it
 
 **LRU (always active):**
 
@@ -2150,7 +2161,10 @@ flowchart TD
 - `cache.l2_get_error`: Counter, L2 Get errors — request treated as a cache miss, fetched from origin
 - `cache.l2_set_fallback`: Counter, L2 Set errors — entry written to L1 only (not L2)
 - `cache.l2_hit`: Counter, successful L2 Get (entry returned from L2); L1 is warmed as a side-effect when `--cache-l1-ttl > 0`
+- `cache.l2_get_duration`: Histogram, time of the underlying Valkey/Redis `Get` round-trip, on every call (hit, miss, or error) — including internal lookups like the Vary-sentinel check
+- `cache.l2_set_duration`: Histogram, time of the underlying Valkey/Redis `SetWithExpire` round-trip, on every call (success or fallback)
 - `cache.storage_error`: Counter, any storage operation (Set or Delete) failed — covers both L2 failures and L1 eviction-path errors; the request is still served correctly
+- `skipper_cache_storage_error_total{backend="l1|l2", op="get|set|delete"}`: Counter, labeled breakdown of storage errors by backend and operation, attributed at the point in `LRUStorage`/`L2Storage` where the backend is actually known. Also increments the flat `cache.storage_error` counter above and the labeled `skipper_cache_result_total{result="storage_error",code_class="n/a"}`, so existing consumers of either see no change — this is purely an additional breakdown. `backend="l2", op="delete"` always reports the real underlying failure, since `L2Storage.Delete` only ever returns `nil` to its caller regardless of whether the Valkey delete succeeded (L1 delete always runs); a generic `Storage.Set`/`Storage.Delete` failure from code that isn't `LRUStorage` or `L2Storage` (e.g. a test double) cannot be attributed and records nothing here.
 
 **OpenTracing span tags (set on every request when a span is active):**
 
