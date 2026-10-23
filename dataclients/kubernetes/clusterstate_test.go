@@ -101,7 +101,7 @@ func makeSkipperEndpointSlice(zoneCounts map[string]int) *skipperEndpointSlice {
 	return eps
 }
 
-func TestIngressControllerDistributedAcrossZones(t *testing.T) {
+func TestIsServiceBalancedAcrossZones(t *testing.T) {
 	const (
 		ns   = DefaultIngressControllerNamespace
 		name = DefaultIngressControllerName
@@ -239,9 +239,9 @@ func TestIngressControllerDistributedAcrossZones(t *testing.T) {
 				endpointSlices:       endpointSlices,
 			}
 
-			got := state.ingressControllerDistributedAcrossZones(lookupNS, lookupName, tt.maxZoneSkew)
+			got := state.isServiceBalancedAcrossZones(lookupNS, lookupName, tt.maxZoneSkew)
 			if got != tt.want {
-				t.Errorf("ingressControllerDistributedAcrossZones(%q, %q, %d) = %v, want %v",
+				t.Errorf("isServiceBalancedAcrossZones(%q, %q, %d) = %v, want %v",
 					lookupNS, lookupName, tt.maxZoneSkew, got, tt.want)
 			}
 		})

@@ -10,8 +10,8 @@ func SetNow(rs *RouteServer, now func() time.Time) {
 	rs.poller.b.now = now
 }
 
-func SetDistributed(rs *RouteServer, v bool) {
-	rs.poller.isIngressControllerDistributedAcrossZones = func() bool { return v }
+func SetBalancedAcrossZones(rs *RouteServer, v bool) {
+	rs.poller.isIngressControllerBalancedAcrossZones = func() bool { return v }
 }
 
 func (rs *RouteServer) ListenAndServe() (err error) {

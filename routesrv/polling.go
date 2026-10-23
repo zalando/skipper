@@ -42,9 +42,9 @@ type poller struct {
 	cloneRoute     []*eskip.Clone
 
 	// visibility
-	tracer                                    ot.Tracer
-	metrics                                   metrics.Metrics
-	isIngressControllerDistributedAcrossZones func() bool
+	tracer                                 ot.Tracer
+	metrics                                metrics.Metrics
+	isIngressControllerBalancedAcrossZones func() bool
 }
 
 func (p *poller) poll(wg *sync.WaitGroup) {
@@ -56,9 +56,9 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 	p.setGaugeToCurrentTime("polling_started_timestamp")
 
 	var (
-		lastRoutesByID  map[string]string
-		lastRoutes      []*eskip.Route
-		lastDistributed bool
+		lastRoutesByID map[string]string
+		lastRoutes     []*eskip.Route
+		lastBalanced   bool
 	)
 
 	for {
@@ -76,13 +76,13 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			)
 
 		} else {
-			distributed := p.isIngressControllerDistributedAcrossZones()
+			balanced := p.isIngressControllerBalancedAcrossZones()
 			routesChanged := hasChanged(lastRoutes, routes)
-			distributedChanged := distributed != lastDistributed
+			balancedChanged := balanced != lastBalanced
 
-			if routesChanged || distributedChanged {
+			if routesChanged || balancedChanged {
 				lastRoutes = routes
-				lastDistributed = distributed
+				lastBalanced = balanced
 
 				routes = p.process(routes)
 				routesCount := len(routes)
@@ -93,7 +93,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 					p.handleEmptyRoutes()
 				case routesCount > 0:
 					var zoneAwareRoutes map[string][]*eskip.Route
-					if distributed {
+					if balanced {
 						zoneAwareRoutes = filterRoutesByZone(routes)
 					} else {
 						log.Debug("skipper not covering all zones, falling back to global routing table")
