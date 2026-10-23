@@ -46,6 +46,8 @@ const (
 
 	// Deprecated: The host of the Azure Active Directory (AAD) graph API
 	azureADGraphHost = "graph.windows.net"
+
+	oidcInvalidTokenMetric = "oidc.token.invalid"
 )
 
 var (
@@ -1051,7 +1053,9 @@ func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthSta
 
 	stateQueryPlain, err := f.encrypter.Decrypt(stateQueryEnc)
 	if err != nil {
-		// TODO: Implement metrics counter for number of incorrect tokens
+		if m := ctx.Metrics(); m != nil {
+			m.IncCounter(oidcInvalidTokenMetric)
+		}
 		return nil, requestErrorf("token from state query is invalid: %v", err)
 	}
 
