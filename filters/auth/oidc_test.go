@@ -30,6 +30,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -1158,6 +1159,51 @@ func TestCreateFilterOIDCWithSecretRefCredentials(t *testing.T) {
 	f, err := spec.CreateFilter(args)
 	assert.NoError(t, err)
 	assert.NotNil(t, f)
+}
+
+func TestOIDCSecretRefClientSecretIsReloaded(t *testing.T) {
+	oidcServer := createOIDCServer("", "", "", nil, nil)
+	defer oidcServer.Close()
+
+	sr := mapSecretsReader{
+		"/oidc/client-id":     []byte("valid-client"),
+		"/oidc/client-secret": []byte("v1"),
+	}
+
+	spec := NewOAuthOidcAnyClaimsWithOptions("/foo", secrettest.NewTestRegistry(), OidcOptions{SecretsReader: sr}).(*tokenOidcSpec)
+
+	f, err := spec.CreateFilter([]any{
+		oidcServer.URL,
+		"secretRef:/oidc/client-id",
+		"secretRef:/oidc/client-secret",
+		oidcServer.URL + "/redirect",
+		"",
+		"",
+	})
+	require.NoError(t, err)
+
+	filter := f.(*tokenOidcFilter)
+	assert.Equal(t, "v1", filter.oauth2Config().ClientSecret)
+
+	sr["/oidc/client-secret"] = []byte("v2")
+	assert.Equal(t, "v2", filter.oauth2Config().ClientSecret)
+	assert.Equal(t, "v1", filter.config.ClientSecret)
+
+	delete(sr, "/oidc/client-secret")
+	assert.Equal(t, "v1", filter.oauth2Config().ClientSecret)
+}
+
+func TestOIDCLiteralClientSecretIsNotReloaded(t *testing.T) {
+	oidcServer := createOIDCServer("", "", "", nil, nil)
+	defer oidcServer.Close()
+
+	spec := NewOAuthOidcAnyClaimsWithOptions("/foo", secrettest.NewTestRegistry(), OidcOptions{SecretsReader: mapSecretsReader{}}).(*tokenOidcSpec)
+
+	f, err := spec.CreateFilter([]any{oidcServer.URL, "valid-client", "static", oidcServer.URL + "/redirect", "", ""})
+	require.NoError(t, err)
+
+	filter := f.(*tokenOidcFilter)
+	assert.Same(t, filter.config, filter.oauth2Config())
 }
 
 func TestCreateFilterOIDCWithSecretRefMissingSecretFails(t *testing.T) {

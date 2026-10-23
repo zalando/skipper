@@ -119,6 +119,7 @@ type (
 	tokenOidcFilter struct {
 		typ                  roleCheckType
 		config               *oauth2.Config
+		clientSecretRef      string
 		provider             *oidc.Provider
 		verifier             *oidc.IDTokenVerifier
 		claims               []string
@@ -305,14 +306,19 @@ func (s *tokenOidcSpec) CreateFilter(args []any) (filters.Filter, error) {
 	if oidcClientSecret == "" {
 		oidcClientSecret = s.options.OidcClientSecret
 	}
+	clientSecretRef, _ := strings.CutPrefix(oidcClientSecret, oidcSecretRefPrefix)
+	if clientSecretRef == oidcClientSecret {
+		clientSecretRef = ""
+	}
 	oidcClientSecret, err = s.resolveClientCredential(oidcClientSecret)
 	if err != nil {
 		return nil, err
 	}
 
 	f := &tokenOidcFilter{
-		typ:          s.typ,
-		redirectPath: redirectURL.Path,
+		typ:             s.typ,
+		redirectPath:    redirectURL.Path,
+		clientSecretRef: clientSecretRef,
 		config: &oauth2.Config{
 			ClientID:     oidcClientId,
 			ClientSecret: oidcClientSecret,
@@ -1073,6 +1079,24 @@ func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthSta
 	return state, nil
 }
 
+// oauth2Config returns the oauth2 config of the filter. A client secret
+// configured via secretRef is looked up on every call, such that a rotated
+// secret is used without recreating the filter.
+func (f *tokenOidcFilter) oauth2Config() *oauth2.Config {
+	if f.clientSecretRef == "" {
+		return f.config
+	}
+
+	b, ok := f.oidcOptions.SecretsReader.GetSecret(f.clientSecretRef)
+	if !ok || len(b) == 0 || string(b) == f.config.ClientSecret {
+		return f.config
+	}
+
+	c := *f.config
+	c.ClientSecret = string(b)
+	return &c
+}
+
 func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.FilterContext) (*oauth2.Token, error) {
 	r := ctx.Request()
 	if state.Validity < time.Now().Unix() {
@@ -1094,7 +1118,7 @@ func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.Fi
 	// https://openid.net/specs/openid-connect-core-1_0.html#CodeFlowSteps
 	// 6. Client requests a response using the Authorization Code at the Token Endpoint.
 	// 7. Client receives a response that contains an ID Token and Access Token in the response body.
-	oauth2Token, err := f.config.Exchange(r.Context(), code, exchangeOpts...)
+	oauth2Token, err := f.oauth2Config().Exchange(r.Context(), code, exchangeOpts...)
 	if err != nil {
 		// error coming from an external library and the possible error reasons are
 		// not documented explicitly, so we assume that the cause is always rooted
