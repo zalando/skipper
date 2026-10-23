@@ -91,7 +91,7 @@ func TestCacheFilter_BypassBodyReadError(t *testing.T) {
 	bad := &bypassFailingBody{}
 	f.fetch = func(*http.Request) (*http.Response, error) {
 		joined.Wait()
-		var body io.ReadCloser = io.NopCloser(strings.NewReader("leader"))
+		body := io.NopCloser(strings.NewReader("leader"))
 		if calls.Add(1) > 1 {
 			body = bad
 		}
