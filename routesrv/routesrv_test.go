@@ -1140,7 +1140,7 @@ func TestRoutesWithZone(t *testing.T) {
 				KubernetesURL:                  ks.URL,
 				KubernetesEnableEndpointslices: true,
 			})
-
+			routesrv.SetBalancedAcrossZones(rs, true)
 			rs.StartUpdates()
 			defer rs.StopUpdates()
 
@@ -1175,7 +1175,7 @@ func TestEtagWithZoneAwareRoutingFallback(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
-
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 
@@ -1230,7 +1230,7 @@ func TestZoneAwareRoutesGzip(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
-
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 
@@ -1279,6 +1279,7 @@ func TestZoneAwareXCount(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1311,6 +1312,7 @@ func TestZoneAwareEtag(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1354,6 +1356,7 @@ func TestZoneAwareConditionalGetEtag(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1401,6 +1404,7 @@ func TestZoneAwareConditionalGetLastModified(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1438,6 +1442,7 @@ func TestZoneAwareFallbackToAllRoutesWhenBelowThreshold(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1464,6 +1469,357 @@ func TestZoneAwareFallbackToAllRoutesWhenBelowThreshold(t *testing.T) {
 	assert.Equal(t, fullCount, gzipResp.Header().Get(routing.RoutesCountName))
 }
 
+// TestZoneAwareRoutesNotServedWhenNotDistributed verifies that when the ingress
+// controller is not distributed across enough zones, /routes/{zone} falls back
+// to the global routing table — identical to /routes.
+func TestZoneAwareRoutesNotServedWhenNotDistributed(t *testing.T) {
+	defer tl.Reset()
+
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+	routesrv.SetBalancedAcrossZones(rs, false)
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	// /routes returns the full unfiltered table
+	fullResp := getRoutes(rs)
+	require.Equal(t, http.StatusOK, fullResp.Code)
+
+	// /routes/{zone} must return the same body as /routes — no zone filtering
+	zoneResp := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, zoneResp.Code)
+
+	fullRoutes := eskip.MustParse(fullResp.Body.String())
+	zoneRoutes := eskip.MustParse(zoneResp.Body.String())
+	assert.True(t, eskip.EqLists(fullRoutes, zoneRoutes), "zone response must equal global response when not distributed")
+
+	// X-Count must also match
+	assert.Equal(t,
+		fullResp.Header().Get(routing.RoutesCountName),
+		zoneResp.Header().Get(routing.RoutesCountName),
+		"X-Count must match global count when not distributed",
+	)
+
+	// same for gzip
+	gzipZoneResp := getZoneAwareRoutesGzip(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, gzipZoneResp.Code)
+	gotGzip, err := eskip.Parse(string(decompressGzip(t, gzipZoneResp.Body)))
+	require.NoError(t, err)
+	assert.True(t, eskip.EqLists(fullRoutes, gotGzip), "gzip zone response must also equal global response when not distributed")
+}
+
+// TestZoneAwareRoutesUpdateOnBalanceTransitionAlone verifies that flipping the
+// ingress-controller balanced-across-zones state alone (no underlying route
+// change) still triggers a republish: the global /routes table must stay
+// byte-identical, but /routes/{zone} must switch from the global fallback to
+// the zone-filtered view.
+func TestZoneAwareRoutesUpdateOnBalanceTransitionAlone(t *testing.T) {
+	defer tl.Reset()
+
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+	routesrv.SetBalancedAcrossZones(rs, false) // start NOT balanced
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	globalBefore := getRoutes(rs)
+	require.Equal(t, http.StatusOK, globalBefore.Code)
+	zoneBefore := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, zoneBefore.Code)
+
+	// not balanced -> /routes/{zone} must equal /routes (global fallback)
+	assert.Equal(t, globalBefore.Body.String(), zoneBefore.Body.String(),
+		"zone response must equal global response while not balanced")
+
+	// flip balance state WITHOUT changing any kubernetes fixture / routes
+	routesrv.SetBalancedAcrossZones(rs, true)
+
+	// a second LogRoutesUpdated must fire even though the underlying
+	// kubernetes routes never changed
+	require.NoError(t, tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout))
+
+	globalAfter := getRoutes(rs)
+	require.Equal(t, http.StatusOK, globalAfter.Code)
+	zoneAfter := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, zoneAfter.Code)
+
+	// global table is unchanged
+	assert.Equal(t, globalBefore.Body.String(), globalAfter.Body.String(),
+		"global routes must not change when only the balance state changes")
+
+	// but the zone-specific view must now differ from global (zone filtering kicked in)
+	assert.NotEqual(t, globalAfter.Body.String(), zoneAfter.Body.String(),
+		"zone response must diverge from global once balanced across zones")
+
+	assert.True(t, zoneAfter.Header().Get("X-Zone-Aware") == "true", "header should be set when we serve zone aware traffic")
+}
+
+// TestZoneAwareRoutingEndToEndWithRealEndpointSlice exercises the real
+// fetchClusterState -> isServiceBalancedAcrossZones ->
+// IsIngressControllerBalancedAcrossZones -> poller pipeline, with no
+// SetBalancedAcrossZones mock, using real EndpointSlice fixtures for the
+// ingress controller (skipper-ingress) itself. It also proves the backend
+// service's own zone distribution (per-route, minEndpointsByZone threshold)
+// and the ingress-controller's cluster-wide balance gate are independent
+// mechanisms that don't interfere with each other.
+func TestZoneAwareRoutingEndToEndWithRealEndpointSlice(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		backendFixture   string
+		ingressFixture   string
+		enableEPSlices   bool
+		wantZoneFiltered bool
+	}{
+		{
+			name:             "balanced",
+			backendFixture:   "all-zones-3-addr.yaml",
+			ingressFixture:   "skipper-ingress-balanced.yaml",
+			enableEPSlices:   true,
+			wantZoneFiltered: true,
+		},
+		{
+			name:             "ingressSkewed",
+			backendFixture:   "all-zones-3-addr.yaml",
+			ingressFixture:   "skipper-ingress-skewed.yaml",
+			enableEPSlices:   true,
+			wantZoneFiltered: false,
+		},
+		{
+			name:             "ingressMissingZone",
+			backendFixture:   "all-zones-3-addr.yaml",
+			ingressFixture:   "skipper-ingress-missing-zone.yaml",
+			enableEPSlices:   true,
+			wantZoneFiltered: false,
+		},
+		{
+			name:             "backend imbalanced",
+			backendFixture:   "all-zones-2-addr.yaml",
+			ingressFixture:   "skipper-ingress-balanced.yaml",
+			enableEPSlices:   true,
+			wantZoneFiltered: false,
+		},
+		{
+			name:             "both unbalanced",
+			backendFixture:   "all-zones-2-addr.yaml",
+			ingressFixture:   "skipper-ingress-skewed.yaml",
+			enableEPSlices:   true,
+			wantZoneFiltered: false,
+		},
+		{
+			name:             "endpointslices disabled",
+			backendFixture:   "all-zones-3-addr.yaml",
+			ingressFixture:   "skipper-ingress-balanced.yaml",
+			enableEPSlices:   false,
+			wantZoneFiltered: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			defer tl.Reset()
+			ks, _ := newKubeServer(t,
+				loadKubeYAML(t, "testdata/zone-aware-traffic/"+tc.backendFixture),
+				loadKubeYAML(t, "testdata/zone-aware-traffic/"+tc.ingressFixture),
+			)
+			ks.Start()
+			defer ks.Close()
+
+			rs := newRouteServerWithOptions(t, skipper.Options{
+				SourcePollTimeout:              pollInterval,
+				Kubernetes:                     true,
+				KubernetesURL:                  ks.URL,
+				KubernetesEnableEndpointslices: tc.enableEPSlices,
+			})
+			rs.StartUpdates()
+			defer rs.StopUpdates()
+			require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+			global := getRoutes(rs)
+			require.Equal(t, http.StatusOK, global.Code)
+			zone := getZoneAwareRoutes(rs, "eu-central-1a")
+			require.Equal(t, http.StatusOK, zone.Code)
+
+			if tc.wantZoneFiltered {
+				assert.NotEqual(t, global.Body.String(), zone.Body.String(),
+					"expected zone-filtered response to diverge from global")
+			} else {
+				assert.Equal(t, global.Body.String(), zone.Body.String(),
+					"expected fallback to global routes")
+			}
+		})
+	}
+}
+
+// TestZoneAwareRoutingBackendImbalanceDoesNotCloseGate verifies that a
+// backend service with fewer than minEndpointsByZone endpoints per zone
+// still falls back to all its own endpoints for that route (the existing,
+// independent per-route mechanism), while the ingress-controller balance
+// gate itself stays open: /routes/{zone} is still served as the zone-aware
+// endpoint, it just happens to equal the all-endpoints fallback for this
+// particular route.
+func TestZoneAwareRoutingBackendImbalanceDoesNotCloseGate(t *testing.T) {
+	defer tl.Reset()
+
+	ks, _ := newKubeServer(t,
+		loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-2-addr.yaml"),
+		loadKubeYAML(t, "testdata/zone-aware-traffic/skipper-ingress-balanced.yaml"),
+	)
+	ks.Start()
+	defer ks.Close()
+
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	zoneResp := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, zoneResp.Code)
+
+	got, err := eskip.Parse(zoneResp.Body.String())
+	require.NoError(t, err)
+	want := parseEskipFixture(t, "testdata/zone-aware-traffic/all-zones-2-addr.eskip")
+	assert.True(t, eskip.EqLists(got, want),
+		"route with <3 endpoints/zone must still carry all its own endpoints even though ingress controller is balanced")
+}
+
+// TestZoneAwareRoutingUsesConfiguredIngressControllerNamespaceAndName verifies
+// that KubernetesIngressControllerNamespace/KubernetesIngressControllerName
+// flow through skipper.Options -> kubernetes.Options -> newClusterClient and
+// are actually used to look up the ingress-controller EndpointSlice, instead
+// of silently falling back to the kube-system/skipper-ingress defaults.
+func TestZoneAwareRoutingUsesConfiguredIngressControllerNamespaceAndName(t *testing.T) {
+	defer tl.Reset()
+
+	ks, _ := newKubeServer(t,
+		loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"),
+		loadKubeYAML(t, "testdata/zone-aware-traffic/custom-ingress-controller-balanced.yaml"),
+	)
+	ks.Start()
+	defer ks.Close()
+
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:                    pollInterval,
+		Kubernetes:                           true,
+		KubernetesURL:                        ks.URL,
+		KubernetesEnableEndpointslices:       true,
+		KubernetesIngressControllerNamespace: "custom-ns",
+		KubernetesIngressControllerName:      "my-custom-ingress",
+	})
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	global := getRoutes(rs)
+	require.Equal(t, http.StatusOK, global.Code)
+	zone := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, zone.Code)
+	assert.NotEqual(t, global.Body.String(), zone.Body.String(),
+		"configured namespace/name must be used to find the ingress controller endpointslice")
+}
+
+// TestZoneAwareRoutingUsesConfiguredMaxZoneSkew verifies that
+// KubernetesZoneMaxSkew flows through to the real balance check: a skew that
+// the default (1) would reject must be tolerated once configured explicitly.
+func TestZoneAwareRoutingUsesConfiguredMaxZoneSkew(t *testing.T) {
+	defer tl.Reset()
+
+	ks, _ := newKubeServer(t,
+		loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"),
+		loadKubeYAML(t, "testdata/zone-aware-traffic/skipper-ingress-skewed.yaml"), // skew=2
+	)
+	ks.Start()
+	defer ks.Close()
+
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesEnableEndpointslices: true,
+		KubernetesZoneMaxSkew:          2, // default of 1 would reject this fixture's skew of 2
+	})
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	global := getRoutes(rs)
+	require.Equal(t, http.StatusOK, global.Code)
+	zone := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, zone.Code)
+	assert.NotEqual(t, global.Body.String(), zone.Body.String(),
+		"configured MaxZoneSkew=2 must tolerate a skew of 2 that the default of 1 would reject")
+}
+
+// TestZoneAwareRoutingReactsToRealEndpointSliceChange proves that
+// fetchClusterState recomputes the ingress-controller balance gate fresh on
+// every poll against live data, not just that a mocked flip propagates
+// (see TestZoneAwareRoutesUpdateOnBalanceTransitionAlone). The ingress
+// controller's own EndpointSlice is mutated mid-run via the same
+// handler.set(...) pattern used for route changes elsewhere in this file.
+func TestZoneAwareRoutingReactsToRealEndpointSliceChange(t *testing.T) {
+	defer tl.Reset()
+
+	ks, handler := newKubeServer(t,
+		loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"),
+		loadKubeYAML(t, "testdata/zone-aware-traffic/skipper-ingress-skewed.yaml"), // start skewed
+	)
+	ks.Start()
+	defer ks.Close()
+
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
+		KubernetesURL:                  ks.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	globalBefore := getRoutes(rs)
+	require.Equal(t, http.StatusOK, globalBefore.Code)
+	zoneBefore := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, zoneBefore.Code)
+	assert.Equal(t, globalBefore.Body.String(), zoneBefore.Body.String(),
+		"skewed skipper-ingress must start in global fallback")
+
+	// mutate the REAL kubernetes API data: skewed -> balanced, no mock involved
+	handler.set(newKubeAPI(t,
+		loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"),
+		loadKubeYAML(t, "testdata/zone-aware-traffic/skipper-ingress-balanced.yaml"),
+	))
+
+	require.NoError(t, tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout))
+
+	globalAfter := getRoutes(rs)
+	require.Equal(t, http.StatusOK, globalAfter.Code)
+	zoneAfter := getZoneAwareRoutes(rs, "eu-central-1a")
+	require.Equal(t, http.StatusOK, zoneAfter.Code)
+
+	assert.Equal(t, globalBefore.Body.String(), globalAfter.Body.String(),
+		"global routes must be unaffected by the ingress-controller endpointslice becoming balanced")
+	assert.NotEqual(t, globalAfter.Body.String(), zoneAfter.Body.String(),
+		"zone response must diverge from global once the real endpointslice becomes balanced")
+}
+
 func TestXCountShouldBeSameForZoneAwareAndZoneUnawareRoutes(t *testing.T) {
 	defer tl.Reset()
 
@@ -1477,6 +1833,7 @@ func TestXCountShouldBeSameForZoneAwareAndZoneUnawareRoutes(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))

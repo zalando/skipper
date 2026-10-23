@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -56,6 +57,7 @@ type eskipBytes struct {
 	mu               sync.RWMutex
 	hash             string
 	zoneHash         map[string]string
+	zoneMapHash      string
 	lastModified     time.Time
 	zoneLastModified map[string]time.Time
 	initialized      bool
@@ -71,23 +73,62 @@ type eskipBytes struct {
 	now     func() time.Time
 }
 
+// computeZoneMapHash returns a deterministic hash over the zone-aware routing
+// table. An empty or nil map returns an empty string. Zones are sorted before
+// hashing to guarantee stability regardless of map iteration order.
+func computeZoneMapHash(zoneAwareRoutes map[string][]*eskip.Route) string {
+	if len(zoneAwareRoutes) == 0 {
+		return ""
+	}
+	zones := make([]string, 0, len(zoneAwareRoutes))
+	for z := range zoneAwareRoutes {
+		zones = append(zones, z)
+	}
+	sort.Strings(zones)
+
+	h := sha256.New()
+	buf := &bytes.Buffer{}
+	for _, z := range zones {
+		buf.Reset()
+		eskip.Fprint(buf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, zoneAwareRoutes[z]...)
+		h.Write([]byte(z))
+		h.Write(buf.Bytes())
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
 // formatAndSet takes a slice of routes and stores them eskip-formatted
 // in a synchronized way. It returns the length of the stored data, and
 // flags signaling whether the data was initialized and updated.
+// An update is triggered when either the global routes hash or the zone
+// map hash differs from the previously stored value, so a change in zone
+// topology alone (without route changes) is detected independently.
 func (e *eskipBytes) formatAndSet(routes []*eskip.Route, zoneAwareRoutes map[string][]*eskip.Route) (_ int, _ string, initialized bool, updated bool) {
 
 	buf := &bytes.Buffer{}
 	eskip.Fprint(buf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
 	data := buf.Bytes()
 
+	newZoneMapHash := computeZoneMapHash(zoneAwareRoutes)
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	hash := fmt.Sprintf("%x", sha256.Sum256(data))
-	updated = hash != e.hash
+	globalUpdated := hash != e.hash
 
-	if updated {
-		now := e.now()
+	now := e.now()
+
+	if globalUpdated {
+		e.lastModified = now
+		e.hash = hash
+		e.count = len(routes)
+		e.zdata = e.compressLocked(data)
+	}
+
+	zoneUpdated := newZoneMapHash != e.zoneMapHash
+
+	if zoneUpdated {
 		e.zoneDataCompressed, e.zoneCount = make(map[string][]byte), make(map[string]int)
 		e.zoneHash = make(map[string]string)
 		e.zoneLastModified = make(map[string]time.Time)
@@ -100,15 +141,14 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route, zoneAwareRoutes map[str
 			e.zoneHash[zone] = fmt.Sprintf("%x", sha256.Sum256(zoneData))
 			e.zoneCount[zone] = len(routes)
 		}
-		e.lastModified = now
-		e.zdata = e.compressLocked(data)
-		e.hash = hash
-		e.count = len(routes)
+		e.zoneMapHash = newZoneMapHash
+
 	}
+
 	initialized = !e.initialized
 	e.initialized = true
 
-	return len(data), e.hash, initialized, updated
+	return len(data), e.hash, initialized, globalUpdated || zoneUpdated
 }
 
 // compressLocked compresses the data with gzip and returns
@@ -179,6 +219,7 @@ func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			count = e.zoneCount[zone]
 			hash = e.zoneHash[zone]
 			lastModified = e.zoneLastModified[zone]
+			w.Header().Set("X-Zone-Aware", "true")
 		}
 	}
 

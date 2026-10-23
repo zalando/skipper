@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"sync"
 
@@ -21,6 +22,43 @@ type clusterState struct {
 	cachedEndpoints      map[endpointID][]string
 	cachedEndpointSlices map[endpointID][]skipperEndpoint
 	enableEndpointSlices bool
+}
+
+func (state *clusterState) isServiceBalancedAcrossZones(namespace, name string, maxZoneSkew int) bool {
+	if !state.enableEndpointSlices {
+		return false
+	}
+
+	eps, ok := state.endpointSlices[newResourceID(namespace, name)]
+	if !ok {
+		log.Errorf("endpointslice %s/%s not found; cannot determine zone balance", namespace, name)
+		return false
+	}
+
+	zoneCounts := map[string]int{}
+	for _, ep := range eps.Endpoints {
+		if ep.Zone != "" {
+			zoneCounts[ep.Zone]++
+		}
+	}
+
+	if len(zoneCounts) < minZones {
+		return false
+	}
+
+	globalMin := math.MaxInt
+	for _, count := range zoneCounts {
+		if count < globalMin {
+			globalMin = count
+		}
+	}
+
+	for _, count := range zoneCounts {
+		if count-globalMin > maxZoneSkew {
+			return false
+		}
+	}
+	return true
 }
 
 func (state *clusterState) getService(namespace, name string) (*service, error) {

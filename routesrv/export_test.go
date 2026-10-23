@@ -10,6 +10,10 @@ func SetNow(rs *RouteServer, now func() time.Time) {
 	rs.poller.b.now = now
 }
 
+func SetBalancedAcrossZones(rs *RouteServer, v bool) {
+	rs.poller.isIngressControllerBalancedAcrossZones = func() bool { return v }
+}
+
 func (rs *RouteServer) ListenAndServe() (err error) {
 	if tlsConfig := rs.server.TLSConfig; tlsConfig != nil {
 		if err = rs.server.ListenAndServeTLS("", ""); err != http.ErrServerClosed {

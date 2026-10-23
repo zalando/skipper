@@ -80,6 +80,42 @@ func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 	}
 }
 
+func TestNewRejectsNegativeMaxZoneSkew(t *testing.T) {
+	skew := -1
+	_, err := kubernetes.New(kubernetes.Options{MaxZoneSkew: &skew})
+	assert.Error(t, err, "expected an error for negative zone skew")
+	assert.ErrorContains(t, err, "MaxZoneSkew")
+}
+
+func TestMissingIngressControllerEndpointSliceLoggedEveryPoll(t *testing.T) {
+	a, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{})
+	require.NoError(t, err)
+
+	s := httptest.NewServer(a)
+	defer s.Close()
+
+	var logBuf bytes.Buffer
+	log.SetOutput(&logBuf)
+	defer log.SetOutput(os.Stderr)
+
+	c, err := kubernetes.New(kubernetes.Options{
+		KubernetesURL:                  s.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+	require.NoError(t, err)
+	defer c.Close()
+
+	const pollCount = 3
+	for range pollCount {
+		_, err := c.LoadAll()
+		require.NoError(t, err)
+	}
+
+	const wantMessage = "endpointslice kube-system/skipper-ingress not found; cannot determine zone balance"
+
+	assert.True(t, containsCount(logBuf.String(), wantMessage, pollCount), "expected %q to be logged exactly %d times, log output:\n%s", wantMessage, pollCount, logBuf.String())
+}
+
 func TestLoadRouteGroups(t *testing.T) {
 
 	for _, tt := range []struct {

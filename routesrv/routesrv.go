@@ -180,16 +180,17 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	}
 
 	rs.poller = &poller{
-		client:         dataclient,
-		timeout:        opts.SourcePollTimeout,
-		b:              b,
-		quit:           make(chan struct{}),
-		defaultFilters: opts.DefaultFilters,
-		editRoute:      opts.EditRoute,
-		cloneRoute:     opts.CloneRoute,
-		oauth2Config:   oauthConfig,
-		tracer:         tracer,
-		metrics:        m,
+		client:                                 dataclient,
+		timeout:                                opts.SourcePollTimeout,
+		b:                                      b,
+		quit:                                   make(chan struct{}),
+		defaultFilters:                         opts.DefaultFilters,
+		editRoute:                              opts.EditRoute,
+		cloneRoute:                             opts.CloneRoute,
+		oauth2Config:                           oauthConfig,
+		tracer:                                 tracer,
+		metrics:                                m,
+		isIngressControllerBalancedAcrossZones: dataclient.ClusterClient.IsIngressControllerBalancedAcrossZones,
 	}
 
 	rs.wg = &sync.WaitGroup{}

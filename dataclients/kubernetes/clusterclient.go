@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -81,9 +82,13 @@ type clusterClient struct {
 	enableEndpointSlices bool
 	listChunkSize        int
 
-	loggedMissingRouteGroups bool
-	routeGroupValidator      *definitions.RouteGroupValidator
-	ingressValidator         *definitions.IngressV1Validator
+	loggedMissingRouteGroups   bool
+	routeGroupValidator        *definitions.RouteGroupValidator
+	ingressValidator           *definitions.IngressV1Validator
+	balancedAcrossZones        atomic.Bool
+	ingressControllerNamespace string
+	ingressControllerName      string
+	maxZoneSkew                int
 }
 
 var (
@@ -182,6 +187,27 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		listChunkSize:                o.KubernetesListChunkSize,
 		zone:                         o.TopologyZone,
 		ingressStatusFromService:     o.IngressStatusFromService,
+	}
+
+	ns := o.IngressControllerNamespace
+	if ns == "" {
+		ns = DefaultIngressControllerNamespace
+	}
+	c.ingressControllerNamespace = ns
+
+	name := o.IngressControllerName
+	if name == "" {
+		name = DefaultIngressControllerName
+	}
+	c.ingressControllerName = name
+
+	if o.MaxZoneSkew != nil {
+		if *o.MaxZoneSkew < 0 {
+			return nil, fmt.Errorf("invalid MaxZoneSkew %d: must be >= 0", *o.MaxZoneSkew)
+		}
+		c.maxZoneSkew = *o.MaxZoneSkew
+	} else {
+		c.maxZoneSkew = DefaultMaxZoneSkew
 	}
 
 	if o.KubernetesInCluster {
@@ -750,7 +776,13 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		log.Errorf("failed to update ingress status: %v", err)
 	}
 
+	c.balancedAcrossZones.Store(state.isServiceBalancedAcrossZones(c.ingressControllerNamespace, c.ingressControllerName, c.maxZoneSkew))
+
 	return state, nil
+}
+
+func (c *clusterClient) IsIngressControllerBalancedAcrossZones() bool {
+	return c.balancedAcrossZones.Load()
 }
 
 func parseNamespaceName(resource string) (string, string, error) {

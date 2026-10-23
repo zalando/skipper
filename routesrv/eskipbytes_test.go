@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 )
 
@@ -101,4 +103,41 @@ func BenchmarkFormatAndSetNoChange(b *testing.B) {
 	for b.Loop() {
 		e.formatAndSet(routes, zoneAware)
 	}
+}
+
+// TestFormatAndSetDetectsZoneOnlyChange verifies that formatAndSet reports
+// updated == true when only the zone map changes (global routes identical),
+// and also when only the global routes change (zone map identical)
+func TestFormatAndSetDetectsZoneOnlyChange(t *testing.T) {
+	e := &eskipBytes{now: time.Now}
+	routes := []*eskip.Route{{Id: "r1"}}
+	zoneA := map[string][]*eskip.Route{"z1": {{Id: "r1"}}}
+
+	_, _, initialized, updated := e.formatAndSet(routes, zoneA)
+	require.True(t, initialized, "initialized should be true after fresh start")
+	require.True(t, updated, "updated should be true after fresh start")
+
+	// same global routes, same zone map -> no update
+	_, _, initialized, updated = e.formatAndSet(routes, zoneA)
+	require.False(t, initialized, "initialized should be false with no change")
+	require.False(t, updated, "updated should be false with no change")
+
+	// same global routes, DIFFERENT zone map -> updated must be true
+	zoneB := map[string][]*eskip.Route{"z1": {{Id: "r1"}}, "z2": {{Id: "r1"}}}
+	_, _, initialized, updated = e.formatAndSet(routes, zoneB)
+	assert.False(t, initialized, "should always be false after first call")
+	assert.True(t, updated, "should be true when zone only routes change")
+
+	// DIFFERENT global routes, same zone map -> updated must be true
+	routes2 := []*eskip.Route{{Id: "r2"}}
+	_, _, initialized, updated = e.formatAndSet(routes2, zoneB)
+	assert.False(t, initialized, "should always be false after first call")
+	assert.True(t, updated, "should be true when global only routes change")
+
+	// also true when both changes
+	routes3 := []*eskip.Route{{Id: "r3"}}
+	zoneC := map[string][]*eskip.Route{"z1": {{Id: "r1"}}, "z3": {{Id: "r1"}}}
+	_, _, initialized, updated = e.formatAndSet(routes3, zoneC)
+	assert.False(t, initialized, "should always be false after first call")
+	assert.True(t, updated, "should be true when global only routes change")
 }
