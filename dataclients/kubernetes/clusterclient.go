@@ -85,7 +85,7 @@ type clusterClient struct {
 	loggedMissingRouteGroups   bool
 	routeGroupValidator        *definitions.RouteGroupValidator
 	ingressValidator           *definitions.IngressV1Validator
-	distributedAcrossZones     atomic.Bool
+	balancedAcrossZones        atomic.Bool
 	ingressControllerNamespace string
 	ingressControllerName      string
 	maxZoneSkew                int
@@ -776,13 +776,13 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		log.Errorf("failed to update ingress status: %v", err)
 	}
 
-	c.distributedAcrossZones.Store(state.ingressControllerDistributedAcrossZones(c.ingressControllerNamespace, c.ingressControllerName, c.maxZoneSkew))
+	c.balancedAcrossZones.Store(state.isServiceBalancedAcrossZones(c.ingressControllerNamespace, c.ingressControllerName, c.maxZoneSkew))
 
 	return state, nil
 }
 
-func (c *clusterClient) IngressControllerDistributedAcrossZones() bool {
-	return c.distributedAcrossZones.Load()
+func (c *clusterClient) IsIngressControllerBalancedAcrossZones() bool {
+	return c.balancedAcrossZones.Load()
 }
 
 func parseNamespaceName(resource string) (string, string, error) {

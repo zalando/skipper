@@ -24,14 +24,14 @@ type clusterState struct {
 	enableEndpointSlices bool
 }
 
-func (state *clusterState) ingressControllerDistributedAcrossZones(namespace, name string, maxZoneSkew int) bool {
+func (state *clusterState) isServiceBalancedAcrossZones(namespace, name string, maxZoneSkew int) bool {
 	if !state.enableEndpointSlices {
 		return false
 	}
 
 	eps, ok := state.endpointSlices[newResourceID(namespace, name)]
 	if !ok {
-		log.Errorf("ingress controller endpointslice %s/%s not found; zone-aware routing is disabled until -kubernetes-ingress-controller-namespace/-kubernetes-ingress-controller-name match a real service", namespace, name)
+		log.Errorf("endpointslice %s/%s not found; cannot determine zone balance", namespace, name)
 		return false
 	}
 

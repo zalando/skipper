@@ -1140,7 +1140,7 @@ func TestRoutesWithZone(t *testing.T) {
 				KubernetesURL:                  ks.URL,
 				KubernetesEnableEndpointslices: true,
 			})
-			routesrv.SetDistributed(rs, true)
+			routesrv.SetBalancedAcrossZones(rs, true)
 			rs.StartUpdates()
 			defer rs.StopUpdates()
 
@@ -1175,7 +1175,7 @@ func TestEtagWithZoneAwareRoutingFallback(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
-	routesrv.SetDistributed(rs, true)
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 
@@ -1230,7 +1230,7 @@ func TestZoneAwareRoutesGzip(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
-	routesrv.SetDistributed(rs, true)
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 
@@ -1279,7 +1279,7 @@ func TestZoneAwareXCount(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
-	routesrv.SetDistributed(rs, true)
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1312,7 +1312,7 @@ func TestZoneAwareEtag(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
-	routesrv.SetDistributed(rs, true)
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1356,7 +1356,7 @@ func TestZoneAwareConditionalGetEtag(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
-	routesrv.SetDistributed(rs, true)
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1404,7 +1404,7 @@ func TestZoneAwareConditionalGetLastModified(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
-	routesrv.SetDistributed(rs, true)
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1442,7 +1442,7 @@ func TestZoneAwareFallbackToAllRoutesWhenBelowThreshold(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
-	routesrv.SetDistributed(rs, true)
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1484,7 +1484,7 @@ func TestZoneAwareRoutesNotServedWhenNotDistributed(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
-	routesrv.SetDistributed(rs, false)
+	routesrv.SetBalancedAcrossZones(rs, false)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
@@ -1529,7 +1529,7 @@ func TestXCountShouldBeSameForZoneAwareAndZoneUnawareRoutes(t *testing.T) {
 		KubernetesURL:                  ks.URL,
 		KubernetesEnableEndpointslices: true,
 	})
-	routesrv.SetDistributed(rs, true)
+	routesrv.SetBalancedAcrossZones(rs, true)
 	rs.StartUpdates()
 	defer rs.StopUpdates()
 	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
