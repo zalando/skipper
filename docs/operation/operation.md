@@ -2125,12 +2125,15 @@ flowchart TD
 - `cache.hit`: Counter, request served from cache without contacting the upstream
 - `cache.miss`: Counter, request not in cache; upstream was contacted
 - `cache.stale`: Counter, stale entry served while background revalidation was enqueued
-- `cache.coalesce_error`: Counter, singleflight cold-miss fetch returned an error
+- `cache.coalesce_error`: Counter, cold-miss dispatch preparation or fetch failed,
+  or an invalid backend URL required pipeline fallback
 - `cache.coalesce_bypass`: Counter, a concurrent cold-miss request's response wasn't
   storeable and no `keyHeaders`/`Vary` proof of matching identity was available, so
   it performed its own fetch instead of reusing another request's in-flight response
 - `cache.coalesce_bypass_error`: Counter, an independent bypass fetch (see
-  `cache.coalesce_bypass`) returned an error
+  `cache.coalesce_bypass`) returned a transport or body-read error. Bypass
+  responses are buffered before serving, preserving their body after the
+  origin stream closes; an incomplete body is not served as a successful response.
 - `cache.coalesce_wait_duration`: Histogram, time from issuing a cold-miss singleflight
   call to the result being available — near-zero for the leader (it computes the result
   itself), the leader's real fetch time for followers waiting on it
@@ -2146,7 +2149,8 @@ flowchart TD
 - `cache.reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
 - `cache.reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
 - `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
-- `cache.reval_error`: Counter, background revalidation fetch failures
+- `cache.reval_error`: Counter, background revalidation preparation or fetch
+  failures, or an invalid backend URL required pipeline fallback
 - `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
 - `cache.reval_backend_dispatch`: Counter, revalidation fetches sent directly to the
   backend, bypassing skipper's proxy pipeline (force mode, static backend
