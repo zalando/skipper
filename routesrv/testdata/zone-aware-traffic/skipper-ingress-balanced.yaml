@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: skipper-ingress
+  name: skipper-ingress
+  namespace: kube-system
+spec:
+  clusterIP: 10.3.190.99
+  ports:
+    - name: web
+      port: 80
+      protocol: TCP
+      targetPort: 9090
+  selector:
+    app: skipper-ingress
+  type: ClusterIP
+---
+apiVersion: v1
+kind: EndpointSlice
+metadata:
+  labels:
+    kubernetes.io/service-name: skipper-ingress
+  name: skipper-ingress-foo
+  namespace: kube-system
+endpoints:
+  - addresses:
+    - 10.9.0.1
+    zone: eu-central-1a
+  - addresses:
+    - 10.9.0.2
+    zone: eu-central-1b
+  - addresses:
+    - 10.9.0.3
+    zone: eu-central-1c
+ports:
+  - name: web
+    port: 9090
+    protocol: TCP
