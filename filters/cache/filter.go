@@ -131,6 +131,9 @@ func NewCacheFilter(opts Options) filters.Spec {
 	}, m)
 
 	var store Storage = lru
+	if p, ok := m.(interface{ SetCacheLRUCapacity(float64) }); ok {
+		p.SetCacheLRUCapacity(float64(opts.MaxBytes))
+	}
 	if opts.L2Client != nil {
 		store = NewL2Storage(opts.L2Client, lru, m, opts.L1TTL, opts.IsNoL2Err)
 	}
@@ -399,8 +402,12 @@ func tagSpan(ctx filters.FilterContext, status string, ttlRemainingMs int64) {
 // Called once per request outcome (hit/miss/stale) so the gauge stays
 // accurate under any traffic mix, not just hit-heavy routes.
 func (f *cacheFilter) updateLRUBytesGauge(ctx filters.FilterContext) {
+	bytes, entries := f.lruStorage.lru.Usage()
 	if p, ok := f.metrics.(interface{ SetCacheLRUBytes(string, float64) }); ok {
-		p.SetCacheLRUBytes(ctx.RouteId(), float64(f.lruStorage.lru.Bytes()))
+		p.SetCacheLRUBytes(ctx.RouteId(), float64(bytes))
+	}
+	if p, ok := f.metrics.(interface{ SetCacheLRUEntries(string, float64) }); ok {
+		p.SetCacheLRUEntries(ctx.RouteId(), float64(entries))
 	}
 }
 
