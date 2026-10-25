@@ -2148,6 +2148,24 @@ flowchart TD
   call to the result being available — near-zero for the leader (it computes the result
   itself), the leader's real fetch time for followers waiting on it
 
+**Prometheus cache outcome metrics:**
+
+- `skipper_cache_route_result_total{route,result}`: Counter for cache `hit`, `miss`,
+  and `stale` results, labeled with the route ID. Cardinality scales with the number
+  of routes (the same per-route precedent as `skipper_cache_lru_entries{route}`).
+- `skipper_cache_first_hit_seconds`: Gauge for seconds from metrics initialization
+  to the first cache hit in this process; remains zero until a hit occurs.
+
+Derive route families at query time for route IDs using the `<family>__<suffix>`
+convention, for example:
+
+```promql
+sum by (family, result) (label_replace(rate(skipper_cache_route_result_total[5m]), "family", "$1", "route", "(.+?)__.*"))
+```
+
+Use recording rules or adjust the regular expression for a different route naming
+convention.
+
 **LRU (always active):**
 
 - `cache.lru_eviction`: Counter, incremented each time an L1 entry is evicted due to memory pressure
