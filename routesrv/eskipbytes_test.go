@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 )
 
@@ -101,4 +103,123 @@ func BenchmarkFormatAndSetNoChange(b *testing.B) {
 	for b.Loop() {
 		e.formatAndSet(routes, zoneAware)
 	}
+}
+
+// BenchmarkFormatAndSetOneZoneChanged measures the realistic steady-state
+// poll tick where exactly one zone's route set changes while a sibling zone
+// stays byte-identical (e.g. one AZ gains or loses an endpoint). The global
+// routes slice is also perturbed each call (appending one marker route),
+// since formatAndSet only re-evaluates zones when the global hash changes;
+// this mirrors how a real endpoint change always shows up in the global
+// table too. Only eu-central-1a's zone routes differ between iterations;
+// eu-central-1b is never mutated and is used to assert it was left alone.
+// This isolates the cost of handling a single changed zone from the
+// all-zones-changed case already covered by BenchmarkFormatAndSet, and is
+// the scenario the all-or-nothing vs. per-zone update strategy differ on
+// the most.
+func BenchmarkFormatAndSetOneZoneChanged(b *testing.B) {
+	zones := []string{"eu-central-1a", "eu-central-1b", "eu-central-1c"}
+	routes := benchRoutes(20000, 3, zones)
+	zoneAware := filterRoutesByZone(routes)
+
+	e := &eskipBytes{now: time.Now}
+	e.formatAndSet(routes, zoneAware) // prime, so the first measured call already has a baseline to diff against
+
+	const changedZone = "eu-central-1a"
+	originalZoneRoutes := zoneAware[changedZone]
+	altZoneRoutes := make([]*eskip.Route, len(originalZoneRoutes))
+	for i, r := range originalZoneRoutes {
+		rc := *r
+		rc.Filters = append([]*eskip.Filter{{Name: "setRequestHeader", Args: []any{"X-Bench", "alt"}}}, r.Filters...)
+		altZoneRoutes[i] = &rc
+	}
+
+	baseRoutes := routes
+	markerA := &eskip.Route{Id: "benchMarkerA"}
+	markerB := &eskip.Route{Id: "benchMarkerB"}
+
+	toggle := false
+	b.ReportAllocs()
+	for b.Loop() {
+		if toggle {
+			zoneAware[changedZone] = altZoneRoutes
+			routes = append(baseRoutes, markerA)
+		} else {
+			zoneAware[changedZone] = originalZoneRoutes
+			routes = append(baseRoutes, markerB)
+		}
+		toggle = !toggle
+		e.formatAndSet(routes, zoneAware)
+	}
+}
+
+// TestFormatAndSetOnlyTouchesChangedZone verifies that formatAndSet updates
+// only the zone whose content actually changed: an untouched zone keeps its
+// exact Etag/Last-Modified/compressed bytes across a call where a sibling
+// zone changes. In this pre-zone-balance-gate contract, formatAndSet only
+// re-evaluates zones when the global routes hash changes, so the global
+// routes must change too for the zone rebuild to run at all.
+func TestFormatAndSetOnlyTouchesChangedZone(t *testing.T) {
+	e := &eskipBytes{now: time.Now}
+	routes := []*eskip.Route{{Id: "r1"}}
+	zoneMap := map[string][]*eskip.Route{
+		"z1": {{Id: "r1"}},
+		"z2": {{Id: "r1"}},
+	}
+	_, _, _, updated := e.formatAndSet(routes, zoneMap)
+	require.True(t, updated)
+
+	z1HashBefore := e.zoneHash["z1"]
+	z1DataBefore := e.zoneDataCompressed["z1"]
+	z1ModBefore := e.zoneLastModified["z1"]
+
+	// global routes change (required to trigger a rebuild at all), but
+	// z1's own content stays identical; only z2 changes
+	routes2 := []*eskip.Route{{Id: "r1"}, {Id: "rGlobal"}}
+	zoneMap2 := map[string][]*eskip.Route{
+		"z1": {{Id: "r1"}},
+		"z2": {{Id: "r2"}},
+	}
+	_, _, _, updated = e.formatAndSet(routes2, zoneMap2)
+	require.True(t, updated, "updated should be true since global routes changed")
+
+	assert.Equal(t, z1HashBefore, e.zoneHash["z1"], "z1 hash must be untouched when only z2 changes")
+	assert.Equal(t, z1DataBefore, e.zoneDataCompressed["z1"], "z1 compressed bytes must be untouched when only z2 changes")
+	assert.Equal(t, z1ModBefore, e.zoneLastModified["z1"], "z1 Last-Modified must be untouched when only z2 changes")
+	assert.NotEqual(t, z1HashBefore, e.zoneHash["z2"], "z2 hash must differ from z1's since z2's content changed")
+}
+
+// TestFormatAndSetRemovesDisappearedZone verifies that a zone no longer
+// present in zoneAwareRoutes is fully removed from all internal maps, so
+// ServeHTTP falls back to serving the global routing table for it instead
+// of stale per-zone data.
+func TestFormatAndSetRemovesDisappearedZone(t *testing.T) {
+	e := &eskipBytes{now: time.Now}
+	routes := []*eskip.Route{{Id: "r1"}}
+	zoneMap := map[string][]*eskip.Route{
+		"z1": {{Id: "r1"}},
+		"z2": {{Id: "r1"}},
+	}
+	_, _, _, updated := e.formatAndSet(routes, zoneMap)
+	require.True(t, updated)
+	_, ok := e.zoneDataCompressed["z2"]
+	require.True(t, ok, "z2 must be present after the first call")
+
+	// global routes change (required to trigger a rebuild at all), and z2
+	// disappears entirely (e.g. its last endpoint went away)
+	routes2 := []*eskip.Route{{Id: "r1"}, {Id: "rGlobal"}}
+	zoneMap2 := map[string][]*eskip.Route{
+		"z1": {{Id: "r1"}},
+	}
+	_, _, _, updated = e.formatAndSet(routes2, zoneMap2)
+	assert.True(t, updated, "updated should be true since global routes changed")
+
+	_, ok = e.zoneDataCompressed["z2"]
+	assert.False(t, ok, "z2 must be removed from zoneDataCompressed so ServeHTTP falls back to global")
+	_, ok = e.zoneHash["z2"]
+	assert.False(t, ok, "z2 must be removed from zoneHash")
+	_, ok = e.zoneCount["z2"]
+	assert.False(t, ok, "z2 must be removed from zoneCount")
+	_, ok = e.zoneLastModified["z2"]
+	assert.False(t, ok, "z2 must be removed from zoneLastModified")
 }

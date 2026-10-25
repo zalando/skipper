@@ -74,6 +74,11 @@ type eskipBytes struct {
 // formatAndSet takes a slice of routes and stores them eskip-formatted
 // in a synchronized way. It returns the length of the stored data, and
 // flags signaling whether the data was initialized and updated.
+// Each zone's routes are formatted and hashed exactly once per call; only
+// the zones whose hash actually changed are recompressed and get a fresh
+// Last-Modified. Unchanged zones keep their existing Etag/Last-Modified/
+// compressed bytes untouched, and zones that disappeared entirely are
+// removed so requests for them fall back to the global routing table.
 func (e *eskipBytes) formatAndSet(routes []*eskip.Route, zoneAwareRoutes map[string][]*eskip.Route) (_ int, _ string, initialized bool, updated bool) {
 
 	buf := &bytes.Buffer{}
@@ -88,17 +93,41 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route, zoneAwareRoutes map[str
 
 	if updated {
 		now := e.now()
-		e.zoneDataCompressed, e.zoneCount = make(map[string][]byte), make(map[string]int)
-		e.zoneHash = make(map[string]string)
-		e.zoneLastModified = make(map[string]time.Time)
-		for zone, routes := range zoneAwareRoutes {
+		if e.zoneHash == nil {
+			e.zoneHash = make(map[string]string)
+			e.zoneDataCompressed = make(map[string][]byte)
+			e.zoneCount = make(map[string]int)
+			e.zoneLastModified = make(map[string]time.Time)
+		}
+
+		// Format and hash every zone exactly once, so unchanged zones
+		// never need to be recompressed below.
+		newZoneHash := make(map[string]string, len(zoneAwareRoutes))
+		for zone, zoneRoutes := range zoneAwareRoutes {
 			zoneBuf := &bytes.Buffer{}
-			eskip.Fprint(zoneBuf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
+			eskip.Fprint(zoneBuf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, zoneRoutes...)
 			zoneData := zoneBuf.Bytes()
-			e.zoneLastModified[zone] = now
+			zoneHash := fmt.Sprintf("%x", sha256.Sum256(zoneData))
+			newZoneHash[zone] = zoneHash
+
+			if e.zoneHash[zone] == zoneHash {
+				continue // this zone's content is unchanged; leave it alone
+			}
+			e.zoneHash[zone] = zoneHash
 			e.zoneDataCompressed[zone] = e.compressLocked(zoneData)
-			e.zoneHash[zone] = fmt.Sprintf("%x", sha256.Sum256(zoneData))
-			e.zoneCount[zone] = len(routes)
+			e.zoneCount[zone] = len(zoneRoutes)
+			e.zoneLastModified[zone] = now
+		}
+		for zone := range e.zoneHash {
+			if _, ok := newZoneHash[zone]; !ok {
+				// zone no longer present at all - remove it so ServeHTTP
+				// falls back to the global routing table for it instead
+				// of serving stale data.
+				delete(e.zoneHash, zone)
+				delete(e.zoneDataCompressed, zone)
+				delete(e.zoneCount, zone)
+				delete(e.zoneLastModified, zone)
+			}
 		}
 		e.lastModified = now
 		e.zdata = e.compressLocked(data)
