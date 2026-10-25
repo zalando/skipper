@@ -308,6 +308,16 @@ func cacheLRUBytesKey(route string) string {
 	return fmt.Sprintf("cache_lru_bytes.%s", route)
 }
 
+// SetCacheLRUEntries mirrors skipper_cache_lru_entries{route}.
+func (m *MockMetrics) SetCacheLRUEntries(route string, entries float64) {
+	m.UpdateGauge(fmt.Sprintf("cache_lru_entries.%s", route), entries)
+}
+
+// SetCacheLRUCapacity mirrors skipper_cache_lru_capacity_bytes.
+func (m *MockMetrics) SetCacheLRUCapacity(bytes float64) {
+	m.UpdateGauge("cache_lru_capacity_bytes", bytes)
+}
+
 func (*MockMetrics) Close() {}
 
 func (*MockMetrics) String() string { return "mock" }

@@ -80,6 +80,8 @@ type Prometheus struct {
 	cacheResultTotalM          *prometheus.CounterVec
 	cacheLRUBytesM             *prometheus.GaugeVec
 	cacheStorageErrorTotalM    *prometheus.CounterVec
+	cacheLRUEntriesM           *prometheus.GaugeVec
+	cacheLRUCapacityBytesM     prometheus.Gauge
 
 	opts      Options
 	registry  *prometheus.Registry
@@ -358,6 +360,20 @@ func NewPrometheus(opts Options) *Prometheus {
 		Help:      "Total cache storage errors by backend (l1/l2) and operation (get/set/delete).",
 	}, []string{"backend", "op"}))
 
+	p.cacheLRUEntriesM = register(p, prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "lru_entries",
+		Help:      "Current LRU cache entry count per route.",
+	}, []string{"route"}))
+
+	p.cacheLRUCapacityBytesM = register(p, prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "lru_capacity_bytes",
+		Help:      "Configured L1 (LRU) cache capacity in bytes.",
+	}))
+
 	// Register prometheus runtime collectors if required.
 	if opts.EnableRuntimeMetrics {
 		register(p, collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
@@ -620,6 +636,16 @@ func (p *Prometheus) IncStorageError(backend, op string) {
 // SetCacheLRUBytes sets the LRU bytes gauge for a route.
 func (p *Prometheus) SetCacheLRUBytes(route string, bytes float64) {
 	p.cacheLRUBytesM.WithLabelValues(route).Set(bytes)
+}
+
+// SetCacheLRUEntries sets the LRU entry count gauge for a route.
+func (p *Prometheus) SetCacheLRUEntries(route string, entries float64) {
+	p.cacheLRUEntriesM.WithLabelValues(route).Set(entries)
+}
+
+// SetCacheLRUCapacity sets the configured L1 capacity gauge.
+func (p *Prometheus) SetCacheLRUCapacity(bytes float64) {
+	p.cacheLRUCapacityBytesM.Set(bytes)
 }
 
 func (p *Prometheus) Close() {}
