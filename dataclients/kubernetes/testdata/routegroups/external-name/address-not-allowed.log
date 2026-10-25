@@ -1,0 +1,2 @@
+routegroup with not allowed network backend: http://169.254.169.254
+routegroup with not allowed explicit LB endpoint: http://10.0.0.1:8080
