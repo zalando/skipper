@@ -2152,11 +2152,12 @@ flowchart TD
 - `cache.reval_error`: Counter, background revalidation preparation or fetch
   failures, or an invalid backend URL required pipeline fallback
 - `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
-- `cache.reval_backend_dispatch`: Counter, revalidation fetches sent directly to the
-  backend, bypassing skipper's proxy pipeline (force mode, static backend
-  only) - so they're invisible to `MeasureBackend*` metrics and the access
-  log. Self-loopback revalidations aren't counted here since they go
-  through the listener normally.
+- `cache.reval_backend_dispatch`: Counter, background revalidation fetches sent
+  directly to the backend (force mode, static backend only). Direct-dispatched
+  cold-miss (coalesced) fetches are not counted and have no dedicated counter.
+  Both bypass Skipper's proxy pipeline, so these origin requests are invisible
+  to `MeasureBackend*` metrics and the access log. Self-loopback revalidations
+  aren't counted here since they go through the listener normally.
 
 **L2 (if Valkey or Redis is configured):**
 

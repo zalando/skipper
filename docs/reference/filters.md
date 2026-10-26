@@ -4180,10 +4180,12 @@ invalid backend URLs, fetches replay the original request through Skipper's own
 listener, bypassing this cache lookup so routing and filters run normally.
 Invalid backend URLs are logged and counted as `cache.coalesce_error` or
 `cache.reval_error`. RFC-mode fetches always replay the pipeline so response
-filters can determine cache policy; see
-`cache.reval_backend_dispatch` in the
-[operation guide](../operation/operation.md#cache) for the observability
-difference between the two.
+filters can determine cache policy. Direct-dispatched cold-miss and revalidation
+origin requests bypass Skipper's proxy pipeline and are invisible to
+`MeasureBackend*` metrics and the access log. Only background revalidation
+fetches count toward `cache.reval_backend_dispatch`; direct-dispatched cold-miss
+(coalesced) fetches have no dedicated counter. See the
+[operation guide](../operation/operation.md#cache).
 
 Unsafe methods (`POST`, `PUT`, `DELETE`, `PATCH`) invalidate the cached entry on
 success. `HEAD 200` freshens stored headers without replacing the body.
