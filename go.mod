@@ -34,7 +34,7 @@ require (
 	github.com/open-policy-agent/opa-envoy-plugin v1.15.2-envoy
 	github.com/opentracing/basictracer-go v1.1.0
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/pires/go-proxyproto v0.15.0
+	github.com/pires/go-proxyproto v0.16.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9
