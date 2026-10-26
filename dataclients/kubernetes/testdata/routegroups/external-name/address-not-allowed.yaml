@@ -1,0 +1,49 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: allowed
+spec:
+  hosts:
+  - example.org
+  backends:
+  - name: external1
+    type: network
+    address: https://external1.example.org
+  routes:
+  - pathSubtree: /allowed
+    backends:
+    - backendName: external1
+---
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: network
+spec:
+  hosts:
+  - example.org
+  backends:
+  - name: metadata
+    type: network
+    address: http://169.254.169.254
+  routes:
+  - pathSubtree: /network
+    backends:
+    - backendName: metadata
+---
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: lb
+spec:
+  hosts:
+  - example.org
+  backends:
+  - name: internal
+    type: lb
+    endpoints:
+    - http://10.0.0.1:8080
+    - http://external1.example.org
+  routes:
+  - pathSubtree: /lb
+    backends:
+    - backendName: internal
