@@ -245,7 +245,9 @@ func TestFormatAndSetRemovesDisappearedZone(t *testing.T) {
 // TestFormatAndSetDetectsZoneOnlyChange verifies that formatAndSet reports
 // updated == true when only the balance gate flips (global routes
 // identical), and also when only the global routes change (gate state
-// unchanged).
+// unchanged). It also verifies that a pure balance-gate flip leaves the
+// GLOBAL hash/Last-Modified/count/compressed bytes completely untouched,
+// since only zoneAwareRoutes differs in that case, not routes itself.
 func TestFormatAndSetDetectsZoneOnlyChange(t *testing.T) {
 	e := &eskipBytes{now: time.Now}
 	routes := []*eskip.Route{{Id: "r1"}}
@@ -254,19 +256,32 @@ func TestFormatAndSetDetectsZoneOnlyChange(t *testing.T) {
 	require.True(t, initialized, "initialized should be true after fresh start")
 	require.True(t, updated, "updated should be true after fresh start")
 
+	globalHashBefore := e.hash
+	globalModBefore := e.lastModified
+	globalCountBefore := e.count
+	globalDataBefore := e.zdata
+	require.NotEmpty(t, globalHashBefore)
+	require.NotEmpty(t, globalDataBefore)
+
 	// same routes, still not balanced -> no update
 	_, _, initialized, updated = e.formatAndSet(routes, nil)
 	require.False(t, initialized, "initialized should be false with no change")
 	require.False(t, updated, "updated should be false with no change")
 
-	// same routes, balance gate opens -> updated must be true
+	// same routes, balance gate opens -> updated must be true, but the
+	// global hash/Last-Modified/count/compressed bytes must stay untouched,
+	// since routes itself never changed - only zoneAwareRoutes did.
 	zoneA := map[string][]*eskip.Route{"z1": {{Id: "r1"}}}
 	_, _, initialized, updated = e.formatAndSet(routes, zoneA)
 	assert.False(t, initialized, "should always be false after first call")
 	assert.True(t, updated, "should be true when the balance gate opens")
+	assert.Equal(t, globalHashBefore, e.hash, "global hash must be untouched by a pure gate flip")
+	assert.Equal(t, globalModBefore, e.lastModified, "global Last-Modified must be untouched by a pure gate flip")
+	assert.Equal(t, globalCountBefore, e.count, "global count must be untouched by a pure gate flip")
+	assert.Equal(t, globalDataBefore, e.zdata, "global compressed bytes must be untouched by a pure gate flip")
 
 	// same routes, gate stays open -> no update
-	_, _, initialized, updated = e.formatAndSet(routes, zoneA)
+	_, _, _, updated = e.formatAndSet(routes, zoneA)
 	assert.False(t, updated, "should be false when neither routes nor the gate changed")
 
 	// DIFFERENT global routes, gate stays open -> updated must be true
@@ -275,10 +290,21 @@ func TestFormatAndSetDetectsZoneOnlyChange(t *testing.T) {
 	assert.False(t, initialized, "should always be false after first call")
 	assert.True(t, updated, "should be true when global only routes change")
 
-	// gate closes again, routes unchanged -> updated must be true
+	// gate closes again, routes unchanged -> updated must be true, and the
+	// global hash/Last-Modified/count/compressed bytes (now reflecting
+	// routes2) must stay untouched by the gate closing.
+	globalHashAfterRoutes2 := e.hash
+	globalModAfterRoutes2 := e.lastModified
+	globalCountAfterRoutes2 := e.count
+	globalDataAfterRoutes2 := e.zdata
+
 	_, _, initialized, updated = e.formatAndSet(routes2, nil)
 	assert.False(t, initialized, "should always be false after first call")
 	assert.True(t, updated, "should be true when the balance gate closes")
+	assert.Equal(t, globalHashAfterRoutes2, e.hash, "global hash must be untouched when the gate closes")
+	assert.Equal(t, globalModAfterRoutes2, e.lastModified, "global Last-Modified must be untouched when the gate closes")
+	assert.Equal(t, globalCountAfterRoutes2, e.count, "global count must be untouched when the gate closes")
+	assert.Equal(t, globalDataAfterRoutes2, e.zdata, "global compressed bytes must be untouched when the gate closes")
 }
 
 // TestFormatAndSetHandlesSimultaneousRouteChangeAndBalanceFlip verifies
