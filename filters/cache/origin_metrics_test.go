@@ -123,7 +123,7 @@ func TestCacheFilterOriginMetrics(t *testing.T) {
 							if failed {
 								statusClass = "error"
 							}
-							want := map[string]int64{"cache_origin_duration.product__en." + statusClass: 1}
+							want := map[string]int64{"cache_origin_duration.product__en." + statusClass + "." + mode.name: 1}
 							if background {
 								require.True(t, ctx.FServed)
 								assert.Equal(t, cacheStatusStale, ctx.FResponse.Header.Get(cacheStatusHeader))
@@ -218,7 +218,7 @@ func TestCacheRouteRevalFailurePaths(t *testing.T) {
 			})
 			want := map[string]int64{"cache_route_reval.product.started": 1, "cache_route_reval.product.failed": 1}
 			if failure == "storage" {
-				want["cache_origin_duration.product.2xx"] = 1
+				want["cache_origin_duration.product.2xx.direct"] = 1
 				assert.Equal(t, 1, fetches)
 			} else {
 				assert.Zero(t, fetches)

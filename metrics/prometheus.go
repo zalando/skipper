@@ -401,9 +401,9 @@ func NewPrometheus(opts Options) *Prometheus {
 		Namespace: namespace,
 		Subsystem: "cache",
 		Name:      "origin_duration_seconds",
-		Help:      "Origin fetch duration performed by the cache filter (cold-miss coalescing and revalidation) by route and status class (2xx/3xx/4xx/5xx/error/other).",
+		Help:      "Origin fetch duration performed by the cache filter (cold-miss coalescing and revalidation) by route, status class (2xx/3xx/4xx/5xx/error/other), and dispatch path (direct/pipeline). Direct dispatch bypasses MeasureBackend* metrics and the access log.",
 		Buckets:   opts.HistogramBuckets,
-	}, []string{"route", "status_class"}))
+	}, []string{"route", "status_class", "dispatch"}))
 
 	p.cacheOriginCCTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
@@ -706,8 +706,8 @@ func (p *Prometheus) IncCacheRouteReval(route, outcome string) {
 }
 
 // ObserveCacheOriginDuration records an origin fetch duration in seconds.
-func (p *Prometheus) ObserveCacheOriginDuration(route, statusClass string, seconds float64) {
-	p.cacheOriginDurationM.WithLabelValues(route, statusClass).Observe(seconds)
+func (p *Prometheus) ObserveCacheOriginDuration(route, statusClass, dispatch string, seconds float64) {
+	p.cacheOriginDurationM.WithLabelValues(route, statusClass, dispatch).Observe(seconds)
 }
 
 // IncOriginCacheControl increments skipper_cache_origin_cache_control_total.

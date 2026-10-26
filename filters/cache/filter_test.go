@@ -5535,3 +5535,90 @@ func TestCacheFilter_Revalidate_ForceMode_Authorization_NotStored(t *testing.T) 
 		}
 	})
 }
+
+func TestCacheFilter_OriginDurationDispatch(t *testing.T) {
+	for _, mode := range []struct {
+		name       string
+		rfc        bool
+		backendURL string
+		dispatch   string
+	}{
+		{name: "force direct", backendURL: "https://origin.example", dispatch: "direct"},
+		{name: "RFC pipeline", rfc: true, backendURL: "https://origin.example", dispatch: "pipeline"},
+		{name: "force pipeline", dispatch: "pipeline"},
+		{name: "invalid backend fallback", backendURL: "not-an-absolute-url", dispatch: "pipeline"},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			for _, revalidate := range []bool{false, true} {
+				t.Run(fmt.Sprintf("revalidate=%t", revalidate), func(t *testing.T) {
+					for _, result := range []struct {
+						name        string
+						statusCode  int
+						statusClass string
+						err         error
+					}{
+						{name: "success", statusCode: http.StatusOK, statusClass: "2xx"},
+						{name: "server error", statusCode: http.StatusServiceUnavailable, statusClass: "5xx"},
+						{name: "transport error", statusClass: "error", err: errors.New("origin fetch failed")},
+					} {
+						t.Run(result.name, func(t *testing.T) {
+							var f *cacheFilter
+							if mode.rfc {
+								f = newTestFilterRFC(t, 0, 0, 0)
+							} else {
+								f = newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+							}
+							mockMetrics := &metricstest.MockMetrics{}
+							f.metrics = mockMetrics
+							var fetches int
+							f.fetch = func(req *http.Request) (*http.Response, error) {
+								fetches++
+								wantHost := f.listenAddr
+								if mode.dispatch == originDispatchDirect {
+									wantHost = "origin.example"
+								}
+								if req.URL.Host != wantHost {
+									t.Errorf("fetch host = %q, want %q", req.URL.Host, wantHost)
+								}
+								if result.err != nil {
+									return nil, result.err
+								}
+								return upstreamResponseCC(result.statusCode, "body", "max-age=60"), nil
+							}
+							ctx := newCtxWithRoute(http.MethodGet, "http://client.example/test", "", "product__en")
+							ctx.FBackendUrl = mode.backendURL
+							ctx.FOutgoingHost = "origin.example"
+							if revalidate {
+								req, backendURL, outgoingHost := f.requestDispatch(ctx, "cache.reval_error")
+								f.revalidate("key", "key", req, backendURL, outgoingHost, time.Time{}, "product__en")
+							} else {
+								f.Request(ctx)
+								if ctx.FResponse != nil && ctx.FResponse.Body != nil {
+									defer ctx.FResponse.Body.Close()
+								}
+							}
+							if fetches != 1 {
+								t.Fatalf("fetches = %d, want 1", fetches)
+							}
+							mockMetrics.WithCounters(func(counters map[string]int64) {
+								want := fmt.Sprintf("cache_origin_duration.product__en.%s.%s", result.statusClass, mode.dispatch)
+								if got := counters[want]; got != 1 {
+									t.Errorf("%s = %d, want 1", want, got)
+								}
+								var observations int64
+								for name, count := range counters {
+									if strings.HasPrefix(name, "cache_origin_duration.") {
+										observations += count
+									}
+								}
+								if observations != 1 {
+									t.Errorf("origin observations = %d, want 1", observations)
+								}
+							})
+						})
+					}
+				})
+			}
+		})
+	}
+}

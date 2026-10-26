@@ -2166,6 +2166,7 @@ sum by (family, result) (label_replace(rate(skipper_cache_route_result_total[5m]
 Use recording rules or adjust the regular expression for a different route naming
 convention.
 
+
 **LRU (always active):**
 
 - `cache.lru_eviction`: Counter, incremented each time an L1 entry is evicted due to memory pressure
@@ -2193,7 +2194,8 @@ convention.
 **Prometheus revalidation outcomes:**
 
 `skipper_cache_route_reval_total{route,outcome}` records `started` once per
-background refresh attempt and exactly one terminal outcome:
+background refresh attempt and exactly one terminal outcome. It emits up to four
+series per route, so cardinality scales with the number of routes:
 
 - `success`: a non-5xx response (including a merged 304) was stored successfully.
 - `failed`: dispatch, transport, timeout, body-read or storage failure, or any
@@ -2210,11 +2212,15 @@ increment legacy `cache.reval_error`.
 
 **Prometheus origin metrics:**
 
-- `skipper_cache_origin_duration_seconds{route,status_class}`: Histogram of cache
-  origin fetch durations for cold-miss coalescing and background revalidation.
-  `status_class` is `2xx`, `3xx`, `4xx`, `5xx`, `error`, or `other`; the existing
-  histogram buckets are unchanged. Cardinality scales with route count and status
-  class.
+- `skipper_cache_origin_duration_seconds{route,status_class,dispatch}`: Histogram
+  of cache origin fetch durations for cold-miss coalescing and background
+  revalidation. `status_class` is `2xx`, `3xx`, `4xx`, `5xx`, `error`, or `other`;
+  `dispatch` is `direct` or `pipeline`. Direct dispatch bypasses `MeasureBackend*`
+  metrics and the backend access log; pipeline loopback is counted normally. The
+  existing histogram buckets are unchanged. Each route/status/dispatch combination
+  emits one `_bucket` series per configured bucket plus the `+Inf` bucket, and one
+  `_sum` and `_count` series. Thus cardinality scales with route count, status class,
+  and dispatch path.
 - `skipper_cache_origin_cache_control_total{cache_control}`: Counter of each
   Cache-Control directive seen on an origin response, counted once per directive
   per response. Values are bounded to `public`, `private`, `no-store`, `no-cache`,

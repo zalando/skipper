@@ -44,6 +44,9 @@ const (
 	cacheStatusMiss   = "MISS"
 	cacheStatusStale  = "STALE"
 
+	originDispatchDirect   = "direct"
+	originDispatchPipeline = "pipeline"
+
 	// revalQueueSize is the capacity of the shared revalidation job queue.
 	// Sized to absorb short bursts; jobs are dropped (with reval_dropped metric)
 	// if the worker cannot keep up.
@@ -433,9 +436,15 @@ func (f *cacheFilter) incRouteReval(route, outcome string) {
 }
 
 // observeOriginFetch records an origin fetch duration. resp is nil when err is set.
-func (f *cacheFilter) observeOriginFetch(route string, start time.Time, resp *http.Response, err error) {
-	if p, ok := f.metrics.(interface{ ObserveCacheOriginDuration(string, string, float64) }); ok {
-		p.ObserveCacheOriginDuration(route, originStatusClass(resp, err), time.Since(start).Seconds())
+func (f *cacheFilter) observeOriginFetch(route string, direct bool, start time.Time, resp *http.Response, err error) {
+	dispatch := originDispatchPipeline
+	if direct {
+		dispatch = originDispatchDirect
+	}
+	if p, ok := f.metrics.(interface {
+		ObserveCacheOriginDuration(string, string, string, float64)
+	}); ok {
+		p.ObserveCacheOriginDuration(route, originStatusClass(resp, err), dispatch, time.Since(start).Seconds())
 	}
 }
 
@@ -719,7 +728,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 
 		requestTime := time.Now()
 		resp, err := f.fetch(req)
-		f.observeOriginFetch(route, requestTime, resp, err)
+		f.observeOriginFetch(route, backendURL != "", requestTime, resp, err)
 		if err != nil {
 			if sieStored != nil {
 				return &coalesceResult{stored: sieStored}, err
@@ -1231,7 +1240,7 @@ func (f *cacheFilter) revalidate(key, baseKey string, req *http.Request, backend
 
 		requestTime := time.Now()
 		resp, err := f.fetch(req)
-		f.observeOriginFetch(route, requestTime, resp, err)
+		f.observeOriginFetch(route, backendURL != "", requestTime, resp, err)
 		if err != nil {
 			f.metrics.IncCounter("cache.reval_error")
 			log.WithFields(log.Fields{
