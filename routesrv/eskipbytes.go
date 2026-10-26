@@ -77,12 +77,15 @@ type eskipBytes struct {
 // An update is triggered when either the global routes hash or any
 // per-zone route hash differs from the previously stored value, so a
 // change in zone topology alone (without route changes) is detected
-// independently. Each zone's routes are formatted and hashed exactly
-// once per call; only the zones whose hash actually changed are
-// recompressed and get a fresh Last-Modified. Unchanged zones keep
-// their existing Etag/Last-Modified/compressed bytes untouched, and
-// zones that disappeared entirely are removed so requests for them
-// fall back to the global routing table.
+// independently. The per-zone format+hash work only runs when the global
+// routes changed, or when zones appeared/disappeared entirely (the
+// balance gate flipping); zoneAwareRoutes cannot change content while
+// routes and zone presence both stay the same, since it is a pure filter
+// of routes. When it does run, only the zones whose hash actually
+// changed are recompressed and get a fresh Last-Modified. Unchanged
+// zones keep their existing Etag/Last-Modified/compressed bytes
+// untouched, and zones that disappeared entirely are removed so
+// requests for them fall back to the global routing table.
 func (e *eskipBytes) formatAndSet(routes []*eskip.Route, zoneAwareRoutes map[string][]*eskip.Route) (_ int, _ string, initialized bool, updated bool) {
 
 	buf := &bytes.Buffer{}
@@ -111,37 +114,46 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route, zoneAwareRoutes map[str
 		e.zoneLastModified = make(map[string]time.Time)
 	}
 
-	// Format and hash every zone exactly once, so unchanged zones
-	// never need to be recompressed below.
+	// zoneAwareRoutes is a pure filter of routes: it can only differ from
+	// last time if routes changed (globalUpdated), or if zones just
+	// appeared/disappeared entirely (the balance gate flipping, detected
+	// cheaply by comparing presence, not content). If neither is true,
+	// zoneAwareRoutes is guaranteed identical to last call, and the
+	// per-zone format+hash work below is skipped entirely.
+	presenceChanged := (len(e.zoneHash) > 0) != (len(zoneAwareRoutes) > 0)
 	zoneUpdated := false
-	newZoneHash := make(map[string]string, len(zoneAwareRoutes))
-	for zone, zoneRoutes := range zoneAwareRoutes {
-		zoneBuf := &bytes.Buffer{}
-		eskip.Fprint(zoneBuf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, zoneRoutes...)
-		zoneData := zoneBuf.Bytes()
-		zoneHash := fmt.Sprintf("%x", sha256.Sum256(zoneData))
-		newZoneHash[zone] = zoneHash
+	if globalUpdated || presenceChanged {
+		// Format and hash every zone exactly once, so unchanged zones
+		// never need to be recompressed below.
+		newZoneHash := make(map[string]string, len(zoneAwareRoutes))
+		for zone, zoneRoutes := range zoneAwareRoutes {
+			zoneBuf := &bytes.Buffer{}
+			eskip.Fprint(zoneBuf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, zoneRoutes...)
+			zoneData := zoneBuf.Bytes()
+			zoneHash := fmt.Sprintf("%x", sha256.Sum256(zoneData))
+			newZoneHash[zone] = zoneHash
 
-		if e.zoneHash[zone] == zoneHash {
-			continue // this zone's content is unchanged; leave it alone
-		}
-		zoneUpdated = true
-		e.zoneHash[zone] = zoneHash
-		e.zoneDataCompressed[zone] = e.compressLocked(zoneData)
-		e.zoneCount[zone] = len(zoneRoutes)
-		e.zoneLastModified[zone] = now
-	}
-	for zone := range e.zoneHash {
-		if _, ok := newZoneHash[zone]; !ok {
-			// zone no longer present at all (e.g. the gate closed, or the
-			// zone's last endpoint disappeared) - remove it so ServeHTTP
-			// falls back to the global routing table for it instead of
-			// serving stale data.
+			if e.zoneHash[zone] == zoneHash {
+				continue // this zone's content is unchanged; leave it alone
+			}
 			zoneUpdated = true
-			delete(e.zoneHash, zone)
-			delete(e.zoneDataCompressed, zone)
-			delete(e.zoneCount, zone)
-			delete(e.zoneLastModified, zone)
+			e.zoneHash[zone] = zoneHash
+			e.zoneDataCompressed[zone] = e.compressLocked(zoneData)
+			e.zoneCount[zone] = len(zoneRoutes)
+			e.zoneLastModified[zone] = now
+		}
+		for zone := range e.zoneHash {
+			if _, ok := newZoneHash[zone]; !ok {
+				// zone no longer present at all (e.g. the gate closed, or
+				// the zone's last endpoint disappeared) - remove it so
+				// ServeHTTP falls back to the global routing table for it
+				// instead of serving stale data.
+				zoneUpdated = true
+				delete(e.zoneHash, zone)
+				delete(e.zoneDataCompressed, zone)
+				delete(e.zoneCount, zone)
+				delete(e.zoneLastModified, zone)
+			}
 		}
 	}
 
