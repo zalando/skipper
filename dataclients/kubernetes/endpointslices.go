@@ -7,6 +7,8 @@ import (
 const (
 	endpointSliceServiceNameLabel = "kubernetes.io/service-name"
 	appProtocolH2C                = "kubernetes.io/h2c"
+	appProtocolH2                 = "zalando.org/h2"
+	appProtocolH3                 = "zalando.org/h3"
 )
 
 // There are [1..N] Kubernetes endpointslices created for a single Kubernetes service.
@@ -119,6 +121,10 @@ func effectiveScheme(p *endpointSlicePort, schemeDefault string, annotationSet b
 		switch p.AppProtocol {
 		case appProtocolH2C:
 			return "h2c"
+		case appProtocolH2:
+			return "h2"
+		case appProtocolH3:
+			return "h3"
 		case "https":
 			return "https"
 		case "http":
@@ -174,7 +180,7 @@ type endpointSlicePort struct {
 	Name        string `json:"name"`        // "http"
 	Port        int    `json:"port"`        // 8080
 	Protocol    string `json:"protocol"`    // "TCP"
-	AppProtocol string `json:"appProtocol"` // "http", "https", "kubernetes.io/h2c", "kubernetes.io/ws", "kubernetes.io/wss"
+	AppProtocol string `json:"appProtocol"` // "http", "https", "kubernetes.io/h2c", "kubernetes.io/ws", "kubernetes.io/wss", "zalando.org/h2", "zalando.org/h3"
 }
 
 func (ep *EndpointSliceEndpoints) isTerminating() bool {
