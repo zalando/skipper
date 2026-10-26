@@ -39,22 +39,22 @@ func TestPrometheusCacheOriginDurationRouteStatus(t *testing.T) {
 	pm := metrics.NewPrometheus(metrics.Options{HistogramBuckets: []float64{0.25, 0.5}})
 	mux := http.NewServeMux()
 	pm.RegisterHandler("/metrics", mux)
-	pm.ObserveCacheOriginDuration("product", "2xx", 0.125)
-	pm.ObserveCacheOriginDuration("product", "2xx", 0.375)
-	pm.ObserveCacheOriginDuration("other", "error", 0.5)
+	pm.ObserveCacheOriginDuration("product", "2xx", "direct", 0.125)
+	pm.ObserveCacheOriginDuration("product", "2xx", "direct", 0.375)
+	pm.ObserveCacheOriginDuration("other", "error", "pipeline", 0.5)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 	require.Equal(t, http.StatusOK, rec.Code)
 	out := rec.Body.String()
 	for _, sample := range []string{
 		"# TYPE skipper_cache_origin_duration_seconds histogram",
-		`skipper_cache_origin_duration_seconds_count{route="product",status_class="2xx"} 2`,
-		`skipper_cache_origin_duration_seconds_sum{route="product",status_class="2xx"} 0.5`,
-		`skipper_cache_origin_duration_seconds_bucket{route="product",status_class="2xx",le="0.25"} 1`,
-		`skipper_cache_origin_duration_seconds_bucket{route="product",status_class="2xx",le="0.5"} 2`,
-		`skipper_cache_origin_duration_seconds_bucket{route="product",status_class="2xx",le="+Inf"} 2`,
-		`skipper_cache_origin_duration_seconds_count{route="other",status_class="error"} 1`,
-		`skipper_cache_origin_duration_seconds_sum{route="other",status_class="error"} 0.5`,
+		`skipper_cache_origin_duration_seconds_count{dispatch="direct",route="product",status_class="2xx"} 2`,
+		`skipper_cache_origin_duration_seconds_sum{dispatch="direct",route="product",status_class="2xx"} 0.5`,
+		`skipper_cache_origin_duration_seconds_bucket{dispatch="direct",route="product",status_class="2xx",le="0.25"} 1`,
+		`skipper_cache_origin_duration_seconds_bucket{dispatch="direct",route="product",status_class="2xx",le="0.5"} 2`,
+		`skipper_cache_origin_duration_seconds_bucket{dispatch="direct",route="product",status_class="2xx",le="+Inf"} 2`,
+		`skipper_cache_origin_duration_seconds_count{dispatch="pipeline",route="other",status_class="error"} 1`,
+		`skipper_cache_origin_duration_seconds_sum{dispatch="pipeline",route="other",status_class="error"} 0.5`,
 	} {
 		assert.Contains(t, out, sample)
 	}

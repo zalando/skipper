@@ -318,10 +318,10 @@ func (m *MockMetrics) IncCacheRouteReval(route, outcome string) {
 	m.IncCounter(fmt.Sprintf("cache_route_reval.%s.%s", route, outcome))
 }
 
-// ObserveCacheOriginDuration mirrors skipper_cache_origin_duration_seconds{route,status_class}
-// by recording the observation count under a per-route/status-class counter.
-func (m *MockMetrics) ObserveCacheOriginDuration(route, statusClass string, seconds float64) {
-	m.IncCounter(fmt.Sprintf("cache_origin_duration.%s.%s", route, statusClass))
+// ObserveCacheOriginDuration mirrors skipper_cache_origin_duration_seconds{route,status_class,dispatch}
+// by recording the observation count under a per-route/status-class/dispatch counter.
+func (m *MockMetrics) ObserveCacheOriginDuration(route, statusClass, dispatch string, seconds float64) {
+	m.IncCounter(fmt.Sprintf("cache_origin_duration.%s.%s.%s", route, statusClass, dispatch))
 }
 
 // IncOriginCacheControl mirrors skipper_cache_origin_cache_control_total{cache_control}.

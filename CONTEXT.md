@@ -288,3 +288,6 @@ _Avoid_: OpenTelemetry directly in filter/proxy code
 
 **Access Log**:
 Per-request HTTP access logging in Apache combined or JSON format, with duration, host, and flow-id fields.
+
+**Cache Origin Dispatch**:
+The path a cache-origin fetch takes: directly to a static backend in force mode, or through the proxy pipeline by listener loopback.
