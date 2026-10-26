@@ -166,9 +166,6 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 	if mtr == nil {
 		mtr = metrics.Default
 	}
-	if mtr == nil {
-		mtr = metrics.Void
-	}
 
 	c := &clusterClient{
 		ingressesURI:                 IngressesV1ClusterURI,

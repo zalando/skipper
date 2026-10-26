@@ -1116,6 +1116,7 @@ These metrics are particularly useful for:
 
 * `routes.load_all.<client>`: timer measuring execution time for loading all routes from the data client.
 * `routes.load_update.<client>`: timer measuring execution time for loading incremental route updates from the data client.
+* `k8s.gone`: counter incremented when the Kubernetes cluster client receives an HTTP 410 Gone response while querying the Kubernetes API.
 
 The `<client>` part is the name of the data client (e.g., `kubernetes` or `inline`), resolved via `NamedDataClient.Name()`. Data clients that do not implement the `NamedDataClient` interface are reported as `unknown` (e.g., `routes.load_all.unknown`).
 
