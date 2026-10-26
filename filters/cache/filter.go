@@ -1208,10 +1208,11 @@ func (f *cacheFilter) revalidate(key, baseKey string, req *http.Request, backend
 			}
 		}
 		f.incRouteReval(route, "started")
+		outcome := "failed"
+		defer func() { f.incRouteReval(route, outcome) }()
 		req, err := f.prepareDispatch(req, backendURL, outgoingHost)
 		if err != nil {
 			f.metrics.IncCounter("cache.reval_error")
-			f.incRouteReval(route, "failed")
 			log.WithField("backendURL", backendURL).WithError(err).Warn("cache: failed to prepare background revalidation dispatch")
 			return nil, nil
 		}
@@ -1233,7 +1234,6 @@ func (f *cacheFilter) revalidate(key, baseKey string, req *http.Request, backend
 		f.observeOriginFetch(route, requestTime, resp, err)
 		if err != nil {
 			f.metrics.IncCounter("cache.reval_error")
-			f.incRouteReval(route, "failed")
 			log.WithFields(log.Fields{
 				"url": req.URL.String(),
 			}).WithError(err).Warn("cache: background revalidation fetch failed")
@@ -1242,8 +1242,11 @@ func (f *cacheFilter) revalidate(key, baseKey string, req *http.Request, backend
 		responseTime := time.Now()
 		defer resp.Body.Close()
 
-		if staleIfErrorStatus(resp.StatusCode) && f.staleIfErrorEntry(key) != nil {
+		originFailed := resp.StatusCode >= 500 && resp.StatusCode < 600
+		if originFailed {
 			f.metrics.IncCounter("cache.reval_error")
+		}
+		if staleIfErrorStatus(resp.StatusCode) && f.staleIfErrorEntry(key) != nil {
 			return nil, nil
 		}
 
@@ -1262,6 +1265,7 @@ func (f *cacheFilter) revalidate(key, baseKey string, req *http.Request, backend
 					responseHeader[k] = vv
 				}
 			} else {
+				outcome = "dropped"
 				log.WithField("key", key).Debug("cache: revalidation received 304 but entry was evicted, skipping refresh")
 				return nil, nil
 			}
@@ -1270,7 +1274,9 @@ func (f *cacheFilter) revalidate(key, baseKey string, req *http.Request, backend
 			var rerr error
 			body, rerr = io.ReadAll(resp.Body)
 			if rerr != nil {
-				f.metrics.IncCounter("cache.reval_error")
+				if !originFailed {
+					f.metrics.IncCounter("cache.reval_error")
+				}
 				log.WithFields(log.Fields{
 					"url": req.URL.String(),
 				}).WithError(rerr).Warn("cache: failed to read response body during background revalidation")
@@ -1284,6 +1290,9 @@ func (f *cacheFilter) revalidate(key, baseKey string, req *http.Request, backend
 		directives := parseCacheControl(responseHeader)
 		ttl, shouldStore := f.storeDecision(req, statusCode, responseHeader, directives)
 		if !shouldStore {
+			if !originFailed {
+				outcome = "dropped"
+			}
 			return nil, nil
 		}
 
@@ -1303,9 +1312,8 @@ func (f *cacheFilter) revalidate(key, baseKey string, req *http.Request, backend
 		}
 		if err := f.storeEntry(context.Background(), baseKey, key, req, entry); err != nil {
 			log.WithError(err).Warn("cache: Set failed (background revalidation)")
-			f.incRouteReval(route, "failed")
-		} else {
-			f.incRouteReval(route, "success")
+		} else if !originFailed {
+			outcome = "success"
 		}
 		return nil, nil
 	})

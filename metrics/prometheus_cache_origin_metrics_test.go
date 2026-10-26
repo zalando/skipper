@@ -25,11 +25,11 @@ func TestPrometheusCacheRouteReval(t *testing.T) {
 	out := rec.Body.String()
 	assert.Contains(t, out, "# TYPE skipper_cache_route_reval_total counter")
 	for _, sample := range []string{
-		`skipper_cache_route_reval_total{route="product",outcome="started"} 2`,
-		`skipper_cache_route_reval_total{route="product",outcome="success"} 1`,
-		`skipper_cache_route_reval_total{route="product",outcome="failed"} 1`,
-		`skipper_cache_route_reval_total{route="product",outcome="dropped"} 1`,
-		`skipper_cache_route_reval_total{route="other",outcome="failed"} 1`,
+		`skipper_cache_route_reval_total{outcome="started",route="product"} 2`,
+		`skipper_cache_route_reval_total{outcome="success",route="product"} 1`,
+		`skipper_cache_route_reval_total{outcome="failed",route="product"} 1`,
+		`skipper_cache_route_reval_total{outcome="dropped",route="product"} 1`,
+		`skipper_cache_route_reval_total{outcome="failed",route="other"} 1`,
 	} {
 		assert.Contains(t, out, sample)
 	}

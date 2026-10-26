@@ -2176,9 +2176,12 @@ convention.
 
 - `cache.reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
 - `cache.reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
-- `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
-- `cache.reval_error`: Counter, background revalidation preparation or fetch
-  failures, or an invalid backend URL required pipeline fallback
+- `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was
+  full or the cache filter was shutting down
+- `cache.reval_error`: Counter, background revalidation preparation, transport,
+  timeout or body-read failures, origin 5xx responses (including those stored using
+  `errorTTL`), or an invalid backend URL required pipeline fallback. A 5xx with a
+  body-read failure is counted once.
 - `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
 - `cache.reval_backend_dispatch`: Counter, background revalidation fetches sent
   directly to the backend (force mode, static backend only). Direct-dispatched
@@ -2186,6 +2189,36 @@ convention.
   Both bypass Skipper's proxy pipeline, so these origin requests are invisible
   to `MeasureBackend*` metrics and the access log. Self-loopback revalidations
   aren't counted here since they go through the listener normally.
+
+**Prometheus revalidation outcomes:**
+
+`skipper_cache_route_reval_total{route,outcome}` records `started` once per
+background refresh attempt and exactly one terminal outcome:
+
+- `success`: a non-5xx response (including a merged 304) was stored successfully.
+- `failed`: dispatch, transport, timeout, body-read or storage failure, or any
+  origin 5xx. A 5xx is failed even when cached using `errorTTL`; SIE retention and
+  negative caching policy are unchanged.
+- `dropped`: a response was not cacheable or a 304 could not be merged because its
+  stored entry was evicted. Queue-full/shutdown rejection also records `dropped`,
+  but without `started` and increments legacy `cache.reval_dropped`.
+
+Superseded queued jobs and singleflight followers do not start an origin refresh
+and record no route outcome. Route `dropped` therefore covers more cases than
+legacy `cache.reval_dropped`; storage failures record route `failed` but do not
+increment legacy `cache.reval_error`.
+
+**Prometheus origin metrics:**
+
+- `skipper_cache_origin_duration_seconds{route,status_class}`: Histogram of cache
+  origin fetch durations for cold-miss coalescing and background revalidation.
+  `status_class` is `2xx`, `3xx`, `4xx`, `5xx`, `error`, or `other`; the existing
+  histogram buckets are unchanged. Cardinality scales with route count and status
+  class.
+- `skipper_cache_origin_cache_control_total{cache_control}`: Counter of each
+  Cache-Control directive seen on an origin response, counted once per directive
+  per response. Values are bounded to `public`, `private`, `no-store`, `no-cache`,
+  `max-age`, `s-maxage`, `stale-while-revalidate`, `stale-if-error`, and `other`.
 
 **Cache origin timeouts:** cold-miss and background cache fetches use
 `--timeout-backend` for TCP dialing, `--tls-timeout-backend` for TLS handshakes,

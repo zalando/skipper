@@ -684,6 +684,11 @@ func (p *Prometheus) SetCacheLRUBytes(route string, bytes float64) {
 	p.cacheLRUBytesM.WithLabelValues(route).Set(bytes)
 }
 
+// SetCacheLRUEntries sets the LRU entry count gauge for a route.
+func (p *Prometheus) SetCacheLRUEntries(route string, entries float64) {
+	p.cacheLRUEntriesM.WithLabelValues(route).Set(entries)
+}
+
 // IncCacheRouteResult increments skipper_cache_route_result_total. The first hit
 // also sets skipper_cache_first_hit_seconds once per process.
 func (p *Prometheus) IncCacheRouteResult(route, result string) {

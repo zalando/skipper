@@ -123,16 +123,16 @@ func TestCacheFilterOriginMetrics(t *testing.T) {
 							if failed {
 								statusClass = "error"
 							}
-							want := map[string]int64{"cache_origin_duration.product." + statusClass: 1}
+							want := map[string]int64{"cache_origin_duration.product__en." + statusClass: 1}
 							if background {
 								require.True(t, ctx.FServed)
 								assert.Equal(t, cacheStatusStale, ctx.FResponse.Header.Get(cacheStatusHeader))
-								want["cache_route_reval.product.started"] = 1
+								want["cache_route_reval.product__en.started"] = 1
 								outcome := "success"
 								if failed {
 									outcome = "failed"
 								}
-								want["cache_route_reval.product."+outcome] = 1
+								want["cache_route_reval.product__en."+outcome] = 1
 							} else if !failed {
 								require.True(t, ctx.FServed)
 								assert.Equal(t, cacheStatusMiss, ctx.FResponse.Header.Get(cacheStatusHeader))
@@ -234,4 +234,136 @@ func TestCacheRouteRevalFailurePaths(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestCacheRouteRevalTerminalOutcomes(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		status       int
+		sie          bool
+		rfc          bool
+		cacheControl string
+		vary         string
+		readError    bool
+		fetchError   error
+		evict        bool
+		setError     bool
+		wantOutcome  string
+		wantError    int64
+		wantStatus   int
+	}{
+		{name: "success", status: 200, wantOutcome: "success", wantStatus: 200},
+		{name: "not modified", status: 304, wantOutcome: "success", wantStatus: 200},
+		{name: "SIE 500", status: 500, sie: true, wantOutcome: "failed", wantError: 1, wantStatus: 200},
+		{name: "SIE 502", status: 502, sie: true, wantOutcome: "failed", wantError: 1, wantStatus: 200},
+		{name: "SIE 503", status: 503, sie: true, wantOutcome: "failed", wantError: 1, wantStatus: 200},
+		{name: "SIE 504", status: 504, sie: true, wantOutcome: "failed", wantError: 1, wantStatus: 200},
+		{name: "stored 503", status: 503, wantOutcome: "failed", wantError: 1, wantStatus: 503},
+		{name: "stored 501 outside SIE statuses", status: 501, sie: true, wantOutcome: "failed", wantError: 1, wantStatus: 501},
+		{name: "non-cacheable 503", status: 503, rfc: true, cacheControl: "no-store", wantOutcome: "failed", wantError: 1, wantStatus: 200},
+		{name: "transport error", fetchError: assert.AnError, wantOutcome: "failed", wantError: 1, wantStatus: 200},
+		{name: "timeout", fetchError: context.DeadlineExceeded, wantOutcome: "failed", wantError: 1, wantStatus: 200},
+		{name: "body error", status: 200, readError: true, wantOutcome: "failed", wantError: 1, wantStatus: 200},
+		{name: "503 body error counted once", status: 503, readError: true, wantOutcome: "failed", wantError: 1, wantStatus: 200},
+		{name: "304 evicted", status: 304, evict: true, wantOutcome: "dropped"},
+		{name: "no-store", status: 200, rfc: true, cacheControl: "no-store", wantOutcome: "dropped", wantStatus: 200},
+		{name: "private", status: 200, rfc: true, cacheControl: "private", wantOutcome: "dropped", wantStatus: 200},
+		{name: "vary star", status: 200, vary: "*", wantOutcome: "dropped", wantStatus: 200},
+		{name: "uncacheable status", status: 302, wantOutcome: "dropped", wantStatus: 200},
+		{name: "storage error", status: 200, setError: true, wantOutcome: "failed", wantStatus: 200},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newTestFilter(t, time.Minute, 10*time.Second, time.Minute)
+			f.rfcMode = tc.rfc
+			if tc.sie {
+				f.staleIfError = time.Minute
+			}
+			m := &metricstest.MockMetrics{}
+			f.metrics = m
+			stored := &Entry{
+				StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"max-age=60"}},
+				Payload: []byte("stale"), CreatedAt: time.Now().Add(-90 * time.Second),
+				TTL: time.Minute, StaleWhileRevalidate: time.Minute, ETag: `"original"`,
+			}
+			require.NoError(t, f.storage.Set(context.Background(), "key", stored))
+			if tc.setError {
+				f.storage = &failingSetStorage{f.storage}
+			}
+			f.fetch = func(req *http.Request) (*http.Response, error) {
+				assert.Equal(t, `"original"`, req.Header.Get("If-None-Match"))
+				if tc.evict {
+					require.NoError(t, f.storage.Delete(context.Background(), "key"))
+				}
+				if tc.fetchError != nil {
+					return nil, tc.fetchError
+				}
+				resp := upstreamResponseCC(tc.status, "fresh", tc.cacheControl)
+				resp.Header.Set("Vary", tc.vary)
+				if tc.readError {
+					resp.Body = errReader{}
+				}
+				return resp, nil
+			}
+			f.doRevalidateQueued(revalJob{
+				key: "key", baseKey: "key", route: "product", enqueuedAt: time.Now(),
+				req: newCtx(http.MethodGet, "http://client.example/entries", "").Request(),
+			})
+			m.WithCounters(func(counters map[string]int64) {
+				got := map[string]int64{}
+				for name, count := range counters {
+					if strings.HasPrefix(name, "cache_route_reval.") {
+						got[name] = count
+					}
+				}
+				assert.Equal(t, map[string]int64{
+					"cache_route_reval.product.started":           1,
+					"cache_route_reval.product." + tc.wantOutcome: 1,
+				}, got)
+				assert.Equal(t, tc.wantError, counters["cache.reval_error"])
+				assert.Zero(t, counters["cache.reval_dropped"])
+			})
+			got, err := f.storage.GetSilent(context.Background(), "key")
+			if tc.evict {
+				assert.Nil(t, got)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.Equal(t, tc.wantStatus, got.StatusCode)
+			if tc.wantOutcome == "success" || tc.wantStatus >= 500 {
+				assert.True(t, got.CreatedAt.After(stored.CreatedAt))
+				if tc.wantStatus >= 500 {
+					assert.Equal(t, 10*time.Second, got.TTL)
+					assert.Zero(t, got.StaleWhileRevalidate)
+					assert.Equal(t, []byte("fresh"), got.Payload)
+				}
+			} else {
+				assert.True(t, stored.CreatedAt.Equal(got.CreatedAt))
+				assert.Equal(t, stored.Payload, got.Payload)
+			}
+		})
+	}
+}
+
+func TestCacheRouteRevalSuperseded(t *testing.T) {
+	f := newTestFilter(t, time.Minute, time.Second, time.Minute)
+	m := &metricstest.MockMetrics{}
+	f.metrics = m
+	enqueuedAt := time.Now().Add(-time.Second)
+	require.NoError(t, f.storage.Set(context.Background(), "key", &Entry{
+		CreatedAt: time.Now(), TTL: time.Minute, StatusCode: http.StatusOK,
+	}))
+	f.fetch = func(*http.Request) (*http.Response, error) {
+		t.Fatal("superseded job must not fetch")
+		return nil, assert.AnError
+	}
+	f.doRevalidateQueued(revalJob{
+		key: "key", baseKey: "key", route: "product", enqueuedAt: enqueuedAt,
+		req: newCtx(http.MethodGet, "http://client.example/entries", "").Request(),
+	})
+	m.WithCounters(func(counters map[string]int64) {
+		for name := range counters {
+			assert.False(t, strings.HasPrefix(name, "cache_route_reval."), name)
+		}
+	})
 }
