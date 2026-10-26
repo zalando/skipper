@@ -2286,6 +2286,113 @@ func TestCacheFilter_HEAD_NoStoredEntry_NoFreshen(t *testing.T) {
 	}
 }
 
+func TestCacheFilter_HEAD_ColdMiss_DoesNotStoreEmptyBody(t *testing.T) {
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Hour)
+	url := newLocalBackend(t) + "/spaces/abc/entries/head-cold-miss"
+
+	f.fetch = func(r *http.Request) (*http.Response, error) {
+		rsp := upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "public, max-age=300")
+		if r.Method == http.MethodHead {
+			rsp.Body = http.NoBody
+		}
+		return rsp, nil
+	}
+
+	// HEAD arrives cold (no prior GET): the body-less response must not be stored.
+	headCtx := newCtx("HEAD", url, "")
+	f.Request(headCtx)
+
+	key := cacheKey(headCtx.FRouteId, headCtx.FRequest, nil)
+	entry, err := f.storage.Get(headCtx.FRequest.Context(), key)
+	if err != nil {
+		t.Fatalf("storage.Get error: %v", err)
+	}
+	if entry != nil {
+		t.Fatalf("cold HEAD must not create an entry, got %d byte payload", len(entry.Payload))
+	}
+
+	// Subsequent GET must receive the full representation, not the HEAD one.
+	ctx := newCtx("GET", url, "")
+	f.Request(ctx)
+	if !ctx.FServed {
+		t.Fatal("expected GET to be served")
+	}
+	body, _ := io.ReadAll(ctx.FResponse.Body)
+	if string(body) != `{"data":"v1"}` {
+		t.Fatalf("GET must not be served the body-less HEAD representation, got %q", body)
+	}
+}
+
+func TestCacheFilter_NonCacheableMethod_BypassesCache(t *testing.T) {
+	for _, method := range []string{http.MethodOptions, http.MethodTrace, "PROPFIND"} {
+		t.Run(method, func(t *testing.T) {
+			f := newTestFilter(t, time.Minute, 15*time.Second, time.Hour)
+			url := newLocalBackend(t) + "/spaces/abc/entries/method-" + method
+
+			f.fetch = func(r *http.Request) (*http.Response, error) {
+				if r.Method != http.MethodGet {
+					t.Errorf("cache must not fetch %s requests", r.Method)
+				}
+				return upstreamResponseCC(http.StatusOK, `{"data":"v1"}`, "public, max-age=300"), nil
+			}
+
+			// Cold: the request must pass through to the backend untouched and
+			// its response must not be stored under the GET key.
+			ctx1 := newCtx(method, url, "")
+			f.Request(ctx1)
+			if ctx1.FServed {
+				t.Fatalf("%s must not be served by the cache", method)
+			}
+			ctx1.FResponse = &http.Response{
+				StatusCode: http.StatusOK,
+				Header: http.Header{
+					"Allow":         {"GET, HEAD, OPTIONS"},
+					"Cache-Control": {"public, max-age=300"},
+				},
+				Body: http.NoBody,
+			}
+			f.Response(ctx1)
+
+			key := cacheKey(ctx1.FRouteId, ctx1.FRequest, nil)
+			if entry, _ := f.storage.Get(ctx1.FRequest.Context(), key); entry != nil {
+				t.Fatalf("%s response must not be stored", method)
+			}
+
+			// GET populates the cache with the full representation.
+			ctx2 := newCtx("GET", url, "")
+			f.Request(ctx2)
+			if !ctx2.FServed {
+				t.Fatal("expected GET to be served")
+			}
+			body, _ := io.ReadAll(ctx2.FResponse.Body)
+			if string(body) != `{"data":"v1"}` {
+				t.Fatalf("unexpected GET body %q", body)
+			}
+
+			// Warm: the method must still not be answered from the GET entry.
+			ctx3 := newCtx(method, url, "")
+			f.Request(ctx3)
+			if ctx3.FServed {
+				t.Fatalf("%s must not be served the cached GET representation", method)
+			}
+		})
+	}
+}
+
+func TestCacheFilter_StoreDecision_OnlyGET(t *testing.T) {
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Hour)
+	header := http.Header{"Cache-Control": {"public, max-age=300"}}
+	directives := parseCacheControl(header)
+
+	for _, method := range []string{http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodPost} {
+		req, _ := http.NewRequest(method, "https://example.org/spaces/abc/entries/store", nil)
+		_, store := f.storeDecision(req, http.StatusOK, header, directives)
+		if want := method == http.MethodGet; store != want {
+			t.Errorf("%s: store=%v, want %v", method, store, want)
+		}
+	}
+}
+
 func TestCacheFilter_Expires_InvalidDate_TreatedAsExpired(t *testing.T) {
 	// RFC 9111 §5.3: invalid Expires date (including "0") must be treated as already
 	// expired. capTTLByExpires returns 0. The entry is stored with TTL=0 (immediately
