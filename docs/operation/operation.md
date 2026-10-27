@@ -330,6 +330,10 @@ When the cache filter is active, the following labeled metrics are exposed:
 - `skipper_cache_lru_bytes{route="..."}` - Gauge for per-route LRU (L1) cache storage consumption in bytes, updated on every hit, miss, and stale serve. Cardinality bounded by the number of distinct routes.
 - The flat-key counters `skipper_custom_total{key="cache.hit"}`, `cache.miss`, `cache.stale`, and the rest of the `cache.*` keys above are the primary, directly-emitted metrics — `skipper_cache_result_total`/`skipper_cache_lru_bytes` are an additional labeled breakdown of the same underlying events, not a replacement for them.
 
+`code_class` describes the cached or selected response status, not necessarily the final HTTP status returned to the client. For example, conditional request handling may return `304 Not Modified` for a cached `2xx` representation while the cache result retains `code_class="2xx"`.
+
+`skipper_cache_result_total` includes overlapping request outcomes and operational/storage events, so summing all `result` values is not a request count. For cache-outcome shares or hit ratios, restrict the denominator to `result=~"hit|miss|stale"` and sum across `code_class`. For example, the hit ratio is `sum(rate(skipper_cache_result_total{result="hit"}[5m])) / sum(rate(skipper_cache_result_total{result=~"hit|miss|stale"}[5m]))`.
+
 You may add static metrics labels like `version` using Prometheus [relabeling feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config).
 
 ### Prometheus native histograms
