@@ -77,6 +77,9 @@ type Prometheus struct {
 	customCounterM             *prometheus.CounterVec
 	customGaugeM               *prometheus.GaugeVec
 	invalidRouteM              *prometheus.GaugeVec
+	cacheResultTotalM          *prometheus.CounterVec
+	cacheLRUBytesM             *prometheus.GaugeVec
+	cacheStorageErrorTotalM    *prometheus.CounterVec
 
 	opts      Options
 	registry  *prometheus.Registry
@@ -334,6 +337,27 @@ func NewPrometheus(opts Options) *Prometheus {
 		Help:      "Invalid route by route ID and name.",
 	}, []string{"route_id", "reason"}))
 
+	p.cacheResultTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "result_total",
+		Help:      "Total cache results by result type (hit/miss/stale) and status code class (2xx/4xx/5xx/other).",
+	}, []string{"result", "code_class"}))
+
+	p.cacheLRUBytesM = register(p, prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "lru_bytes",
+		Help:      "Current LRU cache bytes used per route.",
+	}, []string{"route"}))
+
+	p.cacheStorageErrorTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "storage_error_total",
+		Help:      "Total cache storage errors by backend (l1/l2) and operation (get/set/delete).",
+	}, []string{"backend", "op"}))
+
 	// Register prometheus runtime collectors if required.
 	if opts.EnableRuntimeMetrics {
 		register(p, collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
@@ -575,6 +599,27 @@ func (p *Prometheus) IncErrorsStreaming(routeID string) {
 // SetInvalidRoute satisfies Metrics interface.
 func (p *Prometheus) SetInvalidRoute(routeId, reason string) {
 	p.invalidRouteM.WithLabelValues(routeId, reason).Set(1)
+}
+
+// IncCacheResult increments the cache result counter by result type and status code class.
+func (p *Prometheus) IncCacheResult(result, codeClass string) {
+	p.cacheResultTotalM.WithLabelValues(result, codeClass).Inc()
+}
+
+// IncStorageError increments the cache storage error counter by backend (l1/l2) and
+// operation (get/set/delete). Also increments the legacy unlabeled cache.storage_error
+// custom counter and the skipper_cache_result_total{result="storage_error"} labeled
+// metric, so this single call site covers everything filter.go's own generic
+// increments used to cover before storage errors were attributed at the source.
+func (p *Prometheus) IncStorageError(backend, op string) {
+	p.cacheStorageErrorTotalM.WithLabelValues(backend, op).Inc()
+	p.IncCounter("cache.storage_error")
+	p.IncCacheResult("storage_error", "n/a")
+}
+
+// SetCacheLRUBytes sets the LRU bytes gauge for a route.
+func (p *Prometheus) SetCacheLRUBytes(route string, bytes float64) {
+	p.cacheLRUBytesM.WithLabelValues(route).Set(bytes)
 }
 
 func (p *Prometheus) Close() {}
