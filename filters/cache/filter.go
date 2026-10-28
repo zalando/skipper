@@ -521,7 +521,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	key := baseKey
 	// GetSilent: this is an internal plumbing lookup, not a real cache decision —
 	// it must not count toward hit/l1_hit/l2_hit/l2_miss/l2_get_error on every request.
-	if sentinel, _ := f.storage.GetSilent(ctx.Request().Context(), "vary:"+baseKey); sentinel != nil && len(sentinel.VaryHeaders) > 0 {
+	if sentinel, _ := f.storage.GetSilent(withL2Purpose(ctx.Request().Context(), l2PurposeMetadata), "vary:"+baseKey); sentinel != nil && len(sentinel.VaryHeaders) > 0 {
 		key = varyKey(baseKey, ctx.Request(), sentinel.VaryHeaders)
 	}
 	ctx.StateBag()[stateBagKey] = key
@@ -544,7 +544,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	var entry *Entry
 	var err error
 	if reqDir.onlyIfCached {
-		entry, err = f.storage.Get(ctx.Request().Context(), key)
+		entry, err = f.storage.Get(withL2Purpose(ctx.Request().Context(), l2PurposeResponse), key)
 		if err != nil || entry == nil || !entry.IsUsable(time.Now()) {
 			ctx.Serve(&http.Response{
 				StatusCode: http.StatusGatewayTimeout,
@@ -562,7 +562,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 		if ctx.Request().Context().Err() != nil {
 			return
 		}
-		entry, err = f.storage.Get(ctx.Request().Context(), key)
+		entry, err = f.storage.Get(withL2Purpose(ctx.Request().Context(), l2PurposeResponse), key)
 	}
 	if err != nil || entry == nil {
 		f.coalesce(ctx, key)
@@ -897,7 +897,7 @@ func (f *cacheFilter) staleIfErrorEntry(key string) *Entry {
 	if f.staleIfError <= 0 {
 		return nil
 	}
-	entry, err := f.storage.GetSilent(context.Background(), key)
+	entry, err := f.storage.GetSilent(withL2Purpose(context.Background(), l2PurposeResponse), key)
 	if err != nil || !f.canServeStaleIfError(entry) {
 		return nil
 	}
@@ -923,7 +923,7 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	// This block runs before ctx.Served() so freshening happens even when
 	// Request() already served the HEAD from cache.
 	if ctx.Request().Method == http.MethodHead && rsp.StatusCode == http.StatusOK {
-		if stored, err := f.storage.Get(ctx.Request().Context(), key); err == nil && stored != nil {
+		if stored, err := f.storage.GetSilent(withL2Purpose(ctx.Request().Context(), l2PurposeResponse), key); err == nil && stored != nil {
 			for k, vv := range rsp.Header {
 				if bodyRelatedHeaders[k] {
 					continue
@@ -936,7 +936,7 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 			if lm := rsp.Header.Get("Last-Modified"); lm != "" {
 				stored.LastModified = lm
 			}
-			if err := f.storage.Set(ctx.Request().Context(), key, stored); err != nil {
+			if err := f.storage.Set(withL2Purpose(ctx.Request().Context(), l2PurposeResponse), key, stored); err != nil {
 				log.WithError(err).Warn("cache: Set failed (HEAD freshen)")
 			}
 		}
@@ -951,19 +951,19 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	// RFC 9111 §4.4: invalidate cached entry on successful unsafe method.
 	// Also invalidate same-origin Location/Content-Location URIs.
 	if isUnsafeMethod(ctx.Request().Method) && rsp.StatusCode < 400 {
-		if err := f.storage.Delete(ctx.Request().Context(), key); err != nil {
+		if err := f.storage.Delete(withL2Purpose(ctx.Request().Context(), l2PurposeResponse), key); err != nil {
 			log.WithError(err).Warn("cache: Delete failed (unsafe method invalidation)")
 		}
-		if err := f.storage.Delete(ctx.Request().Context(), "vary:"+key); err != nil {
+		if err := f.storage.Delete(withL2Purpose(ctx.Request().Context(), l2PurposeMetadata), "vary:"+key); err != nil {
 			log.WithError(err).Warn("cache: Delete failed (vary sentinel invalidation)")
 		}
 		for _, hdrName := range []string{"Location", "Content-Location"} {
 			if loc := rsp.Header.Get(hdrName); loc != "" && sameOrigin(ctx.Request(), loc) {
 				if locKey := cacheKeyForURL(ctx.RouteId(), ctx.Request(), loc, f.keyHeaders); locKey != "" {
-					if err := f.storage.Delete(ctx.Request().Context(), locKey); err != nil {
+					if err := f.storage.Delete(withL2Purpose(ctx.Request().Context(), l2PurposeResponse), locKey); err != nil {
 						log.WithError(err).Warn("cache: Delete failed (Location invalidation)")
 					}
-					if err := f.storage.Delete(ctx.Request().Context(), "vary:"+locKey); err != nil {
+					if err := f.storage.Delete(withL2Purpose(ctx.Request().Context(), l2PurposeMetadata), "vary:"+locKey); err != nil {
 						log.WithError(err).Warn("cache: Delete failed (vary sentinel for Location)")
 					}
 				}
@@ -1054,11 +1054,11 @@ func (f *cacheFilter) storeEntry(ctx context.Context, baseKey, key string, req *
 			StaleIfError:         entry.StaleIfError,
 			VaryHeaders:          varyNames,
 		}
-		if err := f.storage.Set(ctx, "vary:"+baseKey, sentinel); err != nil {
+		if err := f.storage.Set(withL2Purpose(ctx, l2PurposeMetadata), "vary:"+baseKey, sentinel); err != nil {
 			log.WithError(err).Warn("cache: Set failed (vary sentinel)")
 		}
 	}
-	return f.storage.Set(ctx, key, entry)
+	return f.storage.Set(withL2Purpose(ctx, l2PurposeResponse), key, entry)
 }
 
 // requestDispatch decides how cold misses and background revalidation reach the
@@ -1211,7 +1211,7 @@ func (f *cacheFilter) revalidate(key, baseKey string, req *http.Request, backend
 		// A previous queued job may have refreshed this variant while this job
 		// waited. Failed refreshes leave the original timestamp, so remain retryable.
 		if !enqueuedAt.IsZero() {
-			if current, err := f.storage.GetSilent(context.Background(), key); err == nil && current != nil &&
+			if current, err := f.storage.GetSilent(withL2Purpose(context.Background(), l2PurposeResponse), key); err == nil && current != nil &&
 				!current.CreatedAt.Before(enqueuedAt) && time.Now().Before(current.CreatedAt.Add(current.TTL)) {
 				return nil, nil
 			}
@@ -1229,7 +1229,7 @@ func (f *cacheFilter) revalidate(key, baseKey string, req *http.Request, backend
 			f.metrics.IncCounter("cache.reval_backend_dispatch")
 		}
 
-		if stored, err := f.storage.Get(context.Background(), key); err == nil && stored != nil {
+		if stored, err := f.storage.GetSilent(withL2Purpose(context.Background(), l2PurposeResponse), key); err == nil && stored != nil {
 			if stored.ETag != "" {
 				req.Header.Set("If-None-Match", stored.ETag)
 			}
@@ -1265,7 +1265,7 @@ func (f *cacheFilter) revalidate(key, baseKey string, req *http.Request, backend
 
 		if resp.StatusCode == http.StatusNotModified {
 			// Reuse stored payload and merge any updated headers from 304.
-			if stored, serr := f.storage.Get(context.Background(), key); serr == nil && stored != nil {
+			if stored, serr := f.storage.GetSilent(withL2Purpose(context.Background(), l2PurposeResponse), key); serr == nil && stored != nil {
 				body = stored.Payload
 				responseHeader = stored.Header.Clone()
 				mergeHeaders := resp.Header.Clone()

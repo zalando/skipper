@@ -60,8 +60,9 @@ func (s *L2Storage) Get(ctx context.Context, key string) (*Entry, error) {
 	return s.get(ctx, key, true)
 }
 
-// GetSilent behaves like Get but records none of the l1_hit/l2_hit/l2_miss/
-// l2_get_error outcome metrics (plain or labeled). Use it for internal
+// GetSilent behaves like Get but suppresses the legacy l1_hit, l2_hit,
+// l2_miss and l2_get_error lookup outcomes and their labeled counterparts.
+// L2 operation and processing metrics are still recorded. Use it for internal
 // plumbing lookups — e.g. the Vary-sentinel check in filter.go — that are
 // not themselves a caching decision: every request pays for that lookup,
 // so routing it through Get would have silently counted it as a real cache
@@ -91,8 +92,16 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 	l2Start := time.Now()
 	data, err := s.l2client.Get(ctx, key)
 	s.metrics.MeasureSince("cache.l2_get_duration", l2Start)
+	cleanMiss := err != nil && s.isNoErr(err)
+	outcome := "success"
+	if cleanMiss {
+		outcome = "miss"
+	} else if err != nil {
+		outcome = "error"
+	}
+	s.observeOperation(ctx, "get", outcome)
 	if err != nil {
-		if s.isNoErr(err) {
+		if cleanMiss {
 			if recordMetrics {
 				s.metrics.IncCounter("cache.l2_miss")
 				if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
@@ -112,6 +121,7 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 	}
 	var e Entry
 	if err := json.Unmarshal([]byte(data), &e); err != nil {
+		s.observeProcessingError(ctx, "get", "decode")
 		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
 			p.IncStorageError("l2", "get")
 		}
@@ -142,6 +152,7 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 func (s *L2Storage) Set(ctx context.Context, key string, entry *Entry) error {
 	data, err := json.Marshal(entry)
 	if err != nil {
+		s.observeProcessingError(ctx, "set", "encode")
 		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
 			p.IncStorageError("l2", "set")
 		}
@@ -156,6 +167,11 @@ func (s *L2Storage) Set(ctx context.Context, key string, entry *Entry) error {
 	l2Start := time.Now()
 	err = s.l2client.SetWithExpire(ctx, key, string(data), l2TTL)
 	s.metrics.MeasureSince("cache.l2_set_duration", l2Start)
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	s.observeOperation(ctx, "set", outcome)
 	if err != nil {
 		s.metrics.IncCounter("cache.l2_set_fallback")
 		if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
@@ -183,11 +199,31 @@ func (s *L2Storage) Delete(ctx context.Context, key string) error {
 	// L2 errors are best-effort — L1 delete always runs.
 	// Note: only the local process's L1 is cleared. Other Skipper processes in the
 	// fleet retain their own L1 copies until --cache-l1-ttl expires naturally.
-	if _, err := s.l2client.Del(ctx, key); err != nil {
+	l2Start := time.Now()
+	_, err := s.l2client.Del(ctx, key)
+	s.metrics.MeasureSince("cache.l2_delete_duration", l2Start)
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	s.observeOperation(ctx, "delete", outcome)
+	if err != nil {
 		log.WithError(err).Error("cache: L2 Delete failed")
 		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
 			p.IncStorageError("l2", "delete")
 		}
 	}
 	return s.l1.Delete(ctx, key)
+}
+
+func (s *L2Storage) observeOperation(ctx context.Context, operation, outcome string) {
+	if observer, ok := s.metrics.(metrics.CacheL2Observer); ok {
+		observer.IncCacheL2Operation(operation, l2PurposeFromContext(ctx), outcome)
+	}
+}
+
+func (s *L2Storage) observeProcessingError(ctx context.Context, operation, stage string) {
+	if observer, ok := s.metrics.(metrics.CacheL2Observer); ok {
+		observer.IncCacheL2ProcessingError(operation, l2PurposeFromContext(ctx), stage)
+	}
 }

@@ -6,6 +6,31 @@ import (
 	"time"
 )
 
+type l2Purpose uint8
+
+const (
+	l2PurposeUnknown l2Purpose = iota
+	l2PurposeResponse
+	l2PurposeMetadata
+)
+
+type l2PurposeContextKey struct{}
+
+func withL2Purpose(ctx context.Context, purpose l2Purpose) context.Context {
+	return context.WithValue(ctx, l2PurposeContextKey{}, purpose)
+}
+
+func l2PurposeFromContext(ctx context.Context) string {
+	switch purpose, _ := ctx.Value(l2PurposeContextKey{}).(l2Purpose); purpose {
+	case l2PurposeResponse:
+		return "response"
+	case l2PurposeMetadata:
+		return "metadata"
+	default:
+		return "unknown"
+	}
+}
+
 // Entry holds a cached HTTP response and the metadata required for freshness
 // evaluation, conditional revalidation, and Age header calculation.
 type Entry struct {
@@ -61,9 +86,10 @@ type Storage interface {
 	// Get returns the entry for key, or (nil, nil) if the key is not found.
 	Get(ctx context.Context, key string) (*Entry, error)
 
-	// GetSilent behaves like Get but must not record any outcome metrics
-	// (hit/miss/l1_hit/l2_hit/l2_miss/l2_get_error and their labeled
-	// counterparts). Use it for internal plumbing lookups — e.g. the
+	// GetSilent behaves like Get but suppresses the legacy l1_hit, l2_hit,
+	// l2_miss and l2_get_error lookup outcomes and their labeled counterparts.
+	// L2 operation and processing metrics are still recorded.
+	// Use it for internal plumbing lookups — e.g. the
 	// Vary-sentinel check in filter.go — that are not themselves a caching
 	// decision and would otherwise pollute those metrics on every request.
 	GetSilent(ctx context.Context, key string) (*Entry, error)

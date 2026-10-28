@@ -663,7 +663,7 @@ func TestL2Storage_GetSilent_DoesNotRecordMetrics(t *testing.T) {
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
 	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
 
-	ctx := context.Background()
+	ctx := withL2Purpose(context.Background(), l2PurposeMetadata)
 	hitKey := "sentinel-hit-key"
 	entry := &Entry{StatusCode: 200, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}
 	if err := s.Set(ctx, hitKey, entry); err != nil {
@@ -682,9 +682,9 @@ func TestL2Storage_GetSilent_DoesNotRecordMetrics(t *testing.T) {
 		t.Fatalf("GetSilent (miss case): %v", err)
 	}
 	stub.broken = true
-	// L2Storage treats a transport error as a graceful miss (nil, nil) — the
-	// l2_get_error *counter* is the only signal, there's no returned Go error
-	// to assert on here (same contract as the regular Get).
+	// L2Storage treats a transport error as a graceful miss (nil, nil).
+	// GetSilent suppresses the legacy l2_get_error lookup counter, but the
+	// L2 operation metric still records the error.
 	if got, err := s.GetSilent(ctx, hitKey); err != nil || got != nil {
 		t.Errorf("GetSilent (broken-client case): expected (nil, nil), got (%v, %v)", got, err)
 	}
@@ -692,14 +692,24 @@ func TestL2Storage_GetSilent_DoesNotRecordMetrics(t *testing.T) {
 
 	for _, counter := range []string{"cache.l1_hit", "cache.l2_hit", "cache.l2_miss", "cache.l2_get_error"} {
 		if v, _ := m2.Counter(counter); v != 0 {
-			t.Errorf("GetSilent must not record plain metrics, but %s = %d", counter, v)
+			t.Errorf("GetSilent must not record plain lookup outcomes, but %s = %d", counter, v)
 		}
 	}
 	for _, rc := range [][2]string{{"l1_hit", "2xx"}, {"l2_hit", "2xx"}, {"l2_miss", "n/a"}, {"l2_get_error", "n/a"}} {
 		if got, _ := m2.CacheResultCount(rc[0], rc[1]); got != 0 {
-			t.Errorf("GetSilent must not record labeled metrics, but %s/%s = %d", rc[0], rc[1], got)
+			t.Errorf("GetSilent must not record labeled lookup outcomes, but %s/%s = %d", rc[0], rc[1], got)
 		}
 	}
+	for _, outcome := range []string{"success", "miss", "error"} {
+		if got, _ := m2.CacheL2OperationCount("get", "metadata", outcome); got != 1 {
+			t.Errorf("GetSilent operation get/metadata/%s = %d, want 1", outcome, got)
+		}
+	}
+	m2.WithMeasures(func(measures map[string][]time.Duration) {
+		if got := len(measures["cache.l2_get_duration"]); got != 3 {
+			t.Errorf("GetSilent L2 get durations = %d, want 3", got)
+		}
+	})
 
 	// Sanity: the regular Get on the same storage still records metrics as usual —
 	// proves GetSilent is a distinct code path, not a global metrics kill switch.
@@ -711,4 +721,12 @@ func TestL2Storage_GetSilent_DoesNotRecordMetrics(t *testing.T) {
 	if v, _ := m2.Counter("cache.l2_hit"); v != 1 {
 		t.Errorf("expected regular Get to still record l2_hit=1, got %d", v)
 	}
+	if got, _ := m2.CacheL2OperationCount("get", "metadata", "success"); got != 2 {
+		t.Errorf("Get operation get/metadata/success = %d, want 2", got)
+	}
+	m2.WithMeasures(func(measures map[string][]time.Duration) {
+		if got := len(measures["cache.l2_get_duration"]); got != 4 {
+			t.Errorf("L2 get durations after Get = %d, want 4", got)
+		}
+	})
 }

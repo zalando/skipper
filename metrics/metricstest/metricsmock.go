@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/zalando/skipper/metrics"
 )
 
 type MockMetrics struct {
@@ -23,6 +25,8 @@ type MockMetrics struct {
 	values        map[string][]float64
 	Now           time.Time
 }
+
+var _ metrics.CacheL2Observer = (*MockMetrics)(nil)
 
 //
 // Public thread safe access to metrics
@@ -268,6 +272,34 @@ func (m *MockMetrics) CacheResultCount(result, codeClass string) (v int64, ok bo
 
 func cacheResultKey(result, codeClass string) string {
 	return fmt.Sprintf("cache_result.%s.%s", result, codeClass)
+}
+
+// IncCacheL2Operation records an L2 cache operation.
+func (m *MockMetrics) IncCacheL2Operation(operation, purpose, outcome string) {
+	m.IncCounter(cacheL2OperationKey(operation, purpose, outcome))
+}
+
+// CacheL2OperationCount returns the recorded L2 cache operation count.
+func (m *MockMetrics) CacheL2OperationCount(operation, purpose, outcome string) (int64, bool) {
+	return m.Counter(m.Prefix + cacheL2OperationKey(operation, purpose, outcome))
+}
+
+func cacheL2OperationKey(operation, purpose, outcome string) string {
+	return fmt.Sprintf("cache_l2_operation.%s.%s.%s", operation, purpose, outcome)
+}
+
+// IncCacheL2ProcessingError records an L2 cache processing error.
+func (m *MockMetrics) IncCacheL2ProcessingError(operation, purpose, stage string) {
+	m.IncCounter(cacheL2ProcessingErrorKey(operation, purpose, stage))
+}
+
+// CacheL2ProcessingErrorCount returns the recorded L2 cache processing error count.
+func (m *MockMetrics) CacheL2ProcessingErrorCount(operation, purpose, stage string) (int64, bool) {
+	return m.Counter(m.Prefix + cacheL2ProcessingErrorKey(operation, purpose, stage))
+}
+
+func cacheL2ProcessingErrorKey(operation, purpose, stage string) string {
+	return fmt.Sprintf("cache_l2_processing_error.%s.%s.%s", operation, purpose, stage)
 }
 
 // IncStorageError records a labeled cache storage error (backend x op), mirroring the

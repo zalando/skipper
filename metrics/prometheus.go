@@ -81,6 +81,8 @@ type Prometheus struct {
 	cacheResultTotalM          *prometheus.CounterVec
 	cacheLRUBytesM             *prometheus.GaugeVec
 	cacheStorageErrorTotalM    *prometheus.CounterVec
+	cacheL2OperationsTotalM    *prometheus.CounterVec
+	cacheL2ProcessingErrorsM   *prometheus.CounterVec
 	cacheLRUEntriesM           *prometheus.GaugeVec
 	cacheLRUCapacityBytesM     prometheus.Gauge
 	cacheRouteResultTotalM     *prometheus.CounterVec
@@ -96,6 +98,8 @@ type Prometheus struct {
 	handler   http.Handler
 	namespace string
 }
+
+var _ CacheL2Observer = (*Prometheus)(nil)
 
 // NewPrometheus returns a new Prometheus metric backend.
 func NewPrometheus(opts Options) *Prometheus {
@@ -367,6 +371,20 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "storage_error_total",
 		Help:      "Total cache storage errors by backend (l1/l2) and operation (get/set/delete).",
 	}, []string{"backend", "op"}))
+
+	p.cacheL2OperationsTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "l2_operations_total",
+		Help:      "Completed L2 client invocations by operation, entry purpose and client outcome; excludes L1-only accesses.",
+	}, []string{"operation", "purpose", "outcome"}))
+
+	p.cacheL2ProcessingErrorsM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "l2_processing_errors_total",
+		Help:      "L2 entry serialization failures by operation, entry purpose and processing stage; separate from client invocation outcomes.",
+	}, []string{"operation", "purpose", "stage"}))
 
 	p.cacheLRUEntriesM = register(p, prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
@@ -666,6 +684,16 @@ func (p *Prometheus) SetInvalidRoute(routeId, reason string) {
 // IncCacheResult increments the cache result counter by result type and status code class.
 func (p *Prometheus) IncCacheResult(result, codeClass string) {
 	p.cacheResultTotalM.WithLabelValues(result, codeClass).Inc()
+}
+
+// IncCacheL2Operation increments the L2 cache operation counter.
+func (p *Prometheus) IncCacheL2Operation(operation, purpose, outcome string) {
+	p.cacheL2OperationsTotalM.WithLabelValues(operation, purpose, outcome).Inc()
+}
+
+// IncCacheL2ProcessingError increments the L2 cache processing error counter.
+func (p *Prometheus) IncCacheL2ProcessingError(operation, purpose, stage string) {
+	p.cacheL2ProcessingErrorsM.WithLabelValues(operation, purpose, stage).Inc()
 }
 
 // IncStorageError increments the cache storage error counter by backend (l1/l2) and

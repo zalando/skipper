@@ -2126,7 +2126,7 @@ flowchart TD
 
 **Write path:** successful L2 Set warms L1 with min(--cache-l1-ttl, entry.TTL) (default 60s). L2 Get hit warms L1 with min(--cache-l1-ttl, remaining freshness). L1 is also populated on L2 Set errors (fallback). Set --cache-l1-ttl=0 for write-around.
 
-**Read path:** L1 checked first. Fresh L1 hit → returns immediately (increments `cache.l1_hit`), no L2 call. Stale L1 hit (past TTL but within the stale retention window) → falls through to L2 without incrementing `cache.l1_hit`. L1 miss → L2. L2 hit → increments `cache.l2_hit`, warms L1 with `min(--cache-l1-ttl, remaining freshness)` when `--cache-l1-ttl > 0`, returns entry. L2 miss (nil) → cold miss (increments `cache.l2_miss`). L2 error → increments `cache.l2_get_error`, treated as a cold miss.
+**Read path:** L1 checked first. Fresh L1 hit → returns immediately, no L2 call. Stale L1 hit (past TTL but within the stale retention window) → falls through to L2. L1 miss → L2. L2 hit warms L1 with `min(--cache-l1-ttl, remaining freshness)` when `--cache-l1-ttl > 0`. An L2 miss or error is treated as a cold miss. Response-decision lookups record the corresponding `cache.l1_hit`, `cache.l2_hit`, `cache.l2_miss`, or `cache.l2_get_error` outcome; internal silent reads do not.
 
 ### Metrics
 
@@ -2243,15 +2243,115 @@ positioned before `cache()` as described in the filter reference.
 
 **L2 (if Valkey or Redis is configured):**
 
-- `cache.l1_hit`: Counter, L1 hits that bypassed L2
-- `cache.l2_miss`: Counter, L2 misses that proceeded to an upstream fetch
-- `cache.l2_get_error`: Counter, L2 Get errors — request treated as a cache miss, fetched from origin
+- `cache.l1_hit`: Counter, response-decision L1 hits that bypassed L2
+- `cache.l2_miss`: Counter, response-decision lookups whose L2 key was absent
+- `cache.l2_get_error`: Counter, response-decision lookups with an L2 Get error, treated as a cache miss
 - `cache.l2_set_fallback`: Counter, L2 Set errors — entry written to L1 only (not L2)
-- `cache.l2_hit`: Counter, successful L2 Get (entry returned from L2); L1 is warmed as a side-effect when `--cache-l1-ttl > 0`
+- `cache.l2_hit`: Counter, response-decision L2 Get hit; L1 is warmed as a side-effect when `--cache-l1-ttl > 0`
 - `cache.l2_get_duration`: Histogram, time of the underlying Valkey/Redis `Get` round-trip, on every call (hit, miss, or error) — including internal lookups like the Vary-sentinel check
 - `cache.l2_set_duration`: Histogram, time of the underlying Valkey/Redis `SetWithExpire` round-trip, on every call (success or fallback)
+- `cache.l2_delete_duration`: Histogram, time of the underlying Valkey/Redis `Del` call, including errors
 - `cache.storage_error`: Counter, any storage operation (Set or Delete) failed — covers both L2 failures and L1 eviction-path errors; the request is still served correctly
 - `skipper_cache_storage_error_total{backend="l1|l2", op="get|set|delete"}`: Counter, labeled breakdown of storage errors by backend and operation, attributed at the point in `LRUStorage`/`L2Storage` where the backend is actually known. Also increments the flat `cache.storage_error` counter above and the labeled `skipper_cache_result_total{result="storage_error",code_class="n/a"}`, so existing consumers of either see no change — this is purely an additional breakdown. `backend="l2", op="delete"` always reports the real underlying failure, since `L2Storage.Delete` only ever returns `nil` to its caller regardless of whether the Valkey delete succeeded (L1 delete always runs); a generic `Storage.Set`/`Storage.Delete` failure from code that isn't `LRUStorage` or `L2Storage` (e.g. a test double) cannot be attributed and records nothing here.
+
+### L2 operation observability
+
+The cache filter owns response hit, miss and stale outcomes; L2 storage owns
+client-operation outcomes; and the origin-fetch boundary owns origin fetches.
+These measurements answer different questions and are not interchangeable.
+`skipper_cache_result_total` also contains operational diagnostics, so it is
+not a mutually exclusive request partition. Select `result=~"hit|miss|stale"`
+for response outcomes, subject to the existing request-accounting limitations.
+
+`skipper_cache_l2_operations_total{operation,purpose,outcome}` counts each
+completed L2 client method invocation once:
+
+- `operation`: `get`, `set`, or `delete`.
+- `purpose`: `response` for response entries, `metadata` for Vary sentinels,
+  or `unknown` when the caller supplied no recognized purpose.
+- `outcome`: `success`, `miss`, or `error`. Only GET emits `miss`, for a
+  recognized absent key; DELETE of an absent key is successful. Cancellation
+  and deadline errors are errors.
+
+There are 27 possible label combinations, of which 21 are meaningful. No key,
+URL, route, header, status, or arbitrary error text is included. These are
+client-method invocations, not network packets or retries hidden by a client.
+L1-only accesses and configurations do not produce L2 events. A successful L1
+fallback does not erase an L2 SET error.
+
+Prometheus and the combined metrics provider support these counters through an
+optional observer interface. Third-party providers without that interface keep
+their existing behavior and do not emit them. Unexercised series can be absent,
+and older binaries do not provide this metric contract.
+
+`skipper_cache_l2_processing_errors_total{operation,purpose,stage}` counts
+serialization failures separately: `get`/`decode` and `set`/`encode`, with
+the same three purposes, for six possible combinations. A decode failure
+follows a successful client GET; an encode failure occurs before a client SET
+and therefore has no SET invocation or duration. Do not divide processing
+errors by client operations and call the result a transport-error ratio.
+
+GET, SET, and DELETE client-call durations are observed in the existing generic
+`skipper_custom_duration_seconds` histogram with keys
+`cache.l2_get_duration`, `cache.l2_set_duration`, and
+`cache.l2_delete_duration`. They include errors and silent reads, but exclude
+serialization and L1 work. The histogram has no purpose label.
+
+`GetSilent` suppresses legacy lookup outcomes (`l1_hit`, `l2_hit`, `l2_miss`,
+and `l2_get_error`, including their labeled counterparts), not physical L2
+operation metrics, duration observations, existing diagnostics, or logging.
+Vary metadata and internal response-entry reads use it because they are not
+response lookup decisions. HEAD freshening, revalidation validator reads and
+304 body reads therefore no longer add ordinary lookup outcomes. Legacy
+storage diagnostics and `l2_set_fallback` can still include metadata work and
+retain their mixed operational meaning. L2 deletion removes the local L1 copy
+but does not invalidate other processes' L1 copies.
+
+For example, operation throughput, transport errors, and serialization errors:
+
+```promql
+sum by (operation, purpose, outcome) (
+  rate(skipper_cache_l2_operations_total{
+    alias=~"${cluster:regex}"
+  }[$__rate_interval])
+)
+```
+
+```promql
+sum by (operation, purpose) (
+  rate(skipper_cache_l2_operations_total{
+    alias=~"${cluster:regex}",
+    outcome="error"
+  }[$__rate_interval])
+)
+```
+
+```promql
+sum by (operation, purpose, stage) (
+  rate(skipper_cache_l2_processing_errors_total{
+    alias=~"${cluster:regex}"
+  }[$__rate_interval])
+)
+```
+
+`alias` is an environment scrape label, not a label added by these collectors;
+adapt selectors to the deployment.
+
+For rollout, deploy this implementation with its required base changes, then
+confirm both families are scraped when exercised, including a controlled
+metadata error and a normal response lookup. Check `purpose="unknown"`:
+built-in filter traffic should not emit it, although external callers may.
+Add an L2 operation view alongside legacy diagnostics in a separate dashboard
+update; do not relabel old counters as if their semantics changed. Verify
+alerts and consumers before removing legacy views, retaining original and
+temporary adjacent panels until their deployment and validation conditions are
+met. Keep origin RPS on `skipper_cache_origin_duration_seconds_count`, not L2
+operations, misses, or stale responses.
+
+After deployment and consumer migration, inventory uses of legacy L2
+diagnostics and the mixed `cache_result_total` family. A later
+compatibility-reviewed change can retire redundant operational series and
+temporary panels without removing distinct L1 diagnostics or request outcomes.
 
 **OpenTracing span tags (set on every request when a span is active):**
 
