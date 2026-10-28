@@ -24,22 +24,50 @@ type clusterState struct {
 	enableEndpointSlices bool
 }
 
-func (state *clusterState) isServiceBalancedAcrossZones(namespace, name string, maxZoneSkew int) bool {
+// matchesAllLabels reports whether m contains every key/value pair in selector.
+func matchesAllLabels(labels, toMatch map[string]string) bool {
+	for k, v := range toMatch {
+		if labels[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+// isServiceBalancedAcrossZones reports whether the combined endpoints of
+// every Service matching labelSelector are evenly spread across zones.
+func (state *clusterState) isServiceBalancedAcrossZones(labelSelector map[string]string, maxZoneSkew int) bool {
 	if !state.enableEndpointSlices {
 		return false
 	}
 
-	eps, ok := state.endpointSlices[newResourceID(namespace, name)]
-	if !ok {
-		log.Errorf("endpointslice %s/%s not found; cannot determine zone balance", namespace, name)
+	if len(labelSelector) == 0 {
+		log.Errorf("empty data-plane label selector; cannot determine zone balance")
 		return false
 	}
 
+	var matched int
 	zoneCounts := map[string]int{}
-	for _, ep := range eps.Endpoints {
-		if ep.Zone != "" {
-			zoneCounts[ep.Zone]++
+	for resID, svc := range state.services {
+		if svc.Meta == nil || !matchesAllLabels(svc.Meta.Labels, labelSelector) {
+			continue
 		}
+		matched++
+		eps, ok := state.endpointSlices[resID]
+		if !ok {
+			log.Errorf("endpointslice %s not found for service matching %v; excluding it from the data-plane zone balance check", resID, labelSelector)
+			continue
+		}
+		for _, ep := range eps.Endpoints {
+			if ep.Zone != "" {
+				zoneCounts[ep.Zone]++
+			}
+		}
+	}
+
+	if matched == 0 {
+		log.Errorf("no service found matching %v; cannot determine data-plane zone balance", labelSelector)
+		return false
 	}
 
 	if len(zoneCounts) < minZones {

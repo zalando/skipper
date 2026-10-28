@@ -11,7 +11,7 @@ func SetNow(rs *RouteServer, now func() time.Time) {
 }
 
 func SetBalancedAcrossZones(rs *RouteServer, v bool) {
-	rs.poller.isIngressControllerBalancedAcrossZones = func() bool { return v }
+	rs.poller.isBalancedDataPlane = func() bool { return v }
 }
 
 func (rs *RouteServer) ListenAndServe() (err error) {

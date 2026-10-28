@@ -42,9 +42,9 @@ type poller struct {
 	cloneRoute     []*eskip.Clone
 
 	// visibility
-	tracer                                 ot.Tracer
-	metrics                                metrics.Metrics
-	isIngressControllerBalancedAcrossZones func() bool
+	tracer              ot.Tracer
+	metrics             metrics.Metrics
+	isBalancedDataPlane func() bool
 }
 
 func (p *poller) poll(wg *sync.WaitGroup) {
@@ -76,7 +76,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			)
 
 		} else {
-			balanced := p.isIngressControllerBalancedAcrossZones()
+			balanced := p.isBalancedDataPlane()
 			routesChanged := hasChanged(lastRoutes, routes)
 			balancedChanged := balanced != lastBalanced
 

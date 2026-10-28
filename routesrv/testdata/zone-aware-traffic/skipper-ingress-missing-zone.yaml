@@ -2,7 +2,8 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: skipper-ingress
+    application: skipper-ingress
+    component: ingress
   name: skipper-ingress
   namespace: kube-system
 spec:
@@ -13,7 +14,8 @@ spec:
       protocol: TCP
       targetPort: 9090
   selector:
-    app: skipper-ingress
+    application: skipper-ingress
+    component: ingress
   type: ClusterIP
 ---
 apiVersion: v1

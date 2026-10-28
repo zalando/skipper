@@ -30,17 +30,20 @@ const (
 	minEndpointsByZone     = 3
 	minZones               = 3
 
-	// DefaultIngressControllerNamespace is the default namespace used to look up
-	// the ingress controller endpointslice when checking zone distribution.
-	DefaultIngressControllerNamespace = "kube-system"
-	// DefaultIngressControllerName is the default service name used to look up
-	// the ingress controller endpointslice when checking zone distribution.
-	DefaultIngressControllerName = "skipper-ingress"
 	// DefaultMaxZoneSkew is the default maximum permitted difference between
 	// the endpoint count in any zone and the global minimum across all zones,
 	// following Kubernetes TopologySpreadConstraints maxSkew semantics.
 	DefaultMaxZoneSkew = 1
 )
+
+// DefaultDataPlaneLabelSelector selects the Service(s) considered part of
+// the data plane whose combined endpoint zone distribution is checked to
+// decide whether zone-aware routing is enabled, when no selector is
+// explicitly configured.
+var DefaultDataPlaneLabelSelector = map[string]string{
+	"application": "skipper-ingress",
+	"component":   "ingress",
+}
 
 // PathMode values are used to control the ingress path interpretation. The path mode can
 // be set globally for all ingress paths, and it can be overruled by the individual ingress
@@ -296,18 +299,19 @@ type Options struct {
 	// addresses from the referenced Service object.
 	IngressStatusFromService string
 
-	// IngressControllerNamespace is the namespace of the ingress controller service
-	// whose endpoint zone distribution is checked to decide whether zone-aware routing
-	// is enabled. Defaults to "kube-system".
-	IngressControllerNamespace string
-
-	// IngressControllerName is the service name of the ingress controller whose endpoint
-	// zone distribution is checked to decide whether zone-aware routing is enabled.
-	// Defaults to "skipper-ingress".
-	IngressControllerName string
+	// DataPlaneLabelSelector selects the Service(s) considered part of the data
+	// plane whose combined endpoint zone distribution is checked to decide
+	// whether zone-aware routing is enabled. All matching Services across all
+	// namespaces are aggregated into a single pool before the balance check
+	// runs. nil means use DefaultDataPlaneLabelSelector
+	// ({"application": "skipper-ingress", "component": "ingress"}). An
+	// explicitly empty, non-nil map matches no Service, which permanently
+	// disables zone-aware routing (safe default-closed behavior, logged on
+	// every poll).
+	DataPlaneLabelSelector map[string]string
 
 	// MaxZoneSkew is the maximum permitted difference between the endpoint count in any
-	// zone and the global minimum across all zones for the ingress controller, following
+	// zone and the global minimum across all zones for the data plane, following
 	// Kubernetes TopologySpreadConstraints maxSkew semantics.
 	// nil means use DefaultMaxZoneSkew. A pointer to 0 means no skew is tolerated.
 	// Negative values are rejected: New returns an error if *MaxZoneSkew < 0.

@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    team: platform
+    role: data-plane
+  name: custom-selector-ingress
+  namespace: custom-ns
+spec:
+  clusterIP: 10.3.190.97
+  ports:
+    - name: web
+      port: 80
+      protocol: TCP
+      targetPort: 9090
+  selector:
+    team: platform
+  type: ClusterIP
+---
+apiVersion: v1
+kind: EndpointSlice
+metadata:
+  labels:
+    kubernetes.io/service-name: custom-selector-ingress
+  name: custom-selector-ingress-foo
+  namespace: custom-ns
+endpoints:
+  - addresses:
+    - 10.9.6.1
+    zone: eu-central-1a
+  - addresses:
+    - 10.9.6.2
+    zone: eu-central-1b
+  - addresses:
+    - 10.9.6.3
+    zone: eu-central-1c
+ports:
+  - name: web
+    port: 9090
+    protocol: TCP

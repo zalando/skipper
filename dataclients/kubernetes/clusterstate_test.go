@@ -101,148 +101,205 @@ func makeSkipperEndpointSlice(zoneCounts map[string]int) *skipperEndpointSlice {
 	return eps
 }
 
+// makeService builds a *service with the given namespace/name/labels, with
+// no spec/status needed for label-matching purposes.
+func makeService(namespace, name string, labels map[string]string) *service {
+	return &service{
+		Meta: &definitions.Metadata{
+			Namespace: namespace,
+			Name:      name,
+			Labels:    labels,
+		},
+	}
+}
+
 func TestIsServiceBalancedAcrossZones(t *testing.T) {
-	const (
-		ns   = DefaultIngressControllerNamespace
-		name = DefaultIngressControllerName
-	)
+	defaultSelector := map[string]string{"application": "skipper-ingress", "component": "ingress"}
+	defaultLabels := map[string]string{"application": "skipper-ingress", "component": "ingress"}
 
 	for _, tt := range []struct {
 		name                 string
 		endpointSlicesEnable bool
-		endpointSlicePresent bool
-		zoneCounts           map[string]int
+		services             map[definitions.ResourceID]*service
+		endpointSlices       map[definitions.ResourceID]*skipperEndpointSlice
+		labelSelector        map[string]string
 		maxZoneSkew          int
-		customNS             string
-		customName           string
 		want                 bool
 	}{
 		{
 			name:                 "endpoint slices disabled",
 			endpointSlicesEnable: false,
-			endpointSlicePresent: true,
-			zoneCounts:           map[string]int{"a": 3, "b": 3, "c": 3},
+			services:             map[definitions.ResourceID]*service{newResourceID("kube-system", "skipper-ingress"): makeService("kube-system", "skipper-ingress", defaultLabels)},
+			endpointSlices:       map[definitions.ResourceID]*skipperEndpointSlice{newResourceID("kube-system", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 3, "b": 3, "c": 3})},
+			labelSelector:        defaultSelector,
 			maxZoneSkew:          1,
 			want:                 false,
 		},
 		{
-			name:                 "no endpointslice for ingress controller",
+			name:                 "no service matches the selector",
 			endpointSlicesEnable: true,
-			endpointSlicePresent: false,
-			zoneCounts:           map[string]int{"a": 3, "b": 3, "c": 3},
+			services:             map[definitions.ResourceID]*service{newResourceID("kube-system", "other"): makeService("kube-system", "other", map[string]string{"application": "other"})},
+			endpointSlices:       map[definitions.ResourceID]*skipperEndpointSlice{newResourceID("kube-system", "other"): makeSkipperEndpointSlice(map[string]int{"a": 3, "b": 3, "c": 3})},
+			labelSelector:        defaultSelector,
+			maxZoneSkew:          1,
+			want:                 false,
+		},
+		{
+			name:                 "service matches but has no endpointslice",
+			endpointSlicesEnable: true,
+			services:             map[definitions.ResourceID]*service{newResourceID("kube-system", "skipper-ingress"): makeService("kube-system", "skipper-ingress", defaultLabels)},
+			endpointSlices:       map[definitions.ResourceID]*skipperEndpointSlice{},
+			labelSelector:        defaultSelector,
 			maxZoneSkew:          1,
 			want:                 false,
 		},
 		{
 			name:                 "fewer than minZones zones",
 			endpointSlicesEnable: true,
-			endpointSlicePresent: true,
-			zoneCounts:           map[string]int{"a": 3, "b": 3},
+			services:             map[definitions.ResourceID]*service{newResourceID("kube-system", "skipper-ingress"): makeService("kube-system", "skipper-ingress", defaultLabels)},
+			endpointSlices:       map[definitions.ResourceID]*skipperEndpointSlice{newResourceID("kube-system", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 3, "b": 3})},
+			labelSelector:        defaultSelector,
 			maxZoneSkew:          1,
 			want:                 false,
 		},
 		{
 			name:                 "balanced zones, maxSkew=0",
 			endpointSlicesEnable: true,
-			endpointSlicePresent: true,
-			zoneCounts:           map[string]int{"a": 3, "b": 3, "c": 3},
+			services:             map[definitions.ResourceID]*service{newResourceID("kube-system", "skipper-ingress"): makeService("kube-system", "skipper-ingress", defaultLabels)},
+			endpointSlices:       map[definitions.ResourceID]*skipperEndpointSlice{newResourceID("kube-system", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 3, "b": 3, "c": 3})},
+			labelSelector:        defaultSelector,
 			maxZoneSkew:          0,
 			want:                 true,
 		},
 		{
 			name:                 "balanced zones, maxSkew=1",
 			endpointSlicesEnable: true,
-			endpointSlicePresent: true,
-			zoneCounts:           map[string]int{"a": 3, "b": 3, "c": 3},
+			services:             map[definitions.ResourceID]*service{newResourceID("kube-system", "skipper-ingress"): makeService("kube-system", "skipper-ingress", defaultLabels)},
+			endpointSlices:       map[definitions.ResourceID]*skipperEndpointSlice{newResourceID("kube-system", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 3, "b": 3, "c": 3})},
+			labelSelector:        defaultSelector,
 			maxZoneSkew:          1,
 			want:                 true,
 		},
 		{
 			name:                 "skew=1 within maxSkew=1",
 			endpointSlicesEnable: true,
-			endpointSlicePresent: true,
-			zoneCounts:           map[string]int{"a": 4, "b": 3, "c": 3},
+			services:             map[definitions.ResourceID]*service{newResourceID("kube-system", "skipper-ingress"): makeService("kube-system", "skipper-ingress", defaultLabels)},
+			endpointSlices:       map[definitions.ResourceID]*skipperEndpointSlice{newResourceID("kube-system", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 4, "b": 3, "c": 3})},
+			labelSelector:        defaultSelector,
 			maxZoneSkew:          1,
 			want:                 true,
 		},
 		{
 			name:                 "skew=1 exceeds maxSkew=0",
 			endpointSlicesEnable: true,
-			endpointSlicePresent: true,
-			zoneCounts:           map[string]int{"a": 4, "b": 3, "c": 3},
+			services:             map[definitions.ResourceID]*service{newResourceID("kube-system", "skipper-ingress"): makeService("kube-system", "skipper-ingress", defaultLabels)},
+			endpointSlices:       map[definitions.ResourceID]*skipperEndpointSlice{newResourceID("kube-system", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 4, "b": 3, "c": 3})},
+			labelSelector:        defaultSelector,
 			maxZoneSkew:          0,
 			want:                 false,
 		},
 		{
 			name:                 "skew=2 exceeds maxSkew=1",
 			endpointSlicesEnable: true,
-			endpointSlicePresent: true,
-			zoneCounts:           map[string]int{"a": 5, "b": 3, "c": 3},
+			services:             map[definitions.ResourceID]*service{newResourceID("kube-system", "skipper-ingress"): makeService("kube-system", "skipper-ingress", defaultLabels)},
+			endpointSlices:       map[definitions.ResourceID]*skipperEndpointSlice{newResourceID("kube-system", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 5, "b": 3, "c": 3})},
+			labelSelector:        defaultSelector,
 			maxZoneSkew:          1,
 			want:                 false,
 		},
 		{
 			name:                 "skew=2 within maxSkew=2",
 			endpointSlicesEnable: true,
-			endpointSlicePresent: true,
-			zoneCounts:           map[string]int{"a": 5, "b": 3, "c": 3},
+			services:             map[definitions.ResourceID]*service{newResourceID("kube-system", "skipper-ingress"): makeService("kube-system", "skipper-ingress", defaultLabels)},
+			endpointSlices:       map[definitions.ResourceID]*skipperEndpointSlice{newResourceID("kube-system", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 5, "b": 3, "c": 3})},
+			labelSelector:        defaultSelector,
 			maxZoneSkew:          2,
 			want:                 true,
 		},
 		{
-			name:                 "custom namespace and name match",
+			name:                 "custom selector matches a differently-named/namespaced service",
 			endpointSlicesEnable: true,
-			endpointSlicePresent: true,
-			zoneCounts:           map[string]int{"a": 3, "b": 3, "c": 3},
+			services:             map[definitions.ResourceID]*service{newResourceID("custom-ns", "custom-ingress"): makeService("custom-ns", "custom-ingress", map[string]string{"team": "platform"})},
+			endpointSlices:       map[definitions.ResourceID]*skipperEndpointSlice{newResourceID("custom-ns", "custom-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 3, "b": 3, "c": 3})},
+			labelSelector:        map[string]string{"team": "platform"},
 			maxZoneSkew:          1,
-			customNS:             "custom-ns",
-			customName:           "custom-ingress",
 			want:                 true,
 		},
 		{
-			name:                 "custom namespace and name mismatch",
+			name:                 "selector requires all labels to match (AND semantics)",
 			endpointSlicesEnable: true,
-			endpointSlicePresent: true,
-			zoneCounts:           map[string]int{"a": 3, "b": 3, "c": 3},
+			services:             map[definitions.ResourceID]*service{newResourceID("kube-system", "skipper-ingress"): makeService("kube-system", "skipper-ingress", map[string]string{"application": "skipper-ingress"})}, // missing "component"
+			endpointSlices:       map[definitions.ResourceID]*skipperEndpointSlice{newResourceID("kube-system", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 3, "b": 3, "c": 3})},
+			labelSelector:        defaultSelector,
 			maxZoneSkew:          1,
-			customNS:             "wrong-ns",
-			customName:           "wrong-ingress",
 			want:                 false,
+		},
+		{
+			name:                 "empty selector matches no service",
+			endpointSlicesEnable: true,
+			services:             map[definitions.ResourceID]*service{newResourceID("kube-system", "skipper-ingress"): makeService("kube-system", "skipper-ingress", defaultLabels)},
+			endpointSlices:       map[definitions.ResourceID]*skipperEndpointSlice{newResourceID("kube-system", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 3, "b": 3, "c": 3})},
+			labelSelector:        map[string]string{},
+			maxZoneSkew:          1,
+			want:                 false,
+		},
+		{
+			name:                 "two services matching the selector are aggregated into one balanced pool",
+			endpointSlicesEnable: true,
+			services: map[definitions.ResourceID]*service{
+				newResourceID("region-a", "skipper-ingress"): makeService("region-a", "skipper-ingress", defaultLabels),
+				newResourceID("region-b", "skipper-ingress"): makeService("region-b", "skipper-ingress", defaultLabels),
+			},
+			endpointSlices: map[definitions.ResourceID]*skipperEndpointSlice{
+				newResourceID("region-a", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 2}),
+				newResourceID("region-b", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"b": 2, "c": 2}),
+			},
+			labelSelector: defaultSelector,
+			maxZoneSkew:   1,
+			want:          true, // combined: a=2, b=2, c=2 -> balanced
+		},
+		{
+			name:                 "two matched services combine into an unbalanced pool even though each alone looks fine",
+			endpointSlicesEnable: true,
+			services: map[definitions.ResourceID]*service{
+				newResourceID("region-a", "skipper-ingress"): makeService("region-a", "skipper-ingress", defaultLabels),
+				newResourceID("region-b", "skipper-ingress"): makeService("region-b", "skipper-ingress", defaultLabels),
+			},
+			endpointSlices: map[definitions.ResourceID]*skipperEndpointSlice{
+				newResourceID("region-a", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 10, "b": 1, "c": 1}),
+				newResourceID("region-b", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 1, "b": 1, "c": 1}),
+			},
+			labelSelector: defaultSelector,
+			maxZoneSkew:   1,
+			want:          false, // combined: a=11, b=2, c=2 -> skew of 9 exceeds maxZoneSkew=1
+		},
+		{
+			name:                 "one matched service has no endpointslice but another does: the one with data still counts",
+			endpointSlicesEnable: true,
+			services: map[definitions.ResourceID]*service{
+				newResourceID("region-a", "skipper-ingress"): makeService("region-a", "skipper-ingress", defaultLabels),
+				newResourceID("region-b", "skipper-ingress"): makeService("region-b", "skipper-ingress", defaultLabels),
+			},
+			endpointSlices: map[definitions.ResourceID]*skipperEndpointSlice{
+				newResourceID("region-a", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 3, "b": 3, "c": 3}),
+				// region-b has no endpointslice entry at all
+			},
+			labelSelector: defaultSelector,
+			maxZoneSkew:   1,
+			want:          true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			lookupNS := ns
-			lookupName := name
-			if tt.customNS != "" {
-				lookupNS = tt.customNS
-			}
-			if tt.customName != "" {
-				lookupName = tt.customName
-			}
-
-			endpointSlices := map[definitions.ResourceID]*skipperEndpointSlice{}
-			if tt.endpointSlicePresent {
-				// always store under the canonical ns/name; custom test cases
-				// store under the custom key so that the lookup matches.
-				storeNS, storeName := ns, name
-				if tt.customNS != "" && tt.customNS != "wrong-ns" {
-					storeNS = tt.customNS
-				}
-				if tt.customName != "" && tt.customName != "wrong-ingress" {
-					storeName = tt.customName
-				}
-				endpointSlices[newResourceID(storeNS, storeName)] = makeSkipperEndpointSlice(tt.zoneCounts)
-			}
-
 			state := &clusterState{
 				enableEndpointSlices: tt.endpointSlicesEnable,
-				endpointSlices:       endpointSlices,
+				services:             tt.services,
+				endpointSlices:       tt.endpointSlices,
 			}
 
-			got := state.isServiceBalancedAcrossZones(lookupNS, lookupName, tt.maxZoneSkew)
+			got := state.isServiceBalancedAcrossZones(tt.labelSelector, tt.maxZoneSkew)
 			if got != tt.want {
-				t.Errorf("isServiceBalancedAcrossZones(%q, %q, %d) = %v, want %v",
-					lookupNS, lookupName, tt.maxZoneSkew, got, tt.want)
+				t.Errorf("isServiceBalancedAcrossZones(%v, %d) = %v, want %v",
+					tt.labelSelector, tt.maxZoneSkew, got, tt.want)
 			}
 		})
 	}

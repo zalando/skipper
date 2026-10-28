@@ -1572,7 +1572,7 @@ func TestZoneAwareRoutesUpdateOnBalanceTransitionAlone(t *testing.T) {
 
 // TestZoneAwareRoutingEndToEndWithRealEndpointSlice exercises the real
 // fetchClusterState -> isServiceBalancedAcrossZones ->
-// IsIngressControllerBalancedAcrossZones -> poller pipeline, with no
+// IsBalancedDataPlane -> poller pipeline, with no
 // SetBalancedAcrossZones mock, using real EndpointSlice fixtures for the
 // ingress controller (skipper-ingress) itself. It also proves the backend
 // service's own zone distribution (per-route, minEndpointsByZone threshold)
@@ -1701,28 +1701,27 @@ func TestZoneAwareRoutingBackendImbalanceDoesNotCloseGate(t *testing.T) {
 		"route with <3 endpoints/zone must still carry all its own endpoints even though ingress controller is balanced")
 }
 
-// TestZoneAwareRoutingUsesConfiguredIngressControllerNamespaceAndName verifies
-// that KubernetesIngressControllerNamespace/KubernetesIngressControllerName
-// flow through skipper.Options -> kubernetes.Options -> newClusterClient and
-// are actually used to look up the ingress-controller EndpointSlice, instead
-// of silently falling back to the kube-system/skipper-ingress defaults.
-func TestZoneAwareRoutingUsesConfiguredIngressControllerNamespaceAndName(t *testing.T) {
+// TestZoneAwareRoutingUsesConfiguredDataPlaneLabelSelector verifies that
+// KubernetesDataPlaneLabelSelector flows through skipper.Options ->
+// kubernetes.Options -> newClusterClient and is actually used to find the
+// data-plane Service's EndpointSlice, instead of silently falling back to
+// the application=skipper-ingress,component=ingress default.
+func TestZoneAwareRoutingUsesConfiguredDataPlaneLabelSelector(t *testing.T) {
 	defer tl.Reset()
 
 	ks, _ := newKubeServer(t,
 		loadKubeYAML(t, "testdata/zone-aware-traffic/all-zones-3-addr.yaml"),
-		loadKubeYAML(t, "testdata/zone-aware-traffic/custom-ingress-controller-balanced.yaml"),
+		loadKubeYAML(t, "testdata/zone-aware-traffic/custom-selector-ingress-balanced.yaml"),
 	)
 	ks.Start()
 	defer ks.Close()
 
 	rs := newRouteServerWithOptions(t, skipper.Options{
-		SourcePollTimeout:                    pollInterval,
-		Kubernetes:                           true,
-		KubernetesURL:                        ks.URL,
-		KubernetesEnableEndpointslices:       true,
-		KubernetesIngressControllerNamespace: "custom-ns",
-		KubernetesIngressControllerName:      "my-custom-ingress",
+		SourcePollTimeout:                pollInterval,
+		Kubernetes:                       true,
+		KubernetesURL:                    ks.URL,
+		KubernetesEnableEndpointslices:   true,
+		KubernetesDataPlaneLabelSelector: map[string]string{"team": "platform", "role": "data-plane"},
 	})
 	rs.StartUpdates()
 	defer rs.StopUpdates()
@@ -1733,7 +1732,7 @@ func TestZoneAwareRoutingUsesConfiguredIngressControllerNamespaceAndName(t *test
 	zone := getZoneAwareRoutes(rs, "eu-central-1a")
 	require.Equal(t, http.StatusOK, zone.Code)
 	assert.NotEqual(t, global.Body.String(), zone.Body.String(),
-		"configured namespace/name must be used to find the ingress controller endpointslice")
+		"configured label selector must be used to find the data-plane endpointslice")
 }
 
 // TestZoneAwareRoutingUsesConfiguredMaxZoneSkew verifies that

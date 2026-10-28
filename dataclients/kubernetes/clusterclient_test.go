@@ -87,7 +87,7 @@ func TestNewRejectsNegativeMaxZoneSkew(t *testing.T) {
 	assert.ErrorContains(t, err, "MaxZoneSkew")
 }
 
-func TestMissingIngressControllerEndpointSliceLoggedEveryPoll(t *testing.T) {
+func TestMissingDataPlaneServiceLoggedEveryPoll(t *testing.T) {
 	a, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{})
 	require.NoError(t, err)
 
@@ -111,7 +111,7 @@ func TestMissingIngressControllerEndpointSliceLoggedEveryPoll(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	const wantMessage = "endpointslice kube-system/skipper-ingress not found; cannot determine zone balance"
+	const wantMessage = "no service found matching map[application:skipper-ingress component:ingress]; cannot determine data-plane zone balance"
 
 	assert.True(t, containsCount(logBuf.String(), wantMessage, pollCount), "expected %q to be logged exactly %d times, log output:\n%s", wantMessage, pollCount, logBuf.String())
 }

@@ -203,8 +203,6 @@ func defaultConfig(with func(*Config)) *Config {
 		MtlsAuthnAppendCA:                       false,
 		MtlsAuthnCaFile:                         "",
 		MtlsAuthnCA:                             x509.NewCertPool(),
-		KubernetesIngressControllerNamespace:    kubernetes.DefaultIngressControllerNamespace,
-		KubernetesIngressControllerName:         kubernetes.DefaultIngressControllerName,
 		KubernetesZoneMaxSkew:                   kubernetes.DefaultMaxZoneSkew,
 	}
 	with(cfg)
