@@ -192,6 +192,8 @@ type Config struct {
 	KubernetesListChunkSize                              int                                `yaml:"kubernetes-list-chunk-size"`
 	KubernetesEnableEndpointSlices                       bool                               `yaml:"enable-kubernetes-endpointslices"`
 	KubernetesTopologyZone                               string                             `yaml:"kubernetes-topology-zone"`
+	KubernetesDataPlaneLabelSelector                     mapFlags                           `yaml:"kubernetes-data-plane-label-selector"`
+	KubernetesZoneMaxSkew                                int                                `yaml:"kubernetes-zone-max-skew"`
 	KubernetesEnableEastWest                             bool                               `yaml:"enable-kubernetes-east-west"`
 	KubernetesEastWestDomain                             string                             `yaml:"kubernetes-east-west-domain"`
 	KubernetesEastWestRangeDomains                       *listFlag                          `yaml:"kubernetes-east-west-range-domains"`
@@ -607,6 +609,8 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.KubernetesListChunkSize, "kubernetes-list-chunk-size", 0, "configures the chunk size (limit parameter) when listing Kubernetes resources. If 0 or negative, pagination is disabled")
 	flag.BoolVar(&cfg.KubernetesEnableEndpointSlices, "enable-kubernetes-endpointslices", false, "Enables that skipper fetches Kubernetes endpointslices instead of endpoints to scale more than 1000 pods within a service")
 	flag.StringVar(&cfg.KubernetesTopologyZone, "kubernetes-topology-zone", "", "sets the topology zone to be used for zone aware routing")
+	flag.Var(&cfg.KubernetesDataPlaneLabelSelector, "kubernetes-data-plane-label-selector", "comma separated key=value label selector used to find the Service(s) that make up the data plane for zone distribution checks, e.g. 'application=skipper-ingress,component=ingress'. Defaults to application=skipper-ingress,component=ingress when unset")
+	flag.IntVar(&cfg.KubernetesZoneMaxSkew, "kubernetes-zone-max-skew", kubernetes.DefaultMaxZoneSkew, "maximum permitted endpoint count difference between the most and least populated zone for the data plane, following Kubernetes TopologySpreadConstraints maxSkew semantics; 0 means no skew is tolerated")
 	flag.BoolVar(&cfg.KubernetesEnableEastWest, "enable-kubernetes-east-west", false, "*Deprecated*: use kubernetes-east-west-range feature. Enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local")
 	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", "*Deprecated*: use kubernetes-east-west-range feature. Sets the east-west domain, defaults to .skipper.cluster.local")
 	flag.Var(cfg.KubernetesEastWestRangeDomains, "kubernetes-east-west-range-domains", "set the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates")
@@ -865,6 +869,9 @@ func validate(c *Config) error {
 	_, err = c.parseHistogramBuckets(c.RequestSizeBucketsString, metrics.DefaultRequestSizeBuckets)
 	if err != nil {
 		return err
+	}
+	if c.KubernetesZoneMaxSkew < 0 {
+		return fmt.Errorf("kubernetes-zone-max-skew must be >= 0, got %d", c.KubernetesZoneMaxSkew)
 	}
 	return c.parseForwardedHeaders()
 }
@@ -1131,6 +1138,8 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesListChunkSize:                        c.KubernetesListChunkSize,
 		KubernetesEnableEndpointslices:                 c.KubernetesEnableEndpointSlices,
 		KubernetesTopologyZone:                         c.KubernetesTopologyZone,
+		KubernetesDataPlaneLabelSelector:               c.KubernetesDataPlaneLabelSelector.values,
+		KubernetesZoneMaxSkew:                          c.KubernetesZoneMaxSkew,
 		KubernetesEnableEastWest:                       c.KubernetesEnableEastWest,
 		KubernetesEastWestDomain:                       c.KubernetesEastWestDomain,
 		KubernetesEastWestRangeDomains:                 c.KubernetesEastWestRangeDomains.values,

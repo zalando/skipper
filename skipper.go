@@ -378,6 +378,19 @@ type Options struct {
 	// KubernetesTopologyZone if set to non empty string it is used to filter endpointslice endpoints by this value.
 	KubernetesTopologyZone string
 
+	// KubernetesDataPlaneLabelSelector selects the Service(s) considered part
+	// of the data plane whose combined endpoint zone distribution is checked
+	// to decide whether zone-aware routing is enabled. Defaults to
+	// kubernetes.DefaultDataPlaneLabelSelector
+	// ({"application": "skipper-ingress", "component": "ingress"}) when nil.
+	KubernetesDataPlaneLabelSelector map[string]string
+
+	// KubernetesZoneMaxSkew is the maximum permitted difference between the endpoint count in any
+	// zone and the global minimum across all zones for the ingress controller, following Kubernetes
+	// TopologySpreadConstraints maxSkew semantics.
+	// 0 means no skew is tolerated — all zones must have an equal endpoint count.
+	KubernetesZoneMaxSkew int
+
 	// KubernetesForceService overrides the default Skipper functionality to route traffic using Kubernetes Endpoints,
 	// instead using Kubernetes Services.
 	KubernetesForceService bool
@@ -1279,6 +1292,8 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		DefaultLoadBalancerAlgorithm:                   o.KubernetesDefaultLoadBalancerAlgorithm,
 		ForwardBackendURL:                              o.ForwardBackendURL,
 		TopologyZone:                                   o.KubernetesTopologyZone,
+		DataPlaneLabelSelector:                         o.KubernetesDataPlaneLabelSelector,
+		MaxZoneSkew:                                    &o.KubernetesZoneMaxSkew,
 		IngressStatusFromService:                       o.KubernetesStatusFromService,
 		KubernetesApplicationAnnotationLabelKey:        o.KubernetesApplicationAnnotationLabelKey,
 	}
