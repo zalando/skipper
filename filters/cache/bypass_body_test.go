@@ -108,6 +108,10 @@ func TestCacheFilter_BypassBodyReadError(t *testing.T) {
 	}
 	a, b := <-served, <-served
 	errors, _ := m.Counter("cache.coalesce_bypass_error")
+	fetches, _ := m.Counter("cache_origin_duration.unknown.2xx.pipeline")
+	if fetches != 2 {
+		t.Fatalf("want both leader and bypass fetch measured, got %d", fetches)
+	}
 	if a == b || !bad.closed.Load() || errors != 1 {
 		t.Fatalf("served=%t,%t closed=%t errors=%d", a, b, bad.closed.Load(), errors)
 	}

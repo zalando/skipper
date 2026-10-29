@@ -34,6 +34,7 @@ const (
 	stateBagRequestTime = "cache:request-time"
 	stateBagNoStore     = "cache:no-store"
 	stateBagIdentity    = "cache:identity"
+	stateBagRevalidate  = "cache:revalidate"
 
 	// revalidateHeader is set on background revalidation requests so the cache
 	// filter skips the cache lookup and lets the response populate a fresh entry.
@@ -44,6 +45,9 @@ const (
 	cacheStatusHit    = "HIT"
 	cacheStatusMiss   = "MISS"
 	cacheStatusStale  = "STALE"
+
+	originDispatchDirect   = "direct"
+	originDispatchPipeline = "pipeline"
 
 	// revalQueueSize is the capacity of the shared revalidation job queue.
 	// Sized to absorb short bursts; jobs are dropped (with reval_dropped metric)
@@ -356,6 +360,7 @@ type revalJob struct {
 	backendURL   string        // non-empty: dial here directly instead of looping through listenAddr
 	outgoingHost string        // Host header to send with backendURL; see requestDispatch
 	filter       *cacheFilter  // instance whose doRevalidate to call
+	route        string        // route for skipper_cache_route_reval_total
 	enqueuedAt   time.Time     // wall-clock time the job entered the queue; used to measure wait time
 }
 
@@ -426,6 +431,98 @@ func (f *cacheFilter) incRouteResult(route, result string) {
 	}
 }
 
+// incRouteReval records a background refresh outcome: started, success, failed or dropped.
+func (f *cacheFilter) incRouteReval(route, outcome string) {
+	if p, ok := f.metrics.(interface{ IncCacheRouteReval(string, string) }); ok {
+		p.IncCacheRouteReval(route, outcome)
+	}
+}
+
+// observeOriginFetch records an origin fetch duration. resp is nil when err is set.
+func (f *cacheFilter) observeOriginFetch(route string, direct bool, start time.Time, resp *http.Response, err error) {
+	dispatch := originDispatchPipeline
+	if direct {
+		dispatch = originDispatchDirect
+	}
+	if p, ok := f.metrics.(interface {
+		ObserveCacheOriginDuration(string, string, string, float64)
+	}); ok {
+		p.ObserveCacheOriginDuration(route, originStatusClass(resp, err), dispatch, time.Since(start).Seconds())
+	}
+}
+
+func (f *cacheFilter) fetchOrigin(route string, direct bool, req *http.Request) (*http.Response, error) {
+	start := time.Now()
+	resp, err := f.fetch(req)
+	f.observeOriginFetch(route, direct, start, resp, err)
+	if err == nil && resp != nil {
+		f.recordCacheControl(resp.Header)
+	}
+	return resp, err
+}
+
+// originStatusClass maps an origin fetch result to one of 2xx, 3xx, 4xx, 5xx, error.
+// Status codes outside 200-599 map to "other".
+func originStatusClass(resp *http.Response, err error) string {
+	if err != nil || resp == nil {
+		return "error"
+	}
+	switch {
+	case resp.StatusCode >= 200 && resp.StatusCode < 300:
+		return "2xx"
+	case resp.StatusCode >= 300 && resp.StatusCode < 400:
+		return "3xx"
+	case resp.StatusCode >= 400 && resp.StatusCode < 500:
+		return "4xx"
+	case resp.StatusCode >= 500 && resp.StatusCode < 600:
+		return "5xx"
+	default:
+		return "other"
+	}
+}
+
+// recordCacheControl counts each Cache-Control directive present on an origin
+// response once. Directive values are dropped and unknown names map to "other",
+// so the label set is fixed.
+func (f *cacheFilter) recordCacheControl(h http.Header) {
+	p, ok := f.metrics.(interface{ IncOriginCacheControl(string) })
+	if !ok {
+		return
+	}
+	var seen [len(cacheControlLabels)]bool
+	for _, v := range h.Values("Cache-Control") {
+		for d := range strings.SplitSeq(v, ",") {
+			name, _, _ := strings.Cut(strings.TrimSpace(d), "=")
+			name = strings.ToLower(strings.TrimSpace(name))
+			if name == "" {
+				continue
+			}
+			i := cacheControlLabelIndex(name)
+			if seen[i] {
+				continue
+			}
+			seen[i] = true
+			p.IncOriginCacheControl(cacheControlLabels[i])
+		}
+	}
+}
+
+// cacheControlLabels is the fixed label set for skipper_cache_origin_cache_control_total.
+// The last entry is the catch-all for unknown directives.
+var cacheControlLabels = [9]string{
+	"public", "private", "no-store", "no-cache", "max-age",
+	"s-maxage", "stale-while-revalidate", "stale-if-error", "other",
+}
+
+func cacheControlLabelIndex(name string) int {
+	for i, l := range cacheControlLabels[:len(cacheControlLabels)-1] {
+		if name == l {
+			return i
+		}
+	}
+	return len(cacheControlLabels) - 1
+}
+
 // Request checks the cache. On a hit it calls ctx.Serve() to short-circuit the
 // backend roundtrip. On a stale hit it serves stale and fires a background
 // revalidation. On a miss it stores the computed key in the state bag so
@@ -455,6 +552,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	// fresh entry. Strip the header so it never reaches the upstream.
 	if ctx.Request().Header.Get(revalidateHeader) != "" {
 		ctx.Request().Header.Del(revalidateHeader)
+		ctx.StateBag()[stateBagRevalidate] = true
 		return
 	}
 
@@ -528,12 +626,12 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 			}
 			ctx.Serve(notModified)
 			revalReq, backendURL, outgoingHost := f.requestDispatch(ctx, "cache.reval_error")
-			f.enqueueRevalidation(key, revalReq, identity, backendURL, outgoingHost, baseKey)
+			f.enqueueRevalidation(key, revalReq, identity, backendURL, outgoingHost, routeLabel(ctx.RouteId()), baseKey)
 			return
 		}
 		ctx.Serve(headBodyOmitted(method, rsp))
 		revalReq, backendURL, outgoingHost := f.requestDispatch(ctx, "cache.reval_error")
-		f.enqueueRevalidation(key, revalReq, identity, backendURL, outgoingHost, baseKey)
+		f.enqueueRevalidation(key, revalReq, identity, backendURL, outgoingHost, routeLabel(ctx.RouteId()), baseKey)
 		return
 	}
 
@@ -660,7 +758,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		sieStored := f.staleIfErrorEntry(key)
 
 		requestTime := time.Now()
-		resp, err := f.fetch(req)
+		resp, err := f.fetchOrigin(route, backendURL != "", req)
 		if err != nil {
 			if sieStored != nil {
 				return &coalesceResult{stored: sieStored}, err
@@ -769,7 +867,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 				f.coalesce(ctx, varyKey(baseKey, identity, cr.varyNames))
 				return
 			}
-			resp, err := f.fetch(req)
+			resp, err := f.fetchOrigin(route, backendURL != "", req)
 			if err != nil {
 				f.metrics.IncCounter("cache.coalesce_bypass_error")
 				if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
@@ -888,6 +986,11 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 		return
 	}
 
+	internal := ctx.StateBag()[stateBagRevalidate] == true
+	if !internal {
+		f.recordCacheControl(rsp.Header)
+	}
+
 	// RFC 9111 §4.4: invalidate cached entry on successful unsafe method.
 	// Also invalidate same-origin Location/Content-Location URIs.
 	if isUnsafeMethod(ctx.Request().Method) && rsp.StatusCode < 400 {
@@ -922,9 +1025,10 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 
 	rsp.Header.Set(cacheStatusHeader, cacheStatusMiss)
 	tagSpan(ctx, cacheStatusMiss, -1)
-	f.metrics.IncCounter("cache.miss")
-	f.incRouteResult(routeLabel(ctx.RouteId()), "miss")
-
+	if !internal {
+		f.metrics.IncCounter("cache.miss")
+		f.incRouteResult(routeLabel(ctx.RouteId()), "miss")
+	}
 	directives := parseCacheControl(rsp.Header)
 	identity := cacheIdentity(ctx)
 	ttl, shouldStore := f.storeDecision(identity, rsp.StatusCode, rsp.Header, directives)
@@ -1094,8 +1198,9 @@ func revalidationRequest(ctx filters.FilterContext) *http.Request {
 // directly to that backend using that Host header instead of looping back
 // through skipper's own listener (see requestDispatch).
 // If the queue is full the job is dropped and reval_dropped is incremented.
+// route labels skipper_cache_route_reval_total for this job.
 // The closure captures f.doRevalidate so the spec-level worker respects this route's config.
-func (f *cacheFilter) enqueueRevalidation(key string, orig, identity *http.Request, backendURL, outgoingHost string, baseKeys ...string) {
+func (f *cacheFilter) enqueueRevalidation(key string, orig, identity *http.Request, backendURL, outgoingHost, route string, baseKeys ...string) {
 	baseKey := key
 	if len(baseKeys) > 0 {
 		baseKey = baseKeys[0]
@@ -1109,14 +1214,17 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig, identity *http.Reque
 		backendURL:   backendURL,
 		outgoingHost: outgoingHost,
 		filter:       f,
+		route:        route,
 		enqueuedAt:   time.Now(),
 	}
 	select {
 	case f.revalJobs <- job:
 	case <-f.ctx.Done():
 		f.metrics.IncCounter("cache.reval_dropped")
+		f.incRouteReval(route, "dropped")
 	default:
 		f.metrics.IncCounter("cache.reval_dropped")
+		f.incRouteReval(route, "dropped")
 	}
 }
 
@@ -1134,14 +1242,14 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL, ou
 	if len(baseKeys) > 0 {
 		baseKey = baseKeys[0]
 	}
-	f.revalidate(key, baseKey, req, snapshotCacheIdentity(req), backendURL, outgoingHost, time.Time{})
+	f.revalidate(key, baseKey, req, snapshotCacheIdentity(req), backendURL, outgoingHost, time.Time{}, "unknown")
 }
 
 func (f *cacheFilter) doRevalidateQueued(job revalJob) {
-	f.revalidate(job.key, job.baseKey, job.req, job.identity, job.backendURL, job.outgoingHost, job.enqueuedAt)
+	f.revalidate(job.key, job.baseKey, job.req, job.identity, job.backendURL, job.outgoingHost, job.enqueuedAt, job.route)
 }
 
-func (f *cacheFilter) revalidate(key, baseKey string, req, identity *http.Request, backendURL, outgoingHost string, enqueuedAt time.Time) {
+func (f *cacheFilter) revalidate(key, baseKey string, req, identity *http.Request, backendURL, outgoingHost string, enqueuedAt time.Time, route string) {
 	if identity == nil {
 		identity = snapshotCacheIdentity(req)
 	}
@@ -1154,6 +1262,9 @@ func (f *cacheFilter) revalidate(key, baseKey string, req, identity *http.Reques
 				return nil, nil
 			}
 		}
+		f.incRouteReval(route, "started")
+		outcome := "failed"
+		defer func() { f.incRouteReval(route, outcome) }()
 		req, err := f.prepareDispatch(req, backendURL, outgoingHost)
 		if err != nil {
 			f.metrics.IncCounter("cache.reval_error")
@@ -1174,7 +1285,7 @@ func (f *cacheFilter) revalidate(key, baseKey string, req, identity *http.Reques
 		}
 
 		requestTime := time.Now()
-		resp, err := f.fetch(req)
+		resp, err := f.fetchOrigin(route, backendURL != "", req)
 		if err != nil {
 			f.metrics.IncCounter("cache.reval_error")
 			log.WithFields(log.Fields{
@@ -1185,8 +1296,11 @@ func (f *cacheFilter) revalidate(key, baseKey string, req, identity *http.Reques
 		responseTime := time.Now()
 		defer resp.Body.Close()
 
-		if staleIfErrorStatus(resp.StatusCode) && f.staleIfErrorEntry(key) != nil {
+		originFailed := resp.StatusCode >= 500 && resp.StatusCode < 600
+		if originFailed {
 			f.metrics.IncCounter("cache.reval_error")
+		}
+		if staleIfErrorStatus(resp.StatusCode) && f.staleIfErrorEntry(key) != nil {
 			return nil, nil
 		}
 
@@ -1205,6 +1319,7 @@ func (f *cacheFilter) revalidate(key, baseKey string, req, identity *http.Reques
 					responseHeader[k] = vv
 				}
 			} else {
+				outcome = "dropped"
 				log.WithField("key", key).Debug("cache: revalidation received 304 but entry was evicted, skipping refresh")
 				return nil, nil
 			}
@@ -1213,7 +1328,9 @@ func (f *cacheFilter) revalidate(key, baseKey string, req, identity *http.Reques
 			var rerr error
 			body, rerr = io.ReadAll(resp.Body)
 			if rerr != nil {
-				f.metrics.IncCounter("cache.reval_error")
+				if !originFailed {
+					f.metrics.IncCounter("cache.reval_error")
+				}
 				log.WithFields(log.Fields{
 					"url": req.URL.String(),
 				}).WithError(rerr).Warn("cache: failed to read response body during background revalidation")
@@ -1227,6 +1344,9 @@ func (f *cacheFilter) revalidate(key, baseKey string, req, identity *http.Reques
 		directives := parseCacheControl(responseHeader)
 		ttl, shouldStore := f.storeDecision(identity, statusCode, responseHeader, directives)
 		if !shouldStore {
+			if !originFailed {
+				outcome = "dropped"
+			}
 			return nil, nil
 		}
 
@@ -1246,6 +1366,8 @@ func (f *cacheFilter) revalidate(key, baseKey string, req, identity *http.Reques
 		}
 		if err := f.storeEntry(context.Background(), baseKey, key, identity, entry); err != nil {
 			log.WithError(err).Warn("cache: Set failed (background revalidation)")
+		} else if !originFailed {
+			outcome = "success"
 		}
 		return nil, nil
 	})

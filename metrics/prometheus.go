@@ -84,6 +84,9 @@ type Prometheus struct {
 	cacheLRUEntriesM           *prometheus.GaugeVec
 	cacheLRUCapacityBytesM     prometheus.Gauge
 	cacheRouteResultTotalM     *prometheus.CounterVec
+	cacheRouteRevalTotalM      *prometheus.CounterVec
+	cacheOriginDurationM       *prometheus.HistogramVec
+	cacheOriginCCTotalM        *prometheus.CounterVec
 	cacheFirstHitSecondsM      *prometheus.GaugeVec
 	cacheStartedAt             time.Time
 	cacheFirstHitOnce          sync.Once
@@ -380,13 +383,35 @@ func NewPrometheus(opts Options) *Prometheus {
 		Help:      "Configured L1 (LRU) cache capacity in bytes.",
 	}))
 
-	// result is hit/miss/stale.
+	// result is hit/miss/stale; outcome is started/success/failed/dropped.
 	p.cacheRouteResultTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: "cache",
 		Name:      "route_result_total",
 		Help:      "Cache results by route and result (hit/miss/stale).",
 	}, []string{"route", "result"}))
+
+	p.cacheRouteRevalTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "route_reval_total",
+		Help:      "Background revalidation outcomes by route (started/success/failed/dropped).",
+	}, []string{"route", "outcome"}))
+
+	p.cacheOriginDurationM = register(p, prometheus.NewHistogramVec(p.histogramOpts(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "origin_duration_seconds",
+		Help:      "Origin fetch duration performed by the cache filter (cold-miss coalescing and revalidation) by route, status class (2xx/3xx/4xx/5xx/error/other), and dispatch path (direct/pipeline). Direct dispatch bypasses MeasureBackend* metrics and the access log.",
+		Buckets:   opts.HistogramBuckets,
+	}), []string{"route", "status_class", "dispatch"}))
+
+	p.cacheOriginCCTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "origin_cache_control_total",
+		Help:      "Origin responses by Cache-Control directive, counted once per directive per response.",
+	}, []string{"cache_control"}))
 
 	p.cacheFirstHitSecondsM = register(p, prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
@@ -673,6 +698,21 @@ func (p *Prometheus) IncCacheRouteResult(route, result string) {
 			p.cacheFirstHitSecondsM.WithLabelValues().Set(time.Since(p.cacheStartedAt).Seconds())
 		})
 	}
+}
+
+// IncCacheRouteReval increments skipper_cache_route_reval_total.
+func (p *Prometheus) IncCacheRouteReval(route, outcome string) {
+	p.cacheRouteRevalTotalM.WithLabelValues(route, outcome).Inc()
+}
+
+// ObserveCacheOriginDuration records an origin fetch duration in seconds.
+func (p *Prometheus) ObserveCacheOriginDuration(route, statusClass, dispatch string, seconds float64) {
+	p.cacheOriginDurationM.WithLabelValues(route, statusClass, dispatch).Observe(seconds)
+}
+
+// IncOriginCacheControl increments skipper_cache_origin_cache_control_total.
+func (p *Prometheus) IncOriginCacheControl(directive string) {
+	p.cacheOriginCCTotalM.WithLabelValues(directive).Inc()
 }
 
 // SetCacheLRUCapacity sets the configured L1 capacity gauge.
