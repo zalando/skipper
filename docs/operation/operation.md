@@ -2150,6 +2150,73 @@ flowchart TD
 
 **Prometheus cache outcome metrics:**
 
+- `skipper_cache_request_total{result,tier}`: One terminal cache decision per
+  external request traversing `cache()`, including HEAD, conditional requests,
+  unsafe methods, request-directive bypasses, cache-only misses and failures.
+  Cold-miss listener loopback and background refresh requests marked with
+  `X-Cache-Revalidate` are excluded. The counter is emitted when the cache
+  filter's request phase returns, not when the client finishes receiving bytes.
+  A bypass or error falling through to the normal proxy pipeline is counted
+  here regardless of the eventual backend response.
+- `result="fresh"` means a fresh stored response was actually selected (including
+  cache-generated 304s); `tier="l1|l2"` identifies the read that supplied it,
+  before any L1 warming. LRU-only storage reports `l1`. A successful storage
+  read that cannot satisfy freshness or request directives is not a fresh hit.
+- `result="stale"` covers both stale-while-revalidate and stale-if-error serves,
+  including conditional 304s. `tier` identifies the read supplying the stale
+  representation, not the failed origin attempt. Coalesced stale-if-error
+  waiters each count once as stale, using their shared snapshot's tier.
+- `result="origin"` is an origin response selected by its fetch leader or an
+  independent unshareable follower; `coalesced` is a follower reusing an
+  in-flight origin response. Neither becomes a tier hit when the response is
+  stored. Both use `tier="none"`.
+- `result="bypass"` covers unsafe methods and request `no-cache`/`no-store`.
+  `cache_only_miss` is an unsatisfied `only-if-cached` request (504).
+  `error` covers cancellation, dispatch/transport/body-read failure and a
+  failed representation lookup, even if an origin fallback succeeds. Successful
+  fresh or stale serves take precedence over a recovered lookup error.
+  These non-cache outcomes use `tier="none"`. Write/delete failures do not
+  change a response's source; use the existing storage/error counters to
+  diagnose them.
+
+The new counter has only bounded result/tier labels (at most 21 combinations),
+not route, host or URL labels. Third-party `Storage` implementations without
+read provenance use `tier="none"` even for fresh/stale responses. Standard L1/L2
+stores supply provenance without changing the public `Storage` interface.
+Vary-sentinel reads, HEAD freshening, stale-if-error snapshots, background
+validator reads and 304 reuse never emit additional request outcomes.
+
+For Overview panels, use the same external-request denominator for all three
+percentages. Apply the same deployment/cluster selectors to every term:
+
+```promql
+# L1 fresh request hit ratio (%)
+100 * (sum(rate(skipper_cache_request_total{result="fresh",tier="l1"}[5m])) or vector(0))
+  / sum(rate(skipper_cache_request_total[5m]))
+
+# L2 fresh request hit ratio (%), not conditional on reaching L2
+100 * (sum(rate(skipper_cache_request_total{result="fresh",tier="l2"}[5m])) or vector(0))
+  / sum(rate(skipper_cache_request_total[5m]))
+
+# Stale request share (%), across both tiers
+100 * (sum(rate(skipper_cache_request_total{result="stale"}[5m])) or vector(0))
+  / sum(rate(skipper_cache_request_total[5m]))
+```
+
+Missing numerator series yield zero while another outcome has traffic. A zero
+denominator remains undefined (no traffic); do not display it as a 100% hit rate.
+During rolling deployment, these ratios describe only instances emitting the
+new metric. No `cache_host` filtering is supported: the counter is cluster-wide
+after aggregation.
+
+Existing `cache.l1_hit`, `cache.l2_hit`, `cache.l2_miss` and
+`skipper_cache_result_total` remain diagnostic lookup/outcome counters, not
+request denominators. In particular,
+`L1 hits / (L1 hits + L2 hits + L2 misses)` is a **lookup share**, and
+`L2 hits / (L2 hits + L2 misses)` is a **conditional lookup hit ratio**.
+Both omit lookup errors and can include internal reads; neither is a fresh
+per-external-request tier hit ratio. Their names and behaviour are unchanged.
+
 - `skipper_cache_route_result_total{route,result}`: Counter for cache `hit`, `miss`,
   and `stale` results, labeled with the route ID. Cardinality scales with the number
   of routes (the same per-route precedent as `skipper_cache_lru_entries{route}`).

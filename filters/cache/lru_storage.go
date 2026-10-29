@@ -35,6 +35,15 @@ func (s *LRUStorage) GetSilent(ctx context.Context, key string) (*Entry, error) 
 	return s.Get(ctx, key)
 }
 
+func (s *LRUStorage) getWithLookup(ctx context.Context, key string, _ bool) (*Entry, cacheLookup, error) {
+	entry, err := s.Get(ctx, key)
+	lookup := cacheLookup{tier: "none", failed: err != nil}
+	if entry != nil {
+		lookup.tier = "l1"
+	}
+	return entry, lookup, err
+}
+
 func (s *LRUStorage) Get(_ context.Context, key string) (*Entry, error) {
 	data, ok := s.lru.Get(key)
 	if !ok {

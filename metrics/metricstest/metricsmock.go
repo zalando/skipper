@@ -313,6 +313,11 @@ func (m *MockMetrics) IncCacheRouteResult(route, result string) {
 	m.IncCounter(fmt.Sprintf("cache_route_result.%s.%s", route, result))
 }
 
+// IncCacheRequest mirrors skipper_cache_request_total{result,tier}.
+func (m *MockMetrics) IncCacheRequest(result, tier string) {
+	m.IncCounter(fmt.Sprintf("cache_request.%s.%s", result, tier))
+}
+
 // IncCacheRouteReval mirrors skipper_cache_route_reval_total{route,outcome}.
 func (m *MockMetrics) IncCacheRouteReval(route, outcome string) {
 	m.IncCounter(fmt.Sprintf("cache_route_reval.%s.%s", route, outcome))

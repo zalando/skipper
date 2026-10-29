@@ -510,11 +510,30 @@ func cacheControlLabelIndex(name string) int {
 	return len(cacheControlLabels) - 1
 }
 
+type requestOutcome struct {
+	result string
+	tier   string
+}
+
 // Request checks the cache. On a hit it calls ctx.Serve() to short-circuit the
 // backend roundtrip. On a stale hit it serves stale and fires a background
 // revalidation. On a miss it stores the computed key in the state bag so
 // Response() can populate the cache.
 func (f *cacheFilter) Request(ctx filters.FilterContext) {
+	outcome := requestOutcome{result: "error", tier: "none"}
+	lookupFailed := false
+	// Both cold-miss dispatch and background refresh can re-enter the listener.
+	// Capture the marker before Request strips it; neither is an external request.
+	if ctx.Request().Header.Get(revalidateHeader) == "" {
+		defer func() {
+			if lookupFailed && outcome.result != "fresh" && outcome.result != "stale" {
+				outcome = requestOutcome{result: "error", tier: "none"}
+			}
+			if p, ok := f.metrics.(interface{ IncCacheRequest(string, string) }); ok {
+				p.IncCacheRequest(outcome.result, outcome.tier)
+			}
+		}()
+	}
 	// Key is built from the already-filtered request: mutations by earlier filters
 	// (e.g. header stripping by auth) are intentionally reflected in the cache key.
 	baseKey := cacheKey(ctx.RouteId(), ctx.Request(), f.keyHeaders)
@@ -530,6 +549,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 
 	// Unsafe methods skip the cache lookup; Response() will invalidate using the key above.
 	if isUnsafeMethod(ctx.Request().Method) {
+		outcome.result = "bypass"
 		return
 	}
 
@@ -543,9 +563,14 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	reqDir := parseRequestCacheControl(ctx.Request().Header)
 	var entry *Entry
 	var err error
+	var lookup cacheLookup
 	if reqDir.onlyIfCached {
-		entry, err = f.storage.Get(ctx.Request().Context(), key)
+		entry, lookup, err = lookupEntry(ctx.Request().Context(), f.storage, key, false)
+		lookupFailed = lookup.failed
 		if err != nil || entry == nil || !entry.IsUsable(time.Now()) {
+			if err == nil && !lookup.failed {
+				outcome.result = "cache_only_miss"
+			}
 			ctx.Serve(&http.Response{
 				StatusCode: http.StatusGatewayTimeout,
 				Header:     http.Header{cacheStatusHeader: {cacheStatusMiss}},
@@ -557,15 +582,17 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 		if reqDir.noStore {
 			ctx.StateBag()[stateBagNoStore] = true
 		}
+		outcome.result = "bypass"
 		return
 	} else {
 		if ctx.Request().Context().Err() != nil {
 			return
 		}
-		entry, err = f.storage.Get(ctx.Request().Context(), key)
+		entry, lookup, err = lookupEntry(ctx.Request().Context(), f.storage, key, false)
+		lookupFailed = lookup.failed
 	}
 	if err != nil || entry == nil {
-		f.coalesce(ctx, key)
+		outcome = f.coalesce(ctx, key)
 		return
 	}
 
@@ -580,14 +607,14 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	if entry.IsStale(now) {
 		d := parseCacheControl(entry.Header)
 		if d.mustRevalidate || d.proxyRevalidate || d.noCache || d.sMaxAge >= 0 {
-			f.coalesce(ctx, key)
+			outcome = f.coalesce(ctx, key)
 			return
 		}
 		// RFC 9111 §5.2.1 max-stale.
 		if reqDir.maxStale >= 0 {
 			staleness := time.Since(entry.CreatedAt) - entry.TTL
 			if staleness > time.Duration(reqDir.maxStale)*time.Second {
-				f.coalesce(ctx, key)
+				outcome = f.coalesce(ctx, key)
 				return
 			}
 		}
@@ -600,6 +627,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 			p.IncCacheResult("stale", statusCodeClass(entry.StatusCode))
 		}
 		f.updateLRUBytesGauge(ctx)
+		outcome = requestOutcome{result: "stale", tier: lookup.tier}
 		method := ctx.Request().Method
 		if isCacheableMethod(method) && evaluateConditionals(ctx.Request(), entry) {
 			notModified := &http.Response{
@@ -622,7 +650,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	// Entry is past TTL+SWR but still in storage (kept alive by stale-if-error window).
 	// Treat as a miss so the upstream is hit; coalesce applies stale-if-error.
 	if pastTTL {
-		f.coalesce(ctx, key)
+		outcome = f.coalesce(ctx, key)
 		return
 	}
 
@@ -631,7 +659,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 		elapsed := time.Since(entry.CreatedAt)
 		remaining := entry.TTL - elapsed
 		if remaining < time.Duration(reqDir.minFresh)*time.Second {
-			f.coalesce(ctx, key)
+			outcome = f.coalesce(ctx, key)
 			return
 		}
 	}
@@ -645,6 +673,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 		p.IncCacheResult("hit", statusCodeClass(entry.StatusCode))
 	}
 	f.updateLRUBytesGauge(ctx)
+	outcome = requestOutcome{result: "fresh", tier: lookup.tier}
 	method := ctx.Request().Method
 	if isCacheableMethod(method) && evaluateConditionals(ctx.Request(), entry) {
 		notModified := &http.Response{
@@ -663,11 +692,12 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 // before f.fetch() (so a 5xx result can't overwrite it first), and what's
 // needed to decide whether a follower may reuse the leader's entry.
 type coalesceResult struct {
-	entry     *Entry
-	stored    *Entry        // snapshot before fetch; nil if no eligible stale-if-error entry existed
-	storeable bool          // storeDecision's verdict for entry; also gates sharing with non-leader waiters
-	varyNames []string      // Vary header names from entry's response, for in-memory follower matching
-	leaderReq *http.Request // the exact *http.Request that was actually fetched
+	entry      *Entry
+	stored     *Entry        // snapshot before fetch; nil if no eligible stale-if-error entry existed
+	storeable  bool          // storeDecision's verdict for entry; also gates sharing with non-leader waiters
+	varyNames  []string      // Vary header names from entry's response, for in-memory follower matching
+	leaderReq  *http.Request // the exact *http.Request that was actually fetched
+	storedTier string
 }
 
 // Checks if this response can be persisted, or handed to a party
@@ -710,7 +740,8 @@ func (f *cacheFilter) storeDecision(req *http.Request, statusCode int, header ht
 // up to N simultaneous origin requests for the same cold miss.
 // Stale-if-error (RFC 5861 §4) is also applied here: a pre-fetch snapshot of any
 // eligible stored entry is served on transport errors or HTTP 500/502/503/504.
-func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
+func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) (outcome requestOutcome) {
+	outcome = requestOutcome{result: "error", tier: "none"}
 	source, backendURL, outgoingHost := f.requestDispatch(ctx, "cache.coalesce_error")
 	req, err := f.prepareDispatch(source, backendURL, outgoingHost)
 	if err != nil {
@@ -724,14 +755,14 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 	ch := f.coldSF.DoChan(key, func() (any, error) {
 		// Capture any existing stale-if-error eligible entry before fetching, so that a
 		// subsequent 5xx response cannot overwrite it in storage before we read it.
-		sieStored := f.staleIfErrorEntry(key)
+		sieStored, sieLookup := f.staleIfErrorLookup(key)
 
 		requestTime := time.Now()
 		resp, err := f.fetch(req)
 		f.observeOriginFetch(route, backendURL != "", requestTime, resp, err)
 		if err != nil {
 			if sieStored != nil {
-				return &coalesceResult{stored: sieStored}, err
+				return &coalesceResult{stored: sieStored, storedTier: sieLookup.tier}, err
 			}
 			return nil, err
 		}
@@ -740,7 +771,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			if sieStored != nil {
-				return &coalesceResult{stored: sieStored}, err
+				return &coalesceResult{stored: sieStored, storedTier: sieLookup.tier}, err
 			}
 			return nil, err
 		}
@@ -775,11 +806,12 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			}
 		}
 		return &coalesceResult{
-			entry:     entry,
-			stored:    sieStored,
-			storeable: shouldStore,
-			varyNames: parseVaryNames(resp.Header.Get("Vary")),
-			leaderReq: req,
+			entry:      entry,
+			stored:     sieStored,
+			storeable:  shouldStore,
+			varyNames:  parseVaryNames(resp.Header.Get("Vary")),
+			leaderReq:  req,
+			storedTier: sieLookup.tier,
 		}, nil
 	})
 
@@ -817,6 +849,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 				p.IncCacheResult("stale", statusCodeClass(cr.stored.StatusCode))
 			}
 			ctx.Serve(headBodyOmitted(ctx.Request().Method, staleRsp))
+			outcome = requestOutcome{result: "stale", tier: cr.storedTier}
 			return
 		}
 		if res.Err != nil {
@@ -842,8 +875,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 				if baseKey == "" {
 					baseKey = key
 				}
-				f.coalesce(ctx, varyKey(baseKey, req, cr.varyNames))
-				return
+				return f.coalesce(ctx, varyKey(baseKey, req, cr.varyNames))
 			}
 			resp, err := f.fetch(req)
 			if err != nil {
@@ -864,6 +896,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			}
 			resp.Body = io.NopCloser(bytes.NewReader(body))
 			ctx.Serve(headBodyOmitted(ctx.Request().Method, resp))
+			outcome.result = "origin"
 			return
 		}
 
@@ -881,9 +914,14 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		}
 		f.updateLRUBytesGauge(ctx)
 		ctx.Serve(headBodyOmitted(ctx.Request().Method, rsp))
+		outcome.result = "origin"
+		if req != cr.leaderReq {
+			outcome.result = "coalesced"
+		}
 	case <-ctx.Request().Context().Done():
 		// Client disconnected. Remaining waiters still receive their result.
 	}
+	return
 }
 
 func staleIfErrorStatus(status int) bool {
@@ -894,14 +932,19 @@ func staleIfErrorStatus(status int) bool {
 }
 
 func (f *cacheFilter) staleIfErrorEntry(key string) *Entry {
-	if f.staleIfError <= 0 {
-		return nil
-	}
-	entry, err := f.storage.GetSilent(context.Background(), key)
-	if err != nil || !f.canServeStaleIfError(entry) {
-		return nil
-	}
+	entry, _ := f.staleIfErrorLookup(key)
 	return entry
+}
+
+func (f *cacheFilter) staleIfErrorLookup(key string) (*Entry, cacheLookup) {
+	if f.staleIfError <= 0 {
+		return nil, cacheLookup{tier: "none"}
+	}
+	entry, lookup, err := lookupEntry(context.Background(), f.storage, key, true)
+	if err != nil || !f.canServeStaleIfError(entry) {
+		return nil, lookup
+	}
+	return entry, lookup
 }
 
 func (f *cacheFilter) canServeStaleIfError(entry *Entry) bool {

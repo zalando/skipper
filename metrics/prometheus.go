@@ -79,6 +79,7 @@ type Prometheus struct {
 	customGaugeM               *prometheus.GaugeVec
 	invalidRouteM              *prometheus.GaugeVec
 	cacheResultTotalM          *prometheus.CounterVec
+	cacheRequestTotalM         *prometheus.CounterVec
 	cacheLRUBytesM             *prometheus.GaugeVec
 	cacheStorageErrorTotalM    *prometheus.CounterVec
 	cacheLRUEntriesM           *prometheus.GaugeVec
@@ -353,6 +354,13 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "result_total",
 		Help:      "Total cache results by result type (hit/miss/stale) and status code class (2xx/4xx/5xx/other).",
 	}, []string{"result", "code_class"}))
+
+	p.cacheRequestTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "request_total",
+		Help:      "External cache-filter request decisions by result (fresh/stale/origin/coalesced/bypass/cache_only_miss/error) and serving tier (l1/l2/none).",
+	}, []string{"result", "tier"}))
 
 	p.cacheLRUBytesM = register(p, prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
@@ -666,6 +674,11 @@ func (p *Prometheus) SetInvalidRoute(routeId, reason string) {
 // IncCacheResult increments the cache result counter by result type and status code class.
 func (p *Prometheus) IncCacheResult(result, codeClass string) {
 	p.cacheResultTotalM.WithLabelValues(result, codeClass).Inc()
+}
+
+// IncCacheRequest records one terminal external cache-filter request decision.
+func (p *Prometheus) IncCacheRequest(result, tier string) {
+	p.cacheRequestTotalM.WithLabelValues(result, tier).Inc()
 }
 
 // IncStorageError increments the cache storage error counter by backend (l1/l2) and

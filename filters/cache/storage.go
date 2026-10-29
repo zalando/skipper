@@ -74,3 +74,26 @@ type Storage interface {
 	// Delete removes the entry for key. It is not an error if the key does not exist.
 	Delete(ctx context.Context, key string) error
 }
+
+type cacheLookup struct {
+	tier   string
+	failed bool
+}
+
+// Lookup metadata belongs to the read, not the stored Entry: warming L1 must
+// not turn the L2 read that populated it into an L1 request hit.
+func lookupEntry(ctx context.Context, storage Storage, key string, silent bool) (*Entry, cacheLookup, error) {
+	if s, ok := storage.(interface {
+		getWithLookup(context.Context, string, bool) (*Entry, cacheLookup, error)
+	}); ok {
+		return s.getWithLookup(ctx, key, !silent)
+	}
+	var entry *Entry
+	var err error
+	if silent {
+		entry, err = storage.GetSilent(ctx, key)
+	} else {
+		entry, err = storage.Get(ctx, key)
+	}
+	return entry, cacheLookup{tier: "none", failed: err != nil}, err
+}

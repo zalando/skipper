@@ -57,7 +57,8 @@ func NewL2Storage(l2client L2Client, l1 *LRUStorage, m metrics.Metrics, l1TTL ti
 }
 
 func (s *L2Storage) Get(ctx context.Context, key string) (*Entry, error) {
-	return s.get(ctx, key, true)
+	entry, _, err := s.getWithLookup(ctx, key, true)
+	return entry, err
 }
 
 // GetSilent behaves like Get but records none of the l1_hit/l2_hit/l2_miss/
@@ -67,15 +68,19 @@ func (s *L2Storage) Get(ctx context.Context, key string) (*Entry, error) {
 // so routing it through Get would have silently counted it as a real cache
 // outcome on every single request.
 func (s *L2Storage) GetSilent(ctx context.Context, key string) (*Entry, error) {
-	return s.get(ctx, key, false)
+	entry, _, err := s.getWithLookup(ctx, key, false)
+	return entry, err
 }
 
-func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*Entry, error) {
+func (s *L2Storage) getWithLookup(ctx context.Context, key string, recordMetrics bool) (*Entry, cacheLookup, error) {
+	lookup := cacheLookup{tier: "none"}
 	// L1-first: serve from local memory when the write-through warming populated it.
 	// LRUStorage.Get returns entries within TTL + max(StaleIfError, StaleWhileRevalidate).
 	// Only serve fresh L1 hits; stale entries fall through to L2 so a fresher copy
 	// written by another instance is not bypassed.
-	if e, err := s.l1.Get(ctx, key); err == nil && e != nil {
+	e, l1Err := s.l1.Get(ctx, key)
+	lookup.failed = l1Err != nil
+	if l1Err == nil && e != nil {
 		if !e.IsStale(time.Now()) {
 			if recordMetrics {
 				s.metrics.IncCounter("cache.l1_hit")
@@ -83,7 +88,8 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 					p.IncCacheResult("l1_hit", statusCodeClass(e.StatusCode))
 				}
 			}
-			return e, nil
+			lookup.tier = "l1"
+			return e, lookup, nil
 		}
 		// Stale L1 entry — fall through to L2.
 	}
@@ -99,7 +105,7 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 					p.IncCacheResult("l2_miss", "n/a")
 				}
 			}
-			return nil, nil
+			return nil, lookup, nil
 		}
 		if recordMetrics {
 			s.metrics.IncCounter("cache.l2_get_error")
@@ -108,15 +114,18 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 			}
 		}
 		log.WithError(err).Error("cache: L2 Get failed, treating as miss")
-		return nil, nil
+		lookup.failed = true
+		return nil, lookup, nil
 	}
-	var e Entry
-	if err := json.Unmarshal([]byte(data), &e); err != nil {
+	var stored Entry
+	if err := json.Unmarshal([]byte(data), &stored); err != nil {
 		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
 			p.IncStorageError("l2", "get")
 		}
-		return nil, fmt.Errorf("cache: decode L2 entry: %w", err)
+		lookup.failed = true
+		return nil, lookup, fmt.Errorf("cache: decode L2 entry: %w", err)
 	}
+	e = &stored
 	if recordMetrics {
 		s.metrics.IncCounter("cache.l2_hit")
 		if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
@@ -130,13 +139,14 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 	// sentinel lookups needlessly re-fetch from L2 every time.
 	if s.l1TTL > 0 && e.TTL > 0 {
 		if remaining := e.TTL - time.Since(e.CreatedAt); remaining > 0 {
-			warmed := e
+			warmed := *e
 			warmed.TTL = min(s.l1TTL, remaining)
 			warmed.CreatedAt = time.Now()
 			_ = s.l1.Set(ctx, key, &warmed)
 		}
 	}
-	return &e, nil
+	lookup.tier = "l2"
+	return e, lookup, nil
 }
 
 func (s *L2Storage) Set(ctx context.Context, key string, entry *Entry) error {

@@ -291,3 +291,10 @@ Per-request HTTP access logging in Apache combined or JSON format, with duration
 
 **Cache Origin Dispatch**:
 The path a cache-origin fetch takes: directly to a static backend in force mode, or through the proxy pipeline by listener loopback.
+
+**Cache Request Hit Ratio**:
+The share of external requests traversing the cache filter that receive a fresh stored response from a particular cache tier. Internal cache reads and refresh traffic are not requests in this denominator.
+_Avoid_: lookup hit ratio, lookup share
+
+**Cache Lookup Provenance**:
+The cache tier that supplied a stored representation for a serving decision. Warming another tier does not change that provenance.
