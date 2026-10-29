@@ -329,41 +329,43 @@ func TestCacheFilter_DispatchParity(t *testing.T) {
 
 func TestCacheFilter_Coalesce_VaryStar_NotShared(t *testing.T) {
 	for _, keyHeaders := range [][]string{nil, {"X-Tenant"}} {
-		t.Run(strings.Join(keyHeaders, ","), func(t *testing.T) {
-			const n = 5
-			f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
-			f.keyHeaders = keyHeaders
-			var joined sync.WaitGroup
-			joined.Add(n)
-			var calls atomic.Int64
-			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				calls.Add(1)
-				joined.Wait()
-				w.Header().Set("Vary", "*")
-				io.WriteString(w, "unique")
-			}))
-			defer backend.Close()
-			f.fetch = backend.Client().Do
-			var wg sync.WaitGroup
-			for range n {
-				wg.Go(func() {
-					req := httptest.NewRequest("GET", "/item", nil)
-					req.Header.Set("X-Tenant", "same")
-					req = req.WithContext(&coalesceBarrierContext{Context: req.Context(), joined: &joined})
-					ctx := &filtertest.Context{FRequest: req, FBackendUrl: backend.URL, FStateBag: make(map[string]any)}
-					f.Request(ctx)
-					if !ctx.FServed {
-						t.Error("request was not served")
-						return
-					}
-					io.Copy(io.Discard, ctx.FResponse.Body)
-					ctx.FResponse.Body.Close()
-				})
-			}
-			wg.Wait()
-			if calls.Load() != n {
-				t.Fatalf("backend calls = %d, want %d", calls.Load(), n)
-			}
-		})
+		for _, vary := range [][]string{{"*"}, {"Accept-Language", "*"}, {"Accept-Language, *"}} {
+			t.Run(strings.Join(keyHeaders, ",")+"/"+strings.Join(vary, ";"), func(t *testing.T) {
+				const n = 5
+				f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+				f.keyHeaders = keyHeaders
+				var joined sync.WaitGroup
+				joined.Add(n)
+				var calls atomic.Int64
+				backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					calls.Add(1)
+					joined.Wait()
+					w.Header()["Vary"] = vary
+					io.WriteString(w, "unique")
+				}))
+				defer backend.Close()
+				f.fetch = backend.Client().Do
+				var wg sync.WaitGroup
+				for range n {
+					wg.Go(func() {
+						req := httptest.NewRequest("GET", "/item", nil)
+						req.Header.Set("X-Tenant", "same")
+						req = req.WithContext(&coalesceBarrierContext{Context: req.Context(), joined: &joined})
+						ctx := &filtertest.Context{FRequest: req, FBackendUrl: backend.URL, FStateBag: make(map[string]any)}
+						f.Request(ctx)
+						if !ctx.FServed {
+							t.Error("request was not served")
+							return
+						}
+						io.Copy(io.Discard, ctx.FResponse.Body)
+						ctx.FResponse.Body.Close()
+					})
+				}
+				wg.Wait()
+				if calls.Load() != n {
+					t.Fatalf("backend calls = %d, want %d", calls.Load(), n)
+				}
+			})
+		}
 	}
 }

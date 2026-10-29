@@ -316,7 +316,7 @@ func (s *cacheSpec) revalidationWorker() {
 			if job.filter != nil {
 				s.metrics.MeasureSince("cache.reval_wait_duration", job.enqueuedAt)
 				start := time.Now()
-				job.filter.doRevalidate(job.key, job.req, job.backendURL, job.outgoingHost)
+				job.filter.doRevalidate(job.key, job.req, job.backendURL, job.outgoingHost, job.baseKey)
 				s.metrics.MeasureSince("cache.reval_duration", start)
 			}
 		case <-s.ctx.Done():
@@ -346,6 +346,7 @@ func (s *cacheSpec) updateMetrics() {
 
 type revalJob struct {
 	key          string
+	baseKey      string
 	req          *http.Request // cloned via Request.Clone
 	backendURL   string        // non-empty: dial here directly instead of looping through listenAddr
 	outgoingHost string        // Host header to send with backendURL; see requestDispatch
@@ -502,12 +503,12 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 			}
 			ctx.Serve(notModified)
 			revalReq, backendURL, outgoingHost := f.requestDispatch(ctx, "cache.reval_error")
-			f.enqueueRevalidation(key, revalReq, backendURL, outgoingHost)
+			f.enqueueRevalidation(key, revalReq, backendURL, outgoingHost, baseKey)
 			return
 		}
 		ctx.Serve(headBodyOmitted(method, rsp))
 		revalReq, backendURL, outgoingHost := f.requestDispatch(ctx, "cache.reval_error")
-		f.enqueueRevalidation(key, revalReq, backendURL, outgoingHost)
+		f.enqueueRevalidation(key, revalReq, backendURL, outgoingHost, baseKey)
 		return
 	}
 
@@ -565,11 +566,13 @@ type coalesceResult struct {
 // that isn't the one who fetched it - a coalesce follower, or
 // background revalidation triggered by someone else's request
 func (f *cacheFilter) storeDecision(req *http.Request, statusCode int, header http.Header, d cacheDirectives) (ttl time.Duration, store bool) {
-	// Vary: * means every response is unique — never cache. Response() already
-	// short-circuits on this before calling storeDecision; coalesce()'s leader-fetch
-	// path has no such pre-check, so it belongs here too, in the one choke point both
-	// callers share.
-	if slices.Contains(parseVaryNames(header.Get("Vary")), "*") {
+	// A 304 has no representation body. Loopback revalidation must preserve
+	// the stored entry until the worker merges its conditional response.
+	if statusCode == http.StatusNotModified {
+		return 0, false
+	}
+	// Vary: * prohibits caching and sharing, including across header field lines.
+	if slices.Contains(parseVaryNames(header.Values("Vary")...), "*") {
 		return 0, false
 	}
 	// RFC mode only: no-store and private are semantic blockers (RFC 9111 §5.2.2).
@@ -651,7 +654,11 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			ResponseTime:         responseTime,
 		}
 		if shouldStore {
-			if err := f.storage.Set(context.Background(), key, entry); err != nil {
+			baseKey, _ := ctx.StateBag()[stateBagBaseKey].(string)
+			if baseKey == "" {
+				baseKey = key
+			}
+			if err := f.storeEntry(context.Background(), baseKey, key, req, entry); err != nil {
 				log.WithError(err).Warn("cache: Set failed (cold-miss store)")
 			}
 		}
@@ -659,7 +666,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			entry:     entry,
 			stored:    sieStored,
 			storeable: shouldStore,
-			varyNames: parseVaryNames(resp.Header.Get("Vary")),
+			varyNames: parseVaryNames(resp.Header.Values("Vary")...),
 			leaderReq: req,
 		}, nil
 	})
@@ -701,11 +708,20 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		// persistence check, which future requests can read back. Otherwise: fetch
 		// independently.
 		sameVaryDimension := len(cr.varyNames) > 0 && varyKey("", req, cr.varyNames) == varyKey("", cr.leaderReq, cr.varyNames)
-		identityMatchesLeader := !slices.Contains(cr.varyNames, "*") && (len(f.keyHeaders) > 0 || sameVaryDimension)
-		if req != cr.leaderReq && !cr.storeable && !identityMatchesLeader {
+		varyMatches := len(cr.varyNames) == 0 || sameVaryDimension
+		identityMatchesLeader := !slices.Contains(cr.varyNames, "*") && varyMatches && (len(f.keyHeaders) > 0 || sameVaryDimension)
+		if req != cr.leaderReq && (!varyMatches || !cr.storeable && !identityMatchesLeader) {
 			f.metrics.IncCounter("cache.coalesce_bypass")
 			if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
 				p.IncCacheResult("coalesce_bypass", "n/a")
+			}
+			if cr.storeable {
+				baseKey, _ := ctx.StateBag()[stateBagBaseKey].(string)
+				if baseKey == "" {
+					baseKey = key
+				}
+				f.coalesce(ctx, varyKey(baseKey, req, cr.varyNames))
+				return
 			}
 			resp, err := f.fetch(req)
 			if err != nil {
@@ -821,12 +837,6 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	tagSpan(ctx, cacheStatusMiss, -1)
 	f.metrics.IncCounter("cache.miss")
 
-	// Vary: * means every response is unique — never cache.
-	varyHeader := rsp.Header.Get("Vary")
-	if varyHeader == "*" {
-		return
-	}
-
 	directives := parseCacheControl(rsp.Header)
 	ttl, shouldStore := f.storeDecision(ctx.Request(), rsp.StatusCode, rsp.Header, directives)
 	if !shouldStore {
@@ -849,21 +859,6 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	if baseKey == "" {
 		baseKey = key
 	}
-	varyNames := parseVaryNames(varyHeader)
-	storeKey := key
-	if len(varyNames) > 0 {
-		storeKey = varyKey(baseKey, ctx.Request(), varyNames)
-		sentinel := &Entry{
-			CreatedAt:            time.Now(),
-			TTL:                  ttl,
-			StaleWhileRevalidate: swr,
-			VaryHeaders:          varyNames,
-		}
-		if err := f.storage.Set(ctx.Request().Context(), "vary:"+baseKey, sentinel); err != nil {
-			log.WithError(err).Warn("cache: Set failed (vary sentinel)")
-		}
-	}
-
 	responseTime := time.Now()
 	var requestTime time.Time
 	if rt, ok := ctx.StateBag()[stateBagRequestTime].(time.Time); ok {
@@ -884,13 +879,31 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 		StaleIfError:         f.staleIfError,
 		ETag:                 rsp.Header.Get("ETag"),
 		LastModified:         rsp.Header.Get("Last-Modified"),
-		VaryHeaders:          varyNames,
 		CorrectedInitialAge:  cia,
 		ResponseTime:         responseTime,
 	}
-	if err := f.storage.Set(ctx.Request().Context(), storeKey, entry); err != nil {
+	if err := f.storeEntry(ctx.Request().Context(), baseKey, key, ctx.Request(), entry); err != nil {
 		log.WithError(err).Warn("cache: Set failed (response store)")
 	}
+}
+
+func (f *cacheFilter) storeEntry(ctx context.Context, baseKey, key string, req *http.Request, entry *Entry) error {
+	varyNames := parseVaryNames(entry.Header.Values("Vary")...)
+	entry.VaryHeaders = varyNames
+	if len(varyNames) > 0 {
+		key = varyKey(baseKey, req, varyNames)
+		sentinel := &Entry{
+			CreatedAt:            entry.CreatedAt,
+			TTL:                  entry.TTL,
+			StaleWhileRevalidate: entry.StaleWhileRevalidate,
+			StaleIfError:         entry.StaleIfError,
+			VaryHeaders:          varyNames,
+		}
+		if err := f.storage.Set(ctx, "vary:"+baseKey, sentinel); err != nil {
+			log.WithError(err).Warn("cache: Set failed (vary sentinel)")
+		}
+	}
+	return f.storage.Set(ctx, key, entry)
 }
 
 // requestDispatch decides how cold misses and background revalidation reach the
@@ -989,10 +1002,15 @@ func revalidationRequest(ctx filters.FilterContext) *http.Request {
 // through skipper's own listener (see requestDispatch).
 // If the queue is full the job is dropped and reval_dropped is incremented.
 // The closure captures f.doRevalidate so the spec-level worker respects this route's config.
-func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request, backendURL, outgoingHost string) {
+func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request, backendURL, outgoingHost string, baseKeys ...string) {
+	baseKey := key
+	if len(baseKeys) > 0 {
+		baseKey = baseKeys[0]
+	}
 	cloned := orig.Clone(context.Background())
 	job := revalJob{
 		key:          key,
+		baseKey:      baseKey,
 		req:          cloned,
 		backendURL:   backendURL,
 		outgoingHost: outgoingHost,
@@ -1017,7 +1035,11 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request, backen
 // cache.reval_backend_dispatch is incremented instead. Otherwise the request
 // loops back through skipper's own listener (f.listenAddr), which is counted
 // normally.
-func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL, outgoingHost string) {
+func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL, outgoingHost string, baseKeys ...string) {
+	baseKey := key
+	if len(baseKeys) > 0 {
+		baseKey = baseKeys[0]
+	}
 	f.revalSF.Do(key, func() (any, error) { //nolint:errcheck
 		req, err := f.prepareDispatch(req, backendURL, outgoingHost)
 		if err != nil {
@@ -1104,7 +1126,7 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL, ou
 			CorrectedInitialAge:  cia,
 			ResponseTime:         responseTime,
 		}
-		if err := f.storage.Set(context.Background(), key, entry); err != nil {
+		if err := f.storeEntry(context.Background(), baseKey, key, req, entry); err != nil {
 			log.WithError(err).Warn("cache: Set failed (background revalidation)")
 		}
 		return nil, nil
@@ -1415,14 +1437,13 @@ func stripHopByHop(h http.Header) {
 	}
 }
 
-func parseVaryNames(varyHeader string) []string {
-	if varyHeader == "" {
-		return nil
-	}
+func parseVaryNames(varyHeaders ...string) []string {
 	var names []string
-	for p := range strings.SplitSeq(varyHeader, ",") {
-		if name := strings.TrimSpace(p); name != "" {
-			names = append(names, http.CanonicalHeaderKey(name))
+	for _, header := range varyHeaders {
+		for p := range strings.SplitSeq(header, ",") {
+			if name := strings.TrimSpace(p); name != "" {
+				names = append(names, http.CanonicalHeaderKey(name))
+			}
 		}
 	}
 	return names
