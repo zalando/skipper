@@ -60,6 +60,12 @@ type Metrics interface {
 	String() string
 }
 
+// CacheL2Observer optionally records L2 cache operations and processing errors.
+type CacheL2Observer interface {
+	IncCacheL2Operation(operation, purpose, outcome string)
+	IncCacheL2ProcessingError(operation, purpose, stage string)
+}
+
 // PrometheusMetrics is an optional interface that a Metrics flavour can implement.
 // This can only credibly be implemented with Prometheus as a backend and can also be removed if Prometheus
 // is the only supported backend and Codahale support is dropped

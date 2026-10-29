@@ -307,3 +307,6 @@ Per-request HTTP access logging in Apache combined or JSON format, with duration
 
 **Cache Origin Dispatch**:
 The path a cache-origin fetch takes: directly to a static backend in force mode, or through the proxy pipeline by listener loopback.
+
+**Cache Lookup Provenance**:
+The cache tier that supplied a stored representation for a serving decision. Warming another tier does not change that provenance.
