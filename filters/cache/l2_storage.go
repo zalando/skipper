@@ -74,9 +74,10 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 	// L1-first: serve from local memory when the write-through warming populated it.
 	// LRUStorage.Get returns entries within TTL + max(StaleIfError, StaleWhileRevalidate).
 	// Only serve fresh L1 hits; stale entries fall through to L2 so a fresher copy
-	// written by another instance is not bypassed.
+	// written by another instance is not bypassed. Preserve TTL==0 entries'
+	// conditional-revalidation behavior.
 	if e, err := s.l1.Get(ctx, key); err == nil && e != nil {
-		if !e.IsStale(time.Now()) {
+		if now := time.Now(); !e.IsStale(now) && (e.TTL == 0 || now.Before(e.CreatedAt.Add(e.TTL))) {
 			if recordMetrics {
 				s.metrics.IncCounter("cache.l1_hit")
 				if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {

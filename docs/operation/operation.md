@@ -330,6 +330,10 @@ When the cache filter is active, the following labeled metrics are exposed:
 - `skipper_cache_lru_bytes{route="..."}` - Gauge for per-route LRU (L1) cache storage consumption in bytes, updated on every hit, miss, and stale serve. Cardinality bounded by the number of distinct routes.
 - The flat-key counters `skipper_custom_total{key="cache.hit"}`, `cache.miss`, `cache.stale`, and the rest of the `cache.*` keys above are the primary, directly-emitted metrics — `skipper_cache_result_total`/`skipper_cache_lru_bytes` are an additional labeled breakdown of the same underlying events, not a replacement for them.
 
+`code_class` describes the cached or selected response status, not necessarily the final HTTP status returned to the client. For example, conditional request handling may return `304 Not Modified` for a cached `2xx` representation while the cache result retains `code_class="2xx"`.
+
+`skipper_cache_result_total` includes overlapping request outcomes and operational/storage events, so summing all `result` values is not a request count. For cache-outcome shares or hit ratios, restrict the denominator to `result=~"hit|miss|stale"` and sum across `code_class`. For example, the hit ratio is `sum(rate(skipper_cache_result_total{result="hit"}[5m])) / sum(rate(skipper_cache_result_total{result=~"hit|miss|stale"}[5m]))`.
+
 You may add static metrics labels like `version` using Prometheus [relabeling feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config).
 
 ### Prometheus native histograms
@@ -2052,7 +2056,7 @@ By default entries are stored in an in-process LRU (L1) local to each Skipper pr
 When `--enable-swarm` and `--enable-l2-cache` are set, a configured Valkey
 (`--swarm-valkey-urls`) or Redis (`--swarm-redis-urls`) ring serves as a shared backing store
 (L2) accessible by all Skipper instances via client-side consistent hashing; every read checks
-L1 first and an L1 hit returns without contacting L2 cache. Without `--enable-l2-cache`, the
+L1 first and a fresh L1 hit returns without contacting L2 cache. Without `--enable-l2-cache`, the
 configured ring is not used by the `cache()` filter, which uses L1 exclusively.
 
 On every successful L2 write the entry is also written to L1
@@ -2065,6 +2069,10 @@ re-consulting L2. Set `--cache-l1-ttl=0` to disable L1 warming and
 restore write-around behaviour. Note: on L2 write errors (`l2_set_fallback`), L1
 is always used as a fallback regardless of `--cache-l1-ttl`; L2 read errors
 (`l2_get_error`) are treated as cache misses.
+
+Entries retained locally for SWR or SIE are not fresh L1 hits: once their L1
+freshness expires, reads consult L2 so a newer shared response takes precedence.
+Retention for stale serving and the existing zero-TTL behaviour are unchanged.
 
 Background revalidation updates the local L1 on successful storage too. Before
 executing a queued refresh, the worker silently checks its exact variant key:

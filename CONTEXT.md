@@ -162,6 +162,12 @@ A single backend address within an LB Backend route, carrying scheme, host, port
 
 ## Resilience
 
+**Cache L1**:
+The response cache local to one Skipper process, with bounded freshness when a shared Cache L2 is enabled.
+
+**Cache L2**:
+The shared response cache backed by the configured Valkey or Redis ring.
+
 **Cache Direct Dispatch**:
 A cache-origin fetch sent to a static network backend without replaying Skipper's filter chain.
 
