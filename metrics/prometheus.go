@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -80,6 +81,12 @@ type Prometheus struct {
 	cacheResultTotalM          *prometheus.CounterVec
 	cacheLRUBytesM             *prometheus.GaugeVec
 	cacheStorageErrorTotalM    *prometheus.CounterVec
+	cacheLRUEntriesM           *prometheus.GaugeVec
+	cacheLRUCapacityBytesM     prometheus.Gauge
+	cacheRouteResultTotalM     *prometheus.CounterVec
+	cacheFirstHitSecondsM      *prometheus.GaugeVec
+	cacheStartedAt             time.Time
+	cacheFirstHitOnce          sync.Once
 
 	opts      Options
 	registry  *prometheus.Registry
@@ -95,8 +102,9 @@ func NewPrometheus(opts Options) *Prometheus {
 	}
 
 	p := &Prometheus{
-		registry: opts.PrometheusRegistry,
-		opts:     opts,
+		registry:       opts.PrometheusRegistry,
+		opts:           opts,
+		cacheStartedAt: time.Now(),
 	}
 
 	if p.registry == nil {
@@ -357,6 +365,35 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "storage_error_total",
 		Help:      "Total cache storage errors by backend (l1/l2) and operation (get/set/delete).",
 	}, []string{"backend", "op"}))
+
+	p.cacheLRUEntriesM = register(p, prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "lru_entries",
+		Help:      "Current LRU cache entry count per route.",
+	}, []string{"route"}))
+
+	p.cacheLRUCapacityBytesM = register(p, prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "lru_capacity_bytes",
+		Help:      "Configured L1 (LRU) cache capacity in bytes.",
+	}))
+
+	// result is hit/miss/stale.
+	p.cacheRouteResultTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "route_result_total",
+		Help:      "Cache results by route and result (hit/miss/stale).",
+	}, []string{"route", "result"}))
+
+	p.cacheFirstHitSecondsM = register(p, prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "first_hit_seconds",
+		Help:      "Seconds from this metrics backend's initialisation to its first cache hit; absent until the first hit.",
+	}, []string{}))
 
 	// Register prometheus runtime collectors if required.
 	if opts.EnableRuntimeMetrics {
@@ -620,6 +657,27 @@ func (p *Prometheus) IncStorageError(backend, op string) {
 // SetCacheLRUBytes sets the LRU bytes gauge for a route.
 func (p *Prometheus) SetCacheLRUBytes(route string, bytes float64) {
 	p.cacheLRUBytesM.WithLabelValues(route).Set(bytes)
+}
+
+// SetCacheLRUEntries sets the LRU entry count gauge for a route.
+func (p *Prometheus) SetCacheLRUEntries(route string, entries float64) {
+	p.cacheLRUEntriesM.WithLabelValues(route).Set(entries)
+}
+
+// IncCacheRouteResult increments skipper_cache_route_result_total. The first hit
+// also sets skipper_cache_first_hit_seconds once per metrics backend.
+func (p *Prometheus) IncCacheRouteResult(route, result string) {
+	p.cacheRouteResultTotalM.WithLabelValues(route, result).Inc()
+	if result == "hit" {
+		p.cacheFirstHitOnce.Do(func() {
+			p.cacheFirstHitSecondsM.WithLabelValues().Set(time.Since(p.cacheStartedAt).Seconds())
+		})
+	}
+}
+
+// SetCacheLRUCapacity sets the configured L1 capacity gauge.
+func (p *Prometheus) SetCacheLRUCapacity(bytes float64) {
+	p.cacheLRUCapacityBytesM.Set(bytes)
 }
 
 func (p *Prometheus) Close() {}

@@ -172,11 +172,17 @@ func (s *ShardedByteLRU) Delete(key string) {
 
 // Bytes returns the total number of bytes currently stored across all shards.
 func (s *ShardedByteLRU) Bytes() int64 {
-	var total int64
+	bytes, _ := s.Usage()
+	return bytes
+}
+
+// Usage returns the total bytes and number of entries currently stored across all shards.
+func (s *ShardedByteLRU) Usage() (bytes, entries int64) {
 	for _, shard := range s.shards {
 		shard.mu.Lock()
-		total += shard.currentBytes
+		bytes += shard.currentBytes
+		entries += int64(shard.ll.Len())
 		shard.mu.Unlock()
 	}
-	return total
+	return bytes, entries
 }
