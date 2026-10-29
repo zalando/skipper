@@ -162,6 +162,13 @@ A single backend address within an LB Backend route, carrying scheme, host, port
 
 ## Resilience
 
+**Cache Direct Dispatch**:
+A cache-origin fetch sent to a static network backend without replaying Skipper's filter chain.
+
+**Cache Loopback Fetch**:
+A cache-origin fetch replayed through Skipper's listener with the cache lookup bypassed.
+_Avoid_: loopback backend (a different routing concept)
+
 **Circuit Breaker**:
 Egress fault-tolerance mechanism that short-circuits requests to a failing backend, returning 503 while open. Applied on the client (proxy) side of outgoing connections.
 

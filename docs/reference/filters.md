@@ -4172,12 +4172,20 @@ SWR window's source depends on the mode: in force mode it's the
 operator-supplied `swrWindow` parameter below; in RFC mode it's the response's
 own [`stale-while-revalidate`](https://www.rfc-editor.org/rfc/rfc5861#section-3)
 `Cache-Control` directive — if the upstream never sends that directive, RFC-mode
-entries have no SWR window and simply expire at TTL. The background fetch is
-dispatched directly to the route's backend when possible (force mode with a
-static backend), otherwise it loops back through skipper's own listener; see
-`cache.reval_backend_dispatch` in the
-[operation guide](../operation/operation.md#cache) for the observability
-difference between the two.
+entries have no SWR window and simply expire at TTL. Cold-miss and background
+fetches are dispatched directly only in force mode with an absolute HTTP(S)
+backend URL containing a host. Direct dispatch preserves the already-filtered
+request path and query and uses the route's outgoing Host. Otherwise, including
+invalid backend URLs, fetches replay the original request through Skipper's own
+listener, bypassing this cache lookup so routing and filters run normally.
+Invalid backend URLs are logged and counted as `cache.coalesce_error` or
+`cache.reval_error`. RFC-mode fetches always replay the pipeline so response
+filters can determine cache policy. Direct-dispatched cold-miss and revalidation
+origin requests bypass Skipper's proxy pipeline and are invisible to
+`MeasureBackend*` metrics and the access log. Only background revalidation
+fetches count toward `cache.reval_backend_dispatch`; direct-dispatched cold-miss
+(coalesced) fetches have no dedicated counter. See the
+[operation guide](../operation/operation.md#cache).
 
 Unsafe methods (`POST`, `PUT`, `DELETE`, `PATCH`) invalidate the cached entry on
 success. `HEAD 200` freshens stored headers without replacing the body.
@@ -4222,6 +4230,21 @@ Force mode with per-tenant cache key isolation:
 ```
 -> cache("5m", "15s", "30s", "0s", "X-Tenant-ID") -> "https://cdn.example.org"
 ```
+
+For static force-mode backends, place request rewrites before `cache()`.
+Cold misses and background refreshes dispatch directly from the request state
+at the cache filter; later request filters cannot modify that upstream request.
+For example, a Contentful prefix and virtual Host rewrite must precede caching:
+
+```
+-> setRequestHeader("Host", "pegasus.contentful.example")
+-> modPath("^/api/contentful", "")
+-> cache("5m", "15s", "5m", "24h", "Authorization")
+-> "https://cdn.example.org"
+```
+
+This also means cache keys use the rewritten request path. Keep authentication
+and any other required request processing before the cache filter.
 
 RFC mode with per-user cache key isolation:
 

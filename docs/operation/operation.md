@@ -330,10 +330,6 @@ When the cache filter is active, the following labeled metrics are exposed:
 - `skipper_cache_lru_bytes{route="..."}` - Gauge for per-route LRU (L1) cache storage consumption in bytes, updated on every hit, miss, and stale serve. Cardinality bounded by the number of distinct routes.
 - The flat-key counters `skipper_custom_total{key="cache.hit"}`, `cache.miss`, `cache.stale`, and the rest of the `cache.*` keys above are the primary, directly-emitted metrics — `skipper_cache_result_total`/`skipper_cache_lru_bytes` are an additional labeled breakdown of the same underlying events, not a replacement for them.
 
-`code_class` describes the cached or selected response status, not necessarily the final HTTP status returned to the client. For example, conditional request handling may return `304 Not Modified` for a cached `2xx` representation while the cache result retains `code_class="2xx"`.
-
-`skipper_cache_result_total` includes overlapping request outcomes and operational/storage events, so summing all `result` values is not a request count. For cache-outcome shares or hit ratios, restrict the denominator to `result=~"hit|miss|stale"` and sum across `code_class`. For example, the hit ratio is `sum(rate(skipper_cache_result_total{result="hit"}[5m])) / sum(rate(skipper_cache_result_total{result=~"hit|miss|stale"}[5m]))`.
-
 You may add static metrics labels like `version` using Prometheus [relabeling feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config).
 
 ### Prometheus native histograms
@@ -2129,12 +2125,15 @@ flowchart TD
 - `cache.hit`: Counter, request served from cache without contacting the upstream
 - `cache.miss`: Counter, request not in cache; upstream was contacted
 - `cache.stale`: Counter, stale entry served while background revalidation was enqueued
-- `cache.coalesce_error`: Counter, singleflight cold-miss fetch returned an error
+- `cache.coalesce_error`: Counter, cold-miss dispatch preparation or fetch failed,
+  or an invalid backend URL required pipeline fallback
 - `cache.coalesce_bypass`: Counter, a concurrent cold-miss request's response wasn't
   storeable and no `keyHeaders`/`Vary` proof of matching identity was available, so
   it performed its own fetch instead of reusing another request's in-flight response
 - `cache.coalesce_bypass_error`: Counter, an independent bypass fetch (see
-  `cache.coalesce_bypass`) returned an error
+  `cache.coalesce_bypass`) returned a transport or body-read error. Bypass
+  responses are buffered before serving, preserving their body after the
+  origin stream closes; an incomplete body is not served as a successful response.
 - `cache.coalesce_wait_duration`: Histogram, time from issuing a cold-miss singleflight
   call to the result being available — near-zero for the leader (it computes the result
   itself), the leader's real fetch time for followers waiting on it
@@ -2150,13 +2149,15 @@ flowchart TD
 - `cache.reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
 - `cache.reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
 - `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
-- `cache.reval_error`: Counter, background revalidation fetch failures
+- `cache.reval_error`: Counter, background revalidation preparation or fetch
+  failures, or an invalid backend URL required pipeline fallback
 - `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
-- `cache.reval_backend_dispatch`: Counter, revalidation fetches sent directly to the
-  backend, bypassing skipper's proxy pipeline (force mode, static backend
-  only) - so they're invisible to `MeasureBackend*` metrics and the access
-  log. Self-loopback revalidations aren't counted here since they go
-  through the listener normally.
+- `cache.reval_backend_dispatch`: Counter, background revalidation fetches sent
+  directly to the backend (force mode, static backend only). Direct-dispatched
+  cold-miss (coalesced) fetches are not counted and have no dedicated counter.
+  Both bypass Skipper's proxy pipeline, so these origin requests are invisible
+  to `MeasureBackend*` metrics and the access log. Self-loopback revalidations
+  aren't counted here since they go through the listener normally.
 
 **L2 (if Valkey or Redis is configured):**
 
