@@ -4202,8 +4202,12 @@ Force-mode-only parameters (3–5 arguments):
 * `ttl` – freshness duration for 200 responses (string, e.g. `"5m"`)
 * `errorTTL` – freshness duration for 404/5xx responses (string)
 * `swrWindow` – stale-while-revalidate window after TTL expires (string)
-* `staleIfError` – optional; how long a stale entry may be served on upstream
-  5xx (string, [RFC 5861](https://www.rfc-editor.org/rfc/rfc5861))
+* `staleIfError` – optional; how long after freshness expires a stored non-5xx
+  response may be served on upstream network errors/timeouts or HTTP
+  500/502/503/504 (string, [RFC 5861](https://www.rfc-editor.org/rfc/rfc5861)).
+  Eligible failures preserve the stored response and its original timestamps,
+  including during background revalidation; they do not restart the window.
+  With no eligible stored response, normal error caching/fallback applies.
 
 Examples:
 
