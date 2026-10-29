@@ -13,6 +13,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics/metricstest"
+	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
@@ -46,7 +47,7 @@ func TestProxyCacheOriginMetrics(t *testing.T) {
 				}
 				registry := make(filters.Registry)
 				registry.Register(spec)
-				p := proxytest.New(registry, &eskip.Route{
+				p := proxytest.WithParams(registry, proxy.Params{Metrics: m}, &eskip.Route{
 					Id: "product__en", Path: "/contentful", Backend: backend.URL,
 					Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}},
 				})
@@ -74,6 +75,7 @@ func TestProxyCacheOriginMetrics(t *testing.T) {
 					assert.Equal(t, http.StatusOK, resp.StatusCode)
 				}
 				m.WithCounters(func(counters map[string]int64) {
+					assert.Equal(t, int64(1), counters["client.requests"])
 					var fetches int64
 					for name, count := range counters {
 						if strings.HasPrefix(name, "cache_origin_duration.") {
@@ -100,4 +102,31 @@ func BenchmarkCacheRecordCacheControl(b *testing.B) {
 	for b.Loop() {
 		f.recordCacheControl(header)
 	}
+}
+
+func TestCacheInternalMarkerDoesNotFollowExternalRedirect(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Header.Get("Skipper-Internal-Request") != "" {
+			t.Error("internal request marker leaked to redirected origin")
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+	listener := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		http.Redirect(w, req, target.URL, http.StatusFound)
+	}))
+	defer listener.Close()
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: strings.TrimPrefix(listener.URL, "http://")}).(*cacheSpec)
+	defer spec.Close()
+	instance, err := spec.CreateFilter(nil)
+	require.NoError(t, err)
+	f := instance.(*cacheFilter)
+	req, err := http.NewRequest(http.MethodGet, listener.URL, nil)
+	require.NoError(t, err)
+	dispatched, err := f.prepareDispatch(req, "", "")
+	require.NoError(t, err)
+	resp, err := f.fetch(dispatched)
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }

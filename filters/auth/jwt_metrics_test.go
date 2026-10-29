@@ -409,8 +409,9 @@ func TestJwtMetrics(t *testing.T) {
 			}
 
 			m.WithCounters(func(counters map[string]int64) {
-				// add incoming counter to simplify comparison
+				// Add proxy counters to simplify comparison.
 				tc.expected["incoming.HTTP/1.1"] = 1
+				tc.expected["client.requests"] = 1
 
 				assert.Equal(t, tc.expected, counters)
 			})

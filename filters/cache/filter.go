@@ -131,6 +131,20 @@ func NewCacheFilter(opts Options) filters.Spec {
 	}
 
 	m := opts.Metrics
+	checkRedirect := opts.NetOpts.CheckRedirect
+	opts.NetOpts.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		internal := skpnet.ConsumeInternalRequest(req)
+		if internal && len(via) > 0 && req.URL.Scheme == via[0].URL.Scheme && req.URL.Host == via[0].URL.Host {
+			skpnet.MarkInternalRequest(req)
+		}
+		if checkRedirect != nil {
+			return checkRedirect(req, via)
+		}
+		if len(via) >= 10 {
+			return fmt.Errorf("stopped after 10 redirects")
+		}
+		return nil
+	}
 	lru := NewLRUStorage(opts.MaxBytes, func() {
 		m.IncCounter("cache.lru_eviction")
 	}, m)
@@ -1170,6 +1184,7 @@ func (f *cacheFilter) prepareDispatch(source *http.Request, backendURL, outgoing
 	} else {
 		req.URL.Scheme, req.URL.Host = "http", f.listenAddr
 		req.Header.Set(revalidateHeader, "1")
+		skpnet.MarkInternalRequest(req)
 	}
 	req.RequestURI = ""
 	return req, nil

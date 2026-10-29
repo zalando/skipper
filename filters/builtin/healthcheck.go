@@ -30,5 +30,7 @@ func NewHealthCheck() filters.Spec { return &healthCheck{} }
 func (h *healthCheck) Name() string { return filters.HealthCheckName }
 
 func (h *healthCheck) CreateFilter(_ []any) (filters.Filter, error) { return h, nil }
-func (h *healthCheck) Request(ctx filters.FilterContext)            {}
-func (h *healthCheck) Response(ctx filters.FilterContext)           { ctx.Response().StatusCode = http.StatusOK }
+func (h *healthCheck) Request(ctx filters.FilterContext) {
+	ctx.StateBag()[filters.HealthCheckKey] = true
+}
+func (h *healthCheck) Response(ctx filters.FilterContext) { ctx.Response().StatusCode = http.StatusOK }

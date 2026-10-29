@@ -900,6 +900,7 @@ func WithParams(p Params) *Proxy {
 	if p.Flags.Debug() {
 		m = metrics.Void
 	}
+	m.IncCounterBy("client.requests", 0)
 
 	if p.MaxLoopbacks == 0 {
 		p.MaxLoopbacks = DefaultMaxLoopbacks
@@ -1817,6 +1818,12 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	p.metrics.IncCounter("incoming." + r.Proto)
 	var ctx *context
+	internal := snet.ConsumeInternalRequest(r)
+	defer func() {
+		if !internal && (ctx == nil || ctx.stateBag[filters.HealthCheckKey] != true) {
+			p.metrics.IncCounter("client.requests")
+		}
+	}()
 
 	spanOpts := []ot.StartSpanOption{ot.Tags{
 		SpanKindTag: SpanKindServer,

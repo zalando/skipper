@@ -292,6 +292,9 @@ SHA-256 hash of the serialized route table used as the HTTP ETag. Skipper instan
 
 ## Observability
 
+**Client Request**:
+An external request received by Skipper's proxy, including requests that fail or do not use the cache. Internal cache listener replays and configured health-check traffic are not client requests.
+
 **Metrics**:
 Performance and operational measurements: per-route, per-filter, per-backend, and per-host timings and counters, plus custom metrics emitted by filters via `FilterContext.Metrics()`.
 

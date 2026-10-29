@@ -2140,6 +2140,22 @@ flowchart TD
 
 ### Metrics
 
+**Client request rate:**
+
+`skipper_custom_total{key="client.requests"}` counts each completed external proxy
+request once, including non-cache routes, uncacheable responses, route misses and
+backend failures. It has no route or status labels and is initialized to zero
+when the proxy is constructed. Use its rate for universal client RPS instead of
+`skipper_serve_route_count`, which also counts internal listener replay.
+
+Cache listener replays carry a process-local authenticated marker that is removed
+before routing, forwarding or access logging. Client-supplied marker headers cannot
+suppress the counter. Redirects outside the original listener do not retain the
+marker. Requests explicitly handled by `healthcheck()` are excluded as operational
+probes; arbitrary `/healthz` paths, route IDs and User-Agent values are not
+classified as health checks. Support-listener probes do not enter the proxy.
+Cache-result counters remain a cache-only denominator, not universal client RPS.
+
 **Cache outcomes (always active):**
 
 - `cache.hit`: Counter, request served from cache without contacting the upstream
