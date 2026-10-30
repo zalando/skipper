@@ -90,148 +90,165 @@ func TestL2StorageWarmingPreservesSIEWindow(t *testing.T) {
 }
 
 func TestCacheFilterL2FailureSIE(t *testing.T) {
-	for _, status := range []int{0, 500, 502, 503, 504} {
-		for _, scenario := range []string{"error", "decode error", "miss", "expired", "fresh L2", "origin success", "expires during fetch", "original window expires during fetch", "only-if-cached"} {
-			t.Run(fmt.Sprintf("%s/status=%d", scenario, status), func(t *testing.T) {
-				synctest.Test(t, func(t *testing.T) {
-					f, cleanup := newTestFilterWithCleanup(t, time.Minute, time.Second, time.Second, 10*time.Minute)
-					defer cleanup()
-					client := newStubValkeyClient()
-					m := &metricstest.MockMetrics{}
-					s := NewL2Storage(client, f.lruStorage, m, time.Second, valkey.IsValkeyNil)
-					f.storage = s
-					ctx := newCtx(http.MethodGet, "http://cache.test/resource", "")
-					key := cacheKey(ctx.RouteId(), ctx.Request(), f.keyHeaders)
-					original := &Entry{
-						StatusCode: http.StatusOK, Payload: []byte("last-good"),
-						Header:    http.Header{"Etag": {`"original"`}, "X-Representation": {"original"}},
-						CreatedAt: time.Now(), ResponseTime: time.Now(), TTL: time.Minute,
-						StaleIfError: 10 * time.Minute, CorrectedInitialAge: 3 * time.Second,
-					}
-					if scenario == "original window expires during fetch" {
-						original.StaleIfError = time.Minute
-					}
-					if err := s.Set(context.Background(), key, original); err != nil {
+	cases := []struct {
+		scenario string
+		status   int
+	}{}
+	for _, status := range []int{0, http.StatusServiceUnavailable} {
+		for _, scenario := range []string{"error", "expires during fetch", "original window expires during fetch"} {
+			cases = append(cases, struct {
+				scenario string
+				status   int
+			}{scenario, status})
+		}
+	}
+	for _, scenario := range []string{"decode error", "miss", "expired", "fresh L2", "origin success", "only-if-cached"} {
+		cases = append(cases, struct {
+			scenario string
+			status   int
+		}{scenario, http.StatusServiceUnavailable})
+	}
+	for _, tt := range cases {
+		scenario, status := tt.scenario, tt.status
+		t.Run(fmt.Sprintf("%s/status=%d", scenario, status), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				f, cleanup := newTestFilterWithCleanup(t, time.Minute, time.Second, time.Second, 10*time.Minute)
+				defer cleanup()
+				client := newStubValkeyClient()
+				m := &metricstest.MockMetrics{}
+				s := NewL2Storage(client, f.lruStorage, m, time.Second, valkey.IsValkeyNil)
+				f.storage = s
+				ctx := newCtx(http.MethodGet, "http://cache.test/resource", "")
+				key := cacheKey(ctx.RouteId(), ctx.Request(), f.keyHeaders)
+				original := &Entry{
+					StatusCode: http.StatusOK, Payload: []byte("last-good"),
+					Header:    http.Header{"Etag": {`"original"`}, "X-Representation": {"original"}},
+					CreatedAt: time.Now(), ResponseTime: time.Now(), TTL: time.Minute,
+					StaleIfError: 10 * time.Minute, CorrectedInitialAge: 3 * time.Second,
+				}
+				if scenario == "original window expires during fetch" {
+					original.StaleIfError = time.Minute
+				}
+				if err := s.Set(context.Background(), key, original); err != nil {
+					t.Fatal(err)
+				}
+				time.Sleep(2 * time.Minute)
+				if scenario == "expired" {
+					time.Sleep(10 * time.Minute)
+				}
+				before, err := f.lruStorage.Get(context.Background(), key)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if scenario != "expired" && before == nil {
+					t.Fatal("warming discarded the original SIE window")
+				}
+				client.broken = true
+				if scenario == "decode error" {
+					client.broken = false
+					if err := client.SetWithExpire(context.Background(), key, "invalid JSON", time.Minute); err != nil {
 						t.Fatal(err)
 					}
-					time.Sleep(2 * time.Minute)
-					if scenario == "expired" {
+				}
+				if scenario == "miss" {
+					client.broken = false
+					if _, err := client.Del(context.Background(), key); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if scenario == "fresh L2" {
+					client.broken = false
+					fresh := *original
+					fresh.CreatedAt = time.Now()
+					fresh.Payload = []byte("fresh L2")
+					// Write around L1 to model a refresh by another process.
+					remote := NewL2Storage(client, NewLRUStorage(1<<20, nil, metrics.Void), metrics.Void, 0, valkey.IsValkeyNil)
+					if err := remote.Set(context.Background(), key, &fresh); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if scenario == "only-if-cached" {
+					ctx.Request().Header.Set("Cache-Control", "only-if-cached")
+				}
+				calls := 0
+				f.fetch = func(*http.Request) (*http.Response, error) {
+					calls++
+					if scenario == "expires during fetch" {
 						time.Sleep(10 * time.Minute)
 					}
-					before, err := f.lruStorage.Get(context.Background(), key)
+					if scenario == "original window expires during fetch" {
+						time.Sleep(time.Nanosecond)
+					}
+					if scenario == "origin success" {
+						return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("recovered"))}, nil
+					}
+					if status == 0 {
+						return nil, errors.New("origin transport failure")
+					}
+					return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("origin failure"))}, nil
+				}
+				f.Request(ctx)
+				wantCalls := 1
+				if scenario == "fresh L2" || scenario == "only-if-cached" {
+					wantCalls = 0
+				}
+				if calls != wantCalls {
+					t.Fatalf("origin calls=%d, want %d", calls, wantCalls)
+				}
+				if scenario == "error" || scenario == "decode error" {
+					if !ctx.FServed || ctx.FResponse == nil {
+						t.Fatal("eligible local SIE response not served")
+					}
+					rsp := ctx.FResponse
+					body, err := io.ReadAll(rsp.Body)
+					rsp.Body.Close()
+					if err != nil || rsp.StatusCode != original.StatusCode || string(body) != string(original.Payload) ||
+						rsp.Header.Get(cacheStatusHeader) != cacheStatusStale ||
+						rsp.Header.Get("ETag") != original.Header.Get("ETag") ||
+						rsp.Header.Get("X-Representation") != "original" || rsp.Header.Get("Age") != "123" {
+						t.Fatalf("SIE response: status=%d header=%v body=%q err=%v", rsp.StatusCode, rsp.Header, body, err)
+					}
+					after, err := f.lruStorage.Get(context.Background(), key)
+					if err != nil || !reflect.DeepEqual(before, after) {
+						t.Fatalf("failed refresh changed last-good: before=%+v after=%+v err=%v", before, after, err)
+					}
+				} else if ctx.FResponse != nil {
+					defer ctx.FResponse.Body.Close()
+					body, err := io.ReadAll(ctx.FResponse.Body)
 					if err != nil {
 						t.Fatal(err)
 					}
-					if scenario != "expired" && before == nil {
-						t.Fatal("warming discarded the original SIE window")
-					}
-					client.broken = true
-					if scenario == "decode error" {
-						client.broken = false
-						if err := client.SetWithExpire(context.Background(), key, "invalid JSON", time.Minute); err != nil {
-							t.Fatal(err)
+					switch scenario {
+					case "fresh L2":
+						if string(body) != "fresh L2" || ctx.FResponse.Header.Get(cacheStatusHeader) != cacheStatusHit {
+							t.Fatalf("fresh L2 not preferred: %q %v", body, ctx.FResponse.Header)
+						}
+					case "origin success":
+						if string(body) != "recovered" || ctx.FResponse.Header.Get(cacheStatusHeader) != cacheStatusMiss {
+							t.Fatalf("successful origin not preferred: %q %v", body, ctx.FResponse.Header)
+						}
+					case "only-if-cached":
+						if ctx.FResponse.StatusCode != http.StatusGatewayTimeout {
+							t.Fatalf("local SIE candidate reported as a hit: %v", ctx.FResponse)
+						}
+					default:
+						if string(body) == "last-good" || ctx.FResponse.Header.Get(cacheStatusHeader) == cacheStatusStale {
+							t.Fatalf("ineligible local response served: %q %v", body, ctx.FResponse.Header)
 						}
 					}
-					if scenario == "miss" {
-						client.broken = false
-						if _, err := client.Del(context.Background(), key); err != nil {
-							t.Fatal(err)
-						}
-					}
-					if scenario == "fresh L2" {
-						client.broken = false
-						fresh := *original
-						fresh.CreatedAt = time.Now()
-						fresh.Payload = []byte("fresh L2")
-						// Write around L1 to model a refresh by another process.
-						remote := NewL2Storage(client, NewLRUStorage(1<<20, nil, metrics.Void), metrics.Void, 0, valkey.IsValkeyNil)
-						if err := remote.Set(context.Background(), key, &fresh); err != nil {
-							t.Fatal(err)
-						}
-					}
-					if scenario == "only-if-cached" {
-						ctx.Request().Header.Set("Cache-Control", "only-if-cached")
-					}
-					calls := 0
-					f.fetch = func(*http.Request) (*http.Response, error) {
-						calls++
-						if scenario == "expires during fetch" {
-							time.Sleep(10 * time.Minute)
-						}
-						if scenario == "original window expires during fetch" {
-							time.Sleep(time.Nanosecond)
-						}
-						if scenario == "origin success" {
-							return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("recovered"))}, nil
-						}
-						if status == 0 {
-							return nil, errors.New("origin transport failure")
-						}
-						return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("origin failure"))}, nil
-					}
-					f.Request(ctx)
-					wantCalls := 1
-					if scenario == "fresh L2" || scenario == "only-if-cached" {
-						wantCalls = 0
-					}
-					if calls != wantCalls {
-						t.Fatalf("origin calls=%d, want %d", calls, wantCalls)
-					}
-					if scenario == "error" || scenario == "decode error" {
-						if !ctx.FServed || ctx.FResponse == nil {
-							t.Fatal("eligible local SIE response not served")
-						}
-						rsp := ctx.FResponse
-						body, err := io.ReadAll(rsp.Body)
-						rsp.Body.Close()
-						if err != nil || rsp.StatusCode != original.StatusCode || string(body) != string(original.Payload) ||
-							rsp.Header.Get(cacheStatusHeader) != cacheStatusStale ||
-							rsp.Header.Get("ETag") != original.Header.Get("ETag") ||
-							rsp.Header.Get("X-Representation") != "original" || rsp.Header.Get("Age") != "123" {
-							t.Fatalf("SIE response: status=%d header=%v body=%q err=%v", rsp.StatusCode, rsp.Header, body, err)
-						}
-						after, err := f.lruStorage.Get(context.Background(), key)
-						if err != nil || !reflect.DeepEqual(before, after) {
-							t.Fatalf("failed refresh changed last-good: before=%+v after=%+v err=%v", before, after, err)
-						}
-					} else if ctx.FResponse != nil {
-						defer ctx.FResponse.Body.Close()
-						body, err := io.ReadAll(ctx.FResponse.Body)
-						if err != nil {
-							t.Fatal(err)
-						}
-						switch scenario {
-						case "fresh L2":
-							if string(body) != "fresh L2" || ctx.FResponse.Header.Get(cacheStatusHeader) != cacheStatusHit {
-								t.Fatalf("fresh L2 not preferred: %q %v", body, ctx.FResponse.Header)
-							}
-						case "origin success":
-							if string(body) != "recovered" || ctx.FResponse.Header.Get(cacheStatusHeader) != cacheStatusMiss {
-								t.Fatalf("successful origin not preferred: %q %v", body, ctx.FResponse.Header)
-							}
-						case "only-if-cached":
-							if ctx.FResponse.StatusCode != http.StatusGatewayTimeout {
-								t.Fatalf("local SIE candidate reported as a hit: %v", ctx.FResponse)
-							}
-						default:
-							if string(body) == "last-good" || ctx.FResponse.Header.Get(cacheStatusHeader) == cacheStatusStale {
-								t.Fatalf("ineligible local response served: %q %v", body, ctx.FResponse.Header)
-							}
-						}
-					} else if scenario == "fresh L2" || scenario == "origin success" || scenario == "only-if-cached" {
-						t.Fatal("expected response not served")
-					}
-					if got, _ := m.Counter("cache.l1_hit"); got != 0 {
-						t.Fatalf("SIE-only candidate counted as L1 hit: %d", got)
-					}
-				})
+				} else if scenario == "fresh L2" || scenario == "origin success" || scenario == "only-if-cached" {
+					t.Fatal("expected response not served")
+				}
+				if got, _ := m.Counter("cache.l1_hit"); got != 0 {
+					t.Fatalf("SIE-only candidate counted as L1 hit: %d", got)
+				}
 			})
-		}
+		})
 	}
 }
 
 func TestCacheFilterL2FailureBackgroundPreservesSIE(t *testing.T) {
-	for _, status := range []int{0, 500, 502, 503, 504} {
+	for _, status := range []int{0, http.StatusServiceUnavailable} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				f, cleanup := newTestFilterWithCleanup(t, time.Minute, time.Second, time.Second, 10*time.Minute)

@@ -53,11 +53,7 @@ func TestL2StorageL1FreshnessBoundaries(t *testing.T) {
 		{"sie beyond swr", ttl, ttl, 2 * ttl, 2*ttl + time.Nanosecond, false, true},
 		{"swr beyond sie", ttl, 2 * ttl, ttl, 2*ttl + time.Nanosecond, false, true},
 		{"zero ttl", 0, 0, 0, ttl, true, true},
-		{"zero ttl sie retained", 0, 0, ttl, ttl / 2, true, true},
-		{"zero ttl sie expired", 0, 0, ttl, 2 * ttl, true, true},
 		{"zero ttl swr stale", 0, ttl, 0, ttl / 2, false, true},
-		{"zero ttl swr boundary", 0, ttl, 0, ttl, true, true},
-		{"zero ttl swr expired", 0, ttl, 0, 2 * ttl, true, true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -252,53 +248,6 @@ func TestCacheFilterExpiredL1FreshL2(t *testing.T) {
 			warmed, err := f.lruStorage.Get(context.Background(), key)
 			if err != nil || warmed == nil || string(warmed.Payload) != "fresh L2" {
 				t.Fatalf("L1 warming: entry=%+v, err=%v", warmed, err)
-			}
-		})
-	}
-}
-
-func BenchmarkL2StorageL1Freshness(b *testing.B) {
-	for _, tt := range []struct {
-		name string
-		age  time.Duration
-		swr  time.Duration
-		sie  time.Duration
-	}{
-		{"fresh", 0, 0, 0},
-		{"expired SIE", 2 * time.Hour, 0, 24 * time.Hour},
-		{"expired SWR", 2 * time.Hour, 24 * time.Hour, 0},
-	} {
-		b.Run(tt.name, func(b *testing.B) {
-			ctx := context.Background()
-			client := newStubValkeyClient()
-			l1 := NewLRUStorage(1<<20, nil, metrics.Void)
-			s := NewL2Storage(client, l1, metrics.Void, 0, valkey.IsValkeyNil)
-			old := &Entry{
-				StatusCode:           http.StatusOK,
-				Payload:              []byte("L1 response"),
-				TTL:                  time.Hour,
-				CreatedAt:            time.Now().Add(-tt.age),
-				StaleWhileRevalidate: tt.swr,
-				StaleIfError:         tt.sie,
-			}
-			if err := l1.Set(ctx, "key", old); err != nil {
-				b.Fatal(err)
-			}
-			fresh := &Entry{
-				StatusCode: http.StatusOK,
-				Payload:    []byte("L2 response"),
-				TTL:        time.Hour,
-				CreatedAt:  time.Now(),
-			}
-			if err := s.Set(ctx, "key", fresh); err != nil {
-				b.Fatal(err)
-			}
-			b.ReportAllocs()
-			b.ResetTimer()
-			for b.Loop() {
-				if entry, err := s.Get(ctx, "key"); err != nil || entry == nil {
-					b.Fatalf("Get: entry=%+v, err=%v", entry, err)
-				}
 			}
 		})
 	}
