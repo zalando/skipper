@@ -41,6 +41,9 @@ type Entry struct {
 	// StaleIfError extends the hard-expiry retention window so the entry remains
 	// retrievable during upstream error periods (RFC 5861 stale-if-error).
 	StaleIfError time.Duration
+	// L1FreshUntil bounds local warming without changing response freshness or
+	// stale-if-error retention. Zero means no separate L1 warming deadline.
+	L1FreshUntil time.Time `json:",omitzero"`
 }
 
 // IsStale reports whether the entry is past its TTL but still within
@@ -59,6 +62,8 @@ func (e *Entry) IsUsable(now time.Time) bool {
 // Implementations must be safe for concurrent use.
 type Storage interface {
 	// Get returns the entry for key, or (nil, nil) if the key is not found.
+	// On an L2 read error, a returned entry is only a local stale-if-error
+	// candidate, never a cache hit. The error remains non-nil.
 	Get(ctx context.Context, key string) (*Entry, error)
 
 	// GetSilent behaves like Get but must not record any outcome metrics

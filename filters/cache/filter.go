@@ -796,16 +796,25 @@ func (f *cacheFilter) staleIfErrorEntry(key string) *Entry {
 	if f.staleIfError <= 0 {
 		return nil
 	}
-	entry, err := f.storage.GetSilent(context.Background(), key)
-	if err != nil || !f.canServeStaleIfError(entry) {
+	// An L2 read error can carry a local candidate. It is never a fresh hit;
+	// coalesce still fetches origin and rechecks eligibility after that fetch.
+	entry, _ := f.storage.GetSilent(context.Background(), key)
+	if !f.canServeStaleIfError(entry) {
 		return nil
 	}
 	return entry
 }
 
 func (f *cacheFilter) canServeStaleIfError(entry *Entry) bool {
-	return f.staleIfError > 0 && entry != nil && entry.StatusCode < 500 &&
-		time.Since(entry.CreatedAt)-entry.TTL <= f.staleIfError
+	if entry == nil {
+		return false
+	}
+	window := f.staleIfError
+	if entry.StaleIfError > 0 {
+		window = min(window, entry.StaleIfError)
+	}
+	return window > 0 && entry.StatusCode < 500 &&
+		time.Since(entry.CreatedAt)-entry.TTL <= window
 }
 
 // Response stores the upstream response in the cache, freshens HEAD entries,
