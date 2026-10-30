@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/zalando/skipper/metrics"
 )
 
 type MockMetrics struct {
@@ -23,6 +25,8 @@ type MockMetrics struct {
 	values        map[string][]float64
 	Now           time.Time
 }
+
+var _ metrics.CacheL2Observer = (*MockMetrics)(nil)
 
 //
 // Public thread safe access to metrics
@@ -270,6 +274,34 @@ func cacheResultKey(result, codeClass string) string {
 	return fmt.Sprintf("cache_result.%s.%s", result, codeClass)
 }
 
+// IncCacheL2Operation records an L2 cache operation.
+func (m *MockMetrics) IncCacheL2Operation(operation, purpose, outcome string) {
+	m.IncCounter(cacheL2OperationKey(operation, purpose, outcome))
+}
+
+// CacheL2OperationCount returns the recorded L2 cache operation count.
+func (m *MockMetrics) CacheL2OperationCount(operation, purpose, outcome string) (int64, bool) {
+	return m.Counter(m.Prefix + cacheL2OperationKey(operation, purpose, outcome))
+}
+
+func cacheL2OperationKey(operation, purpose, outcome string) string {
+	return fmt.Sprintf("cache_l2_operation.%s.%s.%s", operation, purpose, outcome)
+}
+
+// IncCacheL2ProcessingError records an L2 cache processing error.
+func (m *MockMetrics) IncCacheL2ProcessingError(operation, purpose, stage string) {
+	m.IncCounter(cacheL2ProcessingErrorKey(operation, purpose, stage))
+}
+
+// CacheL2ProcessingErrorCount returns the recorded L2 cache processing error count.
+func (m *MockMetrics) CacheL2ProcessingErrorCount(operation, purpose, stage string) (int64, bool) {
+	return m.Counter(m.Prefix + cacheL2ProcessingErrorKey(operation, purpose, stage))
+}
+
+func cacheL2ProcessingErrorKey(operation, purpose, stage string) string {
+	return fmt.Sprintf("cache_l2_processing_error.%s.%s.%s", operation, purpose, stage)
+}
+
 // IncStorageError records a labeled cache storage error (backend x op), mirroring the
 // real Prometheus skipper_cache_storage_error_total{backend,op} counter. Also increments
 // the legacy unlabeled cache.storage_error counter and the labeled
@@ -306,6 +338,46 @@ func (m *MockMetrics) CacheLRUBytes(route string) (v float64, ok bool) {
 
 func cacheLRUBytesKey(route string) string {
 	return fmt.Sprintf("cache_lru_bytes.%s", route)
+}
+
+// IncCacheRouteResult mirrors skipper_cache_route_result_total{route,result}.
+func (m *MockMetrics) IncCacheRouteResult(route, result string) {
+	m.IncCounter(fmt.Sprintf("cache_route_result.%s.%s", route, result))
+}
+
+// IncCacheRequest mirrors skipper_cache_request_total{result,tier}.
+func (m *MockMetrics) IncCacheRequest(result, tier string) {
+	m.IncCounter(fmt.Sprintf("cache_request.%s.%s", result, tier))
+}
+
+// IncCacheRouteReval mirrors skipper_cache_route_reval_total{route,outcome}.
+func (m *MockMetrics) IncCacheRouteReval(route, outcome string) {
+	m.IncCounter(fmt.Sprintf("cache_route_reval.%s.%s", route, outcome))
+}
+
+// ObserveCacheOriginDuration mirrors skipper_cache_origin_duration_seconds{route,status_class,dispatch}
+// by recording both the observation count and durations in seconds.
+func (m *MockMetrics) ObserveCacheOriginDuration(route, statusClass, dispatch string, seconds float64) {
+	key := fmt.Sprintf("cache_origin_duration.%s.%s.%s", route, statusClass, dispatch)
+	m.IncCounter(key)
+	m.WithValues(func(values map[string][]float64) {
+		values[m.Prefix+key] = append(values[m.Prefix+key], seconds)
+	})
+}
+
+// IncOriginCacheControl mirrors skipper_cache_origin_cache_control_total{cache_control}.
+func (m *MockMetrics) IncOriginCacheControl(directive string) {
+	m.IncCounter(fmt.Sprintf("cache_origin_cache_control.%s", directive))
+}
+
+// SetCacheLRUEntries mirrors skipper_cache_lru_entries{route}.
+func (m *MockMetrics) SetCacheLRUEntries(route string, entries float64) {
+	m.UpdateGauge(fmt.Sprintf("cache_lru_entries.%s", route), entries)
+}
+
+// SetCacheLRUCapacity mirrors skipper_cache_lru_capacity_bytes.
+func (m *MockMetrics) SetCacheLRUCapacity(bytes float64) {
+	m.UpdateGauge("cache_lru_capacity_bytes", bytes)
 }
 
 func (*MockMetrics) Close() {}

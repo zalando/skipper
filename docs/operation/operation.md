@@ -2136,9 +2136,25 @@ flowchart TD
 
 **Write path:** successful L2 Set warms L1 with min(--cache-l1-ttl, entry.TTL) (default 60s). L2 Get hit warms L1 with min(--cache-l1-ttl, remaining freshness). L1 is also populated on L2 Set errors (fallback). Set --cache-l1-ttl=0 for write-around.
 
-**Read path:** L1 checked first. Fresh L1 hit → returns immediately (increments `cache.l1_hit`), no L2 call. Stale L1 hit (past TTL but within the stale retention window) → falls through to L2 without incrementing `cache.l1_hit`. L1 miss → L2. L2 hit → increments `cache.l2_hit`, warms L1 with `min(--cache-l1-ttl, remaining freshness)` when `--cache-l1-ttl > 0`, returns entry. L2 miss (nil) → cold miss (increments `cache.l2_miss`). L2 error → increments `cache.l2_get_error`, treated as a cold miss.
+**Read path:** L1 checked first. Fresh L1 hit → returns immediately, no L2 call. Stale L1 hit (past TTL but within the stale retention window) → falls through to L2. L1 miss → L2. L2 hit warms L1 with `min(--cache-l1-ttl, remaining freshness)` when `--cache-l1-ttl > 0`. An L2 miss or error is treated as a cold miss. Response-decision lookups record the corresponding `cache.l1_hit`, `cache.l2_hit`, `cache.l2_miss`, or `cache.l2_get_error` outcome; internal silent reads do not.
 
 ### Metrics
+
+**Client request rate:**
+
+`skipper_custom_total{key="client.requests"}` counts each completed external proxy
+request once, including non-cache routes, uncacheable responses, route misses and
+backend failures. It has no route or status labels and is initialized to zero
+when the proxy is constructed. Use its rate for universal client RPS instead of
+`skipper_serve_route_count`, which also counts internal listener replay.
+
+Cache listener replays carry a process-local authenticated marker that is removed
+before routing, forwarding or access logging. Client-supplied marker headers cannot
+suppress the counter. Redirects outside the original listener do not retain the
+marker. Requests explicitly handled by `healthcheck()` are excluded as operational
+probes; arbitrary `/healthz` paths, route IDs and User-Agent values are not
+classified as health checks. Support-listener probes do not enter the proxy.
+Cache-result counters remain a cache-only denominator, not universal client RPS.
 
 **Cache outcomes (always active):**
 
@@ -2158,19 +2174,115 @@ flowchart TD
   call to the result being available — near-zero for the leader (it computes the result
   itself), the leader's real fetch time for followers waiting on it
 
+**Prometheus cache outcome metrics:**
+
+- `skipper_cache_request_total{result,tier}`: One terminal cache decision per
+  external request traversing `cache()`, including HEAD, conditional requests,
+  unsafe methods, request-directive bypasses, cache-only misses and failures.
+  Cold-miss listener loopback and background refresh requests authenticated by
+  the process-local replay marker are excluded. A client-supplied
+  `X-Cache-Revalidate` header cannot suppress counting and records `bypass`.
+  The counter is emitted when the cache
+  filter's request phase returns, not when the client finishes receiving bytes.
+  A bypass or error falling through to the normal proxy pipeline is counted
+  here regardless of the eventual backend response.
+- `result="fresh"` means a fresh stored response was actually selected (including
+  cache-generated 304s); `tier="l1|l2"` identifies the read that supplied it,
+  before any L1 warming. LRU-only storage reports `l1`. A successful storage
+  read that cannot satisfy freshness or request directives is not a fresh hit.
+- `result="stale"` covers both stale-while-revalidate and stale-if-error serves,
+  including conditional 304s. `tier` identifies the read supplying the stale
+  representation, not the failed origin attempt. Coalesced stale-if-error
+  waiters each count once as stale, using their shared snapshot's tier.
+- `result="origin"` is an origin response selected by its fetch leader or an
+  independent unshareable follower; `coalesced` is a follower reusing an
+  in-flight origin response. Neither becomes a tier hit when the response is
+  stored. Both use `tier="none"`.
+- `result="bypass"` covers unsafe methods and request `no-cache`/`no-store`.
+  `cache_only_miss` is an unsatisfied `only-if-cached` request (504).
+  `error` covers cancellation, dispatch/transport/body-read failure and a
+  failed representation lookup, even if an origin fallback succeeds. Successful
+  fresh or stale serves take precedence over a recovered lookup error.
+  These non-cache outcomes use `tier="none"`. Write/delete failures do not
+  change a response's source; use the existing storage/error counters to
+  diagnose them.
+
+The new counter has only bounded result/tier labels (at most 21 combinations),
+not route, host or URL labels. Third-party `Storage` implementations without
+read provenance use `tier="none"` even for fresh/stale responses. Standard L1/L2
+stores supply provenance without changing the public `Storage` interface.
+Vary-sentinel reads, HEAD freshening, stale-if-error snapshots, background
+validator reads and 304 reuse never emit additional request outcomes.
+
+For Overview panels, use the same external-request denominator for all three
+percentages. Apply the same deployment/cluster selectors to every term:
+
+```promql
+# L1 fresh request hit ratio (%)
+100 * (sum(rate(skipper_cache_request_total{result="fresh",tier="l1"}[5m])) or vector(0))
+  / sum(rate(skipper_cache_request_total[5m]))
+
+# L2 fresh request hit ratio (%), not conditional on reaching L2
+100 * (sum(rate(skipper_cache_request_total{result="fresh",tier="l2"}[5m])) or vector(0))
+  / sum(rate(skipper_cache_request_total[5m]))
+
+# Stale request share (%), across both tiers
+100 * (sum(rate(skipper_cache_request_total{result="stale"}[5m])) or vector(0))
+  / sum(rate(skipper_cache_request_total[5m]))
+```
+
+Missing numerator series yield zero while another outcome has traffic. A zero
+denominator remains undefined (no traffic); do not display it as a 100% hit rate.
+During rolling deployment, these ratios describe only instances emitting the
+new metric. No `cache_host` filtering is supported: the counter is cluster-wide
+after aggregation.
+
+Existing `cache.l1_hit`, `cache.l2_hit`, `cache.l2_miss` and
+`skipper_cache_result_total` remain diagnostic lookup/outcome counters, not
+request denominators. In particular,
+`L1 hits / (L1 hits + L2 hits + L2 misses)` is a **lookup share**, and
+`L2 hits / (L2 hits + L2 misses)` is a **conditional lookup hit ratio**.
+Both omit lookup errors and can include internal reads; neither is a fresh
+per-external-request tier hit ratio. Their names and behaviour are unchanged.
+
+- `skipper_cache_route_result_total{route,result}`: Counter for cache `hit`, `miss`,
+  and `stale` results, labeled with the route ID. Cardinality scales with the number
+  of routes (the same per-route precedent as `skipper_cache_lru_entries{route}`).
+- `skipper_cache_first_hit_seconds`: Gauge for seconds from metrics initialization
+  to the first cache hit in this process; absent until a hit occurs. A missing
+  sample is not a zero-second hit.
+
+Derive route families at query time for route IDs using the `<family>__<suffix>`
+convention, for example:
+
+```promql
+sum by (family, result) (label_replace(rate(skipper_cache_route_result_total[5m]), "family", "$1", "route", "(.+?)__.*"))
+```
+
+Use recording rules or adjust the regular expression for a different route naming
+convention. Route values come from the routing table, never request paths or
+cache keys; result, status, dispatch and outcome values are fixed sets.
+
 **LRU (always active):**
 
 - `cache.lru_eviction`: Counter, incremented each time an L1 entry is evicted due to memory pressure
 - `cache.lru_bytes`: Gauge, current L1 usage in bytes (sampled every 10s)
 - `cache.lru_oversized`: Counter, incremented when an entry is too large for any shard and dropped
+- `skipper_cache_lru_entries{route}` and `skipper_cache_lru_bytes{route}`:
+  snapshots of the shared process L1, updated on cache outcomes. These are not
+  per-route allocations; use `max`, not `sum`, across routes for process usage.
+- `skipper_cache_lru_capacity_bytes`: configured process L1 byte budget.
 
 **Revalidation (always active):**
 
 - `cache.reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
 - `cache.reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
-- `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
-- `cache.reval_error`: Counter, background revalidation preparation or fetch
-  failures, or an invalid backend URL required pipeline fallback
+- `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was
+  full or the cache filter was shutting down
+- `cache.reval_error`: Counter, background revalidation preparation, transport,
+  timeout or body-read failures, origin 5xx responses (including those stored using
+  `errorTTL`), or an invalid backend URL required pipeline fallback. A 5xx with a
+  body-read failure is counted once.
 - `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
 - `cache.reval_backend_dispatch`: Counter, background revalidation fetches sent
   directly to the backend (force mode, static backend only). Direct-dispatched
@@ -2178,6 +2290,50 @@ flowchart TD
   Both bypass Skipper's proxy pipeline, so these origin requests are invisible
   to `MeasureBackend*` metrics and the access log. Self-loopback revalidations
   aren't counted here since they go through the listener normally.
+
+**Prometheus revalidation outcomes:**
+
+`skipper_cache_route_reval_total{route,outcome}` records `started` once per
+background refresh attempt and exactly one terminal outcome. It emits up to four
+series per route, so cardinality scales with the number of routes:
+
+- `success`: a non-5xx response (including a merged 304) was stored successfully.
+- `failed`: dispatch, transport, timeout, body-read or storage failure, or any
+  origin 5xx. A 5xx is failed even when cached using `errorTTL`; SIE retention and
+  negative caching policy are unchanged.
+- `dropped`: a response was not cacheable or a 304 could not be merged because its
+  stored entry was evicted. Queue-full/shutdown rejection also records `dropped`,
+  but without `started` and increments legacy `cache.reval_dropped`.
+
+Superseded queued jobs and singleflight followers do not start an origin refresh
+and record no route outcome. Route `dropped` therefore covers more cases than
+legacy `cache.reval_dropped`; storage failures record route `failed` but do not
+increment legacy `cache.reval_error`.
+Do not sum `started` and terminal outcomes as an attempt denominator. For refresh
+success ratios use `success / (success + failed + dropped)` over terminal
+outcomes; queue rejection contributes `dropped` without a started attempt.
+
+**Prometheus origin metrics:**
+
+- `skipper_cache_origin_duration_seconds{route,status_class,dispatch}`: Histogram
+  of cache fetch-to-response-header durations for cold-miss coalescing, independent
+  coalescing bypasses and background revalidation, excluding response body reads.
+  `status_class` is `2xx`, `3xx`, `4xx`, `5xx`, `error`, or `other`;
+  `dispatch` is `direct` or `pipeline`. Direct dispatch bypasses `MeasureBackend*`
+  metrics and the backend access log; pipeline loopback is counted normally. The
+  existing histogram buckets are unchanged. Each route/status/dispatch combination
+  emits one `_bucket` series per configured bucket plus the `+Inf` bucket, and one
+  `_sum` and `_count` series. Thus cardinality scales with route count, status class,
+  and dispatch path. Pipeline durations include listener and filter-chain
+  overhead. Pipeline backend transport failures become HTTP 5xx responses;
+  `error` identifies a transport failure of the cache fetch itself.
+- `skipper_cache_origin_cache_control_total{cache_control}`: Counter of each
+  Cache-Control directive seen on an origin response, counted once per directive
+  per response. Values are bounded to `public`, `private`, `no-store`, `no-cache`,
+  `max-age`, `s-maxage`, `stale-while-revalidate`, `stale-if-error`, and `other`.
+  Internal listener replay does not add another request result or directive
+  observation. Directive counts overlap and must not be summed as a response
+  denominator. Unobserved labelled counters and histograms are absent, not zero.
 
 **Cache origin timeouts:** cold-miss and background cache fetches use
 `--timeout-backend` for TCP dialing, `--tls-timeout-backend` for TLS handshakes,
@@ -2196,15 +2352,115 @@ positioned before `cache()` as described in the filter reference.
 
 **L2 (if Valkey or Redis is configured):**
 
-- `cache.l1_hit`: Counter, L1 hits that bypassed L2
-- `cache.l2_miss`: Counter, L2 misses that proceeded to an upstream fetch
-- `cache.l2_get_error`: Counter, L2 Get errors — request treated as a cache miss, fetched from origin
+- `cache.l1_hit`: Counter, response-decision L1 hits that bypassed L2
+- `cache.l2_miss`: Counter, response-decision lookups whose L2 key was absent
+- `cache.l2_get_error`: Counter, response-decision lookups with an L2 Get error, treated as a cache miss
 - `cache.l2_set_fallback`: Counter, L2 Set errors — entry written to L1 only (not L2)
-- `cache.l2_hit`: Counter, successful L2 Get (entry returned from L2); L1 is warmed as a side-effect when `--cache-l1-ttl > 0`
+- `cache.l2_hit`: Counter, response-decision L2 Get hit; L1 is warmed as a side-effect when `--cache-l1-ttl > 0`
 - `cache.l2_get_duration`: Histogram, time of the underlying Valkey/Redis `Get` round-trip, on every call (hit, miss, or error) — including internal lookups like the Vary-sentinel check
 - `cache.l2_set_duration`: Histogram, time of the underlying Valkey/Redis `SetWithExpire` round-trip, on every call (success or fallback)
+- `cache.l2_delete_duration`: Histogram, time of the underlying Valkey/Redis `Del` call, including errors
 - `cache.storage_error`: Counter, any storage operation (Set or Delete) failed — covers both L2 failures and L1 eviction-path errors; the request is still served correctly
 - `skipper_cache_storage_error_total{backend="l1|l2", op="get|set|delete"}`: Counter, labeled breakdown of storage errors by backend and operation, attributed at the point in `LRUStorage`/`L2Storage` where the backend is actually known. Also increments the flat `cache.storage_error` counter above and the labeled `skipper_cache_result_total{result="storage_error",code_class="n/a"}`, so existing consumers of either see no change — this is purely an additional breakdown. `backend="l2", op="delete"` always reports the real underlying failure, since `L2Storage.Delete` only ever returns `nil` to its caller regardless of whether the Valkey delete succeeded (L1 delete always runs); a generic `Storage.Set`/`Storage.Delete` failure from code that isn't `LRUStorage` or `L2Storage` (e.g. a test double) cannot be attributed and records nothing here.
+
+### L2 operation observability
+
+The cache filter owns response hit, miss and stale outcomes; L2 storage owns
+client-operation outcomes; and the origin-fetch boundary owns origin fetches.
+These measurements answer different questions and are not interchangeable.
+`skipper_cache_result_total` also contains operational diagnostics, so it is
+not a mutually exclusive request partition. Select `result=~"hit|miss|stale"`
+for response outcomes, subject to the existing request-accounting limitations.
+
+`skipper_cache_l2_operations_total{operation,purpose,outcome}` counts each
+completed L2 client method invocation once:
+
+- `operation`: `get`, `set`, or `delete`.
+- `purpose`: `response` for response entries, `metadata` for Vary sentinels,
+  or `unknown` when the caller supplied no recognized purpose.
+- `outcome`: `success`, `miss`, or `error`. Only GET emits `miss`, for a
+  recognized absent key; DELETE of an absent key is successful. Cancellation
+  and deadline errors are errors.
+
+There are 27 possible label combinations, of which 21 are meaningful. No key,
+URL, route, header, status, or arbitrary error text is included. These are
+client-method invocations, not network packets or retries hidden by a client.
+L1-only accesses and configurations do not produce L2 events. A successful L1
+fallback does not erase an L2 SET error.
+
+Prometheus and the combined metrics provider support these counters through an
+optional observer interface. Third-party providers without that interface keep
+their existing behavior and do not emit them. Unexercised series can be absent,
+and older binaries do not provide this metric contract.
+
+`skipper_cache_l2_processing_errors_total{operation,purpose,stage}` counts
+serialization failures separately: `get`/`decode` and `set`/`encode`, with
+the same three purposes, for six possible combinations. A decode failure
+follows a successful client GET; an encode failure occurs before a client SET
+and therefore has no SET invocation or duration. Do not divide processing
+errors by client operations and call the result a transport-error ratio.
+
+GET, SET, and DELETE client-call durations are observed in the existing generic
+`skipper_custom_duration_seconds` histogram with keys
+`cache.l2_get_duration`, `cache.l2_set_duration`, and
+`cache.l2_delete_duration`. They include errors and silent reads, but exclude
+serialization and L1 work. The histogram has no purpose label.
+
+`GetSilent` suppresses legacy lookup outcomes (`l1_hit`, `l2_hit`, `l2_miss`,
+and `l2_get_error`, including their labeled counterparts), not physical L2
+operation metrics, duration observations, existing diagnostics, or logging.
+Vary metadata and internal response-entry reads use it because they are not
+response lookup decisions. HEAD freshening, revalidation validator reads and
+304 body reads therefore no longer add ordinary lookup outcomes. Legacy
+storage diagnostics and `l2_set_fallback` can still include metadata work and
+retain their mixed operational meaning. L2 deletion removes the local L1 copy
+but does not invalidate other processes' L1 copies.
+
+For example, operation throughput, transport errors, and serialization errors:
+
+```promql
+sum by (operation, purpose, outcome) (
+  rate(skipper_cache_l2_operations_total{
+    alias=~"${cluster:regex}"
+  }[$__rate_interval])
+)
+```
+
+```promql
+sum by (operation, purpose) (
+  rate(skipper_cache_l2_operations_total{
+    alias=~"${cluster:regex}",
+    outcome="error"
+  }[$__rate_interval])
+)
+```
+
+```promql
+sum by (operation, purpose, stage) (
+  rate(skipper_cache_l2_processing_errors_total{
+    alias=~"${cluster:regex}"
+  }[$__rate_interval])
+)
+```
+
+`alias` is an environment scrape label, not a label added by these collectors;
+adapt selectors to the deployment.
+
+For rollout, deploy this implementation with its required base changes, then
+confirm both families are scraped when exercised, including a controlled
+metadata error and a normal response lookup. Check `purpose="unknown"`:
+built-in filter traffic should not emit it, although external callers may.
+Add an L2 operation view alongside legacy diagnostics in a separate dashboard
+update; do not relabel old counters as if their semantics changed. Verify
+alerts and consumers before removing legacy views, retaining original and
+temporary adjacent panels until their deployment and validation conditions are
+met. Keep origin RPS on `skipper_cache_origin_duration_seconds_count`, not L2
+operations, misses, or stale responses.
+
+After deployment and consumer migration, inventory uses of legacy L2
+diagnostics and the mixed `cache_result_total` family. A later
+compatibility-reviewed change can retire redundant operational series and
+temporary panels without removing distinct L1 diagnostics or request outcomes.
 
 **OpenTracing span tags (set on every request when a span is active):**
 

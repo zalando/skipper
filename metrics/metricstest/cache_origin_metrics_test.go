@@ -1,0 +1,36 @@
+package metricstest
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestCacheOriginMockMetrics(t *testing.T) {
+	m := &MockMetrics{Prefix: "test."}
+	m.IncCacheRouteReval("product", "started")
+	m.IncCacheRouteReval("product", "started")
+	m.IncCacheRouteReval("other", "failed")
+	m.ObserveCacheOriginDuration("product", "2xx", "direct", 0.125)
+	m.ObserveCacheOriginDuration("product", "2xx", "direct", 0.375)
+	m.ObserveCacheOriginDuration("other", "error", "pipeline", 0.5)
+	m.IncOriginCacheControl("max-age")
+	m.IncOriginCacheControl("max-age")
+	m.IncOriginCacheControl("other")
+	m.WithCounters(func(got map[string]int64) {
+		assert.Equal(t, map[string]int64{
+			"test.cache_route_reval.product.started":          2,
+			"test.cache_route_reval.other.failed":             1,
+			"test.cache_origin_duration.product.2xx.direct":   2,
+			"test.cache_origin_duration.other.error.pipeline": 1,
+			"test.cache_origin_cache_control.max-age":         2,
+			"test.cache_origin_cache_control.other":           1,
+		}, got)
+	})
+	m.WithValues(func(got map[string][]float64) {
+		assert.Equal(t, map[string][]float64{
+			"test.cache_origin_duration.product.2xx.direct":   {0.125, 0.375},
+			"test.cache_origin_duration.other.error.pipeline": {0.5},
+		}, got)
+	})
+}

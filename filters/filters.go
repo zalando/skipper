@@ -12,6 +12,9 @@ import (
 )
 
 const (
+	// HealthCheckKey marks requests explicitly handled by the healthcheck filter.
+	HealthCheckKey = "request:healthcheck"
+
 	// DynamicBackendHostKey is the key used in the state bag to pass host to the proxy.
 	DynamicBackendHostKey = "backend:dynamic:host"
 

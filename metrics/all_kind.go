@@ -18,6 +18,8 @@ type All struct {
 	codaHaleHandler   http.Handler
 }
 
+var _ CacheL2Observer = (*All)(nil)
+
 func NewAll(o Options) *All {
 	all := &All{
 		codaHale:   NewCodaHale(o),
@@ -48,6 +50,24 @@ func (a *All) MeasureSince(key string, start time.Time) {
 func (a *All) IncCounter(key string) {
 	for _, p := range a.providers {
 		p.IncCounter(key)
+	}
+}
+
+// IncCacheL2Operation forwards an L2 cache operation to supporting providers.
+func (a *All) IncCacheL2Operation(operation, purpose, outcome string) {
+	for _, p := range a.providers {
+		if observer, ok := p.(CacheL2Observer); ok {
+			observer.IncCacheL2Operation(operation, purpose, outcome)
+		}
+	}
+}
+
+// IncCacheL2ProcessingError forwards an L2 processing error to supporting providers.
+func (a *All) IncCacheL2ProcessingError(operation, purpose, stage string) {
+	for _, p := range a.providers {
+		if observer, ok := p.(CacheL2Observer); ok {
+			observer.IncCacheL2ProcessingError(operation, purpose, stage)
+		}
 	}
 }
 

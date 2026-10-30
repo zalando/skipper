@@ -292,6 +292,9 @@ SHA-256 hash of the serialized route table used as the HTTP ETag. Skipper instan
 
 ## Observability
 
+**Client Request**:
+An external request received by Skipper's proxy, including requests that fail or do not use the cache. Internal cache listener replays and configured health-check traffic are not client requests.
+
 **Metrics**:
 Performance and operational measurements: per-route, per-filter, per-backend, and per-host timings and counters, plus custom metrics emitted by filters via `FilterContext.Metrics()`.
 
@@ -301,3 +304,13 @@ _Avoid_: OpenTelemetry directly in filter/proxy code
 
 **Access Log**:
 Per-request HTTP access logging in Apache combined or JSON format, with duration, host, and flow-id fields.
+
+**Cache Origin Dispatch**:
+The path a cache-origin fetch takes: directly to a static backend in force mode, or through the proxy pipeline by listener loopback.
+
+**Cache Request Hit Ratio**:
+The share of external requests traversing the cache filter that receive a fresh stored response from a particular cache tier. Internal cache reads and refresh traffic are not requests in this denominator.
+_Avoid_: lookup hit ratio, lookup share
+
+**Cache Lookup Provenance**:
+The cache tier that supplied a stored representation for a serving decision. Warming another tier does not change that provenance.

@@ -57,27 +57,32 @@ func NewL2Storage(l2client L2Client, l1 *LRUStorage, m metrics.Metrics, l1TTL ti
 }
 
 func (s *L2Storage) Get(ctx context.Context, key string) (*Entry, error) {
-	return s.get(ctx, key, true)
+	entry, _, err := s.getWithLookup(ctx, key, true)
+	return entry, err
 }
 
-// GetSilent behaves like Get but records none of the l1_hit/l2_hit/l2_miss/
-// l2_get_error outcome metrics (plain or labeled). Use it for internal
+// GetSilent behaves like Get but suppresses the legacy l1_hit, l2_hit,
+// l2_miss and l2_get_error lookup outcomes and their labeled counterparts.
+// L2 operation and processing metrics are still recorded. Use it for internal
 // plumbing lookups — e.g. the Vary-sentinel check in filter.go — that are
 // not themselves a caching decision: every request pays for that lookup,
 // so routing it through Get would have silently counted it as a real cache
 // outcome on every single request.
 func (s *L2Storage) GetSilent(ctx context.Context, key string) (*Entry, error) {
-	return s.get(ctx, key, false)
+	entry, _, err := s.getWithLookup(ctx, key, false)
+	return entry, err
 }
 
-func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*Entry, error) {
+func (s *L2Storage) getWithLookup(ctx context.Context, key string, recordMetrics bool) (*Entry, cacheLookup, error) {
+	lookup := cacheLookup{tier: "none"}
 	// L1-first: serve from local memory when the write-through warming populated it.
 	// LRUStorage.Get returns entries within TTL + max(StaleIfError, StaleWhileRevalidate).
 	// Only serve fresh, warm L1 hits; stale entries fall through to L2 so a fresher copy
 	// written by another instance is not bypassed. Preserve TTL==0 entries'
 	// conditional-revalidation behavior.
-	local, _ := s.l1.Get(ctx, key)
-	if local != nil {
+	local, l1Err := s.l1.Get(ctx, key)
+	lookup.failed = l1Err != nil
+	if l1Err == nil && local != nil {
 		now := time.Now()
 		if !local.IsStale(now) && (local.TTL == 0 || now.Before(local.CreatedAt.Add(local.TTL))) &&
 			(local.L1FreshUntil.IsZero() || now.Before(local.L1FreshUntil)) {
@@ -87,7 +92,8 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 					p.IncCacheResult("l1_hit", statusCodeClass(local.StatusCode))
 				}
 			}
-			return local, nil
+			lookup.tier = "l1"
+			return local, lookup, nil
 		}
 		// Stale L1 entry — fall through to L2.
 	}
@@ -95,8 +101,16 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 	l2Start := time.Now()
 	data, err := s.l2client.Get(ctx, key)
 	s.metrics.MeasureSince("cache.l2_get_duration", l2Start)
+	cleanMiss := err != nil && s.isNoErr(err)
+	outcome := "success"
+	if cleanMiss {
+		outcome = "miss"
+	} else if err != nil {
+		outcome = "error"
+	}
+	s.observeOperation(ctx, "get", outcome)
 	if err != nil {
-		if s.isNoErr(err) {
+		if cleanMiss {
 			// A clean miss may be a deletion by another process. Do not retain a
 			// local candidate that a later failed lookup could resurrect.
 			_ = s.l1.Delete(ctx, key)
@@ -106,7 +120,7 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 					p.IncCacheResult("l2_miss", "n/a")
 				}
 			}
-			return nil, nil
+			return nil, lookup, nil
 		}
 		if recordMetrics {
 			s.metrics.IncCounter("cache.l2_get_error")
@@ -115,16 +129,28 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 			}
 		}
 		log.WithError(err).Error("cache: L2 Get failed, fetching origin before local stale-if-error fallback")
-		return localSIECandidate(local), fmt.Errorf("cache: L2 Get: %w", err)
+		lookup.failed = true
+		candidate := localSIECandidate(local)
+		if candidate != nil {
+			lookup.tier = "l1"
+		}
+		return candidate, lookup, fmt.Errorf("cache: L2 Get: %w", err)
 	}
-	var e Entry
-	if err := json.Unmarshal([]byte(data), &e); err != nil {
+	var stored Entry
+	if err := json.Unmarshal([]byte(data), &stored); err != nil {
+		s.observeProcessingError(ctx, "get", "decode")
 		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
 			p.IncStorageError("l2", "get")
 		}
 		log.WithError(err).Error("cache: failed to decode L2 entry")
-		return localSIECandidate(local), fmt.Errorf("cache: decode L2 entry: %w", err)
+		lookup.failed = true
+		candidate := localSIECandidate(local)
+		if candidate != nil {
+			lookup.tier = "l1"
+		}
+		return candidate, lookup, fmt.Errorf("cache: decode L2 entry: %w", err)
 	}
+	e := &stored
 	if recordMetrics {
 		s.metrics.IncCounter("cache.l2_hit")
 		if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
@@ -136,8 +162,9 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 	// Unconditional (even for the silent path): this is a caching side effect of
 	// having read the entry, not an outcome metric, and skipping it would make
 	// sentinel lookups needlessly re-fetch from L2 every time.
-	s.warmL1(ctx, key, &e)
-	return &e, nil
+	s.warmL1(ctx, key, e)
+	lookup.tier = "l2"
+	return e, lookup, nil
 }
 
 func localSIECandidate(entry *Entry) *Entry {
@@ -165,6 +192,7 @@ func (s *L2Storage) Set(ctx context.Context, key string, entry *Entry) error {
 	shared.L1FreshUntil = time.Time{}
 	data, err := json.Marshal(&shared)
 	if err != nil {
+		s.observeProcessingError(ctx, "set", "encode")
 		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
 			p.IncStorageError("l2", "set")
 		}
@@ -179,6 +207,11 @@ func (s *L2Storage) Set(ctx context.Context, key string, entry *Entry) error {
 	l2Start := time.Now()
 	err = s.l2client.SetWithExpire(ctx, key, string(data), l2TTL)
 	s.metrics.MeasureSince("cache.l2_set_duration", l2Start)
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	s.observeOperation(ctx, "set", outcome)
 	if err != nil {
 		s.metrics.IncCounter("cache.l2_set_fallback")
 		if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
@@ -200,11 +233,31 @@ func (s *L2Storage) Delete(ctx context.Context, key string) error {
 	// L2 errors are best-effort — L1 delete always runs.
 	// Note: only the local process's L1 is cleared. Other Skipper processes in the
 	// fleet retain their own L1 copies until --cache-l1-ttl expires naturally.
-	if _, err := s.l2client.Del(ctx, key); err != nil {
+	l2Start := time.Now()
+	_, err := s.l2client.Del(ctx, key)
+	s.metrics.MeasureSince("cache.l2_delete_duration", l2Start)
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	s.observeOperation(ctx, "delete", outcome)
+	if err != nil {
 		log.WithError(err).Error("cache: L2 Delete failed")
 		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
 			p.IncStorageError("l2", "delete")
 		}
 	}
 	return s.l1.Delete(ctx, key)
+}
+
+func (s *L2Storage) observeOperation(ctx context.Context, operation, outcome string) {
+	if observer, ok := s.metrics.(metrics.CacheL2Observer); ok {
+		observer.IncCacheL2Operation(operation, l2PurposeFromContext(ctx), outcome)
+	}
+}
+
+func (s *L2Storage) observeProcessingError(ctx context.Context, operation, stage string) {
+	if observer, ok := s.metrics.(metrics.CacheL2Observer); ok {
+		observer.IncCacheL2ProcessingError(operation, l2PurposeFromContext(ctx), stage)
+	}
 }

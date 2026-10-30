@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -78,14 +79,28 @@ type Prometheus struct {
 	customGaugeM               *prometheus.GaugeVec
 	invalidRouteM              *prometheus.GaugeVec
 	cacheResultTotalM          *prometheus.CounterVec
+	cacheRequestTotalM         *prometheus.CounterVec
 	cacheLRUBytesM             *prometheus.GaugeVec
 	cacheStorageErrorTotalM    *prometheus.CounterVec
+	cacheL2OperationsTotalM    *prometheus.CounterVec
+	cacheL2ProcessingErrorsM   *prometheus.CounterVec
+	cacheLRUEntriesM           *prometheus.GaugeVec
+	cacheLRUCapacityBytesM     prometheus.Gauge
+	cacheRouteResultTotalM     *prometheus.CounterVec
+	cacheRouteRevalTotalM      *prometheus.CounterVec
+	cacheOriginDurationM       *prometheus.HistogramVec
+	cacheOriginCCTotalM        *prometheus.CounterVec
+	cacheFirstHitSecondsM      *prometheus.GaugeVec
+	cacheStartedAt             time.Time
+	cacheFirstHitOnce          sync.Once
 
 	opts      Options
 	registry  *prometheus.Registry
 	handler   http.Handler
 	namespace string
 }
+
+var _ CacheL2Observer = (*Prometheus)(nil)
 
 // NewPrometheus returns a new Prometheus metric backend.
 func NewPrometheus(opts Options) *Prometheus {
@@ -95,8 +110,9 @@ func NewPrometheus(opts Options) *Prometheus {
 	}
 
 	p := &Prometheus{
-		registry: opts.PrometheusRegistry,
-		opts:     opts,
+		registry:       opts.PrometheusRegistry,
+		opts:           opts,
+		cacheStartedAt: time.Now(),
 	}
 
 	if p.registry == nil {
@@ -344,6 +360,13 @@ func NewPrometheus(opts Options) *Prometheus {
 		Help:      "Total cache results by result type (hit/miss/stale) and status code class (2xx/4xx/5xx/other).",
 	}, []string{"result", "code_class"}))
 
+	p.cacheRequestTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "request_total",
+		Help:      "External cache-filter request decisions by result (fresh/stale/origin/coalesced/bypass/cache_only_miss/error) and serving tier (l1/l2/none).",
+	}, []string{"result", "tier"}))
+
 	p.cacheLRUBytesM = register(p, prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: "cache",
@@ -357,6 +380,71 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "storage_error_total",
 		Help:      "Total cache storage errors by backend (l1/l2) and operation (get/set/delete).",
 	}, []string{"backend", "op"}))
+
+	p.cacheL2OperationsTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "l2_operations_total",
+		Help:      "Completed L2 client invocations by operation, entry purpose and client outcome; excludes L1-only accesses.",
+	}, []string{"operation", "purpose", "outcome"}))
+
+	p.cacheL2ProcessingErrorsM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "l2_processing_errors_total",
+		Help:      "L2 entry serialization failures by operation, entry purpose and processing stage; separate from client invocation outcomes.",
+	}, []string{"operation", "purpose", "stage"}))
+
+	p.cacheLRUEntriesM = register(p, prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "lru_entries",
+		Help:      "Current LRU cache entry count per route.",
+	}, []string{"route"}))
+
+	p.cacheLRUCapacityBytesM = register(p, prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "lru_capacity_bytes",
+		Help:      "Configured L1 (LRU) cache capacity in bytes.",
+	}))
+
+	// result is hit/miss/stale; outcome is started/success/failed/dropped.
+	p.cacheRouteResultTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "route_result_total",
+		Help:      "Cache results by route and result (hit/miss/stale).",
+	}, []string{"route", "result"}))
+
+	p.cacheRouteRevalTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "route_reval_total",
+		Help:      "Background revalidation outcomes by route (started/success/failed/dropped).",
+	}, []string{"route", "outcome"}))
+
+	p.cacheOriginDurationM = register(p, prometheus.NewHistogramVec(p.histogramOpts(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "origin_duration_seconds",
+		Help:      "Origin fetch duration performed by the cache filter (cold-miss coalescing and revalidation) by route, status class (2xx/3xx/4xx/5xx/error/other), and dispatch path (direct/pipeline). Direct dispatch bypasses MeasureBackend* metrics and the access log.",
+		Buckets:   opts.HistogramBuckets,
+	}), []string{"route", "status_class", "dispatch"}))
+
+	p.cacheOriginCCTotalM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "origin_cache_control_total",
+		Help:      "Origin responses by Cache-Control directive, counted once per directive per response.",
+	}, []string{"cache_control"}))
+
+	p.cacheFirstHitSecondsM = register(p, prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: "cache",
+		Name:      "first_hit_seconds",
+		Help:      "Seconds from this metrics backend's initialisation to its first cache hit; absent until the first hit.",
+	}, []string{}))
 
 	// Register prometheus runtime collectors if required.
 	if opts.EnableRuntimeMetrics {
@@ -606,6 +694,21 @@ func (p *Prometheus) IncCacheResult(result, codeClass string) {
 	p.cacheResultTotalM.WithLabelValues(result, codeClass).Inc()
 }
 
+// IncCacheRequest records one terminal external cache-filter request decision.
+func (p *Prometheus) IncCacheRequest(result, tier string) {
+	p.cacheRequestTotalM.WithLabelValues(result, tier).Inc()
+}
+
+// IncCacheL2Operation increments the L2 cache operation counter.
+func (p *Prometheus) IncCacheL2Operation(operation, purpose, outcome string) {
+	p.cacheL2OperationsTotalM.WithLabelValues(operation, purpose, outcome).Inc()
+}
+
+// IncCacheL2ProcessingError increments the L2 cache processing error counter.
+func (p *Prometheus) IncCacheL2ProcessingError(operation, purpose, stage string) {
+	p.cacheL2ProcessingErrorsM.WithLabelValues(operation, purpose, stage).Inc()
+}
+
 // IncStorageError increments the cache storage error counter by backend (l1/l2) and
 // operation (get/set/delete). Also increments the legacy unlabeled cache.storage_error
 // custom counter and the skipper_cache_result_total{result="storage_error"} labeled
@@ -620,6 +723,42 @@ func (p *Prometheus) IncStorageError(backend, op string) {
 // SetCacheLRUBytes sets the LRU bytes gauge for a route.
 func (p *Prometheus) SetCacheLRUBytes(route string, bytes float64) {
 	p.cacheLRUBytesM.WithLabelValues(route).Set(bytes)
+}
+
+// SetCacheLRUEntries sets the LRU entry count gauge for a route.
+func (p *Prometheus) SetCacheLRUEntries(route string, entries float64) {
+	p.cacheLRUEntriesM.WithLabelValues(route).Set(entries)
+}
+
+// IncCacheRouteResult increments skipper_cache_route_result_total. The first hit
+// also sets skipper_cache_first_hit_seconds once per metrics backend.
+func (p *Prometheus) IncCacheRouteResult(route, result string) {
+	p.cacheRouteResultTotalM.WithLabelValues(route, result).Inc()
+	if result == "hit" {
+		p.cacheFirstHitOnce.Do(func() {
+			p.cacheFirstHitSecondsM.WithLabelValues().Set(time.Since(p.cacheStartedAt).Seconds())
+		})
+	}
+}
+
+// IncCacheRouteReval increments skipper_cache_route_reval_total.
+func (p *Prometheus) IncCacheRouteReval(route, outcome string) {
+	p.cacheRouteRevalTotalM.WithLabelValues(route, outcome).Inc()
+}
+
+// ObserveCacheOriginDuration records an origin fetch duration in seconds.
+func (p *Prometheus) ObserveCacheOriginDuration(route, statusClass, dispatch string, seconds float64) {
+	p.cacheOriginDurationM.WithLabelValues(route, statusClass, dispatch).Observe(seconds)
+}
+
+// IncOriginCacheControl increments skipper_cache_origin_cache_control_total.
+func (p *Prometheus) IncOriginCacheControl(directive string) {
+	p.cacheOriginCCTotalM.WithLabelValues(directive).Inc()
+}
+
+// SetCacheLRUCapacity sets the configured L1 capacity gauge.
+func (p *Prometheus) SetCacheLRUCapacity(bytes float64) {
+	p.cacheLRUCapacityBytesM.Set(bytes)
 }
 
 func (p *Prometheus) Close() {}
