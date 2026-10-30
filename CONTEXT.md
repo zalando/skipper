@@ -162,19 +162,6 @@ A single backend address within an LB Backend route, carrying scheme, host, port
 
 ## Resilience
 
-**Cache L1**:
-The response cache local to one Skipper process, with bounded freshness when a shared Cache L2 is enabled.
-
-**Cache L2**:
-The shared response cache backed by the configured Valkey or Redis ring.
-
-**Cache Direct Dispatch**:
-A cache-origin fetch sent to a static network backend without replaying Skipper's filter chain.
-
-**Cache Loopback Fetch**:
-A cache-origin fetch replayed through Skipper's listener with the cache lookup bypassed.
-_Avoid_: loopback backend (a different routing concept)
-
 **Circuit Breaker**:
 Egress fault-tolerance mechanism that short-circuits requests to a failing backend, returning 503 while open. Applied on the client (proxy) side of outgoing connections.
 
