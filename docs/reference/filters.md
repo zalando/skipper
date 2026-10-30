@@ -4273,6 +4273,9 @@ Route ID is included so entries from different routes never collide when sharing
 the same storage instance. Additional request headers can be folded in via
 `keyHeaders`. Cacheable `Vary` response dimensions additionally isolate stored
 variants and concurrent cold-miss followers, even when `keyHeaders` is set.
+Vary identity uses an owned snapshot of the filtered headers at `cache()`,
+including for queued refreshes. Loopback fetches separately replay the original
+request so routing and preceding request filters still run normally.
 Without `keyHeaders` or an applicable `Vary` response header, all requests to the
 same path share one cache entry regardless of caller identity.
 
