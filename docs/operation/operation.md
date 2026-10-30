@@ -2056,7 +2056,7 @@ By default entries are stored in an in-process LRU (L1) local to each Skipper pr
 When `--enable-swarm` and `--enable-l2-cache` are set, a configured Valkey
 (`--swarm-valkey-urls`) or Redis (`--swarm-redis-urls`) ring serves as a shared backing store
 (L2) accessible by all Skipper instances via client-side consistent hashing; every read checks
-L1 first and an L1 hit returns without contacting L2 cache. Without `--enable-l2-cache`, the
+L1 first and a fresh L1 hit returns without contacting L2 cache. Without `--enable-l2-cache`, the
 configured ring is not used by the `cache()` filter, which uses L1 exclusively.
 
 On every successful L2 write the entry is also written to L1
@@ -2069,6 +2069,22 @@ re-consulting L2. Set `--cache-l1-ttl=0` to disable L1 warming and
 restore write-around behaviour. Note: on L2 write errors (`l2_set_fallback`), L1
 is always used as a fallback regardless of `--cache-l1-ttl`; L2 read errors
 (`l2_get_error`) are treated as cache misses.
+
+Entries retained locally for SWR or SIE are not fresh L1 hits: once their L1
+freshness expires, reads consult L2 so a newer shared response takes precedence.
+Retention for stale serving and the existing zero-TTL behaviour are unchanged.
+
+Background revalidation updates the local L1 on successful storage too. Before
+executing a queued refresh, the worker silently checks its exact variant key:
+if a fresh entry was stored since that job was queued, the redundant fetch is
+skipped. Failed refreshes do not renew the entry timestamp, so queued work can
+retry. This is local queue suppression, not fleet-wide refresh coordination.
+
+A conditional `304 Not Modified` response is never stored as a standalone
+representation. Loopback revalidation leaves the previous body intact until
+the refresh worker merges the validator response's metadata and renews the entry.
+Loopback response processing also preserves an eligible last-good variant on
+HTTP 500/502/503/504, before the outer refresh applies stale-if-error.
 
 When an upstream responds successfully to an unsafe method (`POST`, `PUT`, `DELETE`, `PATCH`),
 the filter removes the cached entry for that URL from both L2 and the local L1.
@@ -2129,12 +2145,15 @@ flowchart TD
 - `cache.hit`: Counter, request served from cache without contacting the upstream
 - `cache.miss`: Counter, request not in cache; upstream was contacted
 - `cache.stale`: Counter, stale entry served while background revalidation was enqueued
-- `cache.coalesce_error`: Counter, singleflight cold-miss fetch returned an error
+- `cache.coalesce_error`: Counter, cold-miss dispatch preparation or fetch failed,
+  or an invalid backend URL required pipeline fallback
 - `cache.coalesce_bypass`: Counter, a concurrent cold-miss request's response wasn't
   storeable and no `keyHeaders`/`Vary` proof of matching identity was available, so
   it performed its own fetch instead of reusing another request's in-flight response
 - `cache.coalesce_bypass_error`: Counter, an independent bypass fetch (see
-  `cache.coalesce_bypass`) returned an error
+  `cache.coalesce_bypass`) returned a transport or body-read error. Bypass
+  responses are buffered before serving, preserving their body after the
+  origin stream closes; an incomplete body is not served as a successful response.
 - `cache.coalesce_wait_duration`: Histogram, time from issuing a cold-miss singleflight
   call to the result being available — near-zero for the leader (it computes the result
   itself), the leader's real fetch time for followers waiting on it
@@ -2150,13 +2169,30 @@ flowchart TD
 - `cache.reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
 - `cache.reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
 - `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
-- `cache.reval_error`: Counter, background revalidation fetch failures
+- `cache.reval_error`: Counter, background revalidation preparation or fetch
+  failures, or an invalid backend URL required pipeline fallback
 - `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
-- `cache.reval_backend_dispatch`: Counter, revalidation fetches sent directly to the
-  backend, bypassing skipper's proxy pipeline (force mode, static backend
-  only) - so they're invisible to `MeasureBackend*` metrics and the access
-  log. Self-loopback revalidations aren't counted here since they go
-  through the listener normally.
+- `cache.reval_backend_dispatch`: Counter, background revalidation fetches sent
+  directly to the backend (force mode, static backend only). Direct-dispatched
+  cold-miss (coalesced) fetches are not counted and have no dedicated counter.
+  Both bypass Skipper's proxy pipeline, so these origin requests are invisible
+  to `MeasureBackend*` metrics and the access log. Self-loopback revalidations
+  aren't counted here since they go through the listener normally.
+
+**Cache origin timeouts:** cold-miss and background cache fetches use
+`--timeout-backend` for TCP dialing, `--tls-timeout-backend` for TLS handshakes,
+`--response-header-timeout-backend` for response headers, and
+`--expect-continue-timeout-backend` for 100-Continue waits. Zero response-header
+and expect-continue settings use the proxy defaults (60s and 30s respectively).
+The dial timeout is not a whole-request/body deadline. Eligible SIE entries
+survive failed fetches without timestamp renewal and can be replaced on recovery.
+
+Static force-mode direct dispatch still bypasses later request filters, backend
+proxy access-log/round-trip metrics, proxy retry/route-specific timeout handling,
+and proxy-specific transport/TLS customization. It uses a separate HTTP client
+with system trust and its existing redirect/compression behavior; it does not
+imply full proxy-executor equivalence. Required request/response filters must be
+positioned before `cache()` as described in the filter reference.
 
 **L2 (if Valkey or Redis is configured):**
 

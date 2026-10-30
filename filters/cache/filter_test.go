@@ -569,20 +569,11 @@ func (mc *missCounting) Get(ctx context.Context, key string) (*Entry, error) {
 }
 
 func TestCacheFilter_ColdMissCoalescing(t *testing.T) {
-	// Hold the upstream fetch until all N goroutines have performed their
-	// storage.Get and observed a miss. At that point every goroutine is either
-	// already inside DoChan's wait list or in the scheduler-opaque gap between
-	// the nil check and the DoChan call — so that not N fetch fires.
-	//
-	// mc.wg is the barrier: each goroutine calls wg.Done() inside storage.Get
-	// on a miss, and the fetch stub calls wg.Wait() before returning, keeping
-	// the singleflight open until all N goroutines have committed to joining it.
 	const N = 50
 	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
 
-	mc := &missCounting{Storage: f.storage}
-	mc.wg.Add(N)
-	f.storage = mc
+	var joined sync.WaitGroup
+	joined.Add(N)
 
 	var fetchCount atomic.Int64
 	fetchStarted := make(chan struct{})
@@ -591,8 +582,8 @@ func TestCacheFilter_ColdMissCoalescing(t *testing.T) {
 	var fetchStartedOnce sync.Once
 	f.fetch = func(req *http.Request) (*http.Response, error) {
 		fetchCount.Add(1)
-		fetchStartedOnce.Do(func() { close(fetchStarted) }) // needs to be guarded in tests beause the fetch() is triggered by the race creation of f.Request()
-		mc.wg.Wait()                                        // block until every goroutine has confirmed a cache miss
+		fetchStartedOnce.Do(func() { close(fetchStarted) })
+		joined.Wait()
 		<-releaseAll
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -611,31 +602,28 @@ func TestCacheFilter_ColdMissCoalescing(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			ctx := newCtx("GET", url, "")
+			ctx.FRequest = ctx.FRequest.WithContext(&coalesceBarrierContext{Context: ctx.FRequest.Context(), joined: &joined})
 			f.Request(ctx)
 			results[i] = ctx
 		}()
 	}
 
-	<-fetchStarted // fetch is running; all N misses will be counted before it returns
+	<-fetchStarted
 	close(releaseAll)
 	wg.Wait()
 
-	// Coalescing reduces fetches dramatically; allow a small number of late-arriving
-	// goroutines that race past a completed singleflight call to trigger their own fetch.
-	if got := fetchCount.Load(); got > 5 {
-		t.Fatalf("expected coalescing to reduce fetches significantly, got %d (N=%d)", got, N)
+	if got := fetchCount.Load(); got != 1 {
+		t.Fatalf("expected exactly one coalesced fetch, got %d (N=%d)", got, N)
 	}
 
-	// Every goroutine must have been served (either as MISS from the coalesced
-	// fetch, or as HIT if they raced past storage.Get after the entry was stored).
 	for i, ctx := range results {
 		if !ctx.FServed {
 			t.Errorf("goroutine %d: expected ctx to be served", i)
 			continue
 		}
 		status := ctx.FResponse.Header.Get("X-Cache-Status")
-		if status != "MISS" && status != "HIT" {
-			t.Errorf("goroutine %d: expected MISS or HIT, got %q", i, status)
+		if status != "MISS" {
+			t.Errorf("goroutine %d: expected MISS, got %q", i, status)
 		}
 		body, _ := io.ReadAll(ctx.FResponse.Body)
 		if string(body) != `{"coalesced":true}` {
@@ -1403,7 +1391,8 @@ func TestRevalidationDispatch_RFCModeIgnoresBackendUrl(t *testing.T) {
 		FOutgoingHost:    "origin.example",         // present, but RFC mode must ignore it too
 	}
 
-	gotReq, gotBackendURL, gotOutgoingHost := revalidationDispatch(ctx, true /* rfcMode */)
+	f := newTestFilterRFC(t, 0, 0, 0)
+	gotReq, gotBackendURL, gotOutgoingHost := f.requestDispatch(ctx, "cache.reval_error")
 
 	if gotBackendURL != "" {
 		t.Fatalf("rfcMode=true: got backendURL %q, want empty (must fall back to self-loopback)", gotBackendURL)
@@ -1432,7 +1421,8 @@ func TestRevalidationDispatch_ForceModeUsesBackendUrl(t *testing.T) {
 		FOutgoingHost:    "origin.example",
 	}
 
-	gotReq, gotBackendURL, gotOutgoingHost := revalidationDispatch(ctx, false /* rfcMode */)
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+	gotReq, gotBackendURL, gotOutgoingHost := f.requestDispatch(ctx, "cache.reval_error")
 
 	if gotBackendURL != "https://origin.example" {
 		t.Fatalf("rfcMode=false, BackendUrl set: got backendURL %q, want %q", gotBackendURL, "https://origin.example")
@@ -5144,9 +5134,8 @@ func TestCacheFilter_Coalesce_LeaderNeverRefetches(t *testing.T) {
 	mockMetrics := &metricstest.MockMetrics{}
 	f.metrics = mockMetrics
 
-	mc := &missCounting{Storage: f.storage}
-	mc.wg.Add(N)
-	f.storage = mc
+	var joined sync.WaitGroup
+	joined.Add(N)
 
 	var fetchCount atomic.Int64
 	fetchStarted := make(chan struct{})
@@ -5156,7 +5145,7 @@ func TestCacheFilter_Coalesce_LeaderNeverRefetches(t *testing.T) {
 	f.fetch = func(req *http.Request) (*http.Response, error) {
 		fetchCount.Add(1)
 		fetchStartedOnce.Do(func() { close(fetchStarted) })
-		mc.wg.Wait()
+		joined.Wait()
 		<-releaseAll
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -5174,6 +5163,7 @@ func TestCacheFilter_Coalesce_LeaderNeverRefetches(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			ctx := newCtx("GET", url, fmt.Sprintf("token-%d", i))
+			ctx.FRequest = ctx.FRequest.WithContext(&coalesceBarrierContext{Context: ctx.FRequest.Context(), joined: &joined})
 			f.Request(ctx)
 			results[i] = ctx
 		}()
@@ -5220,9 +5210,8 @@ func TestCacheFilter_Coalesce_VaryMismatch_IndependentFetch(t *testing.T) {
 	mockMetrics := &metricstest.MockMetrics{}
 	f.metrics = mockMetrics
 
-	mc := &missCounting{Storage: f.storage}
-	mc.wg.Add(2 * perSession)
-	f.storage = mc
+	var joined sync.WaitGroup
+	joined.Add(2 * perSession)
 
 	var fetchCount atomic.Int64
 	fetchStarted := make(chan struct{})
@@ -5232,7 +5221,7 @@ func TestCacheFilter_Coalesce_VaryMismatch_IndependentFetch(t *testing.T) {
 	f.fetch = func(req *http.Request) (*http.Response, error) {
 		fetchCount.Add(1)
 		fetchStartedOnce.Do(func() { close(fetchStarted) })
-		mc.wg.Wait()
+		joined.Wait()
 		<-releaseAll
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -5262,6 +5251,7 @@ func TestCacheFilter_Coalesce_VaryMismatch_IndependentFetch(t *testing.T) {
 			defer wg.Done()
 			ctx := newCtx("GET", url, "")
 			ctx.FRequest.Header.Set("X-Session-Id", session)
+			ctx.FRequest = ctx.FRequest.WithContext(&coalesceBarrierContext{Context: ctx.FRequest.Context(), joined: &joined})
 			f.Request(ctx)
 			results[i] = ctx
 		}()
@@ -5271,16 +5261,11 @@ func TestCacheFilter_Coalesce_VaryMismatch_IndependentFetch(t *testing.T) {
 	close(releaseAll)
 	wg.Wait()
 
-	if got := fetchCount.Load(); got < 2 {
-		t.Fatalf("expected at least 2 fetches (Vary-mismatched sessions can never share), got %d", got)
-	}
 	// Only the leader's session group shares for free; the losing group's bypass
 	// fetches aren't coalesced with each other (bypass has no singleflight of its
-	// own), so worst case is 1 (leader) + perSession (losing group). This bounds
-	// safety, not efficiency for the losing group — inherent to one coalesce()
-	// key per burst.
-	if got := fetchCount.Load(); got > perSession+2 {
-		t.Fatalf("expected at most one session's worth of independent fetches plus the leader's, got %d", got)
+	// own), so expect 1 leader + perSession independent fetches.
+	if got := fetchCount.Load(); got != perSession+1 {
+		t.Fatalf("expected %d fetches, got %d", perSession+1, got)
 	}
 	mockMetrics.WithCounters(func(counters map[string]int64) {
 		if got, want := counters["cache.coalesce_bypass"], fetchCount.Load()-1; got != want {
@@ -5320,9 +5305,8 @@ func TestCacheFilter_Coalesce_ForceMode_SharesDespitePrivate(t *testing.T) {
 	const N = 50
 	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute) // force mode
 
-	mc := &missCounting{Storage: f.storage}
-	mc.wg.Add(N)
-	f.storage = mc
+	var joined sync.WaitGroup
+	joined.Add(N)
 
 	var fetchCount atomic.Int64
 	fetchStarted := make(chan struct{})
@@ -5332,7 +5316,7 @@ func TestCacheFilter_Coalesce_ForceMode_SharesDespitePrivate(t *testing.T) {
 	f.fetch = func(req *http.Request) (*http.Response, error) {
 		fetchCount.Add(1)
 		fetchStartedOnce.Do(func() { close(fetchStarted) })
-		mc.wg.Wait()
+		joined.Wait()
 		<-releaseAll
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -5350,6 +5334,7 @@ func TestCacheFilter_Coalesce_ForceMode_SharesDespitePrivate(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			ctx := newCtx("GET", url, "")
+			ctx.FRequest = ctx.FRequest.WithContext(&coalesceBarrierContext{Context: ctx.FRequest.Context(), joined: &joined})
 			f.Request(ctx)
 			results[i] = ctx
 		}()
@@ -5358,8 +5343,8 @@ func TestCacheFilter_Coalesce_ForceMode_SharesDespitePrivate(t *testing.T) {
 	close(releaseAll)
 	wg.Wait()
 
-	if got := fetchCount.Load(); got > 10 {
-		t.Fatalf("force mode: expected coalescing to hold despite upstream private/no-store, got %d fetches for %d requests", got, N)
+	if got := fetchCount.Load(); got != 1 {
+		t.Fatalf("force mode: expected exactly one fetch despite upstream private/no-store, got %d for %d requests", got, N)
 	}
 	for i, ctx := range results {
 		if !ctx.FServed {

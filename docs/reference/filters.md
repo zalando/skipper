@@ -4172,12 +4172,20 @@ SWR window's source depends on the mode: in force mode it's the
 operator-supplied `swrWindow` parameter below; in RFC mode it's the response's
 own [`stale-while-revalidate`](https://www.rfc-editor.org/rfc/rfc5861#section-3)
 `Cache-Control` directive — if the upstream never sends that directive, RFC-mode
-entries have no SWR window and simply expire at TTL. The background fetch is
-dispatched directly to the route's backend when possible (force mode with a
-static backend), otherwise it loops back through skipper's own listener; see
-`cache.reval_backend_dispatch` in the
-[operation guide](../operation/operation.md#cache) for the observability
-difference between the two.
+entries have no SWR window and simply expire at TTL. Cold-miss and background
+fetches are dispatched directly only in force mode with an absolute HTTP(S)
+backend URL containing a host. Direct dispatch preserves the already-filtered
+request path and query and uses the route's outgoing Host. Otherwise, including
+invalid backend URLs, fetches replay the original request through Skipper's own
+listener, bypassing this cache lookup so routing and filters run normally.
+Invalid backend URLs are logged and counted as `cache.coalesce_error` or
+`cache.reval_error`. RFC-mode fetches always replay the pipeline so response
+filters can determine cache policy. Direct-dispatched cold-miss and revalidation
+origin requests bypass Skipper's proxy pipeline and are invisible to
+`MeasureBackend*` metrics and the access log. Only background revalidation
+fetches count toward `cache.reval_backend_dispatch`; direct-dispatched cold-miss
+(coalesced) fetches have no dedicated counter. See the
+[operation guide](../operation/operation.md#cache).
 
 Unsafe methods (`POST`, `PUT`, `DELETE`, `PATCH`) invalidate the cached entry on
 success. `HEAD 200` freshens stored headers without replacing the body.
@@ -4194,8 +4202,17 @@ Force-mode-only parameters (3–5 arguments):
 * `ttl` – freshness duration for 200 responses (string, e.g. `"5m"`)
 * `errorTTL` – freshness duration for 404/5xx responses (string)
 * `swrWindow` – stale-while-revalidate window after TTL expires (string)
-* `staleIfError` – optional; how long a stale entry may be served on upstream
-  5xx (string, [RFC 5861](https://www.rfc-editor.org/rfc/rfc5861))
+* `staleIfError` – optional; how long after freshness expires a stored non-5xx
+  response may be served on upstream network errors/timeouts or HTTP
+  500/502/503/504 (string, [RFC 5861](https://www.rfc-editor.org/rfc/rfc5861)).
+  Eligible failures preserve the stored response and its original timestamps,
+  including during background revalidation; they do not restart the window.
+  With no eligible stored response, normal error caching/fallback applies.
+  If an L2 read fails, an eligible response retained in local L1 can be used
+  only after such an upstream failure. A clean L2 miss does not enable this
+  fallback. L1 warming has a separate deadline and never resets the response's
+  freshness, Age or stale-if-error window; a valid L2 response takes precedence
+  once that warming deadline expires.
 
 Examples:
 
@@ -4223,6 +4240,21 @@ Force mode with per-tenant cache key isolation:
 -> cache("5m", "15s", "30s", "0s", "X-Tenant-ID") -> "https://cdn.example.org"
 ```
 
+For static force-mode backends, place request rewrites before `cache()`.
+Cold misses and background refreshes dispatch directly from the request state
+at the cache filter; later request filters cannot modify that upstream request.
+For example, a path-prefix strip and virtual Host rewrite must precede caching:
+
+```
+-> setRequestHeader("Host", "origin.example.org")
+-> modPath("^/api/catalog", "")
+-> cache("5m", "15s", "5m", "24h", "Authorization")
+-> "https://cdn.example.org"
+```
+
+This also means cache keys use the rewritten request path. Keep authentication
+and any other required request processing before the cache filter.
+
 RFC mode with per-user cache key isolation:
 
 ```
@@ -4244,8 +4276,13 @@ The key is derived from route ID + scheme + host + path + query string,
 hashed with SHA-256 for uniform shard distribution.
 Route ID is included so entries from different routes never collide when sharing
 the same storage instance. Additional request headers can be folded in via
-`keyHeaders`. Without `keyHeaders`, all requests to the same path share one
-cache entry regardless of caller identity.
+`keyHeaders`. Cacheable `Vary` response dimensions additionally isolate stored
+variants and concurrent cold-miss followers, even when `keyHeaders` is set.
+Vary identity uses an owned snapshot of the filtered headers at `cache()`,
+including for queued refreshes. Loopback fetches separately replay the original
+request so routing and preceding request filters still run normally.
+Without `keyHeaders` or an applicable `Vary` response header, all requests to the
+same path share one cache entry regardless of caller identity.
 
 **Safety**
 
