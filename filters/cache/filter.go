@@ -608,6 +608,10 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		return
 	}
 
+	baseKey, _ := ctx.StateBag()[stateBagBaseKey].(string)
+	if baseKey == "" {
+		baseKey = key
+	}
 	waitStart := time.Now()
 	ch := f.coldSF.DoChan(key, func() (any, error) {
 		// Capture any existing stale-if-error eligible entry before fetching, so that a
@@ -652,10 +656,6 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			ResponseTime:         responseTime,
 		}
 		if shouldStore && !(f.canServeStaleIfError(sieStored) && staleIfErrorStatus(resp.StatusCode)) {
-			baseKey, _ := ctx.StateBag()[stateBagBaseKey].(string)
-			if baseKey == "" {
-				baseKey = key
-			}
 			if err := f.storeEntry(context.Background(), baseKey, key, req, entry); err != nil {
 				log.WithError(err).Warn("cache: Set failed (cold-miss store)")
 			}
