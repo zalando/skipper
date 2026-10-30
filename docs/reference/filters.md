@@ -4208,6 +4208,11 @@ Force-mode-only parameters (3–5 arguments):
   Eligible failures preserve the stored response and its original timestamps,
   including during background revalidation; they do not restart the window.
   With no eligible stored response, normal error caching/fallback applies.
+  If an L2 read fails, an eligible response retained in local L1 can be used
+  only after such an upstream failure. A clean L2 miss does not enable this
+  fallback. L1 warming has a separate deadline and never resets the response's
+  freshness, Age or stale-if-error window; a valid L2 response takes precedence
+  once that warming deadline expires.
 
 Examples:
 

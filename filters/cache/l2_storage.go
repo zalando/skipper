@@ -21,8 +21,8 @@ type L2Client interface {
 
 // L2Storage implements Storage using a L2Client with
 // write-through warming of LRUStorage (L1). On L2Client Set errors, L1
-// is used as a fallback. On L2Client Get errors, the request is treated
-// as a miss and fetched from origin.
+// is used as a fallback. L2Client Get errors are returned with any eligible
+// local stale-if-error candidate, which must not be served without an origin failure.
 type L2Storage struct {
 	l2client L2Client
 	l1       *LRUStorage
@@ -37,7 +37,7 @@ type L2Storage struct {
 //
 //   - l1_hit           — L1 returned a warm entry; L2 not consulted
 //   - l2_miss          — clean cache miss (key not found in L2)
-//   - l2_get_error     — L2 error on Get; treated as a cache miss
+//   - l2_get_error     — L2 read error; origin required before local SIE fallback
 //   - l2_set_fallback  — L2 error on Set; entry written to L1 only
 //   - l2_hit           — successful L2 Get (entry returned from L2)
 //
@@ -73,18 +73,21 @@ func (s *L2Storage) GetSilent(ctx context.Context, key string) (*Entry, error) {
 func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*Entry, error) {
 	// L1-first: serve from local memory when the write-through warming populated it.
 	// LRUStorage.Get returns entries within TTL + max(StaleIfError, StaleWhileRevalidate).
-	// Only serve fresh L1 hits; stale entries fall through to L2 so a fresher copy
+	// Only serve fresh, warm L1 hits; stale entries fall through to L2 so a fresher copy
 	// written by another instance is not bypassed. Preserve TTL==0 entries'
 	// conditional-revalidation behavior.
-	if e, err := s.l1.Get(ctx, key); err == nil && e != nil {
-		if now := time.Now(); !e.IsStale(now) && (e.TTL == 0 || now.Before(e.CreatedAt.Add(e.TTL))) {
+	local, _ := s.l1.Get(ctx, key)
+	if local != nil {
+		now := time.Now()
+		if !local.IsStale(now) && (local.TTL == 0 || now.Before(local.CreatedAt.Add(local.TTL))) &&
+			(local.L1FreshUntil.IsZero() || now.Before(local.L1FreshUntil)) {
 			if recordMetrics {
 				s.metrics.IncCounter("cache.l1_hit")
 				if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
-					p.IncCacheResult("l1_hit", statusCodeClass(e.StatusCode))
+					p.IncCacheResult("l1_hit", statusCodeClass(local.StatusCode))
 				}
 			}
-			return e, nil
+			return local, nil
 		}
 		// Stale L1 entry — fall through to L2.
 	}
@@ -94,6 +97,9 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 	s.metrics.MeasureSince("cache.l2_get_duration", l2Start)
 	if err != nil {
 		if s.isNoErr(err) {
+			// A clean miss may be a deletion by another process. Do not retain a
+			// local candidate that a later failed lookup could resurrect.
+			_ = s.l1.Delete(ctx, key)
 			if recordMetrics {
 				s.metrics.IncCounter("cache.l2_miss")
 				if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
@@ -108,15 +114,16 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 				p.IncCacheResult("l2_get_error", "n/a")
 			}
 		}
-		log.WithError(err).Error("cache: L2 Get failed, treating as miss")
-		return nil, nil
+		log.WithError(err).Error("cache: L2 Get failed, fetching origin before local stale-if-error fallback")
+		return localSIECandidate(local), fmt.Errorf("cache: L2 Get: %w", err)
 	}
 	var e Entry
 	if err := json.Unmarshal([]byte(data), &e); err != nil {
 		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
 			p.IncStorageError("l2", "get")
 		}
-		return nil, fmt.Errorf("cache: decode L2 entry: %w", err)
+		log.WithError(err).Error("cache: failed to decode L2 entry")
+		return localSIECandidate(local), fmt.Errorf("cache: decode L2 entry: %w", err)
 	}
 	if recordMetrics {
 		s.metrics.IncCounter("cache.l2_hit")
@@ -129,19 +136,34 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 	// Unconditional (even for the silent path): this is a caching side effect of
 	// having read the entry, not an outcome metric, and skipping it would make
 	// sentinel lookups needlessly re-fetch from L2 every time.
-	if s.l1TTL > 0 && e.TTL > 0 {
-		if remaining := e.TTL - time.Since(e.CreatedAt); remaining > 0 {
-			warmed := e
-			warmed.TTL = min(s.l1TTL, remaining)
-			warmed.CreatedAt = time.Now()
-			_ = s.l1.Set(ctx, key, &warmed)
-		}
-	}
+	s.warmL1(ctx, key, &e)
 	return &e, nil
 }
 
+func localSIECandidate(entry *Entry) *Entry {
+	if entry != nil && entry.StatusCode < 500 && entry.StaleIfError > 0 &&
+		!time.Now().After(entry.CreatedAt.Add(entry.TTL+entry.StaleIfError)) {
+		return entry
+	}
+	return nil
+}
+
+func (s *L2Storage) warmL1(ctx context.Context, key string, entry *Entry) {
+	now := time.Now()
+	if s.l1TTL > 0 && entry.TTL > 0 && now.Before(entry.CreatedAt.Add(entry.TTL)) {
+		warmed := *entry
+		warmed.L1FreshUntil = now.Add(s.l1TTL)
+		if expiry := entry.CreatedAt.Add(entry.TTL); expiry.Before(warmed.L1FreshUntil) {
+			warmed.L1FreshUntil = expiry
+		}
+		_ = s.l1.Set(ctx, key, &warmed)
+	}
+}
+
 func (s *L2Storage) Set(ctx context.Context, key string, entry *Entry) error {
-	data, err := json.Marshal(entry)
+	shared := *entry
+	shared.L1FreshUntil = time.Time{}
+	data, err := json.Marshal(&shared)
 	if err != nil {
 		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
 			p.IncStorageError("l2", "set")
@@ -163,20 +185,14 @@ func (s *L2Storage) Set(ctx context.Context, key string, entry *Entry) error {
 			p.IncCacheResult("l2_set_fallback", statusCodeClass(entry.StatusCode))
 		}
 		log.WithError(err).Error("cache: L2 Set failed, falling back to L1")
-		return s.l1.Set(ctx, key, entry)
+		return s.l1.Set(ctx, key, &shared)
 	}
 
 	// Write-through: warm L1 with a bounded TTL so pods can serve subsequent
 	// requests from local memory without a L2 round-trip.
 	// Skip warming for non-cacheable entries (TTL <= 0) to avoid polluting L1
 	// with entries that should not be served.
-	if s.l1TTL > 0 && entry.TTL > 0 {
-		warmTTL := min(s.l1TTL, entry.TTL)
-		warmed := *entry
-		warmed.TTL = warmTTL
-		warmed.CreatedAt = time.Now()
-		_ = s.l1.Set(ctx, key, &warmed)
-	}
+	s.warmL1(ctx, key, entry)
 	return nil
 }
 

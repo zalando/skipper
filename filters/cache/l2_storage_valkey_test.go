@@ -280,7 +280,7 @@ func TestValkeyStorage_L1TTLBoundedToEntryTTL(t *testing.T) {
 		t.Fatalf("Set: %v", err)
 	}
 
-	// Read directly from L1 to inspect the stored TTL.
+	// Warming bounds the local deadline without changing the response TTL.
 	l1Entry, err := lru.Get(ctx, key)
 	if err != nil {
 		t.Fatalf("L1 Get: %v", err)
@@ -289,7 +289,10 @@ func TestValkeyStorage_L1TTLBoundedToEntryTTL(t *testing.T) {
 		t.Fatal("expected L1 entry after write-through, got nil")
 	}
 	if l1Entry.TTL != 10*time.Second {
-		t.Errorf("L1 TTL: got %v, want %v (should be min(l1TTL, entry.TTL))", l1Entry.TTL, 10*time.Second)
+		t.Errorf("response TTL: got %v, want %v", l1Entry.TTL, 10*time.Second)
+	}
+	if !l1Entry.L1FreshUntil.Equal(entry.CreatedAt.Add(entry.TTL)) {
+		t.Errorf("L1 deadline: got %v, want response expiry %v", l1Entry.L1FreshUntil, entry.CreatedAt.Add(entry.TTL))
 	}
 }
 
@@ -316,8 +319,8 @@ func TestValkeyStorage_L1TTL_Zero_DisablesWarming(t *testing.T) {
 	stub.broken = true
 
 	got, err := s.Get(ctx, key)
-	if err != nil {
-		t.Fatalf("Get with broken Valkey: %v", err)
+	if err == nil {
+		t.Fatal("expected L2 read error")
 	}
 	if got != nil {
 		t.Error("expected nil (write-around: L1 should not be warmed when l1TTL=0)")
@@ -443,8 +446,8 @@ func TestValkeyStorage_LabeledMetrics_L2GetError(t *testing.T) {
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
 	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
 
-	if _, err := s.Get(context.Background(), "k"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if _, err := s.Get(context.Background(), "k"); err == nil {
+		t.Fatal("expected L2 read error")
 	}
 	if got, _ := m.CacheResultCount("l2_get_error", "n/a"); got != 1 {
 		t.Errorf("expected labeled l2_get_error/n_a=1, got %d", got)
@@ -682,11 +685,8 @@ func TestL2Storage_GetSilent_DoesNotRecordMetrics(t *testing.T) {
 		t.Fatalf("GetSilent (miss case): %v", err)
 	}
 	stub.broken = true
-	// L2Storage treats a transport error as a graceful miss (nil, nil) — the
-	// l2_get_error *counter* is the only signal, there's no returned Go error
-	// to assert on here (same contract as the regular Get).
-	if got, err := s.GetSilent(ctx, hitKey); err != nil || got != nil {
-		t.Errorf("GetSilent (broken-client case): expected (nil, nil), got (%v, %v)", got, err)
+	if got, err := s.GetSilent(ctx, hitKey); err == nil || got != nil {
+		t.Errorf("GetSilent (broken-client case): expected (nil, error), got (%v, %v)", got, err)
 	}
 	stub.broken = false
 

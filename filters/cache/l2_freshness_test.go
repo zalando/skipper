@@ -157,12 +157,18 @@ func TestL2StorageExpiredL1MissAndError(t *testing.T) {
 					get = s.GetSilent
 				}
 				got, err := get(ctx, "key")
-				if err != nil || got != nil || client.gets != 1 {
-					t.Fatalf("Get: entry=%+v, err=%v, L2 gets=%d; want nil, nil, 1", got, err, client.gets)
+				if (err != nil) != broken || (got != nil) != broken || client.gets != 1 {
+					t.Fatalf("Get: entry=%+v, err=%v, L2 gets=%d; want candidate/error only on L2 failure", got, err, client.gets)
 				}
 				retained, err := l1.Get(ctx, "key")
-				if err != nil || retained == nil || string(retained.Payload) != string(old.Payload) {
+				if err != nil || (retained != nil) != broken || retained != nil && string(retained.Payload) != string(old.Payload) {
 					t.Fatalf("L1 retention: entry=%+v, err=%v", retained, err)
+				}
+				if !broken {
+					client.broken = true
+					if candidate, err := s.GetSilent(ctx, "key"); candidate != nil || err == nil {
+						t.Fatalf("clean miss resurrected local candidate on later error: %+v, %v", candidate, err)
+					}
 				}
 				for _, counter := range []string{"cache.l1_hit", "cache.l2_hit", "cache.l2_miss", "cache.l2_get_error"} {
 					var want int64
