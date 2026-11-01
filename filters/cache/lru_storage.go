@@ -29,7 +29,9 @@ func NewLRUStorage(totalMaxBytes int64, onEvict func(), m metrics.Metrics) *LRUS
 }
 
 func (s *LRUStorage) Get(_ context.Context, key string) (*Entry, error) {
-	data, ok := s.lru.Get(key)
+	// Set owns the marshaled bytes, and the LRU only replaces or removes them.
+	// Decode the snapshot outside the shard lock without copying it first.
+	data, ok := s.lru.getShard(key).get(key, false)
 	if !ok {
 		return nil, nil
 	}
