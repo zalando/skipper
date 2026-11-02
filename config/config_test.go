@@ -854,6 +854,38 @@ func TestParseAnnotationConfig(t *testing.T) {
 	})
 }
 
+func TestOpenIDConfigCacheFlagsAndYAML(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args []string
+		yaml string
+		want bool
+	}{
+		{name: "default off"},
+		{name: "flag enabled", args: []string{"-enable-openid-config-cache"}, want: true},
+		{name: "flag true", args: []string{"-enable-openid-config-cache=true"}, want: true},
+		{name: "flag false", args: []string{"-enable-openid-config-cache=false"}},
+		{name: "yaml true", yaml: "enable-openid-config-cache: true\n", want: true},
+		{name: "yaml false", yaml: "enable-openid-config-cache: false\n"},
+		{name: "flag disables yaml", yaml: "enable-openid-config-cache: true\n", args: []string{"-enable-openid-config-cache=false"}},
+		{name: "flag enables yaml", yaml: "enable-openid-config-cache: false\n", args: []string{"-enable-openid-config-cache"}, want: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var args []string
+			if tt.yaml != "" {
+				path := filepath.Join(t.TempDir(), "config.yaml")
+				require.NoError(t, os.WriteFile(path, []byte(tt.yaml), 0600))
+				args = append(args, "-config-file="+path)
+			}
+			args = append(args, tt.args...)
+			cfg := NewConfig()
+			require.NoError(t, cfg.ParseArgs("skipper", args))
+			assert.Equal(t, tt.want, cfg.EnableOpenIDConfigCache)
+			assert.Equal(t, tt.want, cfg.ToOptions().EnableOpenIDConfigCache)
+		})
+	}
+}
+
 func TestH2cFlags_ParseAndToOptions(t *testing.T) {
 	for _, tt := range []struct {
 		name          string

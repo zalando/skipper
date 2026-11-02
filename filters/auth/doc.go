@@ -219,7 +219,40 @@ Example response from the openid-configuration endpoint:
 Additionally, you can also pass CLI argument
 -oauth2-tokenintrospect-timeout=<OAuthTokenintrospectTimeout> to control the
 default timeout duration for OAuth validation and OpenID provider
-configuration requests. The default tokenintrospect timeout is 3s.
+configuration requests. The CLI default is 2s; library discovery requests with
+zero or negative TokenintrospectionOptions.Timeout use 3s.
+
+OpenID discovery caching is opt-in and disabled by default. Enable it with
+-enable-openid-config-cache, the YAML key enable-openid-config-cache: true, or
+skipper.Options.EnableOpenIDConfigCache. Library filter constructors use
+TokenintrospectionOptions.EnableOpenIDConfigCache, also false by default.
+Disabled callers fetch discovery on every filter creation, bypassing cached
+entries and the global cache lock even when enabled callers share the process.
+This switch does not cache token responses or change JWKS caching.
+
+When enabled, JWT validation and all eight token introspection variants share
+successful OpenID discovery documents by exact issuer URL, including paths and
+trailing slashes. Cache hits during route creation send no discovery request,
+so warm routing rebuilds can succeed during an issuer outage. Discovery misses
+hold a global write lock through the bounded request and JSON decode, blocking
+other enabled misses and hits. Failures are not cached.
+
+Only when enabled, Skipper owns one hourly cleaner that replaces the whole
+discovery map. This is not a per-entry TTL or background discovery refresh:
+a document inserted just
+before a tick can be removed immediately. After a clear, an issuer outage can
+again invalidate routes and cost one timeout per filter creation. There is no
+stale backup or entry limit. JWKS and introspection-client caching are unchanged;
+rediscovery does not replace an existing introspection client's endpoint.
+The oauthOidc* filters use separate discovery and do not share this cache.
+
+Independent library owners enabling the cache with
+TokenintrospectionOptions.EnableOpenIDConfigCache must call
+StartOpenIDConfigCacheCleaner before creating routes and call its
+returned stop function after routing teardown. Overlapping owners share one
+cleaner; the last stop stops the ticker and joins the loop. Existing constructors
+do not start goroutines. Without a cleaner owner, enabled discovery caching has
+no automatic clearing. Disabled callers do not need a cleaner.
 
 All oauthTokenintrospection* filters will work on the tokenintrospect response.
 

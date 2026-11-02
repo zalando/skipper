@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/net"
 )
 
 const (
@@ -41,6 +39,10 @@ type TokenintrospectionOptions struct {
 	Timeout      time.Duration
 	Tracer       opentracing.Tracer
 	MaxIdleConns int
+
+	// EnableOpenIDConfigCache opts into shared discovery caching, disabled by default.
+	// Library owners must also acquire and release StartOpenIDConfigCacheCleaner.
+	EnableOpenIDConfigCache bool
 
 	// OpenTracingClientTraceByTag instead of events use span Tags
 	// to measure client connection pool actions
@@ -221,51 +223,6 @@ func (o TokenintrospectionOptions) openIDConfigTimeout() time.Duration {
 		return o.Timeout
 	}
 	return defaultOpenIDConfigTimeout
-}
-
-func getOpenIDConfig(issuerURL string, options TokenintrospectionOptions) (*openIDConfig, error) {
-	u, err := url.Parse(issuerURL + TokenIntrospectionConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	cli := newOpenIDConfigClient(options)
-	defer cli.Close()
-
-	rsp, err := cli.Get(u.String())
-	if err != nil {
-		return nil, err
-	}
-	defer rsp.Body.Close()
-
-	if rsp.StatusCode != 200 {
-		return nil, errInvalidToken
-	}
-	d := json.NewDecoder(rsp.Body)
-	var cfg openIDConfig
-	err = d.Decode(&cfg)
-	return &cfg, err
-}
-
-func newOpenIDConfigClient(o TokenintrospectionOptions) *net.Client {
-	if o.Tracer == nil {
-		o.Tracer = opentracing.NoopTracer{}
-	}
-	if o.MaxIdleConns <= 0 {
-		o.MaxIdleConns = defaultMaxIdleConns
-	}
-
-	timeout := o.openIDConfigTimeout()
-	return net.NewClient(net.Options{
-		Timeout:                 timeout,
-		ResponseHeaderTimeout:   timeout,
-		TLSHandshakeTimeout:     timeout,
-		MaxIdleConnsPerHost:     o.MaxIdleConns,
-		Tracer:                  o.Tracer,
-		OpentracingComponentTag: "skipper",
-		OpentracingSpanName:     openIDConfigSpanName,
-		OpentracingEventsByTag:  o.OpenTracingClientTraceByTag,
-	})
 }
 
 func (s *tokenIntrospectionSpec) Name() string {
