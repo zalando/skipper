@@ -1,0 +1,5 @@
+kube_rg____example_org__catchall__0_0: Host("^(example[.]org[.]?(:[0-9]+)?)$")
+-> <shunt>;
+
+kube_rg__default__allowed__all__0_0: Host("^(example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/allowed")
+-> "https://external1.example.org";
