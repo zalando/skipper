@@ -80,6 +80,42 @@ func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 	}
 }
 
+func TestNewRejectsNegativeMaxZoneSkew(t *testing.T) {
+	skew := -1
+	_, err := kubernetes.New(kubernetes.Options{MaxZoneSkew: &skew})
+	assert.Error(t, err, "expected an error for negative zone skew")
+	assert.ErrorContains(t, err, "MaxZoneSkew")
+}
+
+func TestMissingDataPlaneServiceLoggedEveryPoll(t *testing.T) {
+	a, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{})
+	require.NoError(t, err)
+
+	s := httptest.NewServer(a)
+	defer s.Close()
+
+	var logBuf bytes.Buffer
+	log.SetOutput(&logBuf)
+	defer log.SetOutput(os.Stderr)
+
+	c, err := kubernetes.New(kubernetes.Options{
+		KubernetesURL:                  s.URL,
+		KubernetesEnableEndpointslices: true,
+	})
+	require.NoError(t, err)
+	defer c.Close()
+
+	const pollCount = 3
+	for range pollCount {
+		_, err := c.LoadAll()
+		require.NoError(t, err)
+	}
+
+	const wantMessage = "no service found matching map[application:skipper-ingress component:ingress]; cannot determine data-plane zone balance"
+
+	assert.True(t, containsCount(logBuf.String(), wantMessage, pollCount), "expected %q to be logged exactly %d times, log output:\n%s", wantMessage, pollCount, logBuf.String())
+}
+
 func TestLoadRouteGroups(t *testing.T) {
 
 	for _, tt := range []struct {
