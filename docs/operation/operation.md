@@ -2135,7 +2135,9 @@ flowchart TD
 **Cache outcomes (always active):**
 
 - `cache.hit`: Counter, request served from cache without contacting the upstream
-- `cache.miss`: Counter, request not in cache; upstream was contacted
+- `cache.miss`: Counter, request not in cache; upstream was contacted.
+  Inner cache pipeline replays do not add a second miss; background refresh
+  replays do not add an external miss.
 - `cache.stale`: Counter, stale entry served while background revalidation was enqueued
 - `cache.coalesce_error`: Counter, cold-miss dispatch preparation or fetch failed,
   or an invalid backend URL required pipeline fallback
