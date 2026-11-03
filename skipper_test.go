@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
 	"github.com/valkey-io/valkey-go"
@@ -30,6 +31,7 @@ import (
 	"github.com/zalando/skipper/filters/cache"
 	fscheduler "github.com/zalando/skipper/filters/scheduler"
 	"github.com/zalando/skipper/loadbalancer"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/metrics/metricstest"
 	skpnet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
@@ -175,6 +177,58 @@ func TestSelectL2CacheClient(t *testing.T) {
 			got := selectL2CacheClient(tt.enabled, tt.configured, tt.valkeyRing, tt.redisRing)
 			if any(got) != tt.want {
 				t.Errorf("selectL2CacheClient() = %T %p, want %T %p", got, got, tt.want, tt.want)
+			}
+		})
+	}
+}
+
+func TestRunCacheMetrics(t *testing.T) {
+	previousMetrics := metrics.Default
+	t.Cleanup(func() { metrics.Default = previousMetrics })
+
+	for _, tt := range []struct {
+		name     string
+		disabled []string
+		l2       bool
+		enabled  bool
+	}{
+		{name: "default L1", enabled: true},
+		{name: "L2 enabled", l2: true, enabled: true},
+		{name: "unrelated filter disabled", disabled: []string{filters.LuaName}, enabled: true},
+		{name: "cache disabled", disabled: []string{cache.Name}},
+		{name: "cache disabled with L2 enabled", disabled: []string{cache.Name}, l2: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := prometheus.NewRegistry()
+			// Stop startup after metrics initialization, before opening listeners or L2 clients.
+			err := run(Options{
+				EnablePrometheusMetrics: true,
+				PrometheusRegistry:      reg,
+				DisabledFilters:         tt.disabled,
+				EnableL2Cache:           tt.l2,
+				InlineRoutes:            "invalid route",
+			}, nil, nil)
+			require.ErrorContains(t, err, "error while parsing inline routes")
+
+			pm, ok := metrics.Default.(*metrics.Prometheus)
+			require.True(t, ok)
+			pm.IncCacheResult("hit", "2xx")
+			pm.SetCacheLRUBytes("route1", 1024)
+			pm.IncStorageError("l1", "get")
+
+			families, err := reg.Gather()
+			require.NoError(t, err)
+			names := make([]string, 0, len(families))
+			for _, family := range families {
+				names = append(names, family.GetName())
+			}
+			assert.Contains(t, names, "skipper_custom_total")
+			for _, name := range []string{
+				"skipper_cache_result_total",
+				"skipper_cache_lru_bytes",
+				"skipper_cache_storage_error_total",
+			} {
+				assert.Equal(t, tt.enabled, slices.Contains(names, name), name)
 			}
 		})
 	}

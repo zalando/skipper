@@ -1348,6 +1348,89 @@ func TestPrometheusMetricsStartTimestamp(t *testing.T) {
 	checkMetric(`skipper_route_error_total{start="(\d+)"} 3`)
 }
 
+func TestPrometheusCacheMetrics(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(strconv.FormatBool(enabled), func(t *testing.T) {
+			reg := prometheus.NewRegistry()
+			pm := metrics.NewPrometheus(metrics.Options{
+				PrometheusRegistry: reg,
+				EnableCacheMetrics: enabled,
+			})
+
+			pm.IncCacheResult("hit", "2xx")
+			pm.SetCacheLRUBytes("route1", 1024)
+			pm.IncStorageError("l1", "get")
+			pm.IncStorageError("l2", "set")
+
+			mux := http.NewServeMux()
+			pm.RegisterHandler("/metrics", mux)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+			require.Equal(t, http.StatusOK, w.Code)
+			body := w.Body.String()
+			assert.Contains(t, body, `skipper_custom_total{key="cache.storage_error"} 2`)
+
+			dedicated := []string{
+				`skipper_cache_result_total{code_class="2xx",result="hit"} 1`,
+				`skipper_cache_result_total{code_class="n/a",result="storage_error"} 2`,
+				`skipper_cache_lru_bytes{route="route1"} 1024`,
+				`skipper_cache_storage_error_total{backend="l1",op="get"} 1`,
+				`skipper_cache_storage_error_total{backend="l2",op="set"} 1`,
+			}
+			if enabled {
+				for _, sample := range dedicated {
+					assert.Contains(t, body, sample)
+				}
+			} else {
+				assert.NotContains(t, body, "skipper_cache_")
+			}
+
+			collectors := []prometheus.Collector{
+				prometheus.NewCounterVec(prometheus.CounterOpts{
+					Name: "skipper_cache_result_total",
+					Help: "Total cache results by result type (hit/miss/stale) and status code class (2xx/4xx/5xx/other).",
+				}, []string{"result", "code_class"}),
+				prometheus.NewGaugeVec(prometheus.GaugeOpts{
+					Name: "skipper_cache_lru_bytes",
+					Help: "Current LRU cache bytes used per route.",
+				}, []string{"route"}),
+				prometheus.NewCounterVec(prometheus.CounterOpts{
+					Name: "skipper_cache_storage_error_total",
+					Help: "Total cache storage errors by backend (l1/l2) and operation (get/set/delete).",
+				}, []string{"backend", "op"}),
+			}
+			for _, collector := range collectors {
+				assert.Equal(t, enabled, reg.Unregister(collector))
+			}
+		})
+	}
+}
+
+func BenchmarkPrometheusCacheMetrics(b *testing.B) {
+	for _, enabled := range []bool{false, true} {
+		b.Run(strconv.FormatBool(enabled), func(b *testing.B) {
+			pm := metrics.NewPrometheus(metrics.Options{EnableCacheMetrics: enabled})
+			for _, metric := range []struct {
+				name   string
+				record func()
+			}{
+				{"result", func() { pm.IncCacheResult("hit", "2xx") }},
+				{"bytes", func() { pm.SetCacheLRUBytes("route1", 1024) }},
+				{"storage-error", func() { pm.IncStorageError("l1", "get") }},
+			} {
+				b.Run(metric.name, func(b *testing.B) {
+					metric.record()
+					b.ReportAllocs()
+					b.ResetTimer()
+					for b.Loop() {
+						metric.record()
+					}
+				})
+			}
+		})
+	}
+}
+
 // Compile-time check that Prometheus implements PrometheusMetrics
 func TestPrometheusImplementsPrometheusMetrics(t *testing.T) {
 	var _ metrics.PrometheusMetrics = (*metrics.Prometheus)(nil)

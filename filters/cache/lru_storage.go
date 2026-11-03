@@ -28,6 +28,12 @@ func NewLRUStorage(totalMaxBytes int64, onEvict func(), m metrics.Metrics) *LRUS
 	}
 }
 
+// GetSilent delegates to Get because LRUStorage emits no lookup-outcome metrics.
+// Decode failures still report storage errors.
+func (s *LRUStorage) GetSilent(ctx context.Context, key string) (*Entry, error) {
+	return s.Get(ctx, key)
+}
+
 func (s *LRUStorage) Get(_ context.Context, key string) (*Entry, error) {
 	// Set owns the marshaled bytes, and the LRU only replaces or removes them.
 	// Decode the snapshot outside the shard lock without copying it first.
@@ -38,6 +44,9 @@ func (s *LRUStorage) Get(_ context.Context, key string) (*Entry, error) {
 
 	var e Entry
 	if err := json.Unmarshal(data, &e); err != nil {
+		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
+			p.IncStorageError("l1", "get")
+		}
 		return nil, fmt.Errorf("cache: decode entry: %w", err)
 	}
 
@@ -57,6 +66,9 @@ func (s *LRUStorage) Get(_ context.Context, key string) (*Entry, error) {
 func (s *LRUStorage) Set(_ context.Context, key string, entry *Entry) error {
 	data, err := json.Marshal(entry)
 	if err != nil {
+		if p, ok := s.metrics.(interface{ IncStorageError(string, string) }); ok {
+			p.IncStorageError("l1", "set")
+		}
 		return fmt.Errorf("cache: encode entry: %w", err)
 	}
 	if s.lru.ExceedsShard(data) {
