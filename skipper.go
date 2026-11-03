@@ -1967,6 +1967,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		Prefix:                                o.MetricsPrefix,
 		EnableDebugGcMetrics:                  o.EnableDebugGcMetrics,
 		EnableRuntimeMetrics:                  o.EnableRuntimeMetrics,
+		EnableCacheMetrics:                    !slices.Contains(o.DisabledFilters, cache.Name),
 		EnableServeRouteMetrics:               o.EnableServeRouteMetrics,
 		EnableServeRouteCounter:               o.EnableServeRouteCounter,
 		EnableServeHostMetrics:                o.EnableServeHostMetrics,

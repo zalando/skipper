@@ -324,6 +324,8 @@ To monitor skipper we recommend the following queries:
 
 #### Cache filter metrics
 
+Skipper enables the dedicated Prometheus cache collectors when the `cache` filter is enabled, independently of L2 cache configuration. Disabling the filter through `DisabledFilters` disables these collectors; there is no separate CLI option. Library callers constructing a metrics backend directly must set `metrics.Options.EnableCacheMetrics` to enable them. The legacy `cache.*` custom counters, including `cache.storage_error`, are unaffected by this option.
+
 When the cache filter is active, the following labeled metrics are exposed:
 
 - `skipper_cache_result_total{result="...", code_class="2xx|4xx|5xx|other|n/a"}` - Counter for cache-related outcomes by result type and HTTP status code class. `result` covers the same outcomes as the flat `skipper_custom_total{key="cache.*"}` counters below — `hit`, `miss`, `stale`, `storage_error`, `coalesce_error`, `coalesce_bypass`, `coalesce_bypass_error`, and, when an L2 (Valkey) store is configured, `l1_hit`, `l2_hit`, `l2_miss`, `l2_get_error`, `l2_set_fallback`. `code_class` is only meaningful for outcomes with a cached response in hand (`hit`, `miss`, `stale`, `l1_hit`, `l2_hit`, `l2_set_fallback`); for outcomes with no response to classify (`storage_error`, `coalesce_error`, `coalesce_bypass`, `coalesce_bypass_error`, `l2_miss`, `l2_get_error`) it is the literal string `n/a`. A rising `hit`/`4xx` or `hit`/`5xx` series indicates the cache is serving an error response as a hit — investigate the upstream response and cache-control directives for that route. Cardinality is bounded by the number of distinct (result, code_class) pairs actually emitted.
@@ -331,6 +333,8 @@ When the cache filter is active, the following labeled metrics are exposed:
 - The flat-key counters `skipper_custom_total{key="cache.hit"}`, `cache.miss`, `cache.stale`, and the rest of the `cache.*` keys above are the primary, directly-emitted metrics — `skipper_cache_result_total`/`skipper_cache_lru_bytes` are an additional labeled breakdown of the same underlying events, not a replacement for them.
 
 `code_class` describes the cached or selected response status, not necessarily the final HTTP status returned to the client. For example, conditional request handling may return `304 Not Modified` for a cached `2xx` representation while the cache result retains `code_class="2xx"`.
+
+Internal Vary-sentinel reads suppress the lookup outcomes `l1_hit`, `l2_hit`, `l2_miss`, and `l2_get_error`, including their labeled equivalents. They still record the duration of real L2 calls and report storage decode faults. With Prometheus, these faults increment the legacy `cache.storage_error` counter and, when dedicated cache collectors are enabled, `skipper_cache_storage_error_total` and `skipper_cache_result_total{result="storage_error",code_class="n/a"}`. L1 warming is preserved.
 
 `skipper_cache_result_total` includes overlapping request outcomes and operational/storage events, so summing all `result` values is not a request count. For cache-outcome shares or hit ratios, restrict the denominator to `result=~"hit|miss|stale"` and sum across `code_class`. For example, the hit ratio is `sum(rate(skipper_cache_result_total{result="hit"}[5m])) / sum(rate(skipper_cache_result_total{result=~"hit|miss|stale"}[5m]))`.
 

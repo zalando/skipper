@@ -85,6 +85,9 @@ type Options struct {
 	// addition to the http traffic metrics.
 	EnableRuntimeMetrics bool
 
+	// If set, dedicated Prometheus cache collectors are enabled.
+	EnableCacheMetrics bool
+
 	// If set, detailed total response time metrics will be collected
 	// for each route, additionally grouped by status and method.
 	EnableServeRouteMetrics bool
