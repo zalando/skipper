@@ -28,9 +28,8 @@ func NewLRUStorage(totalMaxBytes int64, onEvict func(), m metrics.Metrics) *LRUS
 	}
 }
 
-// GetSilent is identical to Get: LRUStorage's Get records no metrics of its
-// own (hit/miss/stale are recorded by the cache filter, not by the L1 store),
-// so there is nothing to suppress here. It exists to satisfy Storage.
+// GetSilent delegates to Get because LRUStorage emits no lookup-outcome metrics.
+// Decode failures still report storage errors.
 func (s *LRUStorage) GetSilent(ctx context.Context, key string) (*Entry, error) {
 	return s.Get(ctx, key)
 }

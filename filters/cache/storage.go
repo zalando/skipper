@@ -61,11 +61,10 @@ type Storage interface {
 	// Get returns the entry for key, or (nil, nil) if the key is not found.
 	Get(ctx context.Context, key string) (*Entry, error)
 
-	// GetSilent behaves like Get but must not record any outcome metrics
-	// (hit/miss/l1_hit/l2_hit/l2_miss/l2_get_error and their labeled
-	// counterparts). Use it for internal plumbing lookups — e.g. the
-	// Vary-sentinel check in filter.go — that are not themselves a caching
-	// decision and would otherwise pollute those metrics on every request.
+	// GetSilent behaves like Get but suppresses l1_hit/l2_hit/l2_miss/l2_get_error
+	// lookup-outcome metrics and their labeled equivalents for internal
+	// Vary-sentinel reads that are not themselves caching decisions.
+	// Storage timing, storage-error reporting, and caching side effects are preserved.
 	GetSilent(ctx context.Context, key string) (*Entry, error)
 
 	// Set stores or overwrites the entry for key.

@@ -23,6 +23,7 @@ type stubValkeyClient struct {
 	data       map[string]string
 	broken     bool          // if true, all operations return an error
 	lastExpire time.Duration // records the expire arg of the last SetWithExpire call
+	getCalls   int
 }
 
 func newStubValkeyClient() *stubValkeyClient {
@@ -36,6 +37,7 @@ func newBrokenStubValkeyClient() *stubValkeyClient {
 func (s *stubValkeyClient) Get(_ context.Context, key string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.getCalls++
 	if s.broken {
 		return "", errors.New("stub: broken")
 	}
@@ -657,7 +659,7 @@ func TestL2Storage_Set_ZeroTTL_UsesDefaultMinTTL(t *testing.T) {
 	}
 }
 
-func TestL2Storage_GetSilent_DoesNotRecordMetrics(t *testing.T) {
+func TestL2Storage_GetSilent_SuppressesLookupOutcomes(t *testing.T) {
 	stub := newStubValkeyClient()
 	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(64<<20, nil, metrics.Default)
@@ -675,31 +677,23 @@ func TestL2Storage_GetSilent_DoesNotRecordMetrics(t *testing.T) {
 	s.metrics = m2
 
 	// Exercise hit, clean-miss, and error scenarios through GetSilent only.
-	if _, err := s.GetSilent(ctx, hitKey); err != nil {
-		t.Fatalf("GetSilent (hit case): %v", err)
+	if got, err := s.GetSilent(ctx, hitKey); err != nil || got == nil || string(got.Payload) != "v" {
+		t.Fatalf("GetSilent (hit case): expected cached entry, got (%v, %v)", got, err)
 	}
-	if _, err := s.GetSilent(ctx, "sentinel-miss-key"); err != nil {
-		t.Fatalf("GetSilent (miss case): %v", err)
+	assertL2GetMeasurements(t, m2, 1)
+	if got, err := s.GetSilent(ctx, "sentinel-miss-key"); err != nil || got != nil {
+		t.Fatalf("GetSilent (miss case): expected (nil, nil), got (%v, %v)", got, err)
 	}
+	assertL2GetMeasurements(t, m2, 2)
 	stub.broken = true
-	// L2Storage treats a transport error as a graceful miss (nil, nil) — the
-	// l2_get_error *counter* is the only signal, there's no returned Go error
-	// to assert on here (same contract as the regular Get).
+	// Transport errors remain graceful misses; timing and logging are preserved.
 	if got, err := s.GetSilent(ctx, hitKey); err != nil || got != nil {
 		t.Errorf("GetSilent (broken-client case): expected (nil, nil), got (%v, %v)", got, err)
 	}
 	stub.broken = false
+	assertL2GetMeasurements(t, m2, 3)
 
-	for _, counter := range []string{"cache.l1_hit", "cache.l2_hit", "cache.l2_miss", "cache.l2_get_error"} {
-		if v, _ := m2.Counter(counter); v != 0 {
-			t.Errorf("GetSilent must not record plain metrics, but %s = %d", counter, v)
-		}
-	}
-	for _, rc := range [][2]string{{"l1_hit", "2xx"}, {"l2_hit", "2xx"}, {"l2_miss", "n/a"}, {"l2_get_error", "n/a"}} {
-		if got, _ := m2.CacheResultCount(rc[0], rc[1]); got != 0 {
-			t.Errorf("GetSilent must not record labeled metrics, but %s/%s = %d", rc[0], rc[1], got)
-		}
-	}
+	assertSilentLookupOutcomes(t, m2)
 
 	// Sanity: the regular Get on the same storage still records metrics as usual —
 	// proves GetSilent is a distinct code path, not a global metrics kill switch.
@@ -710,5 +704,110 @@ func TestL2Storage_GetSilent_DoesNotRecordMetrics(t *testing.T) {
 	}
 	if v, _ := m2.Counter("cache.l2_hit"); v != 1 {
 		t.Errorf("expected regular Get to still record l2_hit=1, got %d", v)
+	}
+}
+
+func TestL2Storage_GetSilent_WarmsL1(t *testing.T) {
+	ctx := context.Background()
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, m)
+	s := NewL2Storage(stub, lru, m, time.Minute, valkey.IsValkeyNil)
+	key := "sentinel-warming-key"
+	entry := &Entry{StatusCode: 200, Payload: []byte("warm"), TTL: time.Minute, CreatedAt: time.Now()}
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stub.SetWithExpire(ctx, key, string(data), entry.TTL); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 2; i++ {
+		got, err := s.GetSilent(ctx, key)
+		if err != nil || got == nil || string(got.Payload) != "warm" {
+			t.Fatalf("GetSilent call %d: expected cached entry, got (%v, %v)", i+1, got, err)
+		}
+		stub.mu.Lock()
+		getCalls := stub.getCalls
+		stub.mu.Unlock()
+		if getCalls != 1 {
+			t.Errorf("expected exactly one L2 read after call %d, got %d", i+1, getCalls)
+		}
+		assertL2GetMeasurements(t, m, 1)
+		assertSilentLookupOutcomes(t, m)
+	}
+	if got, err := lru.GetSilent(ctx, key); err != nil || got == nil {
+		t.Fatalf("expected L1 to be warmed, got (%v, %v)", got, err)
+	}
+}
+
+func TestStorage_GetSilent_ReportsDecodeErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		backend     string
+		lruOnly     bool
+		wantErr     bool
+		wantL2Reads int
+	}{
+		{name: "LRU", backend: "l1", lruOnly: true, wantErr: true},
+		{name: "L2 storage corrupt L1", backend: "l1", wantL2Reads: 1},
+		{name: "L2 storage corrupt L2", backend: "l2", wantErr: true, wantL2Reads: 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &metricstest.MockMetrics{}
+			lru := NewLRUStorage(64<<20, nil, m)
+			stub := newStubValkeyClient()
+			var s Storage = NewL2Storage(stub, lru, m, time.Minute, valkey.IsValkeyNil)
+			if tt.lruOnly {
+				s = lru
+			}
+			key := "corrupt-sentinel"
+			if tt.backend == "l1" {
+				lru.lru.Set(key, []byte("{"))
+			} else if err := stub.SetWithExpire(context.Background(), key, "{", time.Minute); err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := s.GetSilent(context.Background(), key)
+			if got != nil || (err != nil) != tt.wantErr {
+				t.Fatalf("GetSilent: got (%v, %v), want nil entry and error=%v", got, err, tt.wantErr)
+			}
+			if got, _ := m.StorageErrorCount(tt.backend, "get"); got != 1 {
+				t.Errorf("expected %s/get storage-error hook count=1, got %d", tt.backend, got)
+			}
+			if got, _ := m.Counter("cache.storage_error"); got != 1 {
+				t.Errorf("expected storage_error=1, got %d", got)
+			}
+			if got, _ := m.CacheResultCount("storage_error", "n/a"); got != 1 {
+				t.Errorf("expected storage_error/n/a hook count=1, got %d", got)
+			}
+			assertL2GetMeasurements(t, m, tt.wantL2Reads)
+			assertSilentLookupOutcomes(t, m)
+		})
+	}
+}
+
+func assertL2GetMeasurements(t *testing.T, m *metricstest.MockMetrics, want int) {
+	t.Helper()
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		if got := len(measures["cache.l2_get_duration"]); got != want {
+			t.Errorf("expected %d cache.l2_get_duration measurements, got %d", want, got)
+		}
+	})
+}
+
+func assertSilentLookupOutcomes(t *testing.T, m *metricstest.MockMetrics) {
+	t.Helper()
+	for _, result := range []string{"l1_hit", "l2_hit", "l2_miss", "l2_get_error"} {
+		if got, _ := m.Counter("cache." + result); got != 0 {
+			t.Errorf("GetSilent must suppress %s, got %d", result, got)
+		}
+		// These are mock hook counts, not samples gathered from Prometheus.
+		for _, codeClass := range []string{"1xx", "2xx", "3xx", "4xx", "5xx", "n/a"} {
+			if got, _ := m.CacheResultCount(result, codeClass); got != 0 {
+				t.Errorf("GetSilent must suppress %s/%s hook count, got %d", result, codeClass, got)
+			}
+		}
 	}
 }

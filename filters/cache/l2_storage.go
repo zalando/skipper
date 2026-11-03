@@ -60,24 +60,20 @@ func (s *L2Storage) Get(ctx context.Context, key string) (*Entry, error) {
 	return s.get(ctx, key, true)
 }
 
-// GetSilent behaves like Get but records none of the l1_hit/l2_hit/l2_miss/
-// l2_get_error outcome metrics (plain or labeled). Use it for internal
-// plumbing lookups — e.g. the Vary-sentinel check in filter.go — that are
-// not themselves a caching decision: every request pays for that lookup,
-// so routing it through Get would have silently counted it as a real cache
-// outcome on every single request.
+// GetSilent behaves like Get but suppresses lookup-outcome metrics.
+// Storage timing, storage-error reporting, and L1 warming are preserved.
 func (s *L2Storage) GetSilent(ctx context.Context, key string) (*Entry, error) {
 	return s.get(ctx, key, false)
 }
 
-func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*Entry, error) {
+func (s *L2Storage) get(ctx context.Context, key string, recordOutcomeMetrics bool) (*Entry, error) {
 	// L1-first: serve from local memory when the write-through warming populated it.
 	// LRUStorage.Get returns entries within TTL + max(StaleIfError, StaleWhileRevalidate).
 	// Only serve fresh L1 hits; stale entries fall through to L2 so a fresher copy
 	// written by another instance is not bypassed.
 	if e, err := s.l1.Get(ctx, key); err == nil && e != nil {
 		if !e.IsStale(time.Now()) {
-			if recordMetrics {
+			if recordOutcomeMetrics {
 				s.metrics.IncCounter("cache.l1_hit")
 				if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
 					p.IncCacheResult("l1_hit", statusCodeClass(e.StatusCode))
@@ -93,7 +89,7 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 	s.metrics.MeasureSince("cache.l2_get_duration", l2Start)
 	if err != nil {
 		if s.isNoErr(err) {
-			if recordMetrics {
+			if recordOutcomeMetrics {
 				s.metrics.IncCounter("cache.l2_miss")
 				if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
 					p.IncCacheResult("l2_miss", "n/a")
@@ -101,7 +97,7 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 			}
 			return nil, nil
 		}
-		if recordMetrics {
+		if recordOutcomeMetrics {
 			s.metrics.IncCounter("cache.l2_get_error")
 			if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
 				p.IncCacheResult("l2_get_error", "n/a")
@@ -117,7 +113,7 @@ func (s *L2Storage) get(ctx context.Context, key string, recordMetrics bool) (*E
 		}
 		return nil, fmt.Errorf("cache: decode L2 entry: %w", err)
 	}
-	if recordMetrics {
+	if recordOutcomeMetrics {
 		s.metrics.IncCounter("cache.l2_hit")
 		if p, ok := s.metrics.(interface{ IncCacheResult(string, string) }); ok {
 			p.IncCacheResult("l2_hit", statusCodeClass(e.StatusCode))
