@@ -880,7 +880,9 @@ func WithParams(p Params) *Proxy {
 	var h2cTr *http.Transport
 	if p.EnableH2CBackend {
 		h2cTr = newTransport(p)
-		h2cTr.TLSClientConfig = tr.TLSClientConfig
+		if tr.TLSClientConfig != nil {
+			h2cTr.TLSClientConfig = tr.TLSClientConfig.Clone()
+		}
 		h2cTr.Protocols = new(http.Protocols)
 		h2cTr.Protocols.SetUnencryptedHTTP2(true)
 	}
@@ -888,7 +890,9 @@ func WithParams(p Params) *Proxy {
 	var h2Tr *http.Transport
 	if p.EnableH2Backend {
 		h2Tr = newTransport(p)
-		h2Tr.TLSClientConfig = tr.TLSClientConfig
+		if tr.TLSClientConfig != nil {
+			h2Tr.TLSClientConfig = tr.TLSClientConfig.Clone()
+		}
 		h2Tr.ForceAttemptHTTP2 = true
 	}
 
