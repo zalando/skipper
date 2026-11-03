@@ -2117,9 +2117,13 @@ flowchart TD
     C -->|cache.l2_miss| D{L2Storage}
     C -->|cache.stale hit — no l1_hit| D
     D -->|cache.l2_hit — key found| S
-    D -->|cache.l2_miss — key absent| E[Origin Fetch\n CDN]
+    D -->|cache.l2_miss — key absent| E{Cache origin dispatch}
     D -->|cache.l2_get_error — error / timeout| E
-    E -->|write back: Set warms L2 + L1<br/>min TTL: cache-l1-ttl vs entry.TTL| S
+    E -->|force mode, valid static HTTP/S backend| F[Direct fetch: filtered path and outgoing Host]
+    E -->|RFC mode, dynamic or invalid backend| G[Replay original request through Skipper]
+    F --> H[Origin response]
+    G --> H
+    H -->|write back: Set warms L2 + L1<br/>min TTL: cache-l1-ttl vs entry.TTL| S
 ```
 
 **Write path:** successful L2 Set warms L1 with min(--cache-l1-ttl, entry.TTL) (default 60s). L2 Get hit warms L1 with min(--cache-l1-ttl, remaining freshness). L1 is also populated on L2 Set errors (fallback). Set --cache-l1-ttl=0 for write-around.
@@ -2133,7 +2137,8 @@ flowchart TD
 - `cache.hit`: Counter, request served from cache without contacting the upstream
 - `cache.miss`: Counter, request not in cache; upstream was contacted
 - `cache.stale`: Counter, stale entry served while background revalidation was enqueued
-- `cache.coalesce_error`: Counter, singleflight cold-miss fetch returned an error
+- `cache.coalesce_error`: Counter, cold-miss dispatch preparation or fetch failed,
+  or an invalid backend URL required pipeline fallback
 - `cache.coalesce_bypass`: Counter, a concurrent cold-miss request's response wasn't
   storeable and no `keyHeaders`/`Vary` proof of matching identity was available, so
   it performed its own fetch instead of reusing another request's in-flight response.
@@ -2161,13 +2166,22 @@ flowchart TD
 - `cache.reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
 - `cache.reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
 - `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
-- `cache.reval_error`: Counter, background revalidation fetch failures
+- `cache.reval_error`: Counter, background revalidation preparation or fetch
+  failures, or an invalid backend URL required pipeline fallback
 - `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
-- `cache.reval_backend_dispatch`: Counter, revalidation fetches sent directly to the
-  backend, bypassing skipper's proxy pipeline (force mode, static backend
-  only) - so they're invisible to `MeasureBackend*` metrics and the access
-  log. Self-loopback revalidations aren't counted here since they go
-  through the listener normally.
+- `cache.reval_backend_dispatch`: Counter, background revalidation fetches sent
+  directly to the backend (force mode, static backend only). Direct-dispatched
+  cold-miss (coalesced) fetches are not counted and have no dedicated counter.
+  Both bypass Skipper's proxy pipeline, so these origin requests are invisible
+  to `MeasureBackend*` metrics and the access log. Self-loopback revalidations
+  aren't counted here since they go through the listener normally.
+
+Static force-mode direct dispatch still bypasses later request filters, backend
+proxy access-log/round-trip metrics, proxy retry/route-specific timeout handling,
+and proxy-specific transport/TLS customization. It uses a separate HTTP client
+with system trust and its existing redirect/compression behavior; it does not
+imply full proxy-executor equivalence. Required request/response filters must be
+positioned before `cache()` as described in the filter reference.
 
 **L2 (if Valkey or Redis is configured):**
 
