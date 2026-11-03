@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -1250,34 +1251,41 @@ func TestPrometheusMetrics(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			pm := metrics.NewPrometheus(test.opts)
-			path := "/awesome-metrics"
+			synctest.Test(t, func(t *testing.T) {
+				pm := metrics.NewPrometheus(test.opts)
+				path := "/awesome-metrics"
 
-			// Create the muxer and register as handler on the Metrics service.
-			mux := http.NewServeMux()
-			pm.RegisterHandler(path, mux)
+				// Create the muxer and register as handler on the Metrics service.
+				mux := http.NewServeMux()
+				pm.RegisterHandler(path, mux)
 
-			// Add the required metrics.
-			test.addMetrics(pm)
+				// Add the required metrics.
+				test.addMetrics(pm)
 
-			// Make the request to the metrics.
-			req := httptest.NewRequest("GET", path, nil)
-			w := httptest.NewRecorder()
-			mux.ServeHTTP(w, req)
+				// Make the request to the metrics.
+				req := httptest.NewRequest("GET", path, nil)
+				w := httptest.NewRecorder()
+				mux.ServeHTTP(w, req)
 
-			// Check.
-			resp := w.Result()
-			if test.expCode != resp.StatusCode {
-				t.Errorf("metrics service returned an incorrect status code, should be: %d, got: %d", test.expCode, resp.StatusCode)
-			} else {
-				body, _ := io.ReadAll(resp.Body)
+				// Check.
+				resp := w.Result()
+				defer resp.Body.Close()
+				if test.expCode != resp.StatusCode {
+					t.Errorf("metrics service returned an incorrect status code, should be: %d, got: %d", test.expCode, resp.StatusCode)
+					return
+				}
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Errorf("failed to read metrics response body: %v", err)
+					return
+				}
 				// Check all the metrics are present.
 				for _, expMetric := range test.expMetrics {
 					if ok := strings.Contains(string(body), expMetric); !ok {
 						t.Errorf("'%s' metric not present on the result of metrics service", expMetric)
 					}
 				}
-			}
+			})
 		})
 	}
 }

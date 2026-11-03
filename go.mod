@@ -27,14 +27,14 @@ require (
 	github.com/klauspost/compress v1.20.3
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.73
-	github.com/molecule-man/go-brrr v1.3.0
+	github.com/molecule-man/go-brrr v1.3.1
 	github.com/oklog/ulid v1.3.1
 	github.com/open-policy-agent/eopa v1.46.1-0.20260410145035-769c001a4008
 	github.com/open-policy-agent/opa v1.15.2
 	github.com/open-policy-agent/opa-envoy-plugin v1.15.2-envoy
 	github.com/opentracing/basictracer-go v1.1.0
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/pires/go-proxyproto v0.15.0
+	github.com/pires/go-proxyproto v0.16.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9
@@ -69,7 +69,7 @@ require (
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
 	golang.org/x/crypto v0.58.0
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sync v0.24.0
 	golang.org/x/term v0.47.0

@@ -1,0 +1,17 @@
+kube_default__myapp__example_org____external1_example_org:
+	Host("^(example[.]org[.]?(:[0-9]+)?)$")
+	-> setRequestHeader("Host", "external1.example.org")
+	-> "https://external1.example.org:443";
+
+kube_default__myapp_allowed_0__example_org_one____:
+	Host("^(example[.]org[.]?(:[0-9]+)?)$")
+	&& Header("X-Route", "allowed")
+	&& PathRegexp("^(/one)")
+	-> "https://external1.example.org";
+
+kube_default__myapp_shunt_3__example_org_one____:
+	Host("^(example[.]org[.]?(:[0-9]+)?)$")
+	&& Header("X-Route", "shunt")
+	&& PathRegexp("^(/one)")
+	-> status(204)
+	-> <shunt>;

@@ -84,6 +84,9 @@ type clusterClient struct {
 	loggedMissingRouteGroups bool
 	routeGroupValidator      *definitions.RouteGroupValidator
 	ingressValidator         *definitions.IngressV1Validator
+	balancedAcrossZones      bool
+	dataPlaneLabelSelector   map[string]string
+	maxZoneSkew              int
 }
 
 var (
@@ -182,6 +185,21 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		listChunkSize:                o.KubernetesListChunkSize,
 		zone:                         o.TopologyZone,
 		ingressStatusFromService:     o.IngressStatusFromService,
+	}
+
+	if o.DataPlaneLabelSelector != nil {
+		c.dataPlaneLabelSelector = o.DataPlaneLabelSelector
+	} else {
+		c.dataPlaneLabelSelector = DefaultDataPlaneLabelSelector
+	}
+
+	if o.MaxZoneSkew != nil {
+		if *o.MaxZoneSkew < 0 {
+			return nil, fmt.Errorf("invalid MaxZoneSkew %d: must be >= 0", *o.MaxZoneSkew)
+		}
+		c.maxZoneSkew = *o.MaxZoneSkew
+	} else {
+		c.maxZoneSkew = DefaultMaxZoneSkew
 	}
 
 	if o.KubernetesInCluster {
@@ -750,7 +768,13 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		log.Errorf("failed to update ingress status: %v", err)
 	}
 
+	c.balancedAcrossZones = state.isServiceBalancedAcrossZones(c.dataPlaneLabelSelector, c.maxZoneSkew)
+
 	return state, nil
+}
+
+func (c *clusterClient) IsBalancedDataPlane() bool {
+	return c.balancedAcrossZones
 }
 
 func parseNamespaceName(resource string) (string, string, error) {
