@@ -256,7 +256,8 @@ func TestProxy_Coalesce_PipelineFallback(t *testing.T) {
 				io.WriteString(w, "pipeline response")
 			}))
 			defer backend.Close()
-			spec := NewCacheFilter(Options{MaxBytes: 1 << 20})
+			m := &metricstest.MockMetrics{}
+			spec := NewCacheFilter(Options{MaxBytes: 1 << 20, Metrics: m})
 			defer spec.(*cacheSpec).Close()
 			registry := make(filters.Registry)
 			registry.Register(spec)
@@ -301,6 +302,46 @@ func TestProxy_Coalesce_PipelineFallback(t *testing.T) {
 			if calls.Load() != 1 {
 				t.Fatalf("backend calls = %d, want 1", calls.Load())
 			}
+			m.WithCounters(func(counters map[string]int64) {
+				if got := counters["cache.miss"]; got != 1 {
+					t.Errorf("cold/warm misses = %d, want 1 without inner replay duplication", got)
+				}
+			})
+			original := httptest.NewRequest("GET", proxy.URL+"/public/item?q=1", nil)
+			for _, f := range spec.(*cacheSpec).filters {
+				f.doRevalidate("refresh-key", original, "", "")
+			}
+			if calls.Load() != 2 {
+				t.Fatalf("backend calls after refresh = %d, want 2", calls.Load())
+			}
+			m.WithCounters(func(counters map[string]int64) {
+				if got := counters["cache.miss"]; got != 1 {
+					t.Errorf("misses after refresh = %d, want unchanged 1", got)
+				}
+			})
+			if got, _ := m.CacheResultCount("miss", "2xx"); got != 1 {
+				t.Errorf("labelled misses = %d, want 1", got)
+			}
+			req, err := http.NewRequest("GET", proxy.URL+"/public/item?q=1", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Cache-Control", "no-store")
+			resp, err := proxy.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, readErr := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if readErr != nil || resp.StatusCode != http.StatusOK || string(body) != "pipeline response" ||
+				resp.Header.Get(cacheStatusHeader) != cacheStatusMiss || calls.Load() != 3 {
+				t.Fatalf("ordinary bypass: status=%d body=%q calls=%d err=%v", resp.StatusCode, body, calls.Load(), readErr)
+			}
+			m.WithCounters(func(counters map[string]int64) {
+				if got := counters["cache.miss"]; got != 2 {
+					t.Errorf("misses after ordinary no-store request = %d, want 2", got)
+				}
+			})
 		})
 	}
 }

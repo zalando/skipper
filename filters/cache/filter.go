@@ -33,6 +33,7 @@ const (
 	stateBagBaseKey     = "cache:base-key"
 	stateBagRequestTime = "cache:request-time"
 	stateBagNoStore     = "cache:no-store"
+	stateBagRevalidate  = "cache:revalidate"
 
 	// revalidateHeader is set on background revalidation requests so the cache
 	// filter skips the cache lookup and lets the response populate a fresh entry.
@@ -430,6 +431,7 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 	// fresh entry. Strip the header so it never reaches the upstream.
 	if ctx.Request().Header.Get(revalidateHeader) != "" {
 		ctx.Request().Header.Del(revalidateHeader)
+		ctx.StateBag()[stateBagRevalidate] = true
 		return
 	}
 
@@ -822,7 +824,9 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 
 	rsp.Header.Set(cacheStatusHeader, cacheStatusMiss)
 	tagSpan(ctx, cacheStatusMiss, -1)
-	f.metrics.IncCounter("cache.miss")
+	if ctx.StateBag()[stateBagRevalidate] != true {
+		f.metrics.IncCounter("cache.miss")
+	}
 
 	varyHeader := rsp.Header.Get("Vary")
 
