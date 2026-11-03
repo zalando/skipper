@@ -141,6 +141,9 @@ func testCacheFilterBypassBody(t *testing.T, method string, readErr error) {
 			if err != nil || string(b) != want {
 				t.Errorf("independent follower body = %q, %v; want %q", b, err, want)
 			}
+			if got := follower.FResponse.Header.Get(cacheStatusHeader); got != cacheStatusMiss {
+				t.Errorf("independent follower cache status = %q, want %q", got, cacheStatusMiss)
+			}
 		}
 		m.WithCounters(func(counters map[string]int64) {
 			if got := counters["cache.coalesce_bypass"]; got != 1 {
@@ -153,5 +156,26 @@ func testCacheFilterBypassBody(t *testing.T, method string, readErr error) {
 		if got, _ := m.CacheResultCount("coalesce_bypass_error", "n/a"); got != wantErrors {
 			t.Errorf("labelled bypass error count = %d, want %d", got, wantErrors)
 		}
+		if got, _ := m.CacheResultCount("coalesce_bypass", "n/a"); got != 1 {
+			t.Errorf("labelled bypass count = %d, want 1", got)
+		}
+		assertMisses := func() {
+			t.Helper()
+			want := 2 - wantErrors
+			m.WithCounters(func(counters map[string]int64) {
+				if got := counters["cache.miss"]; got != want {
+					t.Errorf("miss count = %d, want %d", got, want)
+				}
+			})
+			if got, _ := m.CacheResultCount("miss", "2xx"); got != want {
+				t.Errorf("labelled miss count = %d, want %d", got, want)
+			}
+		}
+		assertMisses()
+		f.Response(leader)
+		if follower.FServed {
+			f.Response(follower)
+		}
+		assertMisses()
 	})
 }
