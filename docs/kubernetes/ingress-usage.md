@@ -1291,7 +1291,7 @@ spec:
 ### H2c via EndpointSlice AppProtocol (automatic, requires EndpointSlices)
 
 When using EndpointSlices (`-enable-kubernetes-endpointslices` and
-`-enable-h2-backend`), skipper automatically uses h2c for ports with
+`-enable-h2c-backend`), skipper automatically uses h2c for ports with
 `appProtocol: kubernetes.io/h2c` on the EndpointSlice. No annotation
 is required on the Ingress.
 
