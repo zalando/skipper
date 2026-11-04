@@ -4178,6 +4178,13 @@ backend URL containing a host. Direct dispatch preserves the already-filtered
 request path and query and uses the route's outgoing Host. Otherwise, including
 invalid backend URLs, fetches replay the original request through Skipper's own
 listener, bypassing this cache lookup so routing and filters run normally.
+Pipeline coalescing and background refresh require `--proxy-preserve-original`
+(programmatically `proxy.PreserveOriginal`). Without original preservation,
+cold misses use ordinary proxy handling and populate the cache in the response
+phase; pipeline background refreshes are logged and skipped rather than replay
+a rewritten request. Warm hits still work, but stale entries are refreshed only
+when a later ordinary miss reaches the origin. Static force-mode direct dispatch
+does not require original preservation.
 Invalid backend URLs are logged and counted as `cache.coalesce_error` or
 `cache.reval_error`. RFC-mode fetches always replay the pipeline so response
 filters can determine cache policy. Direct-dispatched cold-miss and revalidation
