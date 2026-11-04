@@ -51,7 +51,6 @@ func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
 	return errors.Join(errs...)
 }
 
-// TODO: we need to pass namespace/name in all errors
 func (rgv *RouteGroupValidator) basicValidation(r *RouteGroupItem) error {
 	// has metadata and name:
 	if r == nil || validate(r.Metadata) != nil {
@@ -76,7 +75,7 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 		for _, f := range r.Filters {
 			parsedFilter, err := item.Spec.ParseFilter(f)
 			if err != nil {
-				errs = append(errs, err)
+				errs = append(errs, routeGroupError(item.Metadata, err))
 				continue
 			}
 			if rgv.EnableAdvancedValidation {
@@ -85,7 +84,7 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 					Name:         item.Metadata.Name,
 					ResourceType: ResourceTypeRouteGroup,
 				}, rgv.RoutingOptions, []*eskip.Filter{parsedFilter}); err != nil {
-					errs = append(errs, fmt.Errorf("invalid filter %q: %w", f, err))
+					errs = append(errs, routeGroupError(item.Metadata, fmt.Errorf("invalid filter %q: %w", f, err)))
 				}
 			}
 		}
@@ -103,7 +102,7 @@ func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
 		for _, p := range r.Predicates {
 			parsedPredicate, err := item.Spec.ParsePredicate(p)
 			if err != nil {
-				errs = append(errs, err)
+				errs = append(errs, routeGroupError(item.Metadata, err))
 				continue
 			}
 			if rgv.EnableAdvancedValidation {
@@ -116,7 +115,7 @@ func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
 				Name:         item.Metadata.Name,
 				ResourceType: ResourceTypeRouteGroup,
 			}, rgv.RoutingOptions, routePredicates); err != nil {
-				errs = append(errs, err)
+				errs = append(errs, routeGroupError(item.Metadata, err))
 			}
 		}
 	}
@@ -131,11 +130,11 @@ func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 		}
 		address, err := url.Parse(backend.Address)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to parse backend address %q: %w", backend.Address, err))
+			errs = append(errs, routeGroupError(item.Metadata, fmt.Errorf("failed to parse backend address %q: %w", backend.Address, err)))
 			continue
 		}
 		if address.Path != "" || address.RawQuery != "" || address.Scheme == "" || address.Host == "" {
-			errs = append(errs, fmt.Errorf("backend address %q does not match scheme://host format", backend.Address))
+			errs = append(errs, routeGroupError(item.Metadata, fmt.Errorf("backend address %q does not match scheme://host format", backend.Address)))
 			continue
 		}
 		if rgv.EnableAdvancedValidation {
@@ -144,7 +143,7 @@ func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 				Name:         item.Metadata.Name,
 				ResourceType: ResourceTypeRouteGroup,
 			}, backend.Address, backend.Type, rgv.RoutingOptions.Metrics); err != nil {
-				errs = append(errs, err)
+				errs = append(errs, routeGroupError(item.Metadata, err))
 			}
 		}
 	}
@@ -156,14 +155,13 @@ func (rgv *RouteGroupValidator) validateHosts(item *RouteGroupItem) error {
 	uniqueHosts := make(map[string]struct{}, len(item.Spec.Hosts))
 	for _, host := range item.Spec.Hosts {
 		if _, ok := uniqueHosts[host]; ok {
-			errs = append(errs, fmt.Errorf("duplicate host %q", host))
+			errs = append(errs, routeGroupError(item.Metadata, fmt.Errorf("duplicate host %q", host)))
 		}
 		uniqueHosts[host] = struct{}{}
 	}
 	return errors.Join(errs...)
 }
 
-// TODO: we need to pass namespace/name in all errors
 func (rg *RouteGroupSpec) validate() error {
 	// has at least one backend:
 	if len(rg.Backends) == 0 {
@@ -201,7 +199,6 @@ func (rg *RouteGroupSpec) validate() error {
 	return nil
 }
 
-// TODO: we need to pass namespace/name in all errors
 func (r *RouteSpec) validate(hasDefault bool, backends map[string]bool) error {
 	if r == nil {
 		return errInvalidRouteSpec
