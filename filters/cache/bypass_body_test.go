@@ -35,11 +35,7 @@ func (b *bypassResponseBody) Close() error {
 }
 
 func TestCacheFilter_BypassBodyOwnership(t *testing.T) {
-	for _, method := range []string{http.MethodGet, http.MethodHead} {
-		t.Run(method, func(t *testing.T) {
-			testCacheFilterBypassBody(t, method, nil)
-		})
-	}
+	testCacheFilterBypassBody(t, http.MethodGet, nil)
 }
 
 func TestCacheFilter_BypassBodyReadError(t *testing.T) {

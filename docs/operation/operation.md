@@ -2165,7 +2165,8 @@ flowchart TD
 
 - `cache.reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
 - `cache.reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
-- `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full or body read failed
+- `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full,
+  body read failed, or a HEAD request cannot refresh a complete GET representation
 - `cache.reval_error`: Counter, background revalidation preparation or fetch
   failures, or an invalid backend URL required pipeline fallback
 - `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job

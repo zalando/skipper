@@ -595,6 +595,9 @@ func (f *cacheFilter) storeDecision(req *http.Request, statusCode int, header ht
 // Stale-if-error (RFC 5861 §4) is also applied here: a pre-fetch snapshot of any
 // eligible stored entry is served on 5xx instead of propagating the error.
 func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
+	if ctx.Request().Method == http.MethodHead {
+		return
+	}
 	source, backendURL, outgoingHost := f.requestDispatch(ctx, "cache.coalesce_error")
 	req, err := f.prepareDispatch(source, backendURL, outgoingHost)
 	if err != nil {
@@ -992,6 +995,11 @@ func revalidationRequest(ctx filters.FilterContext) *http.Request {
 // If the queue is full the job is dropped and reval_dropped is incremented.
 // The closure captures f.doRevalidate so the spec-level worker respects this route's config.
 func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request, backendURL, outgoingHost string) {
+	if orig.Method == http.MethodHead {
+		f.metrics.IncCounter("cache.reval_dropped")
+		log.Warn("cache: skipping HEAD refresh to preserve the stored GET representation")
+		return
+	}
 	cloned := orig.Clone(context.Background())
 	job := revalJob{
 		key:          key,
@@ -1020,6 +1028,11 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request, backen
 // loops back through skipper's own listener (f.listenAddr), which is counted
 // normally.
 func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL, outgoingHost string) {
+	if req.Method == http.MethodHead {
+		f.metrics.IncCounter("cache.reval_dropped")
+		log.Warn("cache: skipping HEAD refresh to preserve the stored GET representation")
+		return
+	}
 	f.revalSF.Do(key, func() (any, error) { //nolint:errcheck
 		req, err := f.prepareDispatch(req, backendURL, outgoingHost)
 		if err != nil {
