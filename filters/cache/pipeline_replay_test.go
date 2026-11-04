@@ -33,7 +33,15 @@ func (b refreshCompletionBody) Close() error {
 func TestProxy_CacheReplayRequiresOriginal(t *testing.T) {
 	for _, preserve := range []bool{false, true} {
 		for _, dynamic := range []bool{false, true} {
-			t.Run(fmt.Sprintf("preserve=%t/dynamic=%t", preserve, dynamic), func(t *testing.T) {
+			originalName := "original_unavailable"
+			if preserve {
+				originalName = "original_preserved"
+			}
+			backendName := "static_backend"
+			if dynamic {
+				backendName = "dynamic_backend"
+			}
+			t.Run(originalName+"/"+backendName, func(t *testing.T) {
 				var calls atomic.Int64
 				backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					n := calls.Add(1)

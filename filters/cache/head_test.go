@@ -19,7 +19,11 @@ import (
 
 func TestProxy_CacheHEADPreservesGET(t *testing.T) {
 	for _, expired := range []bool{false, true} {
-		t.Run(fmt.Sprintf("expired=%t", expired), func(t *testing.T) {
+		name := "cold_entry"
+		if expired {
+			name = "expired_entry"
+		}
+		t.Run(name, func(t *testing.T) {
 			var calls atomic.Int64
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
@@ -90,7 +94,7 @@ func TestProxy_CacheHEADPreservesGET(t *testing.T) {
 	}
 }
 
-func TestProxy_CacheHEADLeaderGETFollower(t *testing.T) {
+func TestProxy_CacheConcurrentHEADAndGETPreservesGETBody(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	var once sync.Once
@@ -149,7 +153,11 @@ func TestProxy_CacheHEADLeaderGETFollower(t *testing.T) {
 
 func TestCacheFilter_HEADOrdinaryHandling(t *testing.T) {
 	for _, seeded := range []bool{false, true} {
-		t.Run(fmt.Sprint(seeded), func(t *testing.T) {
+		name := "no_stored_entry"
+		if seeded {
+			name = "stored_entry"
+		}
+		t.Run(name, func(t *testing.T) {
 			f := newTestFilter(t, time.Minute, time.Second, time.Second)
 			ctx := newCtx(http.MethodHead, "http://example.org/resource", "")
 			key := cacheKey("", ctx.Request(), nil)
