@@ -18,8 +18,8 @@ import (
 )
 
 func TestOpenIDConfigSharedByAuthFilters(t *testing.T) {
-	stop := StartOpenIDConfigCacheCleaner()
-	defer stop()
+	cache := NewOpenIDConfigCache()
+	defer cache.Close()
 	jwks := setupJWKSServer(t, privateKey)
 	defer jwks.Close()
 	var requests atomic.Int32
@@ -28,7 +28,7 @@ func TestOpenIDConfigSharedByAuthFilters(t *testing.T) {
 		fmt.Fprintf(w, `{"jwks_uri":%q,"introspection_endpoint":%q,"claims_supported":["sub"]}`, jwks.URL, jwks.URL+"/introspection")
 	}))
 	defer issuer.Close()
-	if _, err := NewJwtValidationWithOptions(TokenintrospectionOptions{EnableOpenIDConfigCache: true}).CreateFilter([]any{issuer.URL}); err != nil {
+	if _, err := NewJwtValidationWithOptions(TokenintrospectionOptions{OpenIDConfigCache: cache}).CreateFilter([]any{issuer.URL}); err != nil {
 		t.Fatal(err)
 	}
 	issuer.Close()
@@ -50,7 +50,7 @@ func TestOpenIDConfigSharedByAuthFilters(t *testing.T) {
 		{create: NewSecureOAuthTokenintrospectionAnyKV, secure: true, kv: true},
 		{create: NewSecureOAuthTokenintrospectionAllKV, secure: true, kv: true},
 	} {
-		spec := TokenintrospectionWithOptions(tt.create, TokenintrospectionOptions{Timeout: time.Second, EnableOpenIDConfigCache: true})
+		spec := TokenintrospectionWithOptions(tt.create, TokenintrospectionOptions{Timeout: time.Second, OpenIDConfigCache: cache})
 		t.Run(spec.Name(), func(t *testing.T) {
 			args := []any{issuer.URL}
 			if tt.secure {
@@ -103,8 +103,8 @@ func (m *discoveryRoutingMetrics) MeasureSince(key string, _ time.Time) {
 }
 
 func TestOpenIDConfigRoutingRebuildOutage(t *testing.T) {
-	stop := StartOpenIDConfigCacheCleaner()
-	defer stop()
+	cache := NewOpenIDConfigCache()
+	defer cache.Close()
 	var unavailable atomic.Bool
 	var discoveries atomic.Int32
 	jwks := setupJWKSServer(t, privateKey)
@@ -134,7 +134,7 @@ func TestOpenIDConfigRoutingRebuildOutage(t *testing.T) {
 	client := testdataclient.New(defs)
 	defer client.Close()
 	registry := make(filters.Registry)
-	registry.Register(NewJwtValidationWithOptions(TokenintrospectionOptions{Timeout: time.Second, EnableOpenIDConfigCache: true}))
+	registry.Register(NewJwtValidationWithOptions(TokenintrospectionOptions{Timeout: time.Second, OpenIDConfigCache: cache}))
 	m := &discoveryRoutingMetrics{Metrics: metrics.Void, applied: make(chan struct{}, 1)}
 	router := routing.New(routing.Options{
 		FilterRegistry: registry,
@@ -206,7 +206,7 @@ func TestOpenIDConfigRoutingRebuildOutage(t *testing.T) {
 		})
 	}
 
-	openIDConfigs.clear()
+	cache.clear()
 	update(2)
 	if lookup("/protected/0") != nil || discoveries.Swap(0) != protectedRoutes {
 		t.Fatal("cold discovery failure did not invalidate protected routes or was cached")

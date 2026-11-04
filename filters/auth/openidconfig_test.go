@@ -13,13 +13,15 @@ import (
 	"github.com/AlexanderYastrebov/noleak"
 )
 
-func newTestOpenIDConfigCache() *openIDConfigCache {
-	return &openIDConfigCache{configs: make(map[string]*openIDConfig)}
+func newTestOpenIDConfigCache(t *testing.T) *OpenIDConfigCache {
+	t.Helper()
+	c := NewOpenIDConfigCache()
+	t.Cleanup(c.Close)
+	return c
 }
 
 func TestOpenIDConfigCacheOptIn(t *testing.T) {
-	stop := StartOpenIDConfigCacheCleaner()
-	defer stop()
+	c := newTestOpenIDConfigCache(t)
 	var requests atomic.Int32
 	var unavailable atomic.Bool
 	issuer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -38,14 +40,14 @@ func TestOpenIDConfigCacheOptIn(t *testing.T) {
 			t.Fatalf("default discovery did not fetch each time: %v, %v", cfg, err)
 		}
 	}
-	openIDConfigs.mu.RLock()
-	_, cached := openIDConfigs.configs[issuer.URL]
-	openIDConfigs.mu.RUnlock()
+	c.mu.RLock()
+	_, cached := c.configs[issuer.URL]
+	c.mu.RUnlock()
 	if cached {
 		t.Fatal("default discovery populated the cache")
 	}
 
-	enabled := TokenintrospectionOptions{EnableOpenIDConfigCache: true}
+	enabled := TokenintrospectionOptions{OpenIDConfigCache: c}
 	want, err := getOpenIDConfig(issuer.URL, enabled)
 	if err != nil || want.Issuer != "discovery-3" {
 		t.Fatalf("enabled discovery did not fetch: %v, %v", want, err)
@@ -53,7 +55,7 @@ func TestOpenIDConfigCacheOptIn(t *testing.T) {
 	var disabled *openIDConfig
 	var disabledErr error
 	done := make(chan struct{})
-	openIDConfigs.mu.Lock()
+	c.mu.Lock()
 	go func() {
 		disabled, disabledErr = getOpenIDConfig(issuer.URL, TokenintrospectionOptions{})
 		close(done)
@@ -61,12 +63,12 @@ func TestOpenIDConfigCacheOptIn(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		openIDConfigs.mu.Unlock()
+		c.mu.Unlock()
 		<-done
-		t.Fatal("disabled discovery waited for the global cache lock")
+		t.Fatal("disabled discovery waited for the cache lock")
 	}
-	retained := openIDConfigs.configs[issuer.URL]
-	openIDConfigs.mu.Unlock()
+	retained := c.configs[issuer.URL]
+	c.mu.Unlock()
 	if disabledErr != nil || disabled == want || disabled.Issuer != "discovery-4" {
 		t.Fatalf("disabled discovery reused a cached entry: %v, %v", disabled, disabledErr)
 	}
@@ -87,7 +89,7 @@ func TestOpenIDConfigCacheOptIn(t *testing.T) {
 }
 
 func TestOpenIDConfigCacheHitAndClear(t *testing.T) {
-	c := newTestOpenIDConfigCache()
+	c := newTestOpenIDConfigCache(t)
 	var requests atomic.Int32
 	var version atomic.Int32
 	version.Store(1)
@@ -152,7 +154,7 @@ func TestOpenIDConfigCacheFailures(t *testing.T) {
 		{name: "body timeout", status: 200, body: `{"issuer":`, stall: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			c := newTestOpenIDConfigCache()
+			c := newTestOpenIDConfigCache(t)
 			var requests atomic.Int32
 			var recovered atomic.Bool
 			issuer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +189,7 @@ func TestOpenIDConfigCacheFailures(t *testing.T) {
 		})
 	}
 	t.Run("invalid URL", func(t *testing.T) {
-		c := newTestOpenIDConfigCache()
+		c := newTestOpenIDConfigCache(t)
 		if _, err := c.get("://invalid", TokenintrospectionOptions{}); err == nil || len(c.configs) != 0 {
 			t.Fatal("invalid URL must fail without caching")
 		}
@@ -195,7 +197,7 @@ func TestOpenIDConfigCacheFailures(t *testing.T) {
 }
 
 func TestOpenIDConfigCacheConcurrentFill(t *testing.T) {
-	c := newTestOpenIDConfigCache()
+	c := newTestOpenIDConfigCache(t)
 	var requests atomic.Int32
 	entered := make(chan struct{}, 1)
 	release := make(chan struct{})
@@ -228,7 +230,7 @@ func TestOpenIDConfigCacheConcurrentFill(t *testing.T) {
 	<-entered
 	if c.mu.TryRLock() {
 		c.mu.RUnlock()
-		t.Error("discovery request did not hold the global write lock")
+		t.Error("discovery request did not hold the cache write lock")
 	}
 	close(release)
 	wg.Wait()
@@ -248,7 +250,7 @@ func TestOpenIDConfigCacheConcurrentFill(t *testing.T) {
 }
 
 func TestOpenIDConfigCacheRecheckAfterMiss(t *testing.T) {
-	c := newTestOpenIDConfigCache()
+	c := newTestOpenIDConfigCache(t)
 	var requests atomic.Int32
 	issuer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
@@ -297,9 +299,7 @@ func TestOpenIDConfigCacheRecheckAfterMiss(t *testing.T) {
 }
 
 func TestOpenIDConfigCacheClearDuringDecode(t *testing.T) {
-	c := newTestOpenIDConfigCache()
-	stop := c.startCleaner()
-	defer stop()
+	c := newTestOpenIDConfigCache(t)
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	issuer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -320,15 +320,13 @@ func TestOpenIDConfigCacheClearDuringDecode(t *testing.T) {
 	<-entered
 	if c.mu.TryRLock() {
 		c.mu.RUnlock()
-		t.Error("decode did not hold the global write lock")
+		t.Error("decode did not hold the cache write lock")
 	}
 	cleared := make(chan struct{})
 	go func() {
 		c.clear()
 		close(cleared)
 	}()
-	// Cleaner teardown must not need the discovery lock when no tick is due.
-	stop()
 	close(release)
 	<-fetched
 	<-cleared
@@ -337,115 +335,128 @@ func TestOpenIDConfigCacheClearDuringDecode(t *testing.T) {
 	}
 }
 
-func TestOpenIDConfigCacheCleanerShutdownDuringMiss(t *testing.T) {
-	c := newTestOpenIDConfigCache()
-	entered := make(chan struct{})
-	release := make(chan struct{})
+func TestOpenIDConfigCacheIsolation(t *testing.T) {
+	first := newTestOpenIDConfigCache(t)
+	second := newTestOpenIDConfigCache(t)
+	var requests atomic.Int32
 	issuer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		close(entered)
-		<-release
-		fmt.Fprint(w, `{}`)
+		fmt.Fprintf(w, `{"issuer":"discovery-%d"}`, requests.Add(1))
 	}))
 	defer issuer.Close()
-	fetched := make(chan struct{})
+	firstOptions := TokenintrospectionOptions{OpenIDConfigCache: first}
+	secondOptions := TokenintrospectionOptions{OpenIDConfigCache: second}
+	firstConfig, err := getOpenIDConfig(issuer.URL, firstOptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondConfig, err := getOpenIDConfig(issuer.URL, secondOptions)
+	if err != nil || firstConfig == secondConfig || secondConfig.Issuer != "discovery-2" {
+		t.Fatalf("separate instances shared discovery: %v, %v", secondConfig, err)
+	}
+	if cfg, err := getOpenIDConfig(issuer.URL, firstOptions); err != nil || cfg != firstConfig {
+		t.Fatalf("shared instance lost its cached discovery: %v, %v", cfg, err)
+	}
+	first.clear()
+	if cfg, err := getOpenIDConfig(issuer.URL, secondOptions); err != nil || cfg != secondConfig {
+		t.Fatalf("clearing one instance affected another: %v, %v", cfg, err)
+	}
+	if cfg, err := getOpenIDConfig(issuer.URL, firstOptions); err != nil || cfg == firstConfig || cfg.Issuer != "discovery-3" {
+		t.Fatalf("cleared instance did not rediscover: %v, %v", cfg, err)
+	}
+
+	first.mu.Lock()
+	done := make(chan struct{})
 	go func() {
-		defer close(fetched)
-		if _, err := c.get(issuer.URL, TokenintrospectionOptions{Timeout: 5 * time.Second}); err != nil {
+		defer close(done)
+		if _, err := getOpenIDConfig(issuer.URL+"/other", secondOptions); err != nil {
 			t.Error(err)
 		}
 	}()
-	<-entered
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		first.mu.Unlock()
+		<-done
+		t.Fatal("a blocked instance prevented discovery in another")
+	}
+	first.mu.Unlock()
+	if got := requests.Load(); got != 4 {
+		t.Fatalf("got %d discovery requests, want 4", got)
+	}
+}
 
-	// Keep real network I/O outside the fake clock's bubble.
+func TestOpenIDConfigCacheCloseConcurrent(t *testing.T) {
+	noleak.Check(t)
 	synctest.Test(t, func(t *testing.T) {
-		stop := c.startCleaner()
-		defer stop()
-		synctest.Wait()
-		time.Sleep(time.Hour)
-		stopped := make(chan struct{})
-		go func() {
-			stop()
-			close(stopped)
-		}()
-		close(release)
-		<-fetched
-		<-stopped
-		select {
-		case <-c.done:
-		default:
-			t.Fatal("shutdown did not join the cleaner after an in-flight miss")
+		c := NewOpenIDConfigCache()
+		defer c.Close()
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for range 32 {
+			wg.Go(func() {
+				<-start
+				c.Close()
+				select {
+				case <-c.done:
+				default:
+					t.Error("Close returned without joining the cleaner")
+				}
+			})
 		}
+		close(start)
+		wg.Wait()
+		c.Close()
 	})
 }
 
 func TestOpenIDConfigCacheCleaner(t *testing.T) {
 	noleak.Check(t)
 	synctest.Test(t, func(t *testing.T) {
-		c := newTestOpenIDConfigCache()
-		put := func(key string) {
+		first := NewOpenIDConfigCache()
+		defer first.Close()
+		second := NewOpenIDConfigCache()
+		defer second.Close()
+		put := func(c *OpenIDConfigCache, key string) {
 			c.mu.Lock()
 			defer c.mu.Unlock()
 			c.configs[key] = &openIDConfig{}
 		}
-		size := func() int {
+		size := func(c *OpenIDConfigCache) int {
 			c.mu.RLock()
 			defer c.mu.RUnlock()
 			return len(c.configs)
 		}
-		stopFirst := c.startCleaner()
-		defer stopFirst()
-		done := c.done
-		stopSecond := c.startCleaner()
-		defer stopSecond()
-		if c.done != done || c.owners != 2 {
-			t.Fatal("overlapping owners started multiple cleaners")
-		}
 		synctest.Wait()
-		put("first")
+		put(first, "first")
+		put(second, "second")
 		time.Sleep(time.Hour - time.Second)
 		synctest.Wait()
-		if size() != 1 {
+		if size(first) != 1 || size(second) != 1 {
 			t.Fatal("cache cleared before the hourly tick")
 		}
-		put("just inserted")
+		put(first, "just inserted")
 		time.Sleep(time.Second)
 		synctest.Wait()
-		if size() != 0 {
-			t.Fatal("hourly tick did not clear the whole map")
+		if size(first) != 0 || size(second) != 0 {
+			t.Fatal("hourly tick did not clear each instance's whole map")
 		}
-		stopFirst()
-		stopFirst()
-		if c.owners != 1 {
-			t.Fatal("stop was not idempotent")
-		}
-		put("remaining owner")
-		time.Sleep(time.Hour)
-		synctest.Wait()
-		if size() != 0 {
-			t.Fatal("first owner stopped the shared cleaner")
-		}
-		put("retained after stop")
-		stopSecond()
+		put(first, "retained after close")
+		first.Close()
+		first.Close()
 		select {
-		case <-done:
+		case <-first.done:
 		default:
-			t.Fatal("last owner did not join the cleaner")
+			t.Fatal("Close did not join the cleaner")
 		}
+		put(second, "still running")
 		time.Sleep(2 * time.Hour)
-		if size() != 1 {
-			t.Fatal("stop cleared the cache or left the cleaner running")
-		}
-		stopRestarted := c.startCleaner()
-		defer stopRestarted()
-		if c.done == done {
-			t.Fatal("cleaner did not restart")
-		}
 		synctest.Wait()
-		time.Sleep(time.Hour)
-		synctest.Wait()
-		if size() != 0 {
-			t.Fatal("restarted cleaner did not clear the map")
+		if size(first) != 1 {
+			t.Fatal("Close cleared the cache or left its cleaner running")
 		}
-		stopRestarted()
+		if size(second) != 0 {
+			t.Fatal("closing one instance stopped another instance's cleaner")
+		}
+		second.Close()
 	})
 }

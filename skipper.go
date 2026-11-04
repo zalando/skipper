@@ -1922,9 +1922,10 @@ func getRemoteURLShardAddrUpdater(address string) func() ([]string, error) {
 }
 
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
+	var openIDConfigCache *auth.OpenIDConfigCache
 	if o.EnableOpenIDConfigCache {
-		stopDiscoveryCleaner := auth.StartOpenIDConfigCacheCleaner()
-		defer stopDiscoveryCleaner()
+		openIDConfigCache = auth.NewOpenIDConfigCache()
+		defer openIDConfigCache.Close()
 	}
 
 	// init log
@@ -2168,7 +2169,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	tio := auth.TokenintrospectionOptions{
-		EnableOpenIDConfigCache:     o.EnableOpenIDConfigCache,
+		OpenIDConfigCache:           openIDConfigCache,
 		Timeout:                     o.OAuthTokenintrospectionTimeout,
 		MaxIdleConns:                o.IdleConnectionsPerHost,
 		Tracer:                      tracer,

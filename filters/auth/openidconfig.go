@@ -10,27 +10,38 @@ import (
 	"github.com/zalando/skipper/net"
 )
 
-type openIDConfigCache struct {
+// OpenIDConfigCache shares successful discovery documents by exact issuer URL.
+// Instances must be constructed with NewOpenIDConfigCache.
+type OpenIDConfigCache struct {
 	mu      sync.RWMutex
 	configs map[string]*openIDConfig
 
-	cleanerMu sync.Mutex
-	owners    int
+	closeOnce sync.Once
 	quit      chan struct{}
 	done      chan struct{}
 }
 
-var openIDConfigs = &openIDConfigCache{configs: make(map[string]*openIDConfig)}
+// NewOpenIDConfigCache creates an isolated discovery cache and starts its hourly
+// whole-map cleaner. The owner must Close it after its users and routes tear down.
+func NewOpenIDConfigCache() *OpenIDConfigCache {
+	c := &OpenIDConfigCache{
+		configs: make(map[string]*openIDConfig),
+		quit:    make(chan struct{}),
+		done:    make(chan struct{}),
+	}
+	go c.clean()
+	return c
+}
 
 func getOpenIDConfig(issuerURL string, options TokenintrospectionOptions) (*openIDConfig, error) {
-	if !options.EnableOpenIDConfigCache {
+	if options.OpenIDConfigCache == nil {
 		return fetchOpenIDConfig(issuerURL, options)
 	}
-	return openIDConfigs.get(issuerURL, options)
+	return options.OpenIDConfigCache.get(issuerURL, options)
 }
 
 // Cached discovery documents are shared and must remain read-only.
-func (c *openIDConfigCache) get(issuerURL string, options TokenintrospectionOptions) (*openIDConfig, error) {
+func (c *OpenIDConfigCache) get(issuerURL string, options TokenintrospectionOptions) (*openIDConfig, error) {
 	c.mu.RLock()
 	cfg, ok := c.configs[issuerURL]
 	c.mu.RUnlock()
@@ -40,7 +51,7 @@ func (c *openIDConfigCache) get(issuerURL string, options TokenintrospectionOpti
 	return c.load(issuerURL, options)
 }
 
-func (c *openIDConfigCache) load(issuerURL string, options TokenintrospectionOptions) (*openIDConfig, error) {
+func (c *OpenIDConfigCache) load(issuerURL string, options TokenintrospectionOptions) (*openIDConfig, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if cfg, ok := c.configs[issuerURL]; ok {
@@ -79,48 +90,21 @@ func fetchOpenIDConfig(issuerURL string, options TokenintrospectionOptions) (*op
 	return &decoded, nil
 }
 
-func (c *openIDConfigCache) clear() {
+func (c *OpenIDConfigCache) clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.configs = make(map[string]*openIDConfig)
 }
 
-// StartOpenIDConfigCacheCleaner starts hourly whole-map discovery cleanup.
-// All owners share one cleaner. The returned idempotent function releases the
-// owner; the last release stops the ticker and waits for the cleaner to exit.
-// Library owners enabling TokenintrospectionOptions.EnableOpenIDConfigCache
-// must acquire a cleaner and release it after routing teardown. Constructors
-// do not start it; without an owner, enabled discovery caching has no automatic
-// clearing. Disabled discovery bypasses the cache and does not need a cleaner.
-func StartOpenIDConfigCacheCleaner() func() {
-	return openIDConfigs.startCleaner()
+// Close stops the hourly cleaner and waits for it to exit. It is idempotent and
+// safe for concurrent callers. The owner must tear down all users and routes
+// before closing the cache.
+func (c *OpenIDConfigCache) Close() {
+	c.closeOnce.Do(func() { close(c.quit) })
+	<-c.done
 }
 
-func (c *openIDConfigCache) startCleaner() func() {
-	c.cleanerMu.Lock()
-	defer c.cleanerMu.Unlock()
-	if c.owners == 0 {
-		c.quit = make(chan struct{})
-		c.done = make(chan struct{})
-		go c.clean()
-	}
-	c.owners++
-
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			c.cleanerMu.Lock()
-			defer c.cleanerMu.Unlock()
-			c.owners--
-			if c.owners == 0 {
-				close(c.quit)
-				<-c.done
-			}
-		})
-	}
-}
-
-func (c *openIDConfigCache) clean() {
+func (c *OpenIDConfigCache) clean() {
 	ticker := time.NewTicker(time.Hour)
 	defer close(c.done)
 	defer ticker.Stop()

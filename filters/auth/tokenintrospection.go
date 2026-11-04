@@ -40,9 +40,9 @@ type TokenintrospectionOptions struct {
 	Tracer       opentracing.Tracer
 	MaxIdleConns int
 
-	// EnableOpenIDConfigCache opts into shared discovery caching, disabled by default.
-	// Library owners must also acquire and release StartOpenIDConfigCacheCleaner.
-	EnableOpenIDConfigCache bool
+	// OpenIDConfigCache optionally shares discovery documents among filter specs.
+	// Nil disables caching. The owner must close it after its users and routes tear down.
+	OpenIDConfigCache *OpenIDConfigCache
 
 	// OpenTracingClientTraceByTag instead of events use span Tags
 	// to measure client connection pool actions
