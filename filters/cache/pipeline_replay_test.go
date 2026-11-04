@@ -154,3 +154,65 @@ func TestProxy_CacheReplayRequiresOriginal(t *testing.T) {
 		}
 	}
 }
+
+func newReplayProxy(t *testing.T, route *eskip.Route, extra ...filters.Spec) *proxytest.TestProxy {
+	t.Helper()
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, Metrics: &metricstest.MockMetrics{}})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	registry := make(filters.Registry)
+	registry.Register(spec)
+	for _, s := range extra {
+		registry.Register(s)
+	}
+	p := proxytest.WithParams(registry, skipperproxy.Params{Flags: skipperproxy.PreserveOriginal}, route)
+	t.Cleanup(func() { p.Close() })
+	for _, f := range spec.(*cacheSpec).filters {
+		f.listenAddr = strings.TrimPrefix(p.URL, "http://")
+	}
+	return p
+}
+
+func TestProxy_CacheReplayHonoursFilterAddedAuthorization(t *testing.T) {
+	var calls atomic.Int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Cache-Control", "max-age=60")
+		fmt.Fprintf(w, "private:%s", r.Header.Get("Authorization"))
+	}))
+	defer backend.Close()
+	p := newReplayProxy(t, &eskip.Route{
+		Id: "auth", Path: "/resource", Backend: backend.URL,
+		Filters: []*eskip.Filter{
+			{Name: "copyRequestHeader", Args: []any{"X-User-Token", "Authorization"}},
+			{Name: Name},
+		},
+	}, builtin.NewCopyRequestHeader())
+
+	get := func(token string) string {
+		t.Helper()
+		req, err := http.NewRequest(http.MethodGet, p.URL+"/resource", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("X-User-Token", token)
+		rsp, err := p.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsp.Body.Close()
+		body, err := io.ReadAll(rsp.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(body)
+	}
+
+	for _, token := range []string{"A", "B"} {
+		if got, want := get(token), "private:"+token; got != want {
+			t.Fatalf("token %s got %q want %q", token, got, want)
+		}
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("origin calls=%d want=2: credential-specific response was shared", calls.Load())
+	}
+}

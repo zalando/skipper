@@ -610,6 +610,10 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		return
 	}
 
+	// The stored response is judged against the filtered request's credentials;
+	// a replayed original lacks headers that earlier filters added.
+	decisionReq := &http.Request{Header: ctx.Request().Header.Clone()}
+
 	waitStart := time.Now()
 	ch := f.coldSF.DoChan(key, func() (any, error) {
 		// Capture any existing stale-if-error eligible entry before fetching, so that a
@@ -637,7 +641,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		}
 
 		directives := parseCacheControl(resp.Header)
-		ttl, shouldStore := f.storeDecision(req, resp.StatusCode, resp.Header, directives)
+		ttl, shouldStore := f.storeDecision(decisionReq, resp.StatusCode, resp.Header, directives)
 		swr := f.resolveSWR(resp.StatusCode, directives)
 		cia := correctedInitialAge(requestTime, responseTime, resp.Header)
 		coalescedHeader := resp.Header.Clone()
