@@ -3,6 +3,7 @@ package cache
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -34,10 +35,16 @@ const (
 	stateBagRequestTime = "cache:request-time"
 	stateBagNoStore     = "cache:no-store"
 	stateBagRevalidate  = "cache:revalidate"
+	stateBagCapture     = "cache:replay-capture"
 
 	// revalidateHeader is set on background revalidation requests so the cache
 	// filter skips the cache lookup and lets the response populate a fresh entry.
 	revalidateHeader = "X-Cache-Revalidate"
+
+	// replayCaptureHeader carries an unguessable token on cold-miss replays so the
+	// inner pipeline can hand back the response as it stood at the cache() position,
+	// before response filters ahead of cache() run; the outer request applies those.
+	replayCaptureHeader = "X-Cache-Replay-Capture"
 
 	// X-Cache-Status header values.
 	cacheStatusHeader = "X-Cache-Status"
@@ -372,6 +379,7 @@ type cacheFilter struct {
 	// false: operator ttl/errorTTL/swrWindow are authoritative (force mode).
 	rfcMode   bool
 	coldSF    singleflight.Group // cold-miss coalescing
+	replays   sync.Map           // replay capture token -> *replayCapture
 	revalSF   singleflight.Group // coalesces concurrent background revalidations per key
 	revalJobs chan revalJob      // shared background revalidation queue from cacheSpec
 	ctx       context.Context    // cancelled when cacheSpec shuts down
@@ -429,9 +437,14 @@ func (f *cacheFilter) Request(ctx filters.FilterContext) {
 
 	// Revalidation requests bypass the cache lookup so Response() can store a
 	// fresh entry. Strip the header so it never reaches the upstream.
+	captureToken := ctx.Request().Header.Get(replayCaptureHeader)
+	ctx.Request().Header.Del(replayCaptureHeader)
 	if ctx.Request().Header.Get(revalidateHeader) != "" {
 		ctx.Request().Header.Del(revalidateHeader)
 		ctx.StateBag()[stateBagRevalidate] = true
+		if captureToken != "" {
+			ctx.StateBag()[stateBagCapture] = captureToken
+		}
 		return
 	}
 
@@ -629,7 +642,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		}
 
 		requestTime := time.Now()
-		resp, err := f.fetch(req)
+		resp, err := f.fetchRepresentation(req)
 		if err != nil {
 			return nil, err
 		}
@@ -717,7 +730,7 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 				p.IncCacheResult("coalesce_bypass", "n/a")
 			}
 			// Unlike the shared leader, this fetch serves only the current waiter.
-			resp, err := f.fetch(req.Clone(ctx.Request().Context()))
+			resp, err := f.fetchRepresentation(req.Clone(ctx.Request().Context()))
 			if err != nil {
 				f.metrics.IncCounter("cache.coalesce_bypass_error")
 				if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
@@ -800,6 +813,10 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 	// Hit or stale path: already served from cache in Request(); nothing to do.
 	if ctx.Served() {
 		return
+	}
+
+	if token, _ := ctx.StateBag()[stateBagCapture].(string); token != "" {
+		f.captureReplay(token, rsp)
 	}
 
 	// RFC 9111 §4.4: invalidate cached entry on successful unsafe method.
@@ -974,9 +991,66 @@ func (f *cacheFilter) prepareDispatch(source *http.Request, backendURL, outgoing
 	} else {
 		req.URL.Scheme, req.URL.Host = "http", f.listenAddr
 		req.Header.Set(revalidateHeader, "1")
+		req.Header.Del(replayCaptureHeader)
 	}
 	req.RequestURI = ""
 	return req, nil
+}
+
+type replayCapture struct {
+	mu  sync.Mutex
+	rsp *http.Response
+}
+
+// fetchRepresentation fetches req. For a pipeline replay it returns the response
+// captured at the cache() position instead of the fully filtered one, so
+// response filters ahead of cache() are not applied twice and are not stored.
+func (f *cacheFilter) fetchRepresentation(req *http.Request) (*http.Response, error) {
+	if req.Header.Get(revalidateHeader) == "" {
+		return f.fetch(req)
+	}
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return f.fetch(req)
+	}
+	token := hex.EncodeToString(raw[:])
+	capture := &replayCapture{}
+	f.replays.Store(token, capture)
+	defer f.replays.Delete(token)
+
+	req.Header.Set(replayCaptureHeader, token)
+	resp, err := f.fetch(req)
+	if err != nil {
+		return nil, err
+	}
+	capture.mu.Lock()
+	defer capture.mu.Unlock()
+	if capture.rsp == nil {
+		return resp, nil
+	}
+	resp.Body.Close()
+	return capture.rsp, nil
+}
+
+func (f *cacheFilter) captureReplay(token string, rsp *http.Response) {
+	v, ok := f.replays.Load(token)
+	if !ok {
+		return
+	}
+	body, err := io.ReadAll(rsp.Body)
+	rsp.Body.Close()
+	rsp.Body = io.NopCloser(bytes.NewReader(body))
+	if err != nil {
+		return
+	}
+	capture := v.(*replayCapture)
+	capture.mu.Lock()
+	defer capture.mu.Unlock()
+	capture.rsp = &http.Response{
+		StatusCode: rsp.StatusCode,
+		Header:     rsp.Header.Clone(),
+		Body:       io.NopCloser(bytes.NewReader(body)),
+	}
 }
 
 // revalidationRequest returns the request to replay for background revalidation.

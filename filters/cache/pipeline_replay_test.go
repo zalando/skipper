@@ -14,6 +14,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/filters/sed"
 	"github.com/zalando/skipper/metrics/metricstest"
 	skipperproxy "github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -214,5 +215,40 @@ func TestProxy_CacheReplayHonoursFilterAddedAuthorization(t *testing.T) {
 	}
 	if calls.Load() != 2 {
 		t.Fatalf("origin calls=%d want=2: credential-specific response was shared", calls.Load())
+	}
+}
+
+func TestProxy_CacheReplayAppliesResponseFiltersOnce(t *testing.T) {
+	var calls atomic.Int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Cache-Control", "public, max-age=60")
+		io.WriteString(w, "a")
+	}))
+	defer backend.Close()
+	p := newReplayProxy(t, &eskip.Route{
+		Id: "transform", Path: "/resource", Backend: backend.URL,
+		Filters: []*eskip.Filter{
+			{Name: "sed", Args: []any{"a", "aa"}},
+			{Name: Name},
+		},
+	}, sed.New())
+
+	for _, want := range []string{cacheStatusMiss, cacheStatusHit} {
+		rsp, err := p.Client().Get(p.URL + "/resource")
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(rsp.Body)
+		rsp.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := rsp.Header.Get(cacheStatusHeader); got != want || string(body) != "aa" {
+			t.Fatalf("cache=%s body=%q want cache=%s body=%q", got, body, want, "aa")
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("origin calls=%d want=1", calls.Load())
 	}
 }
