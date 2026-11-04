@@ -445,6 +445,9 @@ var (
 		"Transfer-Encoding":   true,
 		"Upgrade":             true,
 	}
+	ignoreUserAgentMap = map[string]struct{}{
+		"ELB-HealthChecker/2.0": {},
+	}
 )
 
 // When set, the proxy will skip the TLS verification on outgoing requests.
@@ -1655,7 +1658,9 @@ func (p *Proxy) serveResponse(ctx *context) {
 		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
 		p.metrics.MeasureResponseSize(ctx.metricsHost(), n)
 	}
-	p.metrics.MeasureServe(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.startServe)
+	if _, ok := ignoreUserAgentMap[ctx.request.UserAgent()]; !ok {
+		p.metrics.MeasureServe(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.startServe)
+	}
 }
 
 func (p *Proxy) errorResponse(ctx *context, err error) {
@@ -1751,13 +1756,15 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	_, _ = copyStream(ctx.responseWriter, ctx.response.Body)
 	responseStopWatch.Start()
 
-	p.metrics.MeasureServe(
-		id,
-		ctx.metricsHost(),
-		ctx.request.Method,
-		ctx.response.StatusCode,
-		ctx.startServe,
-	)
+	if _, ok := ignoreUserAgentMap[ctx.request.UserAgent()]; !ok {
+		p.metrics.MeasureServe(
+			id,
+			ctx.metricsHost(),
+			ctx.request.Method,
+			ctx.response.StatusCode,
+			ctx.startServe,
+		)
+	}
 }
 
 // strip port from addresses with hostname, ipv4 or ipv6
