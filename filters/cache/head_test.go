@@ -286,3 +286,67 @@ func TestProxy_CacheHEADErrorDoesNotReplaceGETRepresentation(t *testing.T) {
 		t.Fatalf("origin calls=%d want=2: HEAD error was stored as the GET representation", calls.Load())
 	}
 }
+
+func TestProxy_CacheHEADErrorKeepsExpiredRetainedGET(t *testing.T) {
+	var gets atomic.Int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		gets.Add(1)
+		w.Header().Set("Content-Length", "7")
+		io.WriteString(w, "payload")
+	}))
+	defer backend.Close()
+	p, spec := newReplayProxyWithSpec(t, &eskip.Route{
+		Id: "head-retained", Path: "/resource", Backend: backend.URL,
+		Filters: []*eskip.Filter{{Name: Name, Args: []any{"1m", "15s", "1s", "1h"}}},
+	})
+	do := func(method string) (int, string) {
+		t.Helper()
+		req, err := http.NewRequest(method, p.URL+"/resource", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rsp, err := p.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(rsp.Body)
+		rsp.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rsp.StatusCode, string(body)
+	}
+
+	if status, body := do(http.MethodGet); status != http.StatusOK || body != "payload" {
+		t.Fatalf("seed status=%d body=%q", status, body)
+	}
+	req := httptest.NewRequest("GET", p.URL+"/resource", nil)
+	req.URL.Scheme = ""
+	key := cacheKey("head-retained", req, nil)
+	for _, f := range spec.filters {
+		entry, err := f.storage.Get(context.Background(), key)
+		if err != nil || entry == nil {
+			t.Fatalf("seed missing: %v", err)
+		}
+		entry.CreatedAt = time.Now().Add(-2 * time.Minute)
+		if err := f.storage.Set(context.Background(), key, entry); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if status, _ := do(http.MethodHead); status != http.StatusInternalServerError {
+		t.Fatalf("HEAD status=%d want=500", status)
+	}
+	for _, f := range spec.filters {
+		entry, err := f.storage.Get(context.Background(), key)
+		if err != nil || entry == nil || string(entry.Payload) != "payload" {
+			t.Fatalf("HEAD 500 replaced retained GET: %+v err=%v", entry, err)
+		}
+	}
+	if status, body := do(http.MethodGet); status != http.StatusOK || body != "payload" {
+		t.Fatalf("GET after HEAD 500 status=%d body=%q", status, body)
+	}
+}
