@@ -2136,9 +2136,16 @@ flowchart TD
 - `cache.coalesce_error`: Counter, singleflight cold-miss fetch returned an error
 - `cache.coalesce_bypass`: Counter, a concurrent cold-miss request's response wasn't
   storeable and no `keyHeaders`/`Vary` proof of matching identity was available, so
-  it performed its own fetch instead of reusing another request's in-flight response
+  it performed its own fetch instead of reusing another request's in-flight response.
+  A successfully served independent response carries `X-Cache-Status: MISS` and
+  contributes once to `cache.miss` and the labelled `miss` result.
 - `cache.coalesce_bypass_error`: Counter, an independent bypass fetch (see
-  `cache.coalesce_bypass`) returned an error
+  `cache.coalesce_bypass`) or its response-body read returned an error.
+  Independently fetched bodies are buffered before their upstream streams close,
+  so the response remains readable after the fetch helper returns. An incomplete
+  body is not served as a successful response. Independent follower fetches use
+  the follower's request context, so client cancellation interrupts a stalled
+  body read without cancelling the shared leader fetch.
 - `cache.coalesce_wait_duration`: Histogram, time from issuing a cold-miss singleflight
   call to the result being available — near-zero for the leader (it computes the result
   itself), the leader's real fetch time for followers waiting on it

@@ -694,7 +694,8 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 			if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
 				p.IncCacheResult("coalesce_bypass", "n/a")
 			}
-			resp, err := f.fetch(req)
+			// Unlike the shared leader, this fetch serves only the current waiter.
+			resp, err := f.fetch(req.Clone(ctx.Request().Context()))
 			if err != nil {
 				f.metrics.IncCounter("cache.coalesce_bypass_error")
 				if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
@@ -703,6 +704,21 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 				return
 			}
 			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			if err != nil || ctx.Request().Context().Err() != nil {
+				f.metrics.IncCounter("cache.coalesce_bypass_error")
+				if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+					p.IncCacheResult("coalesce_bypass_error", "n/a")
+				}
+				return
+			}
+			resp.Body = io.NopCloser(bytes.NewReader(body))
+			resp.Header.Set(cacheStatusHeader, cacheStatusMiss)
+			tagSpan(ctx, cacheStatusMiss, -1)
+			f.metrics.IncCounter("cache.miss")
+			if p, ok := f.metrics.(interface{ IncCacheResult(string, string) }); ok {
+				p.IncCacheResult("miss", statusCodeClass(resp.StatusCode))
+			}
 			ctx.Serve(headBodyOmitted(ctx.Request().Method, resp))
 			return
 		}
