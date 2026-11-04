@@ -64,6 +64,9 @@ func (f coalesceBarrierFilter) Request(ctx filters.FilterContext) {
 	ctx.SetOutgoingHost("virtual.origin.example")
 	req := ctx.Request()
 	req = req.WithContext(&coalesceBarrierContext{Context: req.Context(), joined: f.joined})
+	if req.Method == http.MethodHead {
+		req.Context().Done()
+	}
 	f.Filter.Request(dispatchContext{FilterContext: ctx, req: req})
 }
 

@@ -4189,6 +4189,9 @@ fetches count toward `cache.reval_backend_dispatch`; direct-dispatched cold-miss
 
 Unsafe methods (`POST`, `PUT`, `DELETE`, `PATCH`) invalidate the cached entry on
 success. `HEAD 200` freshens stored headers without replacing the body.
+HEAD cache misses use ordinary proxy HEAD handling, not cold-miss coalescing,
+and never create a bodyless GET entry. HEAD-triggered background refreshes are
+skipped; a subsequent GET can refresh the complete representation.
 
 Parameters:
 
