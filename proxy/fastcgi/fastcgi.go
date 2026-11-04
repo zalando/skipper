@@ -40,6 +40,9 @@ func NewRoundTripper(log logging.Logger, addr, filename string) (*RoundTripper, 
 				// Gofast sets this param to `fastcgi` which is not what the backend will expect.
 				delete(req.Params, "REQUEST_SCHEME")
 
+				// A client supplied Proxy header must not become HTTP_PROXY, see https://httpoxy.org.
+				delete(req.Params, "HTTP_PROXY")
+
 				return handler(client, req)
 			}
 		},
