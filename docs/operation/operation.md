@@ -2143,7 +2143,9 @@ flowchart TD
   `cache.coalesce_bypass`) or its response-body read returned an error.
   Independently fetched bodies are buffered before their upstream streams close,
   so the response remains readable after the fetch helper returns. An incomplete
-  body is not served as a successful response.
+  body is not served as a successful response. Independent follower fetches use
+  the follower's request context, so client cancellation interrupts a stalled
+  body read without cancelling the shared leader fetch.
 - `cache.coalesce_wait_duration`: Histogram, time from issuing a cold-miss singleflight
   call to the result being available — near-zero for the leader (it computes the result
   itself), the leader's real fetch time for followers waiting on it
