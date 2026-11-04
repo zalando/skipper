@@ -2125,12 +2125,12 @@ flowchart TD
     C -->|cache.l2_miss| D{L2Storage}
     C -->|cache.stale hit — no l1_hit| D
     D -->|cache.l2_hit — key found| S
-    D -->|cache.l2_miss — key absent| E{Cache origin dispatch}
+    D -->|cache.l2_miss — key absent| E{Origin dispatch}
     D -->|cache.l2_get_error — error / timeout| E
-    E -->|force mode, valid static HTTP/S backend| F[Direct fetch: filtered path and outgoing Host]
-    E -->|RFC mode, dynamic or invalid backend| I{Original request preserved?}
-    I -->|yes| G[Replay original request through Skipper]
-    I -->|no| J[Ordinary cold-miss proxy handling; skip refresh]
+    E -->|static backend, force mode| F[Direct fetch]
+    E -->|otherwise| I{Original preserved?}
+    I -->|yes| G[Replay through Skipper]
+    I -->|no| J[Ordinary proxy handling]
     F --> H[Origin response]
     G --> H
     J --> H
