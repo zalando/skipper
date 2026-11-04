@@ -33,6 +33,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/net/dnstest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -2003,4 +2004,83 @@ func TestOidcConstructorsAndInternalServerError(t *testing.T) {
 			t.Fatalf("expected status 500, got %+v", ctx.FResponse)
 		}
 	})
+}
+
+func TestGetCallbackState_InvalidStateTokenMetric(t *testing.T) {
+	f, err := makeTestingFilter([]string{})
+	assert.NoError(t, err)
+
+	nonce, err := f.encrypter.CreateNonce()
+	assert.NoError(t, err)
+	validStateBytes, err := createState(nonce, testRedirectUrl)
+	assert.NoError(t, err)
+	validEnc, err := f.encrypter.Encrypt(validStateBytes)
+	assert.NoError(t, err)
+	validStateHex := fmt.Sprintf("%x", validEnc)
+
+	testCases := []struct {
+		name            string
+		stateQuery      string
+		expectErr       bool
+		expectedCounter int64
+	}{
+		{
+			name:            "valid state parameter does not increment counter",
+			stateQuery:      validStateHex,
+			expectErr:       false,
+			expectedCounter: 0,
+		},
+		{
+			name:            "missing state parameter returns error without incrementing counter",
+			stateQuery:      "",
+			expectErr:       true,
+			expectedCounter: 0,
+		},
+		{
+			name:            "invalid hex encoding returns error without incrementing counter",
+			stateQuery:      "invalid-hex-string-not-even-length",
+			expectErr:       true,
+			expectedCounter: 0,
+		},
+		{
+			name:            "invalid encrypted token increments oidc.token.invalid counter",
+			stateQuery:      "deadbeefcafebabe1234567890abcdef",
+			expectErr:       true,
+			expectedCounter: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &metricstest.MockMetrics{}
+			rawURL := "https://example.com/callback"
+			if tc.stateQuery != "" {
+				rawURL += "?state=" + tc.stateQuery
+			}
+			req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+			assert.NoError(t, err)
+
+			ctx := &filtertest.Context{
+				FRequest:  req,
+				FMetrics:  m,
+				FStateBag: make(map[string]any),
+			}
+			if tc.name == "valid state parameter does not increment counter" {
+				ctx.FStateBag[f.cookiename+"-state"] = tc.stateQuery
+			}
+
+			state, err := f.getCallbackState(ctx)
+			if tc.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, state)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, state)
+			}
+
+			m.WithCounters(func(counters map[string]int64) {
+				assert.Equal(t, tc.expectedCounter, counters[oidcInvalidTokenMetric])
+			})
+		})
+	}
 }
