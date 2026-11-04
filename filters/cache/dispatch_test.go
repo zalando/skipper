@@ -393,6 +393,7 @@ func TestCacheFilter_DispatchWildcardNotStored(t *testing.T) {
 				FRequest:    httptest.NewRequest("GET", "http://client.example/item", nil),
 				FBackendUrl: backend, FStateBag: make(map[string]any),
 			}
+			ctx.FOriginalRequest = ctx.FRequest
 			var calls int
 			f.fetch = func(*http.Request) (*http.Response, error) {
 				calls++

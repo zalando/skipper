@@ -86,9 +86,10 @@ func newCtx(method, rawURL string, authHeader string) *filtertest.Context {
 		req.Header.Set("Authorization", authHeader)
 	}
 	return &filtertest.Context{
-		FRequest:  req,
-		FStateBag: make(map[string]any),
-		FMetrics:  &metricstest.MockMetrics{},
+		FRequest:         req,
+		FOriginalRequest: req,
+		FStateBag:        make(map[string]any),
+		FMetrics:         &metricstest.MockMetrics{},
 	}
 }
 
@@ -1290,10 +1291,11 @@ func TestCacheFilter_Revalidation_LBBackendFallsBackToLoopback(t *testing.T) {
 
 		newStaleCtx := func() *filtertest.Context {
 			return &filtertest.Context{
-				FRequest:    req,
-				FBackendUrl: "", // load-balanced/dynamic backend: no single URL
-				FStateBag:   make(map[string]any),
-				FMetrics:    &metricstest.MockMetrics{},
+				FRequest:         req,
+				FBackendUrl:      "", // load-balanced/dynamic backend: no single URL
+				FOriginalRequest: req,
+				FStateBag:        make(map[string]any),
+				FMetrics:         &metricstest.MockMetrics{},
 			}
 		}
 
@@ -1340,10 +1342,11 @@ func TestCacheFilter_Revalidation_RFCMode_StaleServedAndRevalidated(t *testing.T
 		req, _ := http.NewRequest("GET", "http://backend.example/spaces/abc/entries", nil)
 		newStaleCtx := func() *filtertest.Context {
 			return &filtertest.Context{
-				FRequest:    req,
-				FBackendUrl: "https://origin.example", // present, but RFC mode must ignore it
-				FStateBag:   make(map[string]any),
-				FMetrics:    &metricstest.MockMetrics{},
+				FRequest:         req,
+				FBackendUrl:      "https://origin.example", // present, but RFC mode must ignore it
+				FOriginalRequest: req,
+				FStateBag:        make(map[string]any),
+				FMetrics:         &metricstest.MockMetrics{},
 			}
 		}
 

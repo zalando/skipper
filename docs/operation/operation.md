@@ -2120,9 +2120,12 @@ flowchart TD
     D -->|cache.l2_miss — key absent| E{Cache origin dispatch}
     D -->|cache.l2_get_error — error / timeout| E
     E -->|force mode, valid static HTTP/S backend| F[Direct fetch: filtered path and outgoing Host]
-    E -->|RFC mode, dynamic or invalid backend| G[Replay original request through Skipper]
+    E -->|RFC mode, dynamic or invalid backend| I{Original request preserved?}
+    I -->|yes| G[Replay original request through Skipper]
+    I -->|no| J[Ordinary cold-miss proxy handling; skip refresh]
     F --> H[Origin response]
     G --> H
+    J --> H
     H -->|write back: Set warms L2 + L1<br/>min TTL: cache-l1-ttl vs entry.TTL| S
 ```
 
@@ -2168,7 +2171,8 @@ flowchart TD
 - `cache.reval_queue_depth`: Gauge, current number of pending revalidation jobs in the queue (sampled every 10s)
 - `cache.reval_wait_duration`: Histogram, time a revalidation job spent waiting in the queue before the worker picked it up
 - `cache.reval_dropped`: Counter, revalidation jobs dropped because the queue was full,
-  body read failed, or a HEAD request cannot refresh a complete GET representation
+  body read failed, a HEAD request cannot refresh a complete GET representation,
+  or original routing inputs are unavailable for pipeline replay
 - `cache.reval_error`: Counter, background revalidation preparation or fetch
   failures, or an invalid backend URL required pipeline fallback
 - `cache.reval_duration`: Histogram, end-to-end duration of each background revalidation job
@@ -2185,6 +2189,15 @@ and proxy-specific transport/TLS customization. It uses a separate HTTP client
 with system trust and its existing redirect/compression behavior; it does not
 imply full proxy-executor equivalence. Required request/response filters must be
 positioned before `cache()` as described in the filter reference.
+
+RFC/dynamic pipeline coalescing and background refresh require
+`--proxy-preserve-original` (`proxy.PreserveOriginal` programmatically).
+Without it, cold misses follow the ordinary proxy and Response stores the result;
+warm hits still work. Unavailable pipeline refreshes are logged and counted as
+`cache.reval_dropped`, leaving the existing stale representation untouched.
+HEAD misses also use ordinary proxy processing, preserve HEAD-specific routing,
+and freshen only metadata of an existing GET entry. HEAD-triggered refreshes are
+logged and dropped; a later GET can refresh the full representation.
 
 **L2 (if Valkey or Redis is configured):**
 

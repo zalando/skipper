@@ -599,6 +599,10 @@ func (f *cacheFilter) coalesce(ctx filters.FilterContext, key string) {
 		return
 	}
 	source, backendURL, outgoingHost := f.requestDispatch(ctx, "cache.coalesce_error")
+	if source == nil {
+		log.Warn("cache: original request unavailable for cold-miss replay, using ordinary proxy handling")
+		return
+	}
 	req, err := f.prepareDispatch(source, backendURL, outgoingHost)
 	if err != nil {
 		f.metrics.IncCounter("cache.coalesce_error")
@@ -979,13 +983,10 @@ func (f *cacheFilter) prepareDispatch(source *http.Request, backendURL, outgoing
 // on it; replaying the already-mutated request can no longer match the route that
 // produced that mutation, so revalidation permanently fails with a routing error
 // and a stale entry (e.g. a cached error) never gets refreshed.
-// ctx.OriginalRequest() can be nil per its interface contract, so fall back to
-// ctx.Request() rather than passing nil into enqueueRevalidation.
+// A nil OriginalRequest means replay is unavailable: callers must use ordinary
+// proxy handling or skip background work, never replay the transformed request.
 func revalidationRequest(ctx filters.FilterContext) *http.Request {
-	if orig := ctx.OriginalRequest(); orig != nil {
-		return orig
-	}
-	return ctx.Request()
+	return ctx.OriginalRequest()
 }
 
 // enqueueRevalidation sends a revalidation job to the background worker.
@@ -996,6 +997,11 @@ func revalidationRequest(ctx filters.FilterContext) *http.Request {
 // If the queue is full the job is dropped and reval_dropped is incremented.
 // The closure captures f.doRevalidate so the spec-level worker respects this route's config.
 func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request, backendURL, outgoingHost string) {
+	if orig == nil {
+		f.metrics.IncCounter("cache.reval_dropped")
+		log.Warn("cache: original request unavailable, skipping pipeline refresh")
+		return
+	}
 	if orig.Method == http.MethodHead {
 		f.metrics.IncCounter("cache.reval_dropped")
 		log.Warn("cache: skipping HEAD refresh to preserve the stored GET representation")
@@ -1029,6 +1035,11 @@ func (f *cacheFilter) enqueueRevalidation(key string, orig *http.Request, backen
 // loops back through skipper's own listener (f.listenAddr), which is counted
 // normally.
 func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL, outgoingHost string) {
+	if req == nil {
+		f.metrics.IncCounter("cache.reval_dropped")
+		log.Warn("cache: original request unavailable, skipping pipeline refresh")
+		return
+	}
 	if req.Method == http.MethodHead {
 		f.metrics.IncCounter("cache.reval_dropped")
 		log.Warn("cache: skipping HEAD refresh to preserve the stored GET representation")
