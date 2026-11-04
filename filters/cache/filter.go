@@ -788,8 +788,12 @@ func (f *cacheFilter) Response(ctx filters.FilterContext) {
 
 	// RFC 9111 §4.3.5: HEAD 200 freshens the stored GET entry's headers.
 	// This block runs before ctx.Served() so freshening happens even when
-	// Request() already served the HEAD from cache.
-	if ctx.Request().Method == http.MethodHead && rsp.StatusCode == http.StatusOK {
+	// Request() already served the HEAD from cache. Any other HEAD response is
+	// bodyless and must never create or replace the shared GET representation.
+	if ctx.Request().Method == http.MethodHead {
+		if rsp.StatusCode != http.StatusOK {
+			return
+		}
 		if stored, err := f.storage.Get(ctx.Request().Context(), key); err == nil && stored != nil {
 			for k, vv := range rsp.Header {
 				if bodyRelatedHeaders[k] {

@@ -252,3 +252,37 @@ func TestCacheFilter_HEADRefreshSkipped(t *testing.T) {
 		t.Fatal("skipped refresh mutated request")
 	}
 }
+
+func TestProxy_CacheHEADErrorDoesNotReplaceGETRepresentation(t *testing.T) {
+	var calls atomic.Int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Length", "7")
+		w.WriteHeader(http.StatusNotFound)
+		io.WriteString(w, "missing")
+	}))
+	defer backend.Close()
+	p := newReplayProxy(t, &eskip.Route{
+		Id: "head-error", Path: "/resource", Backend: backend.URL,
+		Filters: []*eskip.Filter{{Name: Name, Args: []any{"1m", "15s", "1s"}}},
+	})
+
+	for _, method := range []string{http.MethodHead, http.MethodGet} {
+		req, err := http.NewRequest(method, p.URL+"/resource", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rsp, err := p.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, readErr := io.ReadAll(rsp.Body)
+		rsp.Body.Close()
+		if method == http.MethodGet && (readErr != nil || string(body) != "missing" || rsp.Header.Get(cacheStatusHeader) == cacheStatusHit) {
+			t.Fatalf("GET after HEAD error: cache=%s body=%q err=%v", rsp.Header.Get(cacheStatusHeader), body, readErr)
+		}
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("origin calls=%d want=2: HEAD error was stored as the GET representation", calls.Load())
+	}
+}
