@@ -4185,6 +4185,9 @@ phase; pipeline background refreshes are logged and skipped rather than replay
 a rewritten request. Warm hits still work, but stale entries are refreshed only
 when a later ordinary miss reaches the origin. Static force-mode direct dispatch
 does not require original preservation.
+On a cold miss that replays the pipeline, response filters placed before `cache()`
+run once: the stored response is the one seen at the `cache()` position, not the
+fully filtered replay response.
 Invalid backend URLs are logged and counted as `cache.coalesce_error` or
 `cache.reval_error`. RFC-mode fetches always replay the pipeline so response
 filters can determine cache policy. Direct-dispatched cold-miss and revalidation
@@ -4195,7 +4198,8 @@ fetches count toward `cache.reval_backend_dispatch`; direct-dispatched cold-miss
 [operation guide](../operation/operation.md#cache).
 
 Unsafe methods (`POST`, `PUT`, `DELETE`, `PATCH`) invalidate the cached entry on
-success. `HEAD 200` freshens stored headers without replacing the body.
+success. `HEAD 200` freshens stored headers without replacing the body; any other
+HEAD response never creates or replaces the stored GET entry.
 HEAD cache misses use ordinary proxy HEAD handling, not cold-miss coalescing,
 and never create a bodyless GET entry. HEAD-triggered background refreshes are
 skipped; a subsequent GET can refresh the complete representation.
@@ -4297,7 +4301,9 @@ matching the same key. It has no awareness of other filters in the chain.
   an `Authorization` header and the upstream does not respond with
   `Cache-Control: public` or `must-revalidate`, the response is not stored
   (RFC 9111 §3.5) — this guard is unconditional, not RFC-mode-only, unless
-  `Authorization` is already in `keyHeaders`. Use force mode, add `Authorization`
+  `Authorization` is already in `keyHeaders`. The check applies to the request
+  after earlier filters ran, so an `Authorization` header added by an earlier
+  filter counts as well, including on cold-miss replays. Use force mode, add `Authorization`
   to `keyHeaders`, or ensure the upstream sets `Cache-Control: public` if you
   want authenticated responses cached.
 * **`Cache-Control: private` is ignored in force mode.** Audit the upstream

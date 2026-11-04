@@ -2092,6 +2092,14 @@ different routes are not coalesced even if they target the same upstream URL, be
 route ID is part of the cache key. This protection is also process-local: a fleet of N
 instances may still issue up to N simultaneous origin requests on a cold miss.
 
+Cold-miss replay through the process's own listener requires `--proxy-preserve-original`;
+without it ordinary proxy handling is used. The replay is judged by the credentials of the
+filtered request: a response to a request carrying an `Authorization` header, including one
+added by an earlier filter, is not stored or shared unless it is `public`/`must-revalidate` or
+`Authorization` is in `keyHeaders` (RFC 9111 §3.5). Response filters placed before `cache()`
+apply once on cold misses. HEAD requests other than `200` freshening never create or replace
+the stored GET entry.
+
 The L1 memory budget defaults to 25% of the container's cgroup memory limit,
 falling back to 2 GB if the limit is unreadable. Override with
 `--cache-l1-max-memory-bytes` (or programmatically via `skipper.Options.ResponseCacheMaxMemoryBytes`).
