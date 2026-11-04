@@ -2238,6 +2238,8 @@ oauthOidcAnyClaims("https://oidc-provider.example.com",
 
 When using `secretRef:`, Skipper expects the referenced secret to be available via the configured secrets reader; if the secret cannot be resolved, filter creation fails.
 
+A client secret given as `secretRef:` is looked up again for every token exchange, so a rotated secret is used without recreating the filter or restarting Skipper. If the secret cannot be read at that time, the last known value is used. The client ID is resolved only once, when the filter is created.
+
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
