@@ -247,7 +247,6 @@ type Config struct {
 	Oauth2AuthURLParameters            mapFlags      `yaml:"oauth2-auth-url-parameters"`
 	Oauth2CallbackPath                 string        `yaml:"oauth2-callback-path"`
 	Oauth2TokenintrospectionTimeout    time.Duration `yaml:"oauth2-tokenintrospect-timeout"`
-	EnableOpenIDConfigCache            bool          `yaml:"enable-openid-config-cache"`
 	Oauth2AccessTokenHeaderName        string        `yaml:"oauth2-access-token-header-name"`
 	Oauth2TokeninfoSubjectKey          string        `yaml:"oauth2-tokeninfo-subject-key"`
 	Oauth2GrantTokeninfoKeys           *listFlag     `yaml:"oauth2-grant-tokeninfo-keys"`
@@ -654,7 +653,6 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.Oauth2TokeninfoCacheSize, "oauth2-tokeninfo-cache-size", 0, "non-zero value enables tokeninfo cache and sets the maximum number of cached tokens")
 	flag.DurationVar(&cfg.Oauth2TokeninfoCacheTTL, "oauth2-tokeninfo-cache-ttl", 0, "non-zero value limits the lifetime of a cached tokeninfo which otherwise equals the tokeninfo 'expires_in' field value")
 	flag.DurationVar(&cfg.Oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", 2*time.Second, "sets the default tokenintrospection request timeout duration to 2000ms")
-	flag.BoolVar(&cfg.EnableOpenIDConfigCache, "enable-openid-config-cache", false, "enables shared OpenID discovery caching for JWT validation and token introspection filters, cleared hourly; does not cache tokens or JWKS")
 	flag.Var(&cfg.Oauth2AuthURLParameters, "oauth2-auth-url-parameters", "sets additional parameters to send when calling the OAuth2 authorize or token endpoints as key-value pairs")
 	flag.StringVar(&cfg.Oauth2AccessTokenHeaderName, "oauth2-access-token-header-name", "", "sets the access token to a header on the request with this name")
 	flag.StringVar(&cfg.Oauth2TokeninfoSubjectKey, "oauth2-tokeninfo-subject-key", "uid", "sets the tokeninfo subject key")
@@ -1194,7 +1192,6 @@ func (c *Config) ToOptions() skipper.Options {
 		OAuth2ClientSecretFile:             c.Oauth2ClientSecretFile,
 		OAuth2CallbackPath:                 c.Oauth2CallbackPath,
 		OAuthTokenintrospectionTimeout:     c.Oauth2TokenintrospectionTimeout,
-		EnableOpenIDConfigCache:            c.EnableOpenIDConfigCache,
 		OAuth2AuthURLParameters:            c.Oauth2AuthURLParameters.values,
 		OAuth2AccessTokenHeaderName:        c.Oauth2AccessTokenHeaderName,
 		OAuth2TokeninfoSubjectKey:          c.Oauth2TokeninfoSubjectKey,

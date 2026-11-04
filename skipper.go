@@ -1057,10 +1057,6 @@ type Options struct {
 	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
 	OAuthTokenintrospectionTimeout time.Duration
 
-	// EnableOpenIDConfigCache opts into shared discovery caching for jwtValidation
-	// and token introspection filters. Disabled by default; does not cache tokens or JWKS.
-	EnableOpenIDConfigCache bool
-
 	// OAuth2AuthURLParameters the additional parameters to send to OAuth2 authorize and token endpoints.
 	OAuth2AuthURLParameters map[string]string
 
@@ -1922,12 +1918,6 @@ func getRemoteURLShardAddrUpdater(address string) func() ([]string, error) {
 }
 
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
-	var openIDConfigCache *auth.OpenIDConfigCache
-	if o.EnableOpenIDConfigCache {
-		openIDConfigCache = auth.NewOpenIDConfigCache()
-		defer openIDConfigCache.Close()
-	}
-
 	// init log
 	accessLogger, err := initLog(o)
 	if err != nil {
@@ -2167,6 +2157,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			),
 		)
 	}
+
+	openIDConfigCache := auth.NewOpenIDConfigCache()
+	defer openIDConfigCache.Close()
 
 	tio := auth.TokenintrospectionOptions{
 		OpenIDConfigCache:           openIDConfigCache,

@@ -219,42 +219,16 @@ Example response from the openid-configuration endpoint:
 Additionally, you can also pass CLI argument
 -oauth2-tokenintrospect-timeout=<OAuthTokenintrospectTimeout> to control the
 default timeout duration for OAuth validation and OpenID provider
-configuration requests. The CLI default is 2s; library discovery requests with
-zero or negative TokenintrospectionOptions.Timeout use 3s.
+configuration requests. The default tokenintrospect timeout is 2s.
 
-OpenID discovery caching is opt-in and disabled by default. Enable it with
--enable-openid-config-cache, the YAML key enable-openid-config-cache: true, or
-skipper.Options.EnableOpenIDConfigCache. Library filter owners opt in by
-constructing a NewOpenIDConfigCache and injecting it through
-TokenintrospectionOptions.OpenIDConfigCache. A nil cache fetches discovery on
-every filter creation, bypassing cached entries and cache locking even when
-other callers in the process use a cache.
-This switch does not cache token responses or change JWKS caching.
+OpenID discovery caching is enabled by default in Skipper. The jwtValidation and
+token introspection filters reuse successful discovery documents. The cache is
+cleared once an hour. Cached documents can allow route updates during an issuer
+outage; after a clear, discovery must succeed again.
 
-JWT validation and all eight token introspection variants using the same cache
-instance share successful OpenID discovery documents by exact issuer URL,
-including paths and trailing slashes. Cache hits during route creation send no
-discovery request, so warm routing rebuilds can succeed during an issuer outage.
-Discovery misses hold that cache's write lock through the bounded request and
-JSON decode, blocking its other misses and hits. Failures are not cached.
-
-Only when enabled, each Skipper run constructs one cache shared by its JWT and
-token introspection specs. Each constructed cache has its own hourly cleaner
-that replaces its whole discovery map. This is not a per-entry TTL or background
-discovery refresh: a document inserted just before a tick can be removed
-immediately. After a clear, an issuer outage can again invalidate routes and
-cost one timeout per filter creation. There is no
-stale backup or entry limit. JWKS and introspection-client caching are unchanged;
-rediscovery does not replace an existing introspection client's endpoint.
-The oauthOidc* filters use separate discovery and do not share this cache.
-
-NewOpenIDConfigCache starts the instance's cleaner. Independent library owners
-can share that instance among their filter specs; separately constructed
-instances have isolated discovery maps, locks, and cleaners. The owner must tear
-down all users and routes before calling Close. Close is idempotent and safe for
-concurrent callers; it stops the ticker and joins the cleaner. There is no
-reference counting or package-global discovery cache. Skipper closes its cache
-after routing teardown. Nil-cache callers do not need a cleaner.
+For library use, create a cache with NewOpenIDConfigCache and pass it through
+TokenintrospectionOptions.OpenIDConfigCache. A nil cache disables caching. Call
+Close after all routes stop using the cache.
 
 All oauthTokenintrospection* filters will work on the tokenintrospect response.
 
