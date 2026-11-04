@@ -4185,7 +4185,7 @@ phase; pipeline background refreshes are logged and skipped rather than replay
 a rewritten request. Warm hits still work, but stale entries are refreshed only
 when a later ordinary miss reaches the origin. Static force-mode direct dispatch
 does not require original preservation.
-On a cold miss that replays the pipeline, response filters placed before `cache()`
+On a cold miss or background refresh that replays the pipeline, response filters placed before `cache()`
 run once: the stored response is the one seen at the `cache()` position, not the
 fully filtered replay response.
 Invalid backend URLs are logged and counted as `cache.coalesce_error` or

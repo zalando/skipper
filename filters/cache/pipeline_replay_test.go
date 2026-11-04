@@ -382,3 +382,68 @@ func TestProxy_CacheReplayConcurrentCredentialsStayIsolated(t *testing.T) {
 		})
 	}
 }
+
+func TestProxy_CacheRefreshAppliesResponseFiltersOnce(t *testing.T) {
+	var calls atomic.Int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=3600")
+		io.WriteString(w, "a")
+	}))
+	defer backend.Close()
+	p, spec := newReplayProxyWithSpec(t, &eskip.Route{
+		Id: "refresh", Path: "/resource", Backend: backend.URL,
+		Filters: []*eskip.Filter{
+			{Name: "sed", Args: []any{"a", "aa"}},
+			{Name: Name},
+		},
+	}, sed.New())
+
+	get := func(wantStatus string) {
+		t.Helper()
+		rsp, err := p.Client().Get(p.URL + "/resource")
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(rsp.Body)
+		rsp.Body.Close()
+		if got := rsp.Header.Get(cacheStatusHeader); err != nil || got != wantStatus || string(body) != "aa" {
+			t.Fatalf("cache=%s body=%q err=%v want cache=%s body=aa", got, body, err, wantStatus)
+		}
+	}
+
+	get(cacheStatusMiss)
+
+	req := httptest.NewRequest("GET", p.URL+"/resource", nil)
+	req.URL.Scheme = ""
+	key := cacheKey("refresh", req, nil)
+	done := make(chan struct{})
+	for _, f := range spec.filters {
+		entry, err := f.storage.Get(context.Background(), key)
+		if err != nil || entry == nil {
+			t.Fatalf("entry missing: %v", err)
+		}
+		entry.CreatedAt = time.Now().Add(-2 * time.Minute)
+		if err := f.storage.Set(context.Background(), key, entry); err != nil {
+			t.Fatal(err)
+		}
+		fetch := f.fetch
+		f.fetch = func(r *http.Request) (*http.Response, error) {
+			resp, err := fetch(r)
+			if err == nil {
+				resp.Body = refreshCompletionBody{ReadCloser: resp.Body, done: done}
+			}
+			return resp, err
+		}
+	}
+	get(cacheStatusStale)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("refresh did not complete")
+	}
+	get(cacheStatusHit)
+	if calls.Load() != 2 {
+		t.Fatalf("origin calls=%d want=2", calls.Load())
+	}
+}

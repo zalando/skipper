@@ -1148,7 +1148,7 @@ func (f *cacheFilter) doRevalidate(key string, req *http.Request, backendURL, ou
 		}
 
 		requestTime := time.Now()
-		resp, err := f.fetch(req)
+		resp, err := f.fetchRepresentation(req)
 		if err != nil {
 			f.metrics.IncCounter("cache.reval_error")
 			log.WithFields(log.Fields{

@@ -376,6 +376,7 @@ func TestCacheFilter_DispatchParity(t *testing.T) {
 				t.Fatalf("fetches = %d, want 2", len(requests))
 			}
 			requests[0].Header.Del(replayCaptureHeader)
+			requests[1].Header.Del(replayCaptureHeader)
 			if !reflect.DeepEqual(requests[0], requests[1]) {
 				t.Fatalf("cold miss and revalidation dispatch differ:\n%+v\n%+v", requests[0], requests[1])
 			}
