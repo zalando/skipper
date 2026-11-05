@@ -16,6 +16,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1034,8 +1035,7 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 	filterTracing := p.tracing.startFilterTracing("response_filters", ctx)
 	defer filterTracing.finish()
 
-	for i := len(filters) - 1; i >= 0; i-- {
-		fi := filters[i]
+	for _, fi := range slices.Backward(filters) {
 		start := time.Now()
 		filterTracing.logStart(fi.Name)
 		ctx.setMetricsPrefix(fi.Name)
@@ -1865,6 +1865,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				RequestTime:  ctx.startServe,
 				Duration:     time.Since(ctx.startServe),
 				AuthUser:     authUser,
+				Application:  ctx.application,
 			}
 
 			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]any)

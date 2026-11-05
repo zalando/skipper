@@ -15,9 +15,9 @@ import (
 	logFilter "github.com/zalando/skipper/filters/log"
 )
 
-const logOutput = `127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`
-const logJSONOutput = `{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
-const logExtendedJSONOutput = `{"audit":"","auth-user":"","duration":42,"extra":"extra","flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
+const logOutput = `127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - - -`
+const logJSONOutput = `{"application":"","audit":"","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
+const logExtendedJSONOutput = `{"application":"","audit":"","auth-user":"","duration":42,"extra":"extra","flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
 
 type accessCustomFormatter struct{}
 type accessLogContextKey struct{}
@@ -162,7 +162,7 @@ func TestAccessLogFormatJSONWithMaskedQueryParameters(t *testing.T) {
 	testAccessLogExtended(t,
 		testAccessEntryWithQueryParameters(params),
 		additional,
-		`{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif?foo=5234164152756840025","user-agent":""}`,
+		`{"application":"","audit":"","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif?foo=5234164152756840025","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -183,7 +183,7 @@ func TestAccessLogDefaultWithAdditionalData(t *testing.T) {
 		t.Fatal("masked query data was not removed from the supplemental map")
 	}
 
-	const want = `127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif?foo=5234164152756840025 HTTP/1.1" 201 10 "-" "-" 42 example.com - -` + "\n"
+	const want = `127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif?foo=5234164152756840025 HTTP/1.1" 201 10 "-" "-" 42 example.com - - -` + "\n"
 	if got := buf.String(); got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -214,7 +214,7 @@ func TestNoPanicOnMissingRequest(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`- - - [10/Oct/2000:13:55:36 -0700] "- - -" 418 2326 "-" "-" 42 - - -`,
+		`- - - [10/Oct/2000:13:55:36 -0700] "- - -" 418 2326 "-" "-" 42 - - - -`,
 	)
 }
 
@@ -224,7 +224,7 @@ func TestUseXForwarded(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+		`192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - - -`,
 	)
 }
 
@@ -234,7 +234,7 @@ func TestUseXForwardedList(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`192.168.3.3, 192.168.4.4 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+		`192.168.3.3, 192.168.4.4 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - - -`,
 	)
 }
 
@@ -244,7 +244,7 @@ func TestUseXForwardedListLiteral(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`192.168.3.3, 192.168.4.4 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+		`192.168.3.3, 192.168.4.4 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - - -`,
 	)
 }
 
@@ -254,7 +254,7 @@ func TestUseXForwardedJSON(t *testing.T) {
 	testAccessLog(
 		t,
 		entry,
-		`{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"application":"","audit":"","auth-user":"","duration":42,"flow-id":"","host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -265,7 +265,7 @@ func TestPortFwd4(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+		`192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - - -`,
 	)
 }
 
@@ -275,7 +275,7 @@ func TestPortFwd4LogPoisoning(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+		`192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - - -`,
 	)
 }
 
@@ -285,7 +285,7 @@ func TestPortFwd6LogPoisoning(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`2001:db8:85a3:8d3:1319:8a2e:370:7348 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+		`2001:db8:85a3:8d3:1319:8a2e:370:7348 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - - -`,
 	)
 }
 
@@ -294,7 +294,7 @@ func TestPortFwd4JSON(t *testing.T) {
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:6969")
 	testAccessLog(
 		t, entry,
-		`{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"application":"","audit":"","auth-user":"","duration":42,"flow-id":"","host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -305,7 +305,7 @@ func TestStripPortNoFwd4(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+		`192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - - -`,
 	)
 }
 
@@ -315,7 +315,7 @@ func TestMissingHostFallback(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`- - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+		`- - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - - -`,
 	)
 }
 
@@ -325,7 +325,7 @@ func TestMissingHostFallbackJSON(t *testing.T) {
 	testAccessLog(
 		t,
 		entry,
-		`{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"application":"","audit":"","auth-user":"","duration":42,"flow-id":"","host":"","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -336,7 +336,7 @@ func TestPresentFlowId(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com sometestflowid -`)
+		`127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com sometestflowid - -`)
 }
 
 func TestPresentFlowIdJSON(t *testing.T) {
@@ -345,7 +345,7 @@ func TestPresentFlowIdJSON(t *testing.T) {
 	testAccessLog(
 		t,
 		entry,
-		`{"audit":"","auth-user":"","duration":42,"flow-id":"sometestflowid","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"application":"","audit":"","auth-user":"","duration":42,"flow-id":"sometestflowid","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -356,7 +356,7 @@ func TestPresentAuthUser(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`127.0.0.1 - jsmith [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`)
+		`127.0.0.1 - jsmith [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - - -`)
 }
 
 func TestPresentAuthUserJSON(t *testing.T) {
@@ -365,7 +365,7 @@ func TestPresentAuthUserJSON(t *testing.T) {
 	testAccessLog(
 		t,
 		entry,
-		`{"audit":"","auth-user":"jsmith","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"application":"","audit":"","auth-user":"jsmith","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -376,7 +376,7 @@ func TestPresentAudit(t *testing.T) {
 	testAccessLogDefault(
 		t,
 		entry,
-		`127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - c4ddfe9d-a0d3-4afb-bf26-24b9588731a0`,
+		`127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - c4ddfe9d-a0d3-4afb-bf26-24b9588731a0 -`,
 	)
 }
 
@@ -386,7 +386,7 @@ func TestPresentAuditJSON(t *testing.T) {
 	testAccessLog(
 		t,
 		entry,
-		`{"audit":"c4ddfe9d-a0d3-4afb-bf26-24b9588731a0","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"application":"","audit":"c4ddfe9d-a0d3-4afb-bf26-24b9588731a0","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -403,7 +403,7 @@ func TestPresentAuditJSONWithCustomFormatter(t *testing.T) {
 	testAccessLog(
 		t,
 		entry,
-		`{"audit":"c4ddfe9d-a0d3-4afb-bf26-24b9588731a0","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","method":"GET","my_level":"info","my_message":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"application":"","audit":"c4ddfe9d-a0d3-4afb-bf26-24b9588731a0","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","method":"GET","my_level":"info","my_message":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true, AccessLogJsonFormatter: jsonFormatter},
 	)
 }
@@ -412,4 +412,25 @@ func TestAccessLogStripQuery(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.RequestURI += "?foo=bar"
 	testAccessLog(t, entry, logOutput, Options{AccessLogStripQuery: true})
+}
+
+func TestPresentApplicationText(t *testing.T) {
+	entry := testAccessEntry()
+	entry.Application = "my-service"
+	testAccessLogDefault(
+		t,
+		entry,
+		`127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - - my-service`,
+	)
+}
+
+func TestPresentApplicationJSON(t *testing.T) {
+	entry := testAccessEntry()
+	entry.Application = "my-service"
+	testAccessLog(
+		t,
+		entry,
+		`{"application":"my-service","audit":"","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		Options{AccessLogJSONEnabled: true},
+	)
 }

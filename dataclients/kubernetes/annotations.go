@@ -17,7 +17,7 @@ type AnnotationFilters struct {
 	Filters []*eskip.Filter
 }
 
-const applicationAnnotationKey = "Application"
+const applicationAnnotationKey = eskip.ApplicationAnnotationKey
 
 func appendAnnotationPredicates(annotationPredicates []AnnotationPredicates, annotations map[string]string, r *eskip.Route) {
 	for _, ap := range annotationPredicates {

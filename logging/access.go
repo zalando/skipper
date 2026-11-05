@@ -23,8 +23,8 @@ const (
 	// format:
 	// remote_host - - [date] "method uri protocol" status response_size "referer" "user_agent"
 	combinedLogFormat = commonLogFormat + ` "%s" "%s"`
-	// We add the duration in ms, a requested host and a flow id and audit log
-	accessLogFormat = combinedLogFormat + " %d %s %s %s\n"
+	// We add the duration in ms, a requested host, a flow id, audit log and application id
+	accessLogFormat = combinedLogFormat + " %d %s %s %s %s\n"
 )
 
 type accessLogFormatter struct {
@@ -34,23 +34,26 @@ type accessLogFormatter struct {
 // AccessEntry is the access log entry.
 type AccessEntry struct {
 
-	// The client request.
+	// Request from the client.
 	Request *http.Request
 
-	// The status code of the response.
+	// StatusCode of the response.
 	StatusCode int
 
-	// The size of the response in bytes.
+	// ResponseSize in bytes.
 	ResponseSize int64
 
-	// The time spent processing request.
+	// Duration spent processing the request.
 	Duration time.Duration
 
-	// The time that the request was received.
+	// RequestTime that the request was received.
 	RequestTime time.Time
 
-	// The id of the authenticated user
+	// AuthUser id of the authenticated user
 	AuthUser string
+
+	// Application id of the route
+	Application string
 }
 
 type AccessLogger struct {
@@ -105,7 +108,7 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	keys := []string{
 		"host", "auth-user", "timestamp", "method", "uri", "proto",
 		"status", "response-size", "referer", "user-agent",
-		"duration", "requested-host", "flow-id", "audit"}
+		"duration", "requested-host", "flow-id", "audit", "application"}
 
 	values := make([]any, len(keys))
 	for i, key := range keys {
@@ -170,6 +173,7 @@ func (alog *AccessLogger) LogAccess(entry *AccessEntry, additional map[string]an
 	responseSize := entry.ResponseSize
 	duration := int64(entry.Duration / time.Millisecond)
 	authUser := entry.AuthUser
+	application := entry.Application
 
 	if entry.Request != nil {
 		host = remoteHost(entry.Request)
@@ -207,6 +211,7 @@ func (alog *AccessLogger) LogAccess(entry *AccessEntry, additional map[string]an
 			omitWhitespace(requestedHost),
 			omitWhitespace(flowID),
 			omitWhitespace(auditHeader),
+			omitWhitespace(application),
 		)
 		if entry.Request != nil {
 			alog.log.WithContext(entry.Request.Context()).Info(message)
@@ -231,6 +236,7 @@ func (alog *AccessLogger) LogAccess(entry *AccessEntry, additional map[string]an
 		"flow-id":        flowID,
 		"audit":          auditHeader,
 		"auth-user":      authUser,
+		"application":    application,
 	}
 
 	delete(additional, al.KeyMaskedQueryParams)
