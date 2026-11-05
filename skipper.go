@@ -2938,8 +2938,8 @@ func initialValkeyAddressUpdate(valkeyOptions *skpnet.ValkeyOptions, dc routing.
 	)
 	N := 12
 	for i := range N {
-		log.Infof("%d attempt -> %d", i, len(a))
 		a, err = valkeyOptions.AddrUpdater()
+		log.Infof("%d attempt -> %d", i, len(a))
 		if err != nil {
 			log.Errorf("Failed to update valkey addresses: %v", err)
 			return err
