@@ -72,6 +72,15 @@ build.darwin: ## build osx binary for amd64
 build.windows: ## build windows binary for amd64
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
+build.linux.amd64.awsnitro: ## build linux amd64 binary with AWS Nitro Enclave TLS support (requires CGO and awsnitro build tag)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -tags awsnitro -o bin/skipper-awsnitro-linux-amd64 -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+
+# arm64 cross-compilation with cgo requires aarch64-linux-gnu-gcc (e.g. gcc-aarch64-linux-gnu package)
+build.linux.arm64.awsnitro: ## build linux arm64 binary with AWS Nitro Enclave TLS support (requires CGO, awsnitro build tag, and aarch64-linux-gnu-gcc cross-compiler)
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc go build -tags awsnitro -o bin/skipper-awsnitro-linux-arm64 -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+
+build.awsnitro: build.linux.amd64.awsnitro build.linux.arm64.awsnitro ## build all AWS Nitro Enclave TLS variants
+
 .PHONY: install
 install: $(SOURCES) ## install skipper and eskip binaries into your system
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper

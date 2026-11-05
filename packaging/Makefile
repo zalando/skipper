@@ -55,6 +55,12 @@ docker.build.arm64: clean build.linux.arm64 docker.build.enable
 docker.build.armv7: clean build.linux.armv7 docker.build.enable
 	docker buildx build -t $(ARM_IMAGE) --platform linux/arm/v7 -f Dockerfile.armv7 --load .
 
+docker.build.awsnitro: docker.build.enable
+	docker buildx build -t $(REGISTRY)/skipper-awsnitro:$(VERSION) --platform linux/amd64 \
+		-f Dockerfile.awsnitro \
+		--build-arg TARGETPLATFORM=linux/amd64 \
+		--load .
+
 docker-push: docker.push.amd64 docker.push.arm64 docker.push.armv7
 docker.push.amd64:
 	docker push $(IMAGE)

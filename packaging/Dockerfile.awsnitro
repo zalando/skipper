@@ -1,0 +1,12 @@
+ARG BASE_IMAGE=registry.opensource.zalan.do/library/alpine-3:latest
+FROM ${BASE_IMAGE}
+
+# p11-kit provides the PKCS#11 client module (p11-kit-client.so) required for
+# the vsock bridge between the skipper process and the ACM Nitro Enclave.
+RUN apk --no-cache add ca-certificates p11-kit && update-ca-certificates
+
+ARG TARGETPLATFORM=linux/amd64
+ADD build/${TARGETPLATFORM}/skipper /usr/bin/skipper
+
+EXPOSE 9090 9911
+CMD ["/usr/bin/skipper"]

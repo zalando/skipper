@@ -52,6 +52,10 @@ type Config struct {
 	DebugListener                         string         `yaml:"debug-listener"`
 	CertPathTLS                           string         `yaml:"tls-cert"`
 	KeyPathTLS                            string         `yaml:"tls-key"`
+	NitroACMModule                        string         `yaml:"nitro-acm-module"`
+	NitroACMTokenLabel                    string         `yaml:"nitro-acm-token-label"`
+	NitroACMPin                           string         `yaml:"nitro-acm-pin"`
+	NitroCertFile                         string         `yaml:"nitro-acm-cert-file"`
 	StatusChecks                          *listFlag      `yaml:"status-checks"`
 	PrintVersion                          bool           `yaml:"version"`
 	MaxLoopbacks                          int            `yaml:"max-loopbacks"`
@@ -472,6 +476,10 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.DebugListener, "debug-listener", "", "when this address is set, skipper starts an additional listener returning the original and transformed requests")
 	flag.StringVar(&cfg.CertPathTLS, "tls-cert", "", "the path on the local filesystem to the certificate file(s) (including any intermediates), multiple may be given comma separated")
 	flag.StringVar(&cfg.KeyPathTLS, "tls-key", "", "the path on the local filesystem to the certificate's private key file(s), multiple keys may be given comma separated - the order must match the certs")
+	flag.StringVar(&cfg.NitroACMModule, "nitro-acm-module", "", "path to the PKCS#11 shared library for AWS ACM for Nitro Enclaves (e.g. /usr/lib64/pkcs11/p11-kit-client.so); requires awsnitro build tag")
+	flag.StringVar(&cfg.NitroACMTokenLabel, "nitro-acm-token-label", "", "PKCS#11 token label assigned by nitro-enclaves-acm")
+	flag.StringVar(&cfg.NitroACMPin, "nitro-acm-pin", "", "PKCS#11 PIN for the ACM token (usually empty)")
+	flag.StringVar(&cfg.NitroCertFile, "nitro-acm-cert-file", "", "path to the PEM certificate chain file written by nitro-enclaves-acm (e.g. /etc/nitro_enclaves/acm.cert.pem)")
 	flag.Var(cfg.StatusChecks, "status-checks", "experimental URLs to check before reporting healthy on startup")
 	flag.BoolVar(&cfg.PrintVersion, "version", false, "print Skipper version")
 	flag.IntVar(&cfg.MaxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks")
@@ -1023,6 +1031,10 @@ func (c *Config) ToOptions() skipper.Options {
 		DebugListener:                         c.DebugListener,
 		CertPathTLS:                           c.CertPathTLS,
 		KeyPathTLS:                            c.KeyPathTLS,
+		NitroACMModule:                        c.NitroACMModule,
+		NitroACMTokenLabel:                    c.NitroACMTokenLabel,
+		NitroACMPin:                           c.NitroACMPin,
+		NitroCertFile:                         c.NitroCertFile,
 		TLSClientAuth:                         c.TLSClientAuth,
 		TLSMinVersion:                         c.getMinTLSVersion(),
 		CipherSuites:                          c.filterCipherSuites(),

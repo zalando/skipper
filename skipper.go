@@ -31,6 +31,7 @@ import (
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/zalando/skipper/aws/nitro"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/routestring"
@@ -839,6 +840,23 @@ type Options struct {
 	// CipherSuites sets the list of cipher suites to use for TLS 1.2
 	CipherSuites []uint16
 
+	// NitroACMModule is the filesystem path to the PKCS#11 shared library used
+	// to communicate with the ACM for Nitro Enclaves agent (e.g.
+	// /usr/lib64/pkcs11/p11-kit-client.so). When non-empty, skipper uses the
+	// Nitro Enclave for TLS private-key operations instead of a local key file.
+	// Requires the awsnitro build tag and CGO_ENABLED=1.
+	NitroACMModule string
+
+	// NitroACMTokenLabel is the PKCS#11 token label assigned by nitro-enclaves-acm.
+	NitroACMTokenLabel string
+
+	// NitroACMPin is the PKCS#11 user PIN. ACM tokens typically do not need a PIN.
+	NitroACMPin string
+
+	// NitroCertFile is the path to the PEM certificate chain file written by the
+	// nitro-enclaves-acm service, typically /etc/nitro_enclaves/acm.cert.pem.
+	NitroCertFile string
+
 	// Flush interval for upgraded Proxy connections
 	BackendFlushInterval time.Duration
 
@@ -1574,6 +1592,19 @@ func (o *Options) filterRegistry() filters.Registry {
 
 func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
 	var config *tls.Config
+
+	if o.ProxyTLS == nil && o.NitroACMModule != "" {
+		nitroCfg, err := nitro.TLSConfig(nitro.Config{
+			Module:     o.NitroACMModule,
+			TokenLabel: o.NitroACMTokenLabel,
+			PIN:        o.NitroACMPin,
+			CertFile:   o.NitroCertFile,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("nitro TLS: %w", err)
+		}
+		o.ProxyTLS = nitroCfg
+	}
 
 	if o.ProxyTLS != nil {
 		return o.ProxyTLS, nil
