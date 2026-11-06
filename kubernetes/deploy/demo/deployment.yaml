@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skipper-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      application: skipper-demo
+  template:
+    metadata:
+      labels:
+        application: skipper-demo
+    spec:
+      containers:
+      - name: skipper-demo
+        image: registry.opensource.zalan.do/teapot/skipper:v0.22.170
+        args:
+          - "skipper"
+          - "-inline-routes"
+          - "* -> inlineContent(\"<body style='color: white; background-color: green;'><h1>Hello!</h1>\") -> <shunt>"
+        ports:
+        - containerPort: 9090
