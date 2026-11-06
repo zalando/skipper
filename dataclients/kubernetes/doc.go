@@ -16,6 +16,16 @@ Both Kube-ingress-aws-controller and Skipper Kubernetes are part of the larger p
 
 https://github.com/zalando-incubator/kubernetes-on-aws/
 
+# Host matching
+
+DNS hostnames from Ingress and RouteGroup resources, including East-West hosts,
+use HostAny predicates. Host specifications containing regexp characters keep
+using Host predicates. Both forms require request host normalization before
+routing: remove the port and one trailing dot, and convert to lowercase.
+The -kubernetes flag enables this automatically. Library users must install a
+net.HostPatchHandler with RemovePort, RemoteTrailingDot and ToLower enabled,
+and register host.NewAny() with routing.Options.Predicates.
+
 # Ingress shutdown by healthcheck
 
 The Kubernetes ingress client catches TERM signals when the ProvideHealthcheck option is enabled, and reports

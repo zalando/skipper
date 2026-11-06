@@ -1,5 +1,5 @@
 kube_default__myapp_ingress__example_org____myapp_service:
-  Host("^(example[.]org[.]?(:[0-9]+)?)$")
+  HostAny("example.org", "example.org.")
   -> status(502)
   -> inlineContent("no endpoints")
   -> <shunt>;

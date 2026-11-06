@@ -390,9 +390,11 @@ func (ing *ingress) addCatchAllRoutes(host string, r *eskip.Route, redirect *red
 	routes := []*eskip.Route{catchAll}
 	if ing.kubernetesEnableEastWest {
 		if ew := createEastWestRouteIng(ing.kubernetesEastWestDomain, r.Name, r.Namespace, catchAll); ew != nil {
+			setHostPredicate(ew, r.Name+"."+r.Namespace+"."+ing.kubernetesEastWestDomain)
 			routes = append(routes, ew)
 		}
 	}
+	setHostPredicate(catchAll, host)
 	if code, ok := redirect.setHostCode[host]; ok {
 		routes = append(routes, createIngressEnableHTTPSRedirect(catchAll, code))
 	}
@@ -477,13 +479,18 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters, r *certregis
 				routes = append(routes, ing.addCatchAllRoutes(host, rs[0], redirect)...)
 			}
 		}
+		for _, r := range rs {
+			setHostPredicate(r, host)
+		}
 	}
 
 	if ing.kubernetesEnableEastWest && len(routes) > 0 && len(ewIngInfo) > 0 {
 		ewroutes := make([]*eskip.Route, 0, len(routes))
 		for _, r := range routes {
 			if v, ok := ewIngInfo[r.Id]; ok {
-				ewroutes = append(ewroutes, createEastWestRouteIng(ing.kubernetesEastWestDomain, v[0], v[1], r))
+				ew := createEastWestRouteIng(ing.kubernetesEastWestDomain, v[0], v[1], r)
+				setHostPredicate(ew, v[0]+"."+v[1]+"."+ing.kubernetesEastWestDomain)
+				ewroutes = append(ewroutes, ew)
 			}
 		}
 		l := len(routes)

@@ -44,3 +44,9 @@ func (*anySpec) Create(args []any) (routing.Predicate, error) {
 func (ap *AnyPredicate) Match(r *http.Request) bool {
 	return slices.Contains(ap.hosts, r.Host)
 }
+
+// MatchHosts returns the hostnames matched exactly, without side effects.
+// The returned slice must not be modified.
+func (ap *AnyPredicate) MatchHosts() []string {
+	return ap.hosts
+}

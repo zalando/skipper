@@ -4,7 +4,7 @@ kube__redirect: Header("X-Forwarded-Proto", "http") && Weight(1000)
 
 kube_foo__qux__www_example_org____bar:
 	Header("X-Forwarded-Proto", "https") &&
-	Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") &&
+	HostAny("www.example.org", "www.example.org.") &&
 	Method("POST") &&
 	Path("/api/registered-applications")
 	&& Weight(3)
