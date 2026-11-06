@@ -3,10 +3,11 @@ package routing
 import "net/http"
 
 // An exact-host predicate must reject other hosts without side effects.
+// MatchHosts must describe the supplied predicate, not an embedded matcher.
 // Only the first custom predicate can be indexed: earlier predicates may
 // change the host or have other effects even when the leaf does not match.
 type hostKeyedPredicate interface {
-	MatchHosts() []string
+	MatchHosts(Predicate) []string
 }
 
 func (m *pathMatcher) indexHosts() {
@@ -17,7 +18,7 @@ func (m *pathMatcher) indexHosts() {
 		var hosts []string
 		if len(l.predicates) > 0 {
 			if p, ok := l.predicates[0].(hostKeyedPredicate); ok {
-				hosts = p.MatchHosts()
+				hosts = p.MatchHosts(l.predicates[0])
 			}
 		}
 		if len(hosts) == 0 {

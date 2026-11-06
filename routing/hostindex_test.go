@@ -21,6 +21,21 @@ func (s scanHostSpec) Create(args []any) (routing.Predicate, error) {
 	return struct{ routing.Predicate }{p}, err
 }
 
+type aliasHost struct{ *host.AnyPredicate }
+type aliasHostSpec struct{}
+
+func (aliasHostSpec) Name() string { return "AliasHost" }
+func (aliasHostSpec) Create(args []any) (routing.Predicate, error) {
+	p, err := host.NewAny().Create(args)
+	if err != nil {
+		return nil, err
+	}
+	return &aliasHost{p.(*host.AnyPredicate)}, nil
+}
+func (p *aliasHost) Match(req *http.Request) bool {
+	return req.Host == "alias.example.org" || p.AnyPredicate.Match(req)
+}
+
 func TestHostIndex(t *testing.T) {
 	for _, path := range []string{"", `Path("/") && `, `PathSubtree("/") && `} {
 		for _, conditions := range []string{
@@ -28,6 +43,7 @@ func TestHostIndex(t *testing.T) {
 			`HostAny("a.example.org") && Method("POST")`,
 			`HostAny("a.example.org") && Host("^b")`,
 			`Host(".*")`,
+			`AliasHost("a.example.org")`,
 		} {
 			for _, weights := range [][2]int{{0, 0}, {1, 0}, {0, 1}} {
 				for _, exactFirst := range []bool{false, true} {
@@ -37,15 +53,15 @@ func TestHostIndex(t *testing.T) {
 						defs[0], defs[1] = defs[1], defs[0]
 					}
 					h := host.NewAny()
-					indexed, err := routing.NewRoutesMatcher(&routing.Options{FilterRegistry: make(filters.Registry), Predicates: []routing.PredicateSpec{h}}, defs)
+					indexed, err := routing.NewRoutesMatcher(&routing.Options{FilterRegistry: make(filters.Registry), Predicates: []routing.PredicateSpec{h, aliasHostSpec{}}}, defs)
 					if err != nil {
 						t.Fatal(err)
 					}
-					scan, err := routing.NewRoutesMatcher(&routing.Options{FilterRegistry: make(filters.Registry), Predicates: []routing.PredicateSpec{scanHostSpec{h}}}, defs)
+					scan, err := routing.NewRoutesMatcher(&routing.Options{FilterRegistry: make(filters.Registry), Predicates: []routing.PredicateSpec{scanHostSpec{h}, scanHostSpec{aliasHostSpec{}}}}, defs)
 					if err != nil {
 						t.Fatal(err)
 					}
-					for _, hostname := range []string{"a.example.org", "svc.ns.skipper.cluster.local", "unknown", "a.example.org.", "a.example.org:80", ""} {
+					for _, hostname := range []string{"a.example.org", "alias.example.org", "svc.ns.skipper.cluster.local", "unknown", "a.example.org.", "a.example.org:80", ""} {
 						req := httptest.NewRequest("GET", "http://example.org/", nil)
 						req.Host = hostname
 						got, gp := indexed.Match(req)
