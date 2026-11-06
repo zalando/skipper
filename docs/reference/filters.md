@@ -4188,15 +4188,37 @@ SWR window's source depends on the mode: in force mode it's the
 operator-supplied `swrWindow` parameter below; in RFC mode it's the response's
 own [`stale-while-revalidate`](https://www.rfc-editor.org/rfc/rfc5861#section-3)
 `Cache-Control` directive — if the upstream never sends that directive, RFC-mode
-entries have no SWR window and simply expire at TTL. The background fetch is
-dispatched directly to the route's backend when possible (force mode with a
-static backend), otherwise it loops back through skipper's own listener; see
-`cache.reval_backend_dispatch` in the
-[operation guide](../operation/operation.md#cache) for the observability
-difference between the two.
+entries have no SWR window and simply expire at TTL. Cold-miss and background
+fetches are dispatched directly only in force mode with an absolute HTTP(S)
+backend URL containing a host. Direct dispatch preserves the already-filtered
+request path and query and uses the route's outgoing Host. Otherwise, including
+invalid backend URLs, fetches replay the original request through Skipper's own
+listener, bypassing this cache lookup so routing and filters run normally.
+Pipeline coalescing and background refresh require `--proxy-preserve-original`
+(programmatically `proxy.PreserveOriginal`). Without original preservation,
+cold misses use ordinary proxy handling and populate the cache in the response
+phase; pipeline background refreshes are logged and skipped rather than replay
+a rewritten request. Warm hits still work, but stale entries are refreshed only
+when a later ordinary miss reaches the origin. Static force-mode direct dispatch
+does not require original preservation.
+On a cold miss or background refresh that replays the pipeline, response filters placed before `cache()`
+run once: the stored response is the one seen at the `cache()` position, not the
+fully filtered replay response.
+Invalid backend URLs are logged and counted as `cache.coalesce_error` or
+`cache.reval_error`. RFC-mode fetches always replay the pipeline so response
+filters can determine cache policy. Direct-dispatched cold-miss and revalidation
+origin requests bypass Skipper's proxy pipeline and are invisible to
+`MeasureBackend*` metrics and the access log. Only background revalidation
+fetches count toward `cache.reval_backend_dispatch`; direct-dispatched cold-miss
+(coalesced) fetches have no dedicated counter. See the
+[operation guide](../operation/operation.md#cache).
 
 Unsafe methods (`POST`, `PUT`, `DELETE`, `PATCH`) invalidate the cached entry on
-success. `HEAD 200` freshens stored headers without replacing the body.
+success. `HEAD 200` freshens stored headers without replacing the body; any other
+HEAD response never creates or replaces the stored GET entry.
+HEAD cache misses use ordinary proxy HEAD handling, not cold-miss coalescing,
+and never create a bodyless GET entry. HEAD-triggered background refreshes are
+skipped; a subsequent GET can refresh the complete representation.
 
 Parameters:
 
@@ -4239,6 +4261,21 @@ Force mode with per-tenant cache key isolation:
 -> cache("5m", "15s", "30s", "0s", "X-Tenant-ID") -> "https://cdn.example.org"
 ```
 
+For static force-mode backends, place request rewrites before `cache()`.
+Cold misses and background refreshes dispatch directly from the request state
+at the cache filter; later request filters cannot modify that upstream request.
+For example, a path-prefix strip and virtual Host rewrite must precede caching:
+
+```
+-> setRequestHeader("Host", "origin.example.org")
+-> modPath("^/api/catalog", "")
+-> cache("5m", "15s", "5m", "24h", "Authorization")
+-> "https://cdn.example.org"
+```
+
+This also means cache keys use the rewritten request path. Keep authentication
+and any other required request processing before the cache filter.
+
 RFC mode with per-user cache key isolation:
 
 ```
@@ -4280,7 +4317,9 @@ matching the same key. It has no awareness of other filters in the chain.
   an `Authorization` header and the upstream does not respond with
   `Cache-Control: public` or `must-revalidate`, the response is not stored
   (RFC 9111 §3.5) — this guard is unconditional, not RFC-mode-only, unless
-  `Authorization` is already in `keyHeaders`. Use force mode, add `Authorization`
+  `Authorization` is already in `keyHeaders`. The check applies to the request
+  after earlier filters ran, so an `Authorization` header added by an earlier
+  filter counts as well, including on cold-miss replays. Use force mode, add `Authorization`
   to `keyHeaders`, or ensure the upstream sets `Cache-Control: public` if you
   want authenticated responses cached.
 * **`Cache-Control: private` is ignored in force mode.** Audit the upstream

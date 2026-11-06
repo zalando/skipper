@@ -57,7 +57,10 @@ func TestCacheFilter_BypassBodyCancellation(t *testing.T) {
 			}()
 			return client, nil
 		}}
-		spec := NewCacheFilter(Options{MaxBytes: 1 << 20, Metrics: m, NetOpts: skpnet.Options{Transport: transport}})
+		spec := NewCacheFilter(Options{
+			MaxBytes: 1 << 20, ListenAddr: "example.org", Metrics: m,
+			NetOpts: skpnet.Options{Transport: transport},
+		})
 		defer spec.(*cacheSpec).Close()
 		fi, err := spec.CreateFilter(nil)
 		if err != nil {
@@ -150,11 +153,7 @@ func (b *bypassResponseBody) Close() error {
 }
 
 func TestCacheFilter_BypassBodyOwnership(t *testing.T) {
-	for _, method := range []string{http.MethodGet, http.MethodHead} {
-		t.Run(method, func(t *testing.T) {
-			testCacheFilterBypassBody(t, method, nil, nil, http.StatusOK)
-		})
-	}
+	testCacheFilterBypassBody(t, http.MethodGet, nil, nil, http.StatusOK)
 }
 
 func TestCacheFilter_BypassBodyReadError(t *testing.T) {
