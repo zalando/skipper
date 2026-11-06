@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/dimfeld/httppath"
 	"github.com/tidwall/gjson"
 
 	log "github.com/sirupsen/logrus"
@@ -130,7 +131,8 @@ func (filter *oidcIntrospectionFilter) Request(ctx filters.FilterContext) {
 
 	switch filter.typ {
 	case checkOIDCQueryClaims:
-		if !filter.validateClaimsQuery(r.URL.Path, token.Claims) {
+		// Use the cleaned path that routing matched, so //x or /./x cannot skip a stricter prefix.
+		if !filter.validateClaimsQuery(httppath.Clean(r.URL.Path), token.Claims) {
 			unauthorized(ctx, "", invalidAccess, r.Host, "Path not permitted")
 			return
 		}
