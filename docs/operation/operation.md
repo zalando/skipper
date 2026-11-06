@@ -284,6 +284,74 @@ connection handling. Outgoing calls to these services have a
 default timeout of 2s, which can be changed by the flag
 `-oauth2-tokenintrospect-timeout=<OAuthTokenintrospectionTimeout>`.
 
+## Logs
+
+We care about the log volume. Often you want to log errors, but also
+being able to fine tune and log some specific routes, only.  Skipper
+allows to enable and disable access logs by status code of the
+response via [log filters](../reference/filters.md#logs).
+
+You can create a default and let it override by filter of the route.
+You can do this by combining the filter annotation with [prepend
+default filters](#global-default-filters), so you can create a default
+based on operators choice, but allow software engineers to override
+this decision based on their needs via annotation.
+
+### Application based logs
+
+The [annotate filter](../reference/filters.md#annotate) allows you to specify an application that will be part of the log. See the annotate filter added to the route in the first line and compare it with the last part of the last two log lines.
+
+```text hl_lines="1 14 15"
+% ./bin/skipper -inline-routes='r1: PathSubtree("/") -> annotate("Application", "my-app") -> "http://127.0.0.1:9002"; ' -address :9001
+[APP]INFO[0000] Expose metrics in format: "codahale"
+[APP]INFO[0000] enable swarm: false
+[APP]INFO[0000] Replacing tee filter specification
+[APP]INFO[0000] Replacing teenf filter specification
+[APP]INFO[0000] Replacing teeResponse filter specification
+[APP]INFO[0000] support listener on :9911
+[APP]INFO[0000] route settings, reset, route: r1: PathSubtree("/") -> annotate("Application", "my-app") -> "http://127.0.0.1:9002"
+[APP]INFO[0000] Dataclients are updated once, first load complete
+[APP]INFO[0000] Listen on :9001
+[APP]INFO[0000] route settings received, id: 1
+[APP]INFO[0000] route settings applied, id: 1
+[APP]INFO[0000] TLS settings not found, defaulting to HTTP
+[APP]ERRO[0008] error while proxying after 461.299µs, route r1 with backend network http://127.0.0.1:9002, status code 502: dialing failed true: failed to do backend roundtrip to 127.0.0.1:9002: dial tcp 127.0.0.1:9002: connect: connection refused, remote host: 127.0.0.1, request: "GET / HTTP/1.1", host: 127.0.0.1:9001, user agent: "curl/8.5.0"  application=my-app
+127.0.0.1 - - [05/Nov/2026:16:42:10 +0100] "GET / HTTP/1.1" 502 12 "-" "curl/8.5.0" 0 127.0.0.1:9001 - - my-app
+```
+
+Now you can search access or error logs by application.
+
+One limitation is that skipper needs to lookup the route that is done
+while the request is processed. Therefore some error logs that are
+happening before the route lookup can not be assigned to an
+application.
+
+The Kubernetes dataclient can automatically add this filter based on
+your application label via config flag
+`-kubernetes-application-annotation-label`. So you are free to choose
+the label key to read `<your-value>` from the metadata labels to let
+skipper create the shown `annotate("Application", "<your-value>")`
+filter.
+
+Example:
+
+```
+-kubernetes-application-annotation-label=app.kubernetes.io/name
+```
+
+Example ingress that would apply `annotate("Application", "my-app")` to the route:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+	app.kubernetes.io/name: my-app
+  name: app
+spec:
+..
+```
+
 ## Monitoring
 
 Monitoring is one of the most important things you need to run in

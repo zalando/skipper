@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
 	hostPred "github.com/zalando/skipper/predicates/host"
@@ -41,6 +42,7 @@ type context struct {
 	originalResponse     *http.Response
 	outgoingHost         string
 	backendZone          string
+	application          string // application on behalf visibility is made
 	outgoingDebugRequest *http.Request
 	executionCounter     int
 	startServe           time.Time
@@ -172,6 +174,24 @@ func (c *context) applyRoute(route *routing.Route, params map[string]string, pre
 	}
 
 	c.pathParams = appendParams(c.pathParams, params)
+
+	c.setApplication()
+}
+
+func (c *context) setApplication() {
+	for _, f := range c.route.Route.Filters {
+		if f.Name == filters.AnnotateName {
+			if f.Args[0] == eskip.ApplicationAnnotationKey {
+				c.application = f.Args[1].(string)
+				break
+			}
+		}
+	}
+
+	// we need to re-initialize logger to have the changed context applied.
+	if c.application != "" && c.logger != nil {
+		c.logger = nil
+	}
 }
 
 func (c *context) ensureDefaultResponse() {
@@ -223,8 +243,12 @@ func (c *context) ParentSpan() opentracing.Span        { return c.parentSpan }
 func (c *context) Logger() filters.FilterContextLogger {
 	if c.logger == nil {
 		traceID := tracing.GetTraceID(c.initialSpan)
-		if traceID != "" {
+		if traceID != "" && c.application != "" {
+			c.logger = log.WithFields(log.Fields{"application": c.application, "trace_id": traceID})
+		} else if traceID != "" {
 			c.logger = log.WithFields(log.Fields{"trace_id": traceID})
+		} else if c.application != "" {
+			c.logger = log.WithFields(log.Fields{"application": c.application})
 		} else {
 			c.logger = log.StandardLogger()
 		}
