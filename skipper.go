@@ -2160,7 +2160,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		)
 	}
 
+	openIDConfigCache := auth.NewOpenIDConfigCache()
+	defer openIDConfigCache.Close()
+
 	tio := auth.TokenintrospectionOptions{
+		OpenIDConfigCache:           openIDConfigCache,
 		Timeout:                     o.OAuthTokenintrospectionTimeout,
 		MaxIdleConns:                o.IdleConnectionsPerHost,
 		Tracer:                      tracer,

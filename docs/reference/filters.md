@@ -1671,6 +1671,19 @@ Tokenintrospection handled by another service.
 The filters just validate the response from the tokenintrospection
 service to do authorization as defined in the filter.
 
+OpenID discovery caching is **enabled by default in Skipper**. The
+[jwtValidation](#jwtvalidation) and token introspection filters reuse successful
+discovery documents. The cache is cleared once an hour. Cached documents can
+allow route updates during an issuer outage; after a clear, discovery must
+succeed again.
+
+The discovery request timeout is controlled by `-oauth2-tokenintrospect-timeout`
+(default: 2 seconds).
+
+For library use, create a cache with `auth.NewOpenIDConfigCache()` and pass it
+through `auth.TokenintrospectionOptions.OpenIDConfigCache`. A nil cache disables
+caching. Call `Close()` after all routes stop using the cache.
+
 #### oauthTokenintrospectionAnyClaims
 
 The filter accepts variable number of string arguments, which are used
@@ -1924,6 +1937,7 @@ The filter parses bearer jwt token from Authorization header and validates the s
 discovered via /.well-known/openid-configuration endpoint. Takes issuer url as single parameter.
 The filter stores token claims into the state bag where they can be used by [oidcClaimsQuery](#oidcclaimsquery), [forwardToken](#forwardtoken) or [forwardTokenField](#forwardtokenfield) filters.
 
+Discovery caching is enabled by default; see [Tokenintrospection](#tokenintrospection).
 
 Examples:
 
