@@ -43,8 +43,6 @@ func createHostPredicate(hosts ...string) *eskip.Predicate {
 	return &eskip.Predicate{Name: "HostAny", Args: args}
 }
 
-// Ingress construction keeps the legacy host field until East-West and
-// catch-all routes have copied it. Replace only that generated condition.
 func setHostPredicate(r *eskip.Route, host string) {
 	if r == nil || len(r.HostRegexps) == 0 {
 		return

@@ -13,7 +13,6 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
-// Hide MatchHosts from the reference matcher so it uses the original scan.
 type scanHostSpec struct{ routing.PredicateSpec }
 
 func (s scanHostSpec) Create(args []any) (routing.Predicate, error) {

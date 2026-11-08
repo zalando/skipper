@@ -25,6 +25,8 @@ routing: remove the port and one trailing dot, and convert to lowercase.
 The -kubernetes flag enables this automatically. Library users must install a
 net.HostPatchHandler with RemovePort, RemoteTrailingDot and ToLower enabled,
 and register host.NewAny() with routing.Options.Predicates.
+Skipper instances consuming RouteSRV routes through -routes-urls without
+-kubernetes must enable -normalize-host to match hosts with a port or trailing dot.
 
 # Ingress shutdown by healthcheck
 

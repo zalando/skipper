@@ -106,7 +106,6 @@ func BenchmarkProxyKubernetesHosts(b *testing.B) {
 					Patch:   skippernet.HostPatch{RemovePort: true, RemoteTrailingDot: true, ToLower: true},
 					Handler: p,
 				}
-				// Warm every host's metrics and all persistent backend connections.
 				for _, req := range requests {
 					route, _ := rt.Route(req)
 					if route == nil {
