@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dimfeld/httppath"
 	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
@@ -209,8 +208,6 @@ r2: Path("/admin") -> logHeader("request") -> opaAuthorizeRequest("%s") -> "%s";
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			println("httppath.Clean(req.URL.Path):", httppath.Clean(ts.URL+tt.path))
-
 			req, err := http.NewRequest("GET", ts.URL+tt.path, nil)
 			if err != nil {
 				t.Fatalf("Failed to create request: %v", err)
