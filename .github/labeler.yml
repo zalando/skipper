@@ -8,6 +8,6 @@ documentation:
 enhancement:
   - head-branch: ['^feature/']
 
-# Add 'codefreeze' label to any PR that is opened against the `cw2025` branch
+# Add 'codefreeze' label to any PR that is opened against the `cwfreeze` branch
 codefreeze:
-  - base-branch: 'cw2025'
+  - base-branch: 'cwfreeze'
