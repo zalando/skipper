@@ -1,8 +1,11 @@
 name: "Pull Request Labeler"
 on:
-- pull_request_target
+- pull_request:
+    types: [opened, synchronize, reopened]
 
-permissions: {}
+permissions:
+  pull-requests: write
+  contents: read
 
 jobs:
   labeler:
