@@ -792,6 +792,12 @@ type Options struct {
 	// TLS Settings for Proxy Server
 	ProxyTLS *tls.Config
 
+	// TLSGetCertificate provides a server certificate dynamically.
+	TLSGetCertificate func(*tls.ClientHelloInfo) (*tls.Certificate, error)
+
+	// CloseTLSProvider releases resources held by a dynamic TLS certificate source.
+	CloseTLSProvider func() error
+
 	// Client TLS to connect to Backends
 	ClientTLS *tls.Config
 
@@ -1576,10 +1582,22 @@ func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 	var config *tls.Config
 
 	if o.ProxyTLS != nil {
+		if o.TLSGetCertificate != nil {
+			if o.ProxyTLS.GetCertificate != nil || len(o.ProxyTLS.Certificates) > 0 {
+				return nil, fmt.Errorf("dynamic TLS certificate source cannot be combined with ProxyTLS certificates")
+			}
+			config = o.ProxyTLS.Clone()
+			config.GetCertificate = o.TLSGetCertificate
+			return config, nil
+		}
 		return o.ProxyTLS, nil
 	}
 
-	if o.CertPathTLS == "" && o.KeyPathTLS == "" && cr == nil && o.Letsencrypt == nil {
+	if o.TLSGetCertificate != nil && (o.CertPathTLS != "" || o.KeyPathTLS != "" || cr != nil || o.Letsencrypt != nil) {
+		return nil, fmt.Errorf("dynamic TLS certificate source cannot be combined with other TLS certificate sources")
+	}
+
+	if o.CertPathTLS == "" && o.KeyPathTLS == "" && cr == nil && o.Letsencrypt == nil && o.TLSGetCertificate == nil {
 		return nil, nil
 	}
 
@@ -1595,6 +1613,9 @@ func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		}
 	} else {
 		config = &tls.Config{}
+	}
+	if o.TLSGetCertificate != nil {
+		config.GetCertificate = o.TLSGetCertificate
 	}
 
 	config.MinVersion = o.TLSMinVersion
@@ -1919,6 +1940,14 @@ func getRemoteURLShardAddrUpdater(address string) func() ([]string, error) {
 }
 
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
+	if o.CloseTLSProvider != nil {
+		defer func() {
+			if err := o.CloseTLSProvider(); err != nil {
+				log.Errorf("Failed to close TLS certificate provider: %v", err)
+			}
+		}()
+	}
+
 	// init log
 	accessLogger, err := initLog(o)
 	if err != nil {

@@ -75,6 +75,7 @@ func defaultConfig(with func(*Config)) *Config {
 	cfg := &Config{
 		Flags:                                   nil,
 		Address:                                 ":9090",
+		AWSNitroCertificateRefreshInterval:      time.Hour,
 		StatusChecks:                            commaListFlag(),
 		ExpectedBytesPerRequest:                 50 * 1024,
 		SupportListener:                         ":9911",

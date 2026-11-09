@@ -389,6 +389,27 @@ func TestOptionsTLSConfigInvalidPaths(t *testing.T) {
 	}
 }
 
+func TestOptionsTLSConfigDynamicCertificate(t *testing.T) {
+	certificate := &tls.Certificate{}
+	getCertificate := func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+		return certificate, nil
+	}
+
+	config, err := (&Options{TLSGetCertificate: getCertificate}).TlsConfig(nil)
+	require.NoError(t, err)
+	require.NotNil(t, config)
+	got, err := config.GetCertificate(nil)
+	require.NoError(t, err)
+	require.Same(t, certificate, got)
+
+	_, err = (&Options{
+		TLSGetCertificate: getCertificate,
+		CertPathTLS:       "fixtures/test.crt",
+		KeyPathTLS:        "fixtures/test.key",
+	}).TlsConfig(nil)
+	require.ErrorContains(t, err, "cannot be combined")
+}
+
 // to run this test, set `-args listener` for the test command
 func TestHTTPSServer(t *testing.T) {
 	// TODO: figure why sometimes cannot connect

@@ -20,6 +20,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper"
+	"github.com/zalando/skipper/aws/nitro"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/openpolicyagent"
@@ -52,6 +53,12 @@ type Config struct {
 	DebugListener                         string         `yaml:"debug-listener"`
 	CertPathTLS                           string         `yaml:"tls-cert"`
 	KeyPathTLS                            string         `yaml:"tls-key"`
+	EnableAWSNitro                        bool           `yaml:"enable-aws-nitro"`
+	AWSNitroCertificateARN                string         `yaml:"aws-nitro-certificate-arn"`
+	AWSNitroPKCS11Module                  string         `yaml:"aws-nitro-pkcs11-module"`
+	AWSNitroPKCS11TokenLabel              string         `yaml:"aws-nitro-pkcs11-token-label"`
+	AWSNitroCertificateRefreshInterval    time.Duration  `yaml:"aws-nitro-certificate-refresh-interval"`
+	awsNitroProvider                      nitro.Provider `yaml:"-"`
 	StatusChecks                          *listFlag      `yaml:"status-checks"`
 	PrintVersion                          bool           `yaml:"version"`
 	MaxLoopbacks                          int            `yaml:"max-loopbacks"`
@@ -423,6 +430,7 @@ const (
 func NewConfig() *Config {
 	cfg := new(Config)
 	cfg.MetricsFlavour = commaListFlag("codahale", "prometheus", "otel")
+	cfg.AWSNitroCertificateRefreshInterval = nitro.DefaultRefreshInterval
 	cfg.StatusChecks = commaListFlag()
 	cfg.FilterPlugins = newPluginFlag()
 	cfg.PredicatePlugins = newPluginFlag()
@@ -472,6 +480,11 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.DebugListener, "debug-listener", "", "when this address is set, skipper starts an additional listener returning the original and transformed requests")
 	flag.StringVar(&cfg.CertPathTLS, "tls-cert", "", "the path on the local filesystem to the certificate file(s) (including any intermediates), multiple may be given comma separated")
 	flag.StringVar(&cfg.KeyPathTLS, "tls-key", "", "the path on the local filesystem to the certificate's private key file(s), multiple keys may be given comma separated - the order must match the certs")
+	flag.BoolVar(&cfg.EnableAWSNitro, "enable-aws-nitro", false, "use an AWS ACM certificate backed by a Nitro Enclave PKCS#11 signer (requires a binary built with -tags awsnitro)")
+	flag.StringVar(&cfg.AWSNitroCertificateARN, "aws-nitro-certificate-arn", "", "AWS ACM certificate ARN used by the Nitro Enclave TLS signer")
+	flag.StringVar(&cfg.AWSNitroPKCS11Module, "aws-nitro-pkcs11-module", "", "absolute path to the host PKCS#11 module configured for AWS ACM for Nitro Enclaves")
+	flag.StringVar(&cfg.AWSNitroPKCS11TokenLabel, "aws-nitro-pkcs11-token-label", "", "PKCS#11 token label for the AWS ACM for Nitro Enclaves certificate")
+	flag.DurationVar(&cfg.AWSNitroCertificateRefreshInterval, "aws-nitro-certificate-refresh-interval", nitro.DefaultRefreshInterval, "how often to refresh the public ACM certificate chain used by the Nitro Enclave signer")
 	flag.Var(cfg.StatusChecks, "status-checks", "experimental URLs to check before reporting healthy on startup")
 	flag.BoolVar(&cfg.PrintVersion, "version", false, "print Skipper version")
 	flag.IntVar(&cfg.MaxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks")
@@ -873,6 +886,20 @@ func validate(c *Config) error {
 	if c.KubernetesZoneMaxSkew < 0 {
 		return fmt.Errorf("kubernetes-zone-max-skew must be >= 0, got %d", c.KubernetesZoneMaxSkew)
 	}
+	if c.EnableAWSNitro {
+		if c.CertPathTLS != "" || c.KeyPathTLS != "" || c.EnableLetsencrypt {
+			return fmt.Errorf("AWS Nitro TLS cannot be combined with tls-cert, tls-key, or letsencrypt")
+		}
+		if c.AWSNitroCertificateARN == "" {
+			return fmt.Errorf("aws-nitro-certificate-arn is required when AWS Nitro TLS is enabled")
+		}
+		if c.AWSNitroPKCS11Module == "" || c.AWSNitroPKCS11TokenLabel == "" {
+			return fmt.Errorf("aws-nitro-pkcs11-module and aws-nitro-pkcs11-token-label are required when AWS Nitro TLS is enabled")
+		}
+		if c.AWSNitroCertificateRefreshInterval <= 0 {
+			return fmt.Errorf("aws-nitro-certificate-refresh-interval must be greater than zero")
+		}
+	}
 	return c.parseForwardedHeaders()
 }
 
@@ -909,6 +936,16 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 		err = c.Flags.Parse(args)
 		if err != nil {
 			return err
+		}
+	}
+	if c.AWSNitroCertificateRefreshInterval == 0 {
+		_, setInYAML := configKeys["aws-nitro-certificate-refresh-interval"]
+		setInFlag := false
+		c.Flags.Visit(func(f *flag.Flag) {
+			setInFlag = setInFlag || f.Name == "aws-nitro-certificate-refresh-interval"
+		})
+		if !setInYAML && !setInFlag {
+			c.AWSNitroCertificateRefreshInterval = nitro.DefaultRefreshInterval
 		}
 	}
 
@@ -993,6 +1030,19 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 	}
 
 	c.parseEnv()
+	if c.EnableAWSNitro {
+		provider, err := nitro.New(nitro.Config{
+			CertificateARN:  c.AWSNitroCertificateARN,
+			ModulePath:      c.AWSNitroPKCS11Module,
+			TokenLabel:      c.AWSNitroPKCS11TokenLabel,
+			PIN:             os.Getenv("AWS_NITRO_PKCS11_PIN"),
+			RefreshInterval: c.AWSNitroCertificateRefreshInterval,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to initialize AWS Nitro TLS: %w", err)
+		}
+		c.awsNitroProvider = provider
+	}
 	return nil
 }
 
@@ -1315,6 +1365,10 @@ func (c *Config) ToOptions() skipper.Options {
 		ProxyAllowListCIDRs: c.ProxyAllowListCIDRs.values,
 		ProxyDenyListCIDRs:  c.ProxyDenyListCIDRs.values,
 		ProxySkipListCIDRs:  c.ProxySkipListCIDRs.values,
+	}
+	if c.awsNitroProvider != nil {
+		options.TLSGetCertificate = c.awsNitroProvider.GetCertificate
+		options.CloseTLSProvider = c.awsNitroProvider.Close
 	}
 	for _, rcci := range c.CloneRoute {
 		eskipClone := eskip.NewClone(rcci.Reg, rcci.Repl)

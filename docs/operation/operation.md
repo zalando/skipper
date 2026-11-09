@@ -2282,6 +2282,22 @@ Other choices are:
 - "inmemory": no persistence
 - "remote": persist into infrastrucuture to share cert/keys with other skipper processes. You can use the redis or valkey ring clients, that you can use for cache() and clusterRatelimit() filters.
 
+## AWS ACM for Nitro Enclaves
+
+Skipper can terminate inbound TLS with an ACM certificate whose private key remains in a Nitro Enclave. Build Skipper with `-tags awsnitro`; this integration requires CGO, the AWS ACM-for-Nitro host PKCS#11 module configured for the enclave, and AWS SDK credentials and region settings available through the standard AWS configuration chain. The AWS identity needs `acm:GetCertificate` permission for the configured ARN. The ACM certificate and the PKCS#11 token must refer to the same key. AWS ACM for Nitro Enclaves currently supports RSA certificates.
+
+Set the PKCS#11 PIN in `AWS_NITRO_PKCS11_PIN` rather than passing it as a command-line argument. For example:
+
+```text
+-enable-aws-nitro \
+-aws-nitro-certificate-arn=arn:aws:acm:us-east-1:123456789012:certificate/example \
+-aws-nitro-pkcs11-module=/absolute/path/to/p11-kit-client.so \
+-aws-nitro-pkcs11-token-label=nitro-token \
+-aws-nitro-certificate-refresh-interval=1h
+```
+
+Skipper loads the public certificate chain from ACM, delegates TLS signatures to the token, and refreshes the public chain at the configured interval. Nitro TLS cannot be combined with `-tls-cert`, `-tls-key`, or Let's Encrypt.
+
 ## Shared Storage - Redis / Valkey
 
 Some features require coordination if you run a lot of skippers, for

@@ -35,6 +35,10 @@ _Avoid_: hot reload, live update
 **Backend**:
 The target destination to which a matched request is forwarded, or the proxy-internal handler that generates the response (shunt, loopback).
 
+**Nitro Enclave Signer**:
+A TLS signing service that keeps a certificate's private key inside an AWS Nitro Enclave and signs on behalf of the application.
+_Avoid_: exported enclave key
+
 **Network Backend**:
 Proxies the request to a single URL (e.g., `"https://api.example.com"`).
 
