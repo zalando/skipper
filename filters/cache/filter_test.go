@@ -21,6 +21,8 @@ import (
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/proxy/proxytest"
+
+	"github.com/valkey-io/valkey-go"
 )
 
 func newTestFilterWithCleanup(t *testing.T, ttl, errorTTL, swrWindow time.Duration, extra ...time.Duration) (*cacheFilter, func()) {
@@ -200,6 +202,175 @@ func TestCacheFilter_KeyIsolationByAuthToken(t *testing.T) {
 	bodyB, _ := io.ReadAll(hitB.FResponse.Body)
 	if string(bodyB) != `{"env":"preview"}` {
 		t.Fatalf("token-preview got wrong payload: %q", bodyB)
+	}
+}
+
+// TestCacheFilter_RFC_KeyHeaders_DifferentTokens verifies that different
+// tokens in keyHeaders never cross-coalesce. Uses a large N per token
+// (mirrors TestCacheFilter_ColdMissCoalescing) instead of a sleep-based
+// barrier between two goroutines.
+func TestCacheFilter_RFC_KeyHeaders_DifferentTokens(t *testing.T) {
+	const perToken = 25
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	fi, err := spec.CreateFilter([]any{"Authorization"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+
+	mc := &missCounting{Storage: f.storage}
+	mc.wg.Add(2 * perToken)
+	f.storage = mc
+
+	var fetchCount atomic.Int64
+	fetchStarted := make(chan struct{})
+	releaseAll := make(chan struct{})
+	var fetchStartedOnce sync.Once
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		fetchCount.Add(1)
+		fetchStartedOnce.Do(func() { close(fetchStarted) })
+		mc.wg.Wait() // block until every goroutine has confirmed a cache miss
+		<-releaseAll
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type":  {"application/json"},
+				"Cache-Control": {"private, no-store"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"token":"` + req.Header.Get("Authorization") + `"}`)),
+		}, nil
+	}
+
+	url := newLocalBackend(t) + "/spaces/abc/entries/me"
+	results := make([]*filtertest.Context, 2*perToken)
+	tokens := make([]string, 2*perToken)
+
+	var wg sync.WaitGroup
+	for i := range 2 * perToken {
+		token := "token-user-a"
+		if i%2 == 1 {
+			token = "token-user-b"
+		}
+		tokens[i] = token
+		wg.Add(1)
+		i, token := i, token
+		go func() {
+			defer wg.Done()
+			ctx := newCtx("GET", url, token)
+			f.Request(ctx)
+			results[i] = ctx
+		}()
+	}
+
+	<-fetchStarted // fetch is running; all misses will be counted before it returns
+	close(releaseAll)
+	wg.Wait()
+
+	// Two distinct keys (one per token) can never fully collapse into a single
+	// fetch — this bound holds regardless of goroutine scheduling.
+	if got := fetchCount.Load(); got < 2 {
+		t.Fatalf("expected at least 2 upstream fetches (different tokens are different keys), got %d", got)
+	}
+	// Coalescing should still reduce fetches well below 2*perToken; allow a
+	// generous tolerance for late-arriving goroutines racing past a completed
+	// singleflight call, same as TestCacheFilter_ColdMissCoalescing.
+	if got := fetchCount.Load(); got > 10 {
+		t.Fatalf("expected coalescing per token to keep fetches low, got %d", got)
+	}
+
+	for i, ctx := range results {
+		if !ctx.FServed {
+			t.Fatalf("goroutine %d: expected ctx to be served", i)
+		}
+		body, _ := io.ReadAll(ctx.FResponse.Body)
+		wantToken := tokens[i]
+		if !strings.Contains(string(body), wantToken) {
+			t.Errorf("goroutine %d: expected %q in response, got %q", i, wantToken, body)
+		}
+		otherToken := "token-user-b"
+		if wantToken == "token-user-b" {
+			otherToken = "token-user-a"
+		}
+		if strings.Contains(string(body), otherToken) {
+			t.Errorf("cross-user disclosure: goroutine %d (token %q) received %q: %q", i, wantToken, otherToken, body)
+		}
+	}
+}
+
+// TestCacheFilter_RFC_KeyHeaders_SameToken verifies that requests sharing the
+// same token still coalesce. Uses a large N and tolerant bound (mirrors
+// TestCacheFilter_ColdMissCoalescing) instead of a sleep-based barrier.
+func TestCacheFilter_RFC_KeyHeaders_SameToken(t *testing.T) {
+	const N = 50
+	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", L1TTL: 60 * time.Second})
+	t.Cleanup(func() { spec.(*cacheSpec).Close() })
+	fi, err := spec.CreateFilter([]any{"Authorization"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fi.(*cacheFilter)
+
+	mc := &missCounting{Storage: f.storage}
+	mc.wg.Add(N)
+	f.storage = mc
+
+	var fetchCount atomic.Int64
+	fetchStarted := make(chan struct{})
+	releaseAll := make(chan struct{})
+	var fetchStartedOnce sync.Once
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		fetchCount.Add(1)
+		fetchStartedOnce.Do(func() { close(fetchStarted) })
+		mc.wg.Wait()
+		<-releaseAll
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type":  {"application/json"},
+				"Cache-Control": {"max-age=300"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"data":"shared"}`)),
+		}, nil
+	}
+
+	url := newLocalBackend(t) + "/spaces/abc/entries/shared"
+	const token = "service-account-token"
+	results := make([]*filtertest.Context, N)
+
+	var wg sync.WaitGroup
+	for i := range N {
+		wg.Add(1)
+		i := i
+		go func() {
+			defer wg.Done()
+			ctx := newCtx("GET", url, token)
+			f.Request(ctx)
+			results[i] = ctx
+		}()
+	}
+
+	<-fetchStarted
+	close(releaseAll)
+	wg.Wait()
+
+	// Same token → same key → coalescing should reduce fetches dramatically,
+	// allowing a small number of late-arriving goroutines to race past a
+	// completed singleflight call, same tolerance as TestCacheFilter_ColdMissCoalescing.
+	if got := fetchCount.Load(); got > 5 {
+		t.Fatalf("expected coalescing to reduce fetches significantly, got %d (N=%d)", got, N)
+	}
+
+	for i, ctx := range results {
+		if !ctx.FServed {
+			t.Fatalf("goroutine %d: expected ctx to be served", i)
+		}
+		body, _ := io.ReadAll(ctx.FResponse.Body)
+		if string(body) != `{"data":"shared"}` {
+			t.Errorf("goroutine %d: got wrong response: %q", i, body)
+		}
 	}
 }
 
@@ -511,6 +682,30 @@ func TestCacheFilter_ColdMissCoalescing_NonCacheable(t *testing.T) {
 	}
 }
 
+func TestCacheFilter_Coalesce_RecordsWaitDuration(t *testing.T) {
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": {"max-age=300"}},
+			Body:       io.NopCloser(strings.NewReader(`{"ok":true}`)),
+		}, nil
+	}
+
+	url := newLocalBackend(t) + "/spaces/abc/entries/wait-duration"
+	f.Request(newCtx("GET", url, ""))
+
+	mockMetrics.WithMeasures(func(measures map[string][]time.Duration) {
+		if len(measures["cache.coalesce_wait_duration"]) != 1 {
+			t.Fatalf("expected exactly 1 cache.coalesce_wait_duration measurement, got %d", len(measures["cache.coalesce_wait_duration"]))
+		}
+	})
+}
+
 func TestCacheFilter_ColdMissCoalescing_UpstreamError(t *testing.T) {
 	// When the upstream fetch fails, coalesce must not call ctx.Serve so the
 	// proxy can fall back to its own backend fetch.
@@ -550,6 +745,9 @@ func TestCacheFilter_ColdMissCoalescing_FetchError_CoalesceErrorMetric(t *testin
 			t.Errorf("expected cache.coalesce_error==1, got %d", counters["cache.coalesce_error"])
 		}
 	})
+	if got, _ := mockMetrics.CacheResultCount("coalesce_error", "n/a"); got != 1 {
+		t.Errorf("expected labeled coalesce_error/n_a=1, got %d", got)
+	}
 }
 
 func TestCacheFilter_RequestNoStore_NotCached(t *testing.T) {
@@ -2967,18 +3165,21 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 	t.Cleanup(func() { spec.(*cacheSpec).Close() })
 
 	cases := []struct {
-		name    string
-		args    []any
-		wantRFC bool
-		wantSIE time.Duration
-		wantErr bool
+		name           string
+		args           []any
+		wantRFC        bool
+		wantSIE        time.Duration
+		wantKeyHeaders string
+		wantErr        bool
 	}{
-		{"0 args pure rfc mode", []any{}, true, 0, false},
-		{"3 args force mode", []any{"5m", "15s", "30s"}, false, 0, false},
-		{"4 args staleIfError", []any{"5m", "15s", "30s", "60s"}, false, 60 * time.Second, false},
-		{"1 arg invalid", []any{"5m"}, false, 0, true},
-		{"2 args invalid", []any{"5m", "15s"}, false, 0, true},
-		{"6 args too many", []any{"5m", "15s", "30s", "60s", "Authorization", "extra"}, false, 0, true},
+		{"0 args pure rfc mode", []any{}, true, 0, "", false},
+		{"1 arg rfc mode with keyHeaders", []any{"Authorization"}, true, 0, "Authorization", false},
+		{"1 arg rfc mode multiple keyHeaders", []any{"Authorization,X-Tenant-ID"}, true, 0, "Authorization,X-Tenant-Id", false},
+		{"3 args force mode", []any{"5m", "15s", "30s"}, false, 0, "", false},
+		{"4 args staleIfError", []any{"5m", "15s", "30s", "60s"}, false, 60 * time.Second, "", false},
+		{"5 args force mode with keyHeaders", []any{"5m", "15s", "30s", "0s", "Authorization"}, false, 0, "Authorization", false},
+		{"2 args invalid", []any{"5m", "15s"}, false, 0, "", true},
+		{"6 args too many", []any{"5m", "15s", "30s", "60s", "Authorization", "extra"}, false, 0, "", true},
 	}
 
 	for _, tc := range cases {
@@ -2999,6 +3200,12 @@ func TestCacheFilter_CreateFilter_RFCArgParsing(t *testing.T) {
 			}
 			if cf.staleIfError != tc.wantSIE {
 				t.Errorf("staleIfError: got %v, want %v", cf.staleIfError, tc.wantSIE)
+			}
+			if tc.wantKeyHeaders != "" {
+				got := strings.Join(cf.keyHeaders, ",")
+				if got != tc.wantKeyHeaders {
+					t.Errorf("keyHeaders: got %q, want %q", got, tc.wantKeyHeaders)
+				}
 			}
 		})
 	}
@@ -3339,6 +3546,233 @@ func TestCacheSpec_FilterRegistry_InFlightJobsSurviveRebuild(t *testing.T) {
 	}
 }
 
+func TestCacheFilter_LabeledMetrics_CacheResultHit2xx(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/test", "", "route1")
+	f.Request(ctx1)
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/test", "", "route1")
+	f.Request(ctx2)
+	if ctx2.FResponse == nil {
+		t.Fatal("expected HIT")
+	}
+	if ctx2.FResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", ctx2.FResponse.StatusCode)
+	}
+	if got, _ := mockMetrics.CacheResultCount("hit", "2xx"); got != 1 {
+		t.Errorf("expected labeled hit/2xx=1, got %d", got)
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_CacheResultHit4xx(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusNotFound, "not found", "max-age=60")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/notfound", "", "route1")
+	f.Request(ctx1)
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/notfound", "", "route1")
+	f.Request(ctx2)
+	if ctx2.FResponse == nil {
+		t.Fatal("expected HIT")
+	}
+	if ctx2.FResponse.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", ctx2.FResponse.StatusCode)
+	}
+	if got, _ := mockMetrics.CacheResultCount("hit", "4xx"); got != 1 {
+		t.Errorf("expected labeled hit/4xx=1 — this is the cache-poisoning signal (serving a cached error as a hit), got %d", got)
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_CacheResultHit5xx(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusServiceUnavailable, "unavailable", "max-age=30")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/unavail", "", "route1")
+	f.Request(ctx1)
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/unavail", "", "route1")
+	f.Request(ctx2)
+	if ctx2.FResponse == nil {
+		t.Fatal("expected HIT")
+	}
+	if ctx2.FResponse.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", ctx2.FResponse.StatusCode)
+	}
+	if got, _ := mockMetrics.CacheResultCount("hit", "5xx"); got != 1 {
+		t.Errorf("expected labeled hit/5xx=1, got %d", got)
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_CacheResultMiss(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx := newCtxWithRoute(http.MethodGet, "http://example.com/miss", "", "route1")
+	f.Request(ctx)
+	if ctx.FResponse == nil {
+		t.Fatal("expected response")
+	}
+	if ctx.FResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", ctx.FResponse.StatusCode)
+	}
+	if got, _ := mockMetrics.CacheResultCount("miss", "2xx"); got != 1 {
+		t.Errorf("expected labeled miss/2xx=1, got %d", got)
+	}
+	// The LRU-bytes bug fix: the gauge must update on miss too, not just hit.
+	if _, ok := mockMetrics.CacheLRUBytes("route1"); !ok {
+		t.Error("expected per-route LRU bytes gauge to be set on a miss, got none")
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_CacheResultStale(t *testing.T) {
+	// newTestFilter is force mode: ttl/errorTTL/swrWindow are operator-set and
+	// upstream Cache-Control is ignored, so the fixture must use these directly
+	// rather than a Cache-Control max-age (which force mode does not consult).
+	f := newTestFilter(t, time.Second, 10*time.Second, 5*time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusOK, "body", "")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/stale", "", "route1")
+	f.Request(ctx1)
+
+	time.Sleep(2 * time.Second) // past the 1s TTL, still within the 5s SWR window
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/stale", "", "route1")
+	f.Request(ctx2)
+	if ctx2.FResponse == nil {
+		t.Fatal("expected STALE response")
+	}
+	if got := ctx2.FResponse.Header.Get(cacheStatusHeader); got != cacheStatusStale {
+		t.Fatalf("expected X-Cache-Status: %s, got %q", cacheStatusStale, got)
+	}
+	if got, _ := mockMetrics.CacheResultCount("stale", "2xx"); got != 1 {
+		t.Errorf("expected labeled stale/2xx=1, got %d", got)
+	}
+	// The LRU-bytes bug fix: the gauge must update on stale too, not just hit.
+	if _, ok := mockMetrics.CacheLRUBytes("route1"); !ok {
+		t.Error("expected per-route LRU bytes gauge to be set on a stale serve, got none")
+	}
+}
+
+func TestCacheFilter_LabeledMetrics_RouteLabeledLRUBytes(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	rsp := upstreamResponseCC(http.StatusOK, "body content", "max-age=300")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx1 := newCtxWithRoute(http.MethodGet, "http://example.com/lru1", "", "route1")
+	f.Request(ctx1)
+
+	ctx2 := newCtxWithRoute(http.MethodGet, "http://example.com/lru2", "", "route2")
+	f.Request(ctx2)
+
+	if f.storage == nil {
+		t.Fatal("storage not initialized")
+	}
+	b1, ok1 := mockMetrics.CacheLRUBytes("route1")
+	if !ok1 || b1 <= 0 {
+		t.Errorf("expected positive LRU bytes gauge for route1, got %v (ok=%v)", b1, ok1)
+	}
+	b2, ok2 := mockMetrics.CacheLRUBytes("route2")
+	if !ok2 || b2 <= 0 {
+		t.Errorf("expected positive LRU bytes gauge for route2, got %v (ok=%v)", b2, ok2)
+	}
+}
+
+// failingSetStorage's failure isn't attributable to a backend (it wraps the
+// Storage interface generically, not a real LRUStorage/L2Storage), so since
+// storage errors are now attributed at the point where backend is known (see
+// TestLRUStorage_Get_CorruptJSON_RecordsStorageError and the L2Storage
+// equivalents), a generic failure here records no labeled metric - only the
+// log line and the non-panicking behavior are asserted.
+func TestCacheFilter_LabeledMetrics_StorageError(t *testing.T) {
+	f := newTestFilter(t, 5*time.Minute, 10*time.Second, time.Second)
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+	f.storage = &failingSetStorage{f.storage}
+	rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	ctx := newCtxWithRoute(http.MethodGet, "http://example.com/storage-error", "", "route1")
+	f.Request(ctx) // must not panic despite the injected Set failure
+
+	if got, _ := mockMetrics.CacheResultCount("storage_error", "n/a"); got != 0 {
+		t.Errorf("expected no labeled storage_error (backend unattributable here), got %d", got)
+	}
+}
+
+// TestCacheFilter_VarySentinel_DoesNotPolluteL2Metrics proves the fix for the
+// bug where Request()'s Vary-sentinel lookup went through the regular,
+// metrics-instrumented Storage.Get() — an internal plumbing check being
+// miscounted as a real cache decision on every single request. It must go
+// through GetSilent instead, which records nothing.
+func TestCacheFilter_VarySentinel_DoesNotPolluteL2Metrics(t *testing.T) {
+	stub := newStubValkeyClient()
+	mockMetrics := &metricstest.MockMetrics{}
+	spec := NewCacheFilter(Options{
+		MaxBytes:   1 << 20,
+		ListenAddr: "localhost:9090",
+		L2Client:   stub,
+		IsNoL2Err:  valkey.IsValkeyNil,
+		Metrics:    mockMetrics,
+	})
+	defer spec.(*cacheSpec).Close()
+	created, err := spec.CreateFilter([]any{"5m", "10s", "1s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := created.(*cacheFilter)
+
+	rsp := upstreamResponseCC(http.StatusOK, "body", "max-age=300")
+	rsp.Header.Set("Vary", "Accept-Language")
+	f.fetch = func(_ *http.Request) (*http.Response, error) { return rsp, nil }
+
+	url := "http://example.com/vary-sentinel-test"
+	const repeats = 3
+
+	// Cold miss: stores the entry AND the Vary sentinel (response carries Vary).
+	ctx1 := newCtxWithRoute(http.MethodGet, url, "", "route1")
+	ctx1.FRequest.Header.Set("Accept-Language", "en-US")
+	f.Request(ctx1)
+
+	// Each of these repeats first reads the Vary sentinel via GetSilent (must
+	// record nothing), THEN does one real content lookup via Get (must record
+	// exactly one l1_hit or l2_hit each).
+	for i := 0; i < repeats; i++ {
+		ctx := newCtxWithRoute(http.MethodGet, url, "", "route1")
+		ctx.FRequest.Header.Set("Accept-Language", "en-US")
+		f.Request(ctx)
+		if ctx.FResponse == nil {
+			t.Fatalf("repeat %d: expected a HIT, got no response", i)
+		}
+	}
+
+	l1Hit, _ := mockMetrics.Counter("cache.l1_hit")
+	l2Hit, _ := mockMetrics.Counter("cache.l2_hit")
+	if got, want := l1Hit+l2Hit, int64(repeats); got != want {
+		t.Errorf("expected l1_hit+l2_hit = %d (one per real content hit), got %d — "+
+			"a sentinel lookup is still being counted as a cache outcome", want, got)
+	}
+}
+
 func Benchmark_malicious_matchesETag(b *testing.B) {
 	ifNoneMatch := strings.Repeat(",", http.DefaultMaxHeaderBytes)
 	b.ReportAllocs()
@@ -3584,9 +4018,11 @@ func TestCacheFilter_CoalesceSetFailure_Served(t *testing.T) {
 	if !ctx.FServed {
 		t.Fatal("expected response to be served even when storage Set fails")
 	}
+	// failingSetStorage's failure isn't attributable to a backend, so it records
+	// no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error to be incremented on Set failure in coalesce")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
@@ -3663,9 +4099,11 @@ func TestCacheFilter_HEAD_Freshen_SetError(t *testing.T) {
 	}
 	f.Response(headCtx) // must not panic
 
+	// failingSetStorage's failure isn't attributable to a backend, so it records
+	// no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error incremented on HEAD freshen Set failure")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
@@ -3733,9 +4171,11 @@ func TestCacheFilter_UnsafeMethod_DeleteError_ContinuesSilently(t *testing.T) {
 	}
 	f.Response(postCtx) // must not panic
 
+	// failingDeleteStorage's failure isn't attributable to a backend, so it
+	// records no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error incremented on Delete failure in unsafe method invalidation")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
@@ -3793,13 +4233,18 @@ func TestCacheFilter_Response_VarySentinelSetError(t *testing.T) {
 	ctx.FResponse = rsp
 	f.Response(ctx) // must not panic; vary sentinel Set will fail
 
+	// failingSetStorage's failure isn't attributable to a backend, so it records
+	// no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error incremented on Vary sentinel Set failure")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
 
+// See TestCacheFilter_LabeledMetrics_StorageError: a generic storage failure
+// double isn't attributable to a backend, so no storage_error metric fires -
+// only the non-panicking behavior is asserted.
 func TestCacheFilter_Response_StorageSetError(t *testing.T) {
 	mockMetrics := &metricstest.MockMetrics{}
 	spec := NewCacheFilter(Options{MaxBytes: 1 << 20, ListenAddr: "localhost:9090", Metrics: mockMetrics})
@@ -3818,8 +4263,8 @@ func TestCacheFilter_Response_StorageSetError(t *testing.T) {
 	f.Response(ctx) // must not panic
 
 	mockMetrics.WithCounters(func(counters map[string]int64) {
-		if counters["cache.storage_error"] == 0 {
-			t.Error("expected cache.storage_error incremented on Response() storage Set failure")
+		if counters["cache.storage_error"] != 0 {
+			t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 		}
 	})
 }
@@ -3964,7 +4409,7 @@ func TestCacheFilter_Revalidate_RFC_NoStore_NotStored(t *testing.T) {
 	})
 }
 
-func TestCacheFilter_Revalidate_SetError_MetricIncremented(t *testing.T) {
+func TestCacheFilter_Revalidate_SetError_HandledGracefully(t *testing.T) {
 	url := newLocalBackend(t) + "/reval-set-err"
 	synctest.Test(t, func(t *testing.T) {
 		mockMetrics := &metricstest.MockMetrics{}
@@ -4005,9 +4450,11 @@ func TestCacheFilter_Revalidate_SetError_MetricIncremented(t *testing.T) {
 		f.Request(ctx2)
 		synctest.Wait()
 
+		// failingSetStorage's failure isn't attributable to a backend, so it
+		// records no metric - see TestCacheFilter_LabeledMetrics_StorageError.
 		mockMetrics.WithCounters(func(counters map[string]int64) {
-			if counters["cache.storage_error"] == 0 {
-				t.Error("expected cache.storage_error incremented on Set failure in doRevalidate")
+			if counters["cache.storage_error"] != 0 {
+				t.Errorf("expected no cache.storage_error (backend unattributable here), got %d", counters["cache.storage_error"])
 			}
 		})
 	})
@@ -4631,3 +5078,402 @@ func TestProxy_L2Cache_MissWhenBothMiss(t *testing.T) {
 
 // Ensure url import is used
 var _ = url.Parse
+
+// TestCacheFilter_StoreDecision table-drives storeDecision across mode ×
+// noStore/private × Authorization × public/mustRevalidate × keyHeaders —
+// cheaper than exercising every combination through each call site.
+func TestCacheFilter_StoreDecision(t *testing.T) {
+	tests := []struct {
+		name         string
+		rfcMode      bool
+		keyHeaders   []string
+		authHeader   string
+		cacheControl string
+		wantStore    bool
+	}{
+		{"rfc mode, no directives, no auth: stored", true, nil, "", "max-age=300", true},
+		{"rfc mode, private: not stored", true, nil, "", "private, max-age=300", false},
+		{"rfc mode, no-store: not stored", true, nil, "", "no-store", false},
+		{"force mode, private: stored anyway (operator override)", false, nil, "", "private, max-age=0", true},
+		{"force mode, no-store: stored anyway (operator override)", false, nil, "", "no-store", true},
+		{"rfc mode, Authorization without public: not stored", true, nil, "Bearer x", "max-age=300", false},
+		{"rfc mode, Authorization with public: stored", true, nil, "Bearer x", "public, max-age=300", true},
+		{"rfc mode, Authorization with must-revalidate: stored", true, nil, "Bearer x", "must-revalidate, max-age=300", true},
+		{"rfc mode, Authorization already in keyHeaders: stored despite non-public", true, []string{"Authorization"}, "Bearer x", "max-age=300", true},
+		{"force mode, Authorization without public: not stored (unconditional guard)", false, nil, "Bearer x", "", false},
+		{"force mode, Authorization in keyHeaders: stored despite non-public", false, []string{"Authorization"}, "Bearer x", "", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var f *cacheFilter
+			if tc.rfcMode {
+				f = newTestFilterRFC(t, time.Minute, 15*time.Second, time.Minute)
+			} else {
+				f = newTestFilter(t, time.Minute, 15*time.Second, time.Minute)
+			}
+			f.keyHeaders = tc.keyHeaders
+
+			req, _ := http.NewRequest("GET", newLocalBackend(t)+"/store-decision", nil)
+			if tc.authHeader != "" {
+				req.Header.Set("Authorization", tc.authHeader)
+			}
+			header := http.Header{}
+			if tc.cacheControl != "" {
+				header.Set("Cache-Control", tc.cacheControl)
+			}
+			d := parseCacheControl(header)
+
+			_, store := f.storeDecision(req, http.StatusOK, header, d)
+			if store != tc.wantStore {
+				t.Errorf("storeDecision() store = %v, want %v", store, tc.wantStore)
+			}
+		})
+	}
+}
+
+// TestCacheFilter_Coalesce_LeaderNeverRefetches guards against using
+// singleflight.Result.Shared for leader/follower detection: Shared is
+// identical for every waiter including the leader, so branching on it would
+// make the leader itself redundantly refetch whenever a follower joined a
+// non-storeable result. Exactly N fetches expected (1 leader + N-1 follower
+// bypasses), never more.
+func TestCacheFilter_Coalesce_LeaderNeverRefetches(t *testing.T) {
+	const N = 50
+	f := newTestFilterRFC(t, 0, 0, 0) // pure RFC mode, no keyHeaders
+
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+
+	mc := &missCounting{Storage: f.storage}
+	mc.wg.Add(N)
+	f.storage = mc
+
+	var fetchCount atomic.Int64
+	fetchStarted := make(chan struct{})
+	releaseAll := make(chan struct{})
+	var fetchStartedOnce sync.Once
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		fetchCount.Add(1)
+		fetchStartedOnce.Do(func() { close(fetchStarted) })
+		mc.wg.Wait()
+		<-releaseAll
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": {"text/plain"}, "Cache-Control": {"private, no-store"}},
+			Body:       io.NopCloser(strings.NewReader("body for " + req.Header.Get("Authorization"))),
+		}, nil
+	}
+
+	url := newLocalBackend(t) + "/leader-no-refetch"
+	results := make([]*filtertest.Context, N)
+	var wg sync.WaitGroup
+	for i := range N {
+		wg.Add(1)
+		i := i
+		go func() {
+			defer wg.Done()
+			ctx := newCtx("GET", url, fmt.Sprintf("token-%d", i))
+			f.Request(ctx)
+			results[i] = ctx
+		}()
+	}
+	<-fetchStarted
+	close(releaseAll)
+	wg.Wait()
+
+	if got := fetchCount.Load(); got != N {
+		t.Fatalf("expected exactly %d fetches (1 leader + %d follower bypasses); got %d — the leader itself may have redundantly refetched", N, N-1, got)
+	}
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		if got, want := counters["cache.coalesce_bypass"], int64(N-1); got != want {
+			t.Errorf("expected cache.coalesce_bypass == %d, got %d", want, got)
+		}
+		if got := counters["cache.coalesce_bypass_error"]; got != 0 {
+			t.Errorf("expected cache.coalesce_bypass_error == 0, got %d", got)
+		}
+	})
+	if got, want := func() int64 { v, _ := mockMetrics.CacheResultCount("coalesce_bypass", "n/a"); return v }(), int64(N-1); got != want {
+		t.Errorf("expected labeled coalesce_bypass/n_a == %d, got %d", want, got)
+	}
+
+	for i, ctx := range results {
+		if !ctx.FServed {
+			t.Fatalf("goroutine %d: expected ctx to be served", i)
+		}
+		body, _ := io.ReadAll(ctx.FResponse.Body)
+		want := fmt.Sprintf("token-%d", i)
+		if !strings.Contains(string(body), want) {
+			t.Errorf("goroutine %d: cross-user disclosure: expected own token %q, got %q", i, want, body)
+		}
+	}
+}
+
+// TestCacheFilter_Coalesce_VaryMismatch_IndependentFetch verifies the
+// in-memory Vary-based follower check generalizes beyond Authorization: two
+// session groups (identified by a header not in keyHeaders) must never share
+// a private response, but same-session requests still coalesce via Vary.
+func TestCacheFilter_Coalesce_VaryMismatch_IndependentFetch(t *testing.T) {
+	const perSession = 25
+	f := newTestFilterRFC(t, 0, 0, 0) // no keyHeaders — Vary is the only safety net here
+
+	mockMetrics := &metricstest.MockMetrics{}
+	f.metrics = mockMetrics
+
+	mc := &missCounting{Storage: f.storage}
+	mc.wg.Add(2 * perSession)
+	f.storage = mc
+
+	var fetchCount atomic.Int64
+	fetchStarted := make(chan struct{})
+	releaseAll := make(chan struct{})
+	var fetchStartedOnce sync.Once
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		fetchCount.Add(1)
+		fetchStartedOnce.Do(func() { close(fetchStarted) })
+		mc.wg.Wait()
+		<-releaseAll
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type":  {"text/plain"},
+				"Cache-Control": {"private"},
+				"Vary":          {"X-Session-Id"},
+			},
+			Body: io.NopCloser(strings.NewReader("session=" + req.Header.Get("X-Session-Id"))),
+		}, nil
+	}
+
+	url := newLocalBackend(t) + "/vary-mismatch"
+	results := make([]*filtertest.Context, 2*perSession)
+	sessions := make([]string, 2*perSession)
+
+	var wg sync.WaitGroup
+	for i := range 2 * perSession {
+		session := "session-a"
+		if i%2 == 1 {
+			session = "session-b"
+		}
+		sessions[i] = session
+		wg.Add(1)
+		i, session := i, session
+		go func() {
+			defer wg.Done()
+			ctx := newCtx("GET", url, "")
+			ctx.FRequest.Header.Set("X-Session-Id", session)
+			f.Request(ctx)
+			results[i] = ctx
+		}()
+	}
+
+	<-fetchStarted
+	close(releaseAll)
+	wg.Wait()
+
+	if got := fetchCount.Load(); got < 2 {
+		t.Fatalf("expected at least 2 fetches (Vary-mismatched sessions can never share), got %d", got)
+	}
+	// Only the leader's session group shares for free; the losing group's bypass
+	// fetches aren't coalesced with each other (bypass has no singleflight of its
+	// own), so worst case is 1 (leader) + perSession (losing group). This bounds
+	// safety, not efficiency for the losing group — inherent to one coalesce()
+	// key per burst.
+	if got := fetchCount.Load(); got > perSession+2 {
+		t.Fatalf("expected at most one session's worth of independent fetches plus the leader's, got %d", got)
+	}
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		if got, want := counters["cache.coalesce_bypass"], fetchCount.Load()-1; got != want {
+			t.Errorf("expected cache.coalesce_bypass == %d (fetchCount-1), got %d", want, got)
+		}
+		if got := counters["cache.coalesce_bypass_error"]; got != 0 {
+			t.Errorf("expected cache.coalesce_bypass_error == 0, got %d", got)
+		}
+	})
+	if got, want := func() int64 { v, _ := mockMetrics.CacheResultCount("coalesce_bypass", "n/a"); return v }(), fetchCount.Load()-1; got != want {
+		t.Errorf("expected labeled coalesce_bypass/n_a == %d (fetchCount-1), got %d", want, got)
+	}
+
+	for i, ctx := range results {
+		if !ctx.FServed {
+			t.Fatalf("goroutine %d: expected ctx to be served", i)
+		}
+		body, _ := io.ReadAll(ctx.FResponse.Body)
+		wantSession := sessions[i]
+		if !strings.Contains(string(body), wantSession) {
+			t.Errorf("goroutine %d: expected %q in response, got %q", i, wantSession, body)
+		}
+		otherSession := "session-b"
+		if wantSession == "session-b" {
+			otherSession = "session-a"
+		}
+		if strings.Contains(string(body), otherSession) {
+			t.Errorf("cross-session disclosure: goroutine %d (session %q) received %q", i, wantSession, body)
+		}
+	}
+}
+
+// TestCacheFilter_Coalesce_ForceMode_SharesDespitePrivate is the coalesce-level
+// counterpart to TestCacheFilter_ForceMode_CachesWhenUpstreamSaysPrivate: force
+// mode's operator-trust override applies to sharing too, not just storage.
+func TestCacheFilter_Coalesce_ForceMode_SharesDespitePrivate(t *testing.T) {
+	const N = 50
+	f := newTestFilter(t, time.Minute, 15*time.Second, time.Minute) // force mode
+
+	mc := &missCounting{Storage: f.storage}
+	mc.wg.Add(N)
+	f.storage = mc
+
+	var fetchCount atomic.Int64
+	fetchStarted := make(chan struct{})
+	releaseAll := make(chan struct{})
+	var fetchStartedOnce sync.Once
+
+	f.fetch = func(req *http.Request) (*http.Response, error) {
+		fetchCount.Add(1)
+		fetchStartedOnce.Do(func() { close(fetchStarted) })
+		mc.wg.Wait()
+		<-releaseAll
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": {"application/json"}, "Cache-Control": {"private, no-store"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":"contentful"}`)),
+		}, nil
+	}
+
+	url := newLocalBackend(t) + "/force-coalesce-private"
+	results := make([]*filtertest.Context, N)
+	var wg sync.WaitGroup
+	for i := range N {
+		wg.Add(1)
+		i := i
+		go func() {
+			defer wg.Done()
+			ctx := newCtx("GET", url, "")
+			f.Request(ctx)
+			results[i] = ctx
+		}()
+	}
+	<-fetchStarted
+	close(releaseAll)
+	wg.Wait()
+
+	if got := fetchCount.Load(); got > 10 {
+		t.Fatalf("force mode: expected coalescing to hold despite upstream private/no-store, got %d fetches for %d requests", got, N)
+	}
+	for i, ctx := range results {
+		if !ctx.FServed {
+			t.Fatalf("goroutine %d: expected ctx to be served", i)
+		}
+	}
+}
+
+// TestCacheFilter_Revalidate_Authorization_NotStored verifies that a background
+// revalidation carrying the original Authorization header does not overwrite
+// the entry when the response isn't public/must-revalidate.
+func TestCacheFilter_Revalidate_Authorization_NotStored(t *testing.T) {
+	url := newLocalBackend(t) + "/reval-auth-not-public"
+	synctest.Test(t, func(t *testing.T) {
+		f, cleanup := newTestFilterRFCWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
+		defer cleanup()
+
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Cache-Control": {"max-age=10"}, "Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":"v1"}`)),
+			}, nil
+		}
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		synctest.Wait()
+
+		key := ctx1.StateBag()[stateBagKey].(string)
+		before, err := f.storage.Get(ctx1.FRequest.Context(), key)
+		if err != nil || before == nil {
+			t.Fatalf("expected seeded entry, got err=%v entry=%v", err, before)
+		}
+
+		// Background revalidation, triggered by a request carrying Authorization,
+		// returns a response that is not public/must-revalidate.
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Cache-Control": {"max-age=10"}, "Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":"v2-must-not-be-stored"}`)),
+			}, nil
+		}
+
+		time.Sleep(2 * time.Millisecond) // entry is now stale
+
+		ctx2 := newCtx("GET", url, "Bearer secret")
+		f.Request(ctx2)
+		synctest.Wait()
+
+		if !ctx2.FServed {
+			t.Fatal("expected stale entry to be served while revalidation runs")
+		}
+
+		after, err := f.storage.Get(ctx1.FRequest.Context(), key)
+		if err != nil || after == nil {
+			t.Fatalf("entry should still exist: err=%v entry=%v", err, after)
+		}
+		if string(after.Payload) != string(before.Payload) {
+			t.Fatalf("RFC 9111 §3.5: Authorization-bearing, non-public revalidation must not overwrite the entry; got %q", after.Payload)
+		}
+	})
+}
+
+// TestCacheFilter_Revalidate_ForceMode_Authorization_NotStored verifies the
+// Authorization/public guard applies in doRevalidate even in force mode, where
+// the operator-trust override exempts private/no-store but not this check.
+func TestCacheFilter_Revalidate_ForceMode_Authorization_NotStored(t *testing.T) {
+	url := newLocalBackend(t) + "/reval-force-auth-not-public"
+	synctest.Test(t, func(t *testing.T) {
+		f, cleanup := newTestFilterWithCleanup(t, time.Millisecond, 15*time.Second, time.Hour)
+		defer cleanup()
+
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":"v1"}`)),
+			}, nil
+		}
+		ctx1 := newCtx("GET", url, "")
+		f.Request(ctx1)
+		synctest.Wait()
+
+		key := ctx1.StateBag()[stateBagKey].(string)
+		before, err := f.storage.Get(ctx1.FRequest.Context(), key)
+		if err != nil || before == nil {
+			t.Fatalf("expected seeded entry, got err=%v entry=%v", err, before)
+		}
+
+		f.fetch = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"data":"v2-must-not-be-stored"}`)),
+			}, nil
+		}
+
+		time.Sleep(2 * time.Millisecond)
+
+		ctx2 := newCtx("GET", url, "Bearer secret")
+		f.Request(ctx2)
+		synctest.Wait()
+
+		if !ctx2.FServed {
+			t.Fatal("expected stale entry to be served while revalidation runs")
+		}
+
+		after, err := f.storage.Get(ctx1.FRequest.Context(), key)
+		if err != nil || after == nil {
+			t.Fatalf("entry should still exist: err=%v entry=%v", err, after)
+		}
+		if string(after.Payload) != string(before.Payload) {
+			t.Fatalf("force mode: Authorization/public guard must still apply in doRevalidate; got %q", after.Payload)
+		}
+	})
+}

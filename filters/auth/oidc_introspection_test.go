@@ -381,3 +381,77 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 		})
 	}
 }
+
+func TestOIDCQueryClaimsFilterCleanPath(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	}))
+	defer backend.Close()
+
+	spec := &tokenOidcSpec{
+		typ:             checkOIDCAnyClaims,
+		SecretsFile:     "/tmp/foo",
+		secretsRegistry: secrettest.NewTestRegistry(),
+	}
+	querySpec := NewOIDCQueryClaimsFilter()
+	fr := make(filters.Registry)
+	fr.Register(spec)
+	fr.Register(querySpec)
+
+	dc := testdataclient.New(nil)
+	defer dc.Close()
+
+	proxy := proxytest.WithRoutingOptions(fr, routing.Options{
+		DataClients: []routing.DataClient{dc},
+	})
+	defer proxy.Close()
+
+	oidcServer := createOIDCServer(proxy.URL+"/redirect", validClient, "mysec", jwt.MapClaims{"groups": []string{"CD-Administrators"}}, nil)
+	defer oidcServer.Close()
+
+	sargs := []any{oidcServer.URL, validClient, "mysec", proxy.URL + "/redirect", testKey, testKey}
+	r := &eskip.Route{
+		Filters: []*eskip.Filter{
+			{Name: spec.Name(), Args: sargs},
+			{Name: querySpec.Name(), Args: []any{
+				"/login:groups.#[==\"appY-Tester\"]",
+				"/:@_:email%\"*@example.org\"",
+			}},
+		},
+		Backend: backend.URL,
+	}
+
+	proxy.Log.Reset()
+	dc.Update([]*eskip.Route{r}, nil)
+	if err := proxy.Log.WaitFor("route settings applied", 1*time.Second); err != nil {
+		t.Fatalf("Failed to get update: %v", err)
+	}
+
+	client := http.Client{
+		Timeout: 1 * time.Second,
+		Jar:     newInsecureCookieJar(),
+	}
+
+	rsp, err := client.Get(proxy.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsp.Body.Close()
+	assert.Equal(t, http.StatusOK, rsp.StatusCode, "login via /")
+
+	for _, path := range []string{
+		"/login/page",
+		"//login/page",
+		"/./login/page",
+		"/x/../login/page",
+	} {
+		t.Run(path, func(t *testing.T) {
+			rsp, err := client.Get(proxy.URL + path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rsp.Body.Close()
+			assert.Equal(t, http.StatusUnauthorized, rsp.StatusCode)
+		})
+	}
+}

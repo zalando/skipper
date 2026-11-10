@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/dimfeld/httppath"
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	ext_authz_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 )
@@ -29,13 +30,18 @@ func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metada
 		headers["x-envoy-auth-partial-body"] = "false"
 	}
 
+	path := httppath.Clean(req.URL.Path)
+	if req.URL.RawQuery != "" {
+		path += "?" + req.URL.RawQuery
+	}
+
 	ereq := &ext_authz_v3.CheckRequest{
 		Attributes: &ext_authz_v3.AttributeContext{
 			Request: &ext_authz_v3.AttributeContext_Request{
 				Http: &ext_authz_v3.AttributeContext_HttpRequest{
 					Host:    req.Host,
 					Method:  req.Method,
-					Path:    req.URL.RequestURI(),
+					Path:    path,
 					Headers: headers,
 					RawBody: rawBody,
 				},

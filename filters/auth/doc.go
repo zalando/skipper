@@ -219,7 +219,16 @@ Example response from the openid-configuration endpoint:
 Additionally, you can also pass CLI argument
 -oauth2-tokenintrospect-timeout=<OAuthTokenintrospectTimeout> to control the
 default timeout duration for OAuth validation and OpenID provider
-configuration requests. The default tokenintrospect timeout is 3s.
+configuration requests. The default tokenintrospect timeout is 2s.
+
+OpenID discovery caching is enabled by default in Skipper. The jwtValidation and
+token introspection filters reuse successful discovery documents. The cache is
+cleared once an hour. Cached documents can allow route updates during an issuer
+outage; after a clear, discovery must succeed again.
+
+For library use, create a cache with NewOpenIDConfigCache and pass it through
+TokenintrospectionOptions.OpenIDConfigCache. A nil cache disables caching. Call
+Close after all routes stop using the cache.
 
 All oauthTokenintrospection* filters will work on the tokenintrospect response.
 

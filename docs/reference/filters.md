@@ -410,7 +410,8 @@ headerToQuery("X-Foo-Header", "foo-query-param")
 ```
 
 The above filter will set `foo-query-param` query param respectively to the `X-Foo-Header` header
-and will override the value if the queryparam exists already
+and will override the value if the queryparam exists already.
+If the request has no `X-Foo-Header` header, the query is left unchanged.
 
 ### flowId
 
@@ -1670,6 +1671,19 @@ Tokenintrospection handled by another service.
 The filters just validate the response from the tokenintrospection
 service to do authorization as defined in the filter.
 
+OpenID discovery caching is **enabled by default in Skipper**. The
+[jwtValidation](#jwtvalidation) and token introspection filters reuse successful
+discovery documents. The cache is cleared once an hour. Cached documents can
+allow route updates during an issuer outage; after a clear, discovery must
+succeed again.
+
+The discovery request timeout is controlled by `-oauth2-tokenintrospect-timeout`
+(default: 2 seconds).
+
+For library use, create a cache with `auth.NewOpenIDConfigCache()` and pass it
+through `auth.TokenintrospectionOptions.OpenIDConfigCache`. A nil cache disables
+caching. Call `Close()` after all routes stop using the cache.
+
 #### oauthTokenintrospectionAnyClaims
 
 The filter accepts variable number of string arguments, which are used
@@ -1923,6 +1937,7 @@ The filter parses bearer jwt token from Authorization header and validates the s
 discovered via /.well-known/openid-configuration endpoint. Takes issuer url as single parameter.
 The filter stores token claims into the state bag where they can be used by [oidcClaimsQuery](#oidcclaimsquery), [forwardToken](#forwardtoken) or [forwardTokenField](#forwardtokenfield) filters.
 
+Discovery caching is enabled by default; see [Tokenintrospection](#tokenintrospection).
 
 Examples:
 
@@ -2237,6 +2252,8 @@ oauthOidcAnyClaims("https://oidc-provider.example.com",
 
 When using `secretRef:`, Skipper expects the referenced secret to be available via the configured secrets reader; if the secret cannot be resolved, filter creation fails.
 
+A client secret given as `secretRef:` is looked up again for every token exchange, so a rotated secret is used without recreating the filter or restarting Skipper. If the secret cannot be read at that time, the last known value is used. The client ID is resolved only once, when the filter is created.
+
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
@@ -2495,14 +2512,14 @@ so if requests on average have 100KB and the maximum memory is set to 100MB, on 
 
 The filter also honors the `skip-request-body-parse` of the corresponding [configuration](https://www.openpolicyagent.org/docs/latest/envoy-introduction/#configuration) that the OPA plugin uses.
 
-!!! warning "Oversized bodies appear empty to the policy"
-    When a request body exceeds the configured maximum size, it is not forwarded to the policy — `input.parsed_body` and `input.attributes.request.http.body` will be empty. If your policy uses the presence or content of the body as a condition for an authorization decision, an oversized body will silently evaluate as if no body were sent, which may grant unintended access.
+!!! warning "Oversized bodies are truncated before reaching the policy"
+    When a request body exceeds the configured maximum size, only the prefix up to the limit is forwarded to the policy — `input.parsed_body` will be `null` and `input.attributes.request.http.body` will contain only the prefix. If your policy uses the presence or content of the body as a condition for an authorization decision, an oversized body may silently bypass body-based rules, which may grant unintended access.
 
-    Use `input.attributes.request.http.truncated_body` to distinguish between a genuinely empty body and one that was truncated:
+    Use `input.truncated_body` to distinguish between a genuinely empty body and one that was truncated:
 
     ```rego
     allow if {
-        input.attributes.request.http.truncated_body == false
+        input.truncated_body == false
         # ... body-based conditions
     }
     ```
@@ -2564,14 +2581,14 @@ so if requests on average have 100KB and the maximum memory is set to 100MB, on 
 
 The filter also honors the `skip-request-body-parse` of the corresponding [configuration](https://www.openpolicyagent.org/docs/latest/envoy-introduction/#configuration) that the OPA plugin uses.
 
-!!! warning "Oversized bodies appear empty to the policy"
-    When a request body exceeds the configured maximum size, it is not forwarded to the policy — `input.parsed_body` and `input.attributes.request.http.body` will be empty. If your policy uses the presence or content of the body as a condition for an authorization decision, an oversized body will silently evaluate as if no body were sent, which may grant unintended access.
+!!! warning "Oversized bodies are truncated before reaching the policy"
+    When a request body exceeds the configured maximum size, only the prefix up to the limit is forwarded to the policy — `input.parsed_body` will be `null` and `input.attributes.request.http.body` will contain only the prefix. If your policy uses the presence or content of the body as a condition for an authorization decision, an oversized body may silently bypass body-based rules, which may grant unintended access.
 
-    Use `input.attributes.request.http.truncated_body` to distinguish between a genuinely empty body and one that was truncated:
+    Use `input.truncated_body` to distinguish between a genuinely empty body and one that was truncated:
 
     ```rego
     allow if {
-        input.attributes.request.http.truncated_body == false
+        input.truncated_body == false
         # ... body-based conditions
     }
     ```
@@ -4143,7 +4160,7 @@ consistentHashBalanceFactor(3)
 Caches HTTP responses in a shared in-memory LRU store. Operates in two modes
 selected by the number of arguments.
 
-**RFC mode** (zero arguments): upstream `Cache-Control` is fully authoritative.
+**RFC mode** (zero or one argument): upstream `Cache-Control` is fully authoritative.
 Freshness, `no-store`, `private`, `Vary`, `s-maxage`, heuristic TTL
 ([RFC 9111 §4.2.2](https://www.rfc-editor.org/rfc/rfc9111#section-4.2.2)), and conditional revalidation (`ETag`/`Last-Modified`) are
 all honoured.
@@ -4155,16 +4172,21 @@ revalidation. Per [RFC 9111 §5.2.1](https://www.rfc-editor.org/rfc/rfc9111#sect
 shared caches; ignoring client `max-age` prevents cache-bypass abuse on shared
 routes.
 
+RFC mode accepts an optional single argument: a comma-separated list of request
+header names to fold into the cache key (see `keyHeaders` below). This is the
+recommended way to use RFC mode on authenticated routes.
+
 **Force mode** (3–5 arguments): operator TTL is authoritative; upstream
 `Cache-Control` freshness directives are ignored. Semantic blockers (`no-store`,
 `private`) are respected in RFC mode but ignored in force mode.
 
 Stale-while-revalidate (SWR): a stale entry within the SWR window is served
 immediately while a background fetch refreshes the entry. Concurrent cold-miss
-requests for the same key are coalesced into a single upstream fetch. The SWR
-window's source depends on the mode: in force mode it's the operator-supplied
-`swrWindow` parameter below; in RFC mode it's the response's own
-[`stale-while-revalidate`](https://www.rfc-editor.org/rfc/rfc5861#section-3)
+requests for the same key are coalesced into a single upstream fetch when it's
+safe to share the result; see "Coalescing safety" below for when it isn't. The
+SWR window's source depends on the mode: in force mode it's the
+operator-supplied `swrWindow` parameter below; in RFC mode it's the response's
+own [`stale-while-revalidate`](https://www.rfc-editor.org/rfc/rfc5861#section-3)
 `Cache-Control` directive — if the upstream never sends that directive, RFC-mode
 entries have no SWR window and simply expire at TTL. The background fetch is
 dispatched directly to the route's backend when possible (force mode with a
@@ -4176,15 +4198,20 @@ difference between the two.
 Unsafe methods (`POST`, `PUT`, `DELETE`, `PATCH`) invalidate the cached entry on
 success. `HEAD 200` freshens stored headers without replacing the body.
 
-Parameters (force mode):
+Parameters:
+
+* `keyHeaders` – optional; comma-separated request header names folded into the
+  cache key for per-header isolation (string, e.g. `"Authorization,X-Tenant-ID"`).
+  Valid in both RFC mode (as the single argument) and force mode (as the 5th
+  argument).
+
+Force-mode-only parameters (3–5 arguments):
 
 * `ttl` – freshness duration for 200 responses (string, e.g. `"5m"`)
 * `errorTTL` – freshness duration for 404/5xx responses (string)
 * `swrWindow` – stale-while-revalidate window after TTL expires (string)
 * `staleIfError` – optional; how long a stale entry may be served on upstream
   5xx (string, [RFC 5861](https://www.rfc-editor.org/rfc/rfc5861))
-* `keyHeaders` – optional; comma-separated request header names folded into the
-  cache key for per-header isolation (string, e.g. `"Authorization,X-Tenant-ID"`)
 
 Examples:
 
@@ -4212,6 +4239,21 @@ Force mode with per-tenant cache key isolation:
 -> cache("5m", "15s", "30s", "0s", "X-Tenant-ID") -> "https://cdn.example.org"
 ```
 
+RFC mode with per-user cache key isolation:
+
+```
+-> cache("Authorization") -> "https://cdn.example.org"
+```
+
+RFC mode with per-session cache key isolation — extract the identifying cookie
+into a dedicated header rather than keying on the whole `Cookie` header, which
+carries unrelated cookies and would fragment the cache on every one of them:
+
+```
+-> setRequestHeader("X-Session-Id", "${request.cookie.session_id}")
+-> cache("X-Session-Id") -> "https://cdn.example.org"
+```
+
 **Cache key**
 
 The key is derived from route ID + scheme + host + path + query string,
@@ -4231,15 +4273,34 @@ matching the same key. It has no awareness of other filters in the chain.
 * **Do not use on routes that return user-specific data or set user-scoped
   cookies** — those responses will be served to other users.
 * **`Authorization` is not in the key by default.** Responses are stored and
-  served without regard to caller identity. To isolate per-user responses, add
-  `Authorization` to `keyHeaders`; without it, a response stored for one user
-  will be served to all others on the same path. Note: in RFC mode, if the
-  request carries an `Authorization` header and the upstream does not respond
-  with `Cache-Control: public` or `must-revalidate`, the response is silently
-  not stored (RFC 9111 §3.5). Use force mode or ensure the upstream sets
-  `Cache-Control: public` if you want authenticated responses cached.
+  served without regard to caller identity. To isolate per-user responses, use
+  `cache("Authorization")` in RFC mode, or add `Authorization` to the 5-arg
+  `keyHeaders` form in force mode; without it, a response stored for one user
+  will be served to all others on the same path. Note: if the request carries
+  an `Authorization` header and the upstream does not respond with
+  `Cache-Control: public` or `must-revalidate`, the response is not stored
+  (RFC 9111 §3.5) — this guard is unconditional, not RFC-mode-only, unless
+  `Authorization` is already in `keyHeaders`. Use force mode, add `Authorization`
+  to `keyHeaders`, or ensure the upstream sets `Cache-Control: public` if you
+  want authenticated responses cached.
 * **`Cache-Control: private` is ignored in force mode.** Audit the upstream
   response before enabling force mode on any authenticated route.
+* **Coalescing safety.** Concurrent cold-miss requests to the same key share a
+  single upstream fetch only when it's safe to reuse: safe means the response
+  is one `storeDecision` would also persist for later requests — not just the
+  `private`/`no-store`/`Authorization` cases named above, but any response
+  that isn't storeable for any reason (e.g. no explicit freshness directive
+  and nothing to derive a heuristic TTL from). A request may still reuse an
+  unsafe response if its identity is already proven to match: either
+  `keyHeaders` puts every request on this key under the same values (only as
+  reliable as the operator's own `keyHeaders` choice — a header left out of
+  it isn't covered), or the response's own `Vary` header names a dimension
+  both requests match on exactly. Otherwise each request fetches
+  independently, and independent fetches aren't coalesced with each other
+  either — so "coalesced into a single upstream fetch" (above) is not an
+  absolute guarantee: a burst of N concurrent requests that all turn out
+  unsafe to share can produce up to N fetches for the same key, not just one
+  extra.
 
 !!! note
     `s-maxage` implies `proxy-revalidate` per [RFC 9111 §5.2.2.10](https://www.rfc-editor.org/rfc/rfc9111#section-5.2.2.10): stale entries

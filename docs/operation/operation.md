@@ -284,6 +284,74 @@ connection handling. Outgoing calls to these services have a
 default timeout of 2s, which can be changed by the flag
 `-oauth2-tokenintrospect-timeout=<OAuthTokenintrospectionTimeout>`.
 
+## Logs
+
+We care about the log volume. Often you want to log errors, but also
+being able to fine tune and log some specific routes, only.  Skipper
+allows to enable and disable access logs by status code of the
+response via [log filters](../reference/filters.md#logs).
+
+You can create a default and let it override by filter of the route.
+You can do this by combining the filter annotation with [prepend
+default filters](#global-default-filters), so you can create a default
+based on operators choice, but allow software engineers to override
+this decision based on their needs via annotation.
+
+### Application based logs
+
+The [annotate filter](../reference/filters.md#annotate) allows you to specify an application that will be part of the log. See the annotate filter added to the route in the first line and compare it with the last part of the last two log lines.
+
+```text hl_lines="1 14 15"
+% ./bin/skipper -inline-routes='r1: PathSubtree("/") -> annotate("Application", "my-app") -> "http://127.0.0.1:9002"; ' -address :9001
+[APP]INFO[0000] Expose metrics in format: "codahale"
+[APP]INFO[0000] enable swarm: false
+[APP]INFO[0000] Replacing tee filter specification
+[APP]INFO[0000] Replacing teenf filter specification
+[APP]INFO[0000] Replacing teeResponse filter specification
+[APP]INFO[0000] support listener on :9911
+[APP]INFO[0000] route settings, reset, route: r1: PathSubtree("/") -> annotate("Application", "my-app") -> "http://127.0.0.1:9002"
+[APP]INFO[0000] Dataclients are updated once, first load complete
+[APP]INFO[0000] Listen on :9001
+[APP]INFO[0000] route settings received, id: 1
+[APP]INFO[0000] route settings applied, id: 1
+[APP]INFO[0000] TLS settings not found, defaulting to HTTP
+[APP]ERRO[0008] error while proxying after 461.299µs, route r1 with backend network http://127.0.0.1:9002, status code 502: dialing failed true: failed to do backend roundtrip to 127.0.0.1:9002: dial tcp 127.0.0.1:9002: connect: connection refused, remote host: 127.0.0.1, request: "GET / HTTP/1.1", host: 127.0.0.1:9001, user agent: "curl/8.5.0"  application=my-app
+127.0.0.1 - - [05/Nov/2026:16:42:10 +0100] "GET / HTTP/1.1" 502 12 "-" "curl/8.5.0" 0 127.0.0.1:9001 - - my-app
+```
+
+Now you can search access or error logs by application.
+
+One limitation is that skipper needs to lookup the route that is done
+while the request is processed. Therefore some error logs that are
+happening before the route lookup can not be assigned to an
+application.
+
+The Kubernetes dataclient can automatically add this filter based on
+your application label via config flag
+`-kubernetes-application-annotation-label`. So you are free to choose
+the label key to read `<your-value>` from the metadata labels to let
+skipper create the shown `annotate("Application", "<your-value>")`
+filter.
+
+Example:
+
+```
+-kubernetes-application-annotation-label=app.kubernetes.io/name
+```
+
+Example ingress that would apply `annotate("Application", "my-app")` to the route:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+	app.kubernetes.io/name: my-app
+  name: app
+spec:
+..
+```
+
 ## Monitoring
 
 Monitoring is one of the most important things you need to run in
@@ -321,6 +389,22 @@ To monitor skipper we recommend the following queries:
 - P99 request filter duration (depends on label selector): `histogram_quantile(0.99, sum(rate(skipper_filter_request_duration_seconds_bucket{application="skipper-ingress"}[1m])) by (le) )`
 - P99 response filter duration (depends on label selector): `histogram_quantile(0.99, sum(rate(skipper_filter_response_duration_seconds_bucket{application="skipper-ingress"}[1m])) by (le) )`
 - If you use Kubernetes limits or Linux cgroup CFS quotas (depends on label selector): `sum(rate(container_cpu_cfs_throttled_periods_total{container_name="skipper-ingress"}[1m]))`
+
+#### Cache filter metrics
+
+Skipper enables the dedicated Prometheus cache collectors when the `cache` filter is enabled, independently of L2 cache configuration. Disabling the filter through `DisabledFilters` disables these collectors; there is no separate CLI option. Library callers constructing a metrics backend directly must set `metrics.Options.EnableCacheMetrics` to enable them. The legacy `cache.*` custom counters, including `cache.storage_error`, are unaffected by this option.
+
+When the cache filter is active, the following labeled metrics are exposed:
+
+- `skipper_cache_result_total{result="...", code_class="2xx|4xx|5xx|other|n/a"}` - Counter for cache-related outcomes by result type and HTTP status code class. `result` covers the same outcomes as the flat `skipper_custom_total{key="cache.*"}` counters below — `hit`, `miss`, `stale`, `storage_error`, `coalesce_error`, `coalesce_bypass`, `coalesce_bypass_error`, and, when an L2 (Valkey) store is configured, `l1_hit`, `l2_hit`, `l2_miss`, `l2_get_error`, `l2_set_fallback`. `code_class` is only meaningful for outcomes with a cached response in hand (`hit`, `miss`, `stale`, `l1_hit`, `l2_hit`, `l2_set_fallback`); for outcomes with no response to classify (`storage_error`, `coalesce_error`, `coalesce_bypass`, `coalesce_bypass_error`, `l2_miss`, `l2_get_error`) it is the literal string `n/a`. A rising `hit`/`4xx` or `hit`/`5xx` series indicates the cache is serving an error response as a hit — investigate the upstream response and cache-control directives for that route. Cardinality is bounded by the number of distinct (result, code_class) pairs actually emitted.
+- `skipper_cache_lru_bytes{route="..."}` - Gauge for per-route LRU (L1) cache storage consumption in bytes, updated on every hit, miss, and stale serve. Cardinality bounded by the number of distinct routes.
+- The flat-key counters `skipper_custom_total{key="cache.hit"}`, `cache.miss`, `cache.stale`, and the rest of the `cache.*` keys above are the primary, directly-emitted metrics — `skipper_cache_result_total`/`skipper_cache_lru_bytes` are an additional labeled breakdown of the same underlying events, not a replacement for them.
+
+`code_class` describes the cached or selected response status, not necessarily the final HTTP status returned to the client. For example, conditional request handling may return `304 Not Modified` for a cached `2xx` representation while the cache result retains `code_class="2xx"`.
+
+Internal Vary-sentinel reads suppress the lookup outcomes `l1_hit`, `l2_hit`, `l2_miss`, and `l2_get_error`, including their labeled equivalents. They still record the duration of real L2 calls and report storage decode faults. With Prometheus, these faults increment the legacy `cache.storage_error` counter and, when dedicated cache collectors are enabled, `skipper_cache_storage_error_total` and `skipper_cache_result_total{result="storage_error",code_class="n/a"}`. L1 warming is preserved.
+
+`skipper_cache_result_total` includes overlapping request outcomes and operational/storage events, so summing all `result` values is not a request count. For cache-outcome shares or hit ratios, restrict the denominator to `result=~"hit|miss|stale"` and sum across `code_class`. For example, the hit ratio is `sum(rate(skipper_cache_result_total{result="hit"}[5m])) / sum(rate(skipper_cache_result_total{result=~"hit|miss|stale"}[5m]))`.
 
 You may add static metrics labels like `version` using Prometheus [relabeling feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config).
 
@@ -1116,6 +1200,7 @@ These metrics are particularly useful for:
 
 * `routes.load_all.<client>`: timer measuring execution time for loading all routes from the data client.
 * `routes.load_update.<client>`: timer measuring execution time for loading incremental route updates from the data client.
+* `k8s.gone`: counter incremented when the Kubernetes cluster client receives an HTTP 410 Gone response while querying the Kubernetes API.
 
 The `<client>` part is the name of the data client (e.g., `kubernetes` or `inline`), resolved via `NamedDataClient.Name()`. Data clients that do not implement the `NamedDataClient` interface are reported as `unknown` (e.g., `routes.load_all.unknown`).
 
@@ -1562,6 +1647,64 @@ are not configured on the Ingress resource. Otherwise, it can and will lead to
 potentially contradicting filter configurations and race conditions, i.e.
 you should specify a specific filter either on the Ingress resource or as
 a default filter.
+
+## Priority Routes
+
+Priority routes are matched against every incoming request **before** any
+route from the regular data sources (files, Kubernetes, etcd, inline
+routes). If a priority route matches, its filters and backend are used
+and the regular routing table is never consulted for that request. If no
+priority route matches, routing proceeds normally.
+
+This is useful when you need a small, operator-controlled set of routes
+that must always win regardless of what the rest of the routing table
+contains — for example blocking a pattern cluster-wide.
+
+### Inline priority routes
+
+Supply routes as an eskip string directly on the command line:
+
+    -priority-routes string
+        priority routes in eskip format, matched before all data-client routes
+
+Example — block all requests that contain `../` with a 403:
+
+```sh
+skipper -priority-routes='block: UrlRawPathRegexp(/[.][.][/]/) -> status(403) -> inlineContent("Forbidden") -> <shunt>' \
+        -inline-routes='app: * -> "http://localhost:8080"'
+```
+
+### Priority routes from a file
+
+Load priority routes from an eskip file:
+
+    -priority-routes-file string
+        file containing priority route definitions in eskip format
+
+Example file `priority.eskip`:
+
+```eskip
+block_path_traversal: UrlRawPathRegexp(/[.][.][/]/) -> status(403) -> inlineContent("Forbidden") -> <shunt>;
+maintenance: Path("/api") -> status(503) -> inlineContent("Under maintenance") -> <shunt>;
+```
+
+Start skipper with:
+
+```sh
+skipper -priority-routes-file=priority.eskip \
+        -routes-file=app.eskip
+```
+
+Both `-priority-routes` and `-priority-routes-file` can be used at the
+same time; their routes are merged into a single priority matcher.
+
+### Relationship to the regular routing table
+
+Priority routes are matched at the proxy level, before the routing table
+is consulted. They do **not** appear in the `/routes` endpoint output
+(which shows only data-client routes), and they are not subject to
+dataclient polling or route updates. To change them, restart skipper with
+a new value for `-priority-routes` or a modified `-priority-routes-file`.
 
 ## Scheduler
 
@@ -2011,7 +2154,9 @@ unsafe-method path, options are: wait for TTL expiry, restart the Skipper proces
 delete the key directly in L2.
 
 Concurrent cold-miss requests for the same route and key within one Skipper process are
-coalesced into a single upstream fetch (thundering-herd protection). Requests arriving via
+coalesced into a single upstream fetch (thundering-herd protection) when it's safe to
+share the result — see the `cache()` filter reference's "Coalescing safety" note for when
+a request instead performs its own independent fetch. Requests arriving via
 different routes are not coalesced even if they target the same upstream URL, because the
 route ID is part of the cache key. This protection is also process-local: a fleet of N
 instances may still issue up to N simultaneous origin requests on a cold miss.
@@ -2058,6 +2203,21 @@ flowchart TD
 - `cache.miss`: Counter, request not in cache; upstream was contacted
 - `cache.stale`: Counter, stale entry served while background revalidation was enqueued
 - `cache.coalesce_error`: Counter, singleflight cold-miss fetch returned an error
+- `cache.coalesce_bypass`: Counter, a concurrent cold-miss request's response wasn't
+  storeable and no `keyHeaders`/`Vary` proof of matching identity was available, so
+  it performed its own fetch instead of reusing another request's in-flight response.
+  A successfully served independent response carries `X-Cache-Status: MISS` and
+  contributes once to `cache.miss` and the labelled `miss` result.
+- `cache.coalesce_bypass_error`: Counter, an independent bypass fetch (see
+  `cache.coalesce_bypass`) or its response-body read returned an error.
+  Independently fetched bodies are buffered before their upstream streams close,
+  so the response remains readable after the fetch helper returns. An incomplete
+  body is not served as a successful response. Independent follower fetches use
+  the follower's request context, so client cancellation interrupts a stalled
+  body read without cancelling the shared leader fetch.
+- `cache.coalesce_wait_duration`: Histogram, time from issuing a cold-miss singleflight
+  call to the result being available — near-zero for the leader (it computes the result
+  itself), the leader's real fetch time for followers waiting on it
 
 **LRU (always active):**
 
@@ -2085,7 +2245,10 @@ flowchart TD
 - `cache.l2_get_error`: Counter, L2 Get errors — request treated as a cache miss, fetched from origin
 - `cache.l2_set_fallback`: Counter, L2 Set errors — entry written to L1 only (not L2)
 - `cache.l2_hit`: Counter, successful L2 Get (entry returned from L2); L1 is warmed as a side-effect when `--cache-l1-ttl > 0`
+- `cache.l2_get_duration`: Histogram, time of the underlying Valkey/Redis `Get` round-trip, on every call (hit, miss, or error) — including internal lookups like the Vary-sentinel check
+- `cache.l2_set_duration`: Histogram, time of the underlying Valkey/Redis `SetWithExpire` round-trip, on every call (success or fallback)
 - `cache.storage_error`: Counter, any storage operation (Set or Delete) failed — covers both L2 failures and L1 eviction-path errors; the request is still served correctly
+- `skipper_cache_storage_error_total{backend="l1|l2", op="get|set|delete"}`: Counter, labeled breakdown of storage errors by backend and operation, attributed at the point in `LRUStorage`/`L2Storage` where the backend is actually known. Also increments the flat `cache.storage_error` counter above and the labeled `skipper_cache_result_total{result="storage_error",code_class="n/a"}`, so existing consumers of either see no change — this is purely an additional breakdown. `backend="l2", op="delete"` always reports the real underlying failure, since `L2Storage.Delete` only ever returns `nil` to its caller regardless of whether the Valkey delete succeeded (L1 delete always runs); a generic `Storage.Set`/`Storage.Delete` failure from code that isn't `LRUStorage` or `L2Storage` (e.g. a test double) cannot be attributed and records nothing here.
 
 **OpenTracing span tags (set on every request when a span is active):**
 

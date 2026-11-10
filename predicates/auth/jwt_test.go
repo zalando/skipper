@@ -16,6 +16,7 @@ import (
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 )
 
 func Test_spec(t *testing.T) {
@@ -659,35 +660,198 @@ func TestPredicateCacheClean(t *testing.T) {
 			t.Fatal("Failed to match")
 		}
 
+		reg.mu.Lock()
 		if l := len(reg.predicateMap); l != 1 {
+			reg.mu.Unlock()
 			t.Fatalf("Failed to get predicateMap of len 1, got: %d", l)
 		}
+		reg.mu.Unlock()
 
+		pred := p.(*predicate)
 		ok := false
-		for _, p := range reg.predicateMap {
-			p.cache.Range(func(k, v any) bool {
-				ok = true
-				return true
-			})
-		}
+		pred.cache.Range(func(k, v any) bool {
+			ok = true
+			return true
+		})
 		if !ok {
 			t.Fatal("Failed to get cache filled")
 		}
 
 		time.Sleep(time.Hour + time.Minute)
 
-		ok = true
-		for _, p := range reg.predicateMap {
-			p.cache.Range(func(k, v any) bool {
-				ok = false
-				return true
-			})
+		reg.mu.Lock()
+		if l := len(reg.predicateMap); l != 1 {
+			reg.mu.Unlock()
+			t.Fatalf("Expected predicateMap to keep active predicate instances, got: %d", l)
 		}
+		reg.mu.Unlock()
+
+		ok = true
+		pred.cache.Range(func(k, v any) bool {
+			ok = false
+			return true
+		})
 		if !ok {
 			t.Fatal("Failed to get cache cleaned")
 		}
-
 	})
+}
+
+func TestPredicateRegistryPostProcessor(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		initialArgs          [][]any
+		activeRoutes         func(preds []routing.Predicate) []*routing.Route
+		expectedRemainingMap int
+	}{
+		{
+			name: "all predicates still in use",
+			initialArgs: [][]any{
+				{"uid", "^user1$"},
+				{"uid", "^user2$"},
+			},
+			activeRoutes: func(preds []routing.Predicate) []*routing.Route {
+				return []*routing.Route{
+					{Predicates: []routing.Predicate{preds[0]}},
+					{Predicates: []routing.Predicate{preds[1]}},
+				}
+			},
+			expectedRemainingMap: 2,
+		},
+		{
+			name: "one predicate stale and pruned",
+			initialArgs: [][]any{
+				{"uid", "^user1$"},
+				{"uid", "^user2$"},
+			},
+			activeRoutes: func(preds []routing.Predicate) []*routing.Route {
+				return []*routing.Route{
+					{Predicates: []routing.Predicate{preds[0]}},
+				}
+			},
+			expectedRemainingMap: 1,
+		},
+		{
+			name: "no active routes prunes all predicates",
+			initialArgs: [][]any{
+				{"uid", "^user1$"},
+				{"uid", "^user2$"},
+			},
+			activeRoutes: func(preds []routing.Predicate) []*routing.Route {
+				return []*routing.Route{}
+			},
+			expectedRemainingMap: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			predicateSpec := NewJWTPayloadAnyKVRegexp()
+			s := predicateSpec.(*spec)
+			defer s.reg.Close()
+
+			var preds []routing.Predicate
+			for _, args := range tc.initialArgs {
+				p, err := predicateSpec.Create(args)
+				require.NoError(t, err)
+				preds = append(preds, p)
+			}
+
+			s.reg.mu.Lock()
+			require.Equal(t, len(tc.initialArgs), len(s.reg.predicateMap))
+			s.reg.mu.Unlock()
+
+			routes := tc.activeRoutes(preds)
+			processedRoutes := s.Do(routes)
+			require.Equal(t, routes, processedRoutes)
+
+			s.reg.mu.Lock()
+			require.Equal(t, tc.expectedRemainingMap, len(s.reg.predicateMap))
+			s.reg.mu.Unlock()
+		})
+	}
+}
+
+func TestJWTPredicateDynamicRouteUpdates(t *testing.T) {
+	tokenUser1 := "eyJraWQiOiJwbGF0Zm9ybS1pYW0tdmNlaHloajYiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiaHR0cHM6Ly9pZGVudGl0eS56YWxhbmRvLmNvbS9tYW5hZ2VkLWlkIjoidXNlcjEiLCJhdXRoX3RpbWUiOjE1MjMyNTk0NjgsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20iLCJleHAiOjE1MjUwMjQyODUsImlhdCI6MTUyNTAyMDY3NX0.uxHcC7DJrkP-_G81Jmiba5liVP0LJOmkpal4wsUr7CmtMlE23P1bptIMxnJLv5EMSN1NFn-BJe9hcEB2A3LarA"
+	tokenUser2 := "eyJraWQiOiJwbGF0Zm9ybS1pYW0tdmNlaHloajYiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkxIiwiaHR0cHM6Ly9pZGVudGl0eS56YWxhbmRvLmNvbS9tYW5hZ2VkLWlkIjoidXNlcjIiLCJhdXRoX3RpbWUiOjE1MjMyNTk0NjgsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20iLCJleHAiOjE1MjUwMjQyODUsImlhdCI6MTUyNTAyMDY3NX0.uxHcC7DJrkP-_G81Jmiba5liVP0LJOmkpal4wsUr7CmtMlE23P1bptIMxnJLv5EMSN1NFn-BJe9hcEB2A3LarA"
+
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewStatus())
+
+	specAny := NewJWTPayloadAnyKVRegexp()
+	specAll := NewJWTPayloadAllKVRegexp()
+
+	initialRoutes := eskip.MustParse(`
+r1: JWTPayloadAnyKVRegexp("https://identity.zalando.com/managed-id", "^user1$") -> status(200) -> <shunt>;
+defaultCatch: * -> status(404) -> <shunt>;
+`)
+
+	dc := testdataclient.New(initialRoutes)
+	defer dc.Close()
+
+	pollTimeout := 10 * time.Millisecond
+	ro := routing.Options{
+		FilterRegistry: fr,
+		DataClients:    []routing.DataClient{dc},
+		Predicates:     []routing.PredicateSpec{specAny, specAll},
+		PostProcessors: []routing.PostProcessor{
+			specAny.(routing.PostProcessor),
+			specAll.(routing.PostProcessor),
+		},
+		PollTimeout: pollTimeout,
+	}
+
+	proxy := proxytest.WithRoutingOptions(fr, ro)
+	defer proxy.Close()
+
+	reqURL, err := url.Parse(proxy.URL)
+	require.NoError(t, err)
+
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	makeReq := func(token string) int {
+		req, err := http.NewRequest("GET", reqURL.String(), nil)
+		require.NoError(t, err)
+		if token != "" {
+			req.Header.Set(authHeaderName, authHeaderPrefix+token)
+		}
+		rsp, err := client.Do(req)
+		require.NoError(t, err)
+		defer rsp.Body.Close()
+		return rsp.StatusCode
+	}
+
+	// Cycle 1: Verify initial routing table matches r1
+	require.Eventually(t, func() bool {
+		return makeReq(tokenUser1) == http.StatusOK
+	}, 2*time.Second, pollTimeout)
+	require.Equal(t, http.StatusNotFound, makeReq(tokenUser2))
+
+	// Cycle 2: Dynamic route update - replace r1 with r2 (user2)
+	updatedRoutesCycle2 := eskip.MustParse(`
+r2: JWTPayloadAnyKVRegexp("https://identity.zalando.com/managed-id", "^user2$") -> status(201) -> <shunt>;
+`)
+	dc.Update(updatedRoutesCycle2, []string{"r1"})
+
+	// Verify next execution cycle matches r2, does not panic, and stale r1 is evicted
+	require.Eventually(t, func() bool {
+		return makeReq(tokenUser2) == http.StatusCreated
+	}, 2*time.Second, pollTimeout)
+	require.Equal(t, http.StatusNotFound, makeReq(tokenUser1))
+
+	// Cycle 3: Dynamic route update - retain r2 and add r3 with JWTPayloadAllKVRegexp
+	updatedRoutesCycle3 := eskip.MustParse(`
+r3: JWTPayloadAllKVRegexp("https://identity.zalando.com/managed-id", "^user1$") -> status(202) -> <shunt>;
+`)
+	dc.Update(updatedRoutesCycle3, nil)
+
+	// Verify retained r2 and newly added r3 both match without panic or race condition
+	require.Eventually(t, func() bool {
+		return makeReq(tokenUser1) == http.StatusAccepted
+	}, 2*time.Second, pollTimeout)
+	require.Equal(t, http.StatusCreated, makeReq(tokenUser2))
+	require.Equal(t, http.StatusNotFound, makeReq(""))
 }
 
 func BenchmarkJWTPayloadAnyKV(b *testing.B) {

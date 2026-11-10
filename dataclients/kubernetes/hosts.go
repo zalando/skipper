@@ -82,6 +82,20 @@ func isExternalAddressAllowed(allowedDomains []*regexp.Regexp, address string) b
 	return isExternalDomainAllowed(allowedDomains, u.Hostname())
 }
 
+func isExternalRouteAllowed(allowedDomains []*regexp.Regexp, r *eskip.Route) bool {
+	switch r.BackendType {
+	case eskip.NetworkBackend:
+		return isExternalAddressAllowed(allowedDomains, r.Backend)
+	case eskip.LBBackend:
+		for _, ep := range r.LBEndpoints {
+			if !isExternalAddressAllowed(allowedDomains, ep.Address) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func isEastWestHost(host string, eastWestRangeDomains []string) bool {
 	for _, domainSuffix := range eastWestRangeDomains {
 		if strings.HasSuffix(host, domainSuffix) {

@@ -215,6 +215,7 @@ func (f *tokenExchangeFilter) exchangeToken(ctx filters.FilterContext, subjectTo
 	form.Set("subject_token", subjectToken)
 	form.Set("subject_token_type", tokenExchangeAccessTokenType)
 	form.Set("requested_token_type", tokenExchangeAccessTokenType)
+	form.Set("client_id", f.clientID)
 
 	if f.audience != "" {
 		form.Set("audience", f.audience)

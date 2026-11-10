@@ -57,6 +57,7 @@ import (
 	"github.com/zalando/skipper/metrics"
 	skpnet "github.com/zalando/skipper/net"
 	sotel "github.com/zalando/skipper/otel"
+	"github.com/zalando/skipper/predicates"
 	pauth "github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/content"
 	"github.com/zalando/skipper/predicates/cookie"
@@ -66,6 +67,7 @@ import (
 	"github.com/zalando/skipper/predicates/interval"
 	"github.com/zalando/skipper/predicates/methods"
 	skpotel "github.com/zalando/skipper/predicates/otel"
+	ppath "github.com/zalando/skipper/predicates/path"
 	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/predicates/source"
@@ -296,6 +298,10 @@ type Options struct {
 	// in the cluster-scope.
 	KubernetesNamespace string
 
+	// KubernetesListChunkSize configures the chunk size (limit parameter) when listing
+	// Kubernetes resources. If 0 or negative, pagination is disabled.
+	KubernetesListChunkSize int
+
 	// KubernetesEnableEndpointslices if set skipper will fetch
 	// endpointslices instead of endpoints to scale more than 1000
 	// pods within a service
@@ -371,6 +377,19 @@ type Options struct {
 
 	// KubernetesTopologyZone if set to non empty string it is used to filter endpointslice endpoints by this value.
 	KubernetesTopologyZone string
+
+	// KubernetesDataPlaneLabelSelector selects the Service(s) considered part
+	// of the data plane whose combined endpoint zone distribution is checked
+	// to decide whether zone-aware routing is enabled. Defaults to
+	// kubernetes.DefaultDataPlaneLabelSelector
+	// ({"application": "skipper-ingress", "component": "ingress"}) when nil.
+	KubernetesDataPlaneLabelSelector map[string]string
+
+	// KubernetesZoneMaxSkew is the maximum permitted difference between the endpoint count in any
+	// zone and the global minimum across all zones for the ingress controller, following Kubernetes
+	// TopologySpreadConstraints maxSkew semantics.
+	// 0 means no skew is tolerated — all zones must have an equal endpoint count.
+	KubernetesZoneMaxSkew int
 
 	// KubernetesForceService overrides the default Skipper functionality to route traffic using Kubernetes Endpoints,
 	// instead using Kubernetes Services.
@@ -522,9 +541,17 @@ type Options struct {
 	// lookup.
 	IgnoreTrailingSlash bool
 
-	// Priority routes that are matched against the requests before
+	// PriorityRoutes that are matched against the requests before
 	// the standard routes from the data clients.
 	PriorityRoutes []proxy.PriorityRoute
+
+	// PriorityRouteString is a route string that will be parsed
+	// by inline routes and used as priority routes.
+	PriorityRouteString string
+
+	// PriorityRoutesFile is a file containing eskip route definitions that are
+	// used as priority routes.
+	PriorityRoutesFile string
 
 	// Specifications of custom, user defined predicates.
 	CustomPredicates []routing.PredicateSpec
@@ -1234,6 +1261,8 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		KubernetesURL:                                  o.KubernetesURL,
 		TokenFile:                                      o.KubernetesTokenFile,
 		KubernetesNamespace:                            o.KubernetesNamespace,
+		KubernetesListChunkSize:                        o.KubernetesListChunkSize,
+		Metrics:                                        o.MetricsBackend,
 		KubernetesEnableEastWest:                       o.KubernetesEnableEastWest,
 		KubernetesEnableEndpointslices:                 o.KubernetesEnableEndpointslices,
 		KubernetesEastWestDomain:                       o.KubernetesEastWestDomain,
@@ -1264,6 +1293,8 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		DefaultLoadBalancerAlgorithm:                   o.KubernetesDefaultLoadBalancerAlgorithm,
 		ForwardBackendURL:                              o.ForwardBackendURL,
 		TopologyZone:                                   o.KubernetesTopologyZone,
+		DataPlaneLabelSelector:                         o.KubernetesDataPlaneLabelSelector,
+		MaxZoneSkew:                                    &o.KubernetesZoneMaxSkew,
 		IngressStatusFromService:                       o.KubernetesStatusFromService,
 		KubernetesApplicationAnnotationLabelKey:        o.KubernetesApplicationAnnotationLabelKey,
 	}
@@ -1920,6 +1951,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		Prefix:                                o.MetricsPrefix,
 		EnableDebugGcMetrics:                  o.EnableDebugGcMetrics,
 		EnableRuntimeMetrics:                  o.EnableRuntimeMetrics,
+		EnableCacheMetrics:                    !slices.Contains(o.DisabledFilters, cache.Name),
 		EnableServeRouteMetrics:               o.EnableServeRouteMetrics,
 		EnableServeRouteCounter:               o.EnableServeRouteCounter,
 		EnableServeHostMetrics:                o.EnableServeHostMetrics,
@@ -1989,6 +2021,30 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	if len(dataClients) == 0 {
 		log.Warning("no route source specified")
+	}
+
+	var prioRoutes []*eskip.Route
+	if o.PriorityRouteString != "" {
+		ir, err := routestring.New(o.PriorityRouteString)
+		if err != nil {
+			return fmt.Errorf("error while creating dataclient for priority routes string: %w", err)
+		}
+		parsed, err := ir.LoadAll()
+		if err != nil {
+			return fmt.Errorf("error while parsing eskip priority routes string: %w", err)
+		}
+		prioRoutes = append(prioRoutes, parsed...)
+	}
+	if o.PriorityRoutesFile != "" {
+		f, err := eskipfile.Open(o.PriorityRoutesFile)
+		if err != nil {
+			return fmt.Errorf("error while opening priority routes file: %w", err)
+		}
+		parsed, err := f.LoadAll()
+		if err != nil {
+			return fmt.Errorf("error while loading priority routes file: %w", err)
+		}
+		prioRoutes = append(prioRoutes, parsed...)
 	}
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
@@ -2104,7 +2160,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		)
 	}
 
+	openIDConfigCache := auth.NewOpenIDConfigCache()
+	defer openIDConfigCache.Close()
+
 	tio := auth.TokenintrospectionOptions{
+		OpenIDConfigCache:           openIDConfigCache,
 		Timeout:                     o.OAuthTokenintrospectionTimeout,
 		MaxIdleConns:                o.IdleConnectionsPerHost,
 		Tracer:                      tracer,
@@ -2578,6 +2638,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	// include bundled custom predicates
 	o.CustomPredicates = append(o.CustomPredicates,
+		ppath.NewUrlPathPrefix(),
+		ppath.NewUrlRawPathPrefix(),
+		ppath.NewUrlPathRegexp(),
+		ppath.NewUrlRawPathRegexp(),
 		source.New(),
 		source.NewFromLast(),
 		source.NewClientIP(),
@@ -2660,6 +2724,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}
 
+	if len(prioRoutes) != 0 {
+		rm, err := routing.NewRoutesMatcher(&ro, prioRoutes)
+		if err != nil {
+			return fmt.Errorf("error while building priority routes matcher: %w", err)
+		}
+		o.PriorityRoutes = append(o.PriorityRoutes, rm)
+	}
+
 	if failClosedRatelimitPostProcessor != nil {
 		ro.PostProcessors = append(ro.PostProcessors, failClosedRatelimitPostProcessor)
 	}
@@ -2667,6 +2739,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// the api usage monitoring spec implements routing.PostProcessor to prune its
 	// filter cache (a noop when disabled), so register it unconditionally
 	ro.PostProcessors = append(ro.PostProcessors, apiUsageMonitoringFilter.(routing.PostProcessor))
+
+	for _, p := range o.CustomPredicates {
+		if pp, ok := p.(predicates.PostProcessor); ok && pp.PostProcessor() {
+			if rpp, ok := p.(routing.PostProcessor); ok {
+				ro.PostProcessors = append(ro.PostProcessors, rpp)
+			}
+		}
+	}
 
 	if o.DefaultFilters != nil {
 		ro.PreProcessors = append(ro.PreProcessors, o.DefaultFilters)

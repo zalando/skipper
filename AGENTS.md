@@ -29,9 +29,12 @@ Backend is the thing to which skipper should proxy, for example:
 ## Code style
 
 - Use idiomatic Go
-- Go doc on exposed things
+- Use Go doc comments for exported identifiers
 - Package docs in doc.go
-- No comments in code if they are not critical
+- Omit other code comments, including comments on private functions and in tests, except to:
+  - Reference an issue that explains a workaround or dependency bug that is not clear from the code.
+  - Reference an RFC or kernel/Go code that explains why a non-obvious behavior is necessary.
+  - Explain the handling of an important edge case that is not clear from the code.
 - No kubernetes client-go dependencies
 - Fix formating by running `make fmt`
 - Run linter `make lint` and fix all findings

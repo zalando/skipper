@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
@@ -34,12 +35,13 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/logging/loggingtest"
+	skpmetrics "github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/metrics/metricstest"
+	hostpred "github.com/zalando/skipper/predicates/host"
+	teePredicate "github.com/zalando/skipper/predicates/tee"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
-
-	teePredicate "github.com/zalando/skipper/predicates/tee"
 )
 
 const (
@@ -2849,4 +2851,57 @@ func benchmarkCopyStream(b *testing.B, size int64, cpStream func(to flushWriter,
 			b.Fatal(err)
 		}
 	}
+}
+
+func TestServeHostMetricsIgnoresELBHealthChecker(t *testing.T) {
+	backend := startTestServer([]byte("OK"), 0, voidCheck)
+	defer backend.Close()
+
+	reg := prometheus.NewRegistry()
+	pm := skpmetrics.NewPrometheus(skpmetrics.Options{
+		PrometheusRegistry:           reg,
+		EnableServeHostMetrics:       true,
+		DisableCompatibilityDefaults: true,
+	})
+
+	doc := fmt.Sprintf(`
+		foo: HostAny("foo.skipper.test") -> "%s";
+		bar: HostAny("bar.skipper.test") -> "%s";
+	`, backend.URL, backend.URL)
+
+	tp, err := newTestProxyWithPredicatesAndParams(
+		[]routing.PredicateSpec{hostpred.NewAny()},
+		doc,
+		Params{Metrics: pm},
+	)
+	require.NoError(t, err)
+	defer tp.close()
+
+	// ELB health checker request to foo — must NOT create a host metric
+	elbReq := httptest.NewRequest("GET", backend.URL, nil)
+	elbReq.Host = "foo.skipper.test"
+	elbReq.Header.Set("User-Agent", "ELB-HealthChecker/2.0")
+	w := httptest.NewRecorder()
+	tp.proxy.ServeHTTP(w, elbReq)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Normal request to bar — must create a host metric
+	normalReq := httptest.NewRequest("GET", backend.URL, nil)
+	normalReq.Host = "bar.skipper.test"
+	w = httptest.NewRecorder()
+	tp.proxy.ServeHTTP(w, normalReq)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Scrape metrics via the prometheus handler
+	metricsMux := http.NewServeMux()
+	pm.RegisterHandler("/metrics", metricsMux)
+	w = httptest.NewRecorder()
+	metricsMux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+
+	// ELB request must not appear in serve host metrics
+	assert.NotContains(t, body, "skipper_serve_host_duration_seconds_bucket{host=\"foo_skipper_test\"")
+	// Normal request must appear in serve host metrics
+	assert.Contains(t, body, "skipper_serve_host_duration_seconds_bucket{host=\"bar_skipper_test\"")
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
@@ -107,7 +108,7 @@ func TestRouteGroupAdmitter(t *testing.T) {
 		{
 			name:      "invalid eskip filters",
 			inputFile: "rg-with-invalid-eskip-filters.json",
-			message:   "parse failed after token status, position 6: syntax error",
+			message:   "error in route group n1/rg1: parse failed after token status, position 6: syntax error",
 		},
 		{
 			name:      "valid eskip predicates",
@@ -116,32 +117,32 @@ func TestRouteGroupAdmitter(t *testing.T) {
 		{
 			name:      "invalid eskip predicates",
 			inputFile: "rg-with-invalid-eskip-predicates.json",
-			message:   "parse failed after token Method, position 6: syntax error",
+			message:   "error in route group n1/rg1: parse failed after token Method, position 6: syntax error",
 		},
 		{
 			name:      "invalid eskip filters and predicates",
 			inputFile: "rg-with-invalid-eskip-filters-and-predicates.json",
-			message:   "parse failed after token status, position 6: syntax error\\nparse failed after token Method, position 6: syntax error",
+			message:   "error in route group n1/rg1: parse failed after token status, position 6: syntax error\\nerror in route group n1/rg1: parse failed after token Method, position 6: syntax error",
 		},
 		{
 			name:      "invalid routegroup multiple filters per json/yaml array item",
 			inputFile: "rg-with-multiple-filters.json",
-			message:   `single filter expected at \"status(201) -> inlineContent(\\\"hi\\\")\"\nsingle filter expected at \" \"`,
+			message:   `error in route group n1/rg1: single filter expected at \"status(201) -> inlineContent(\\\"hi\\\")\"\nerror in route group n1/rg1: single filter expected at \" \"`,
 		},
 		{
 			name:      "invalid routegroup multiple predicates per json/yaml array item",
 			inputFile: "rg-with-multiple-predicates.json",
-			message:   `single predicate expected at \"Method(\\\"GET\\\") && Path(\\\"/\\\")\"\nsingle predicate expected at \" \"`,
+			message:   `error in route group n1/rg1: single predicate expected at \"Method(\\\"GET\\\") && Path(\\\"/\\\")\"\nerror in route group n1/rg1: single predicate expected at \" \"`,
 		},
 		{
 			name:      "routegroup with invalid backends",
 			inputFile: "rg-with-invalid-backend-path.json",
-			message:   `backend address \"http://example.com/foo\" does not match scheme://host format\nbackend address \"http://example.com/foo/bar\" does not match scheme://host format\nbackend address \"http://example.com/foo/\" does not match scheme://host format\nbackend address \"/foo\" does not match scheme://host format\nbackend address \"http://example.com/\" does not match scheme://host format\nbackend address \"example.com/\" does not match scheme://host format\nbackend address \"example.com/foo\" does not match scheme://host format\nbackend address \"http://example.com?foo=bar\" does not match scheme://host format\nbackend address \"example.com\" does not match scheme://host format`,
+			message:   `error in route group n1/rg1: backend address \"http://example.com/foo\" does not match scheme://host format\nerror in route group n1/rg1: backend address \"http://example.com/foo/bar\" does not match scheme://host format\nerror in route group n1/rg1: backend address \"http://example.com/foo/\" does not match scheme://host format\nerror in route group n1/rg1: backend address \"/foo\" does not match scheme://host format\nerror in route group n1/rg1: backend address \"http://example.com/\" does not match scheme://host format\nerror in route group n1/rg1: backend address \"example.com/\" does not match scheme://host format\nerror in route group n1/rg1: backend address \"example.com/foo\" does not match scheme://host format\nerror in route group n1/rg1: backend address \"http://example.com?foo=bar\" does not match scheme://host format\nerror in route group n1/rg1: backend address \"example.com\" does not match scheme://host format`,
 		},
 		{
 			name:      "routegroup with duplicate hosts",
 			inputFile: "rg-with-duplicate-hosts.json",
-			message:   `duplicate host \"example.org\"`,
+			message:   `error in route group n1/rg1: duplicate host \"example.org\"`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -273,14 +274,14 @@ func TestMalformedRequests(t *testing.T) {
 		{
 			name: "malformed object",
 			input: `
-			  {
-				"request": {
-				  "uid": "req-uid",
-				  "name": "req1",
-				  "namespace": "ns1",
-				  "object": "not an object"
+				{
+					"request": {
+						"uid": "req-uid",
+						"name": "req1",
+						"namespace": "ns1",
+						"object": "not an object"
+					}
 				}
-			  }
 			`,
 			expectedStatus: http.StatusBadRequest,
 		},

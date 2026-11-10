@@ -360,4 +360,43 @@ func TestTestAPI(t *testing.T) {
 
 		assert.EqualError(t, err, "unexpected status code: 404")
 	})
+
+	t.Run("pagination chunks", func(t *testing.T) {
+		// Cluster services has 3 items in total.
+		var page1 map[string]any
+		get(t, kubernetes.ServicesClusterURI+"?limit=2", &page1)
+		check(t, page1, 2, "Service")
+
+		contToken, ok := getField(page1, "metadata", "continue").(string)
+		require.True(t, ok)
+		assert.Equal(t, "2", contToken)
+
+		var page2 map[string]any
+		get(t, kubernetes.ServicesClusterURI+"?limit=2&continue="+contToken, &page2)
+		check(t, page2, 1, "Service")
+
+		nextCont := getField(page2, "metadata", "continue")
+		assert.Nil(t, nextCont)
+	})
+
+	t.Run("pagination invalid limit", func(t *testing.T) {
+		var o map[string]any
+		err := getJSON(s.URL+kubernetes.ServicesClusterURI+"?limit=invalid", &o)
+		assert.EqualError(t, err, "unexpected status code: 400")
+
+		err = getJSON(s.URL+kubernetes.ServicesClusterURI+"?limit=-1", &o)
+		assert.EqualError(t, err, "unexpected status code: 400")
+	})
+
+	t.Run("pagination invalid continue", func(t *testing.T) {
+		var o map[string]any
+		err := getJSON(s.URL+kubernetes.ServicesClusterURI+"?continue=invalid", &o)
+		assert.EqualError(t, err, "unexpected status code: 400")
+	})
+
+	t.Run("pagination expired continue token", func(t *testing.T) {
+		var o map[string]any
+		err := getJSON(s.URL+kubernetes.ServicesClusterURI+"?continue=999", &o)
+		assert.EqualError(t, err, "unexpected status code: 410")
+	})
 }

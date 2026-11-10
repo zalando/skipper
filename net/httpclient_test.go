@@ -2,17 +2,11 @@ package net
 
 import (
 	"bytes"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
 	"io"
-	"math/big"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
@@ -28,6 +22,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/logging"
+	"github.com/zalando/skipper/net/nettest"
 	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/tracing/tracers/basic"
 	"github.com/zalando/skipper/tracing/tracingtest"
@@ -587,14 +582,14 @@ func verifyTagHasNonZeroValue(t *testing.T, span *tracingtest.MockSpan, name str
 // 3. Dynamic Operational Security - cert loading
 func TestCertReloader(t *testing.T) {
 	now := time.Now()
-	certPEM, keyPEM, _, _ := generateCert(t, certOptions{
-		cn:        "localhost",
-		notBefore: now.Add(-1 * time.Hour),
-		notAfter:  now.Add(24 * time.Hour),
-		dns:       "localhost",
-		ip:        "127.0.0.1",
+	certPEM, keyPEM, _, _ := nettest.MustGenCert(t, nettest.CertOptions{
+		CN:        "localhost",
+		NotBefore: now.Add(-1 * time.Hour),
+		NotAfter:  now.Add(24 * time.Hour),
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
 	})
-	certFile, keyFile := writeTempCertFiles(t, certPEM, keyPEM)
+	certFile, keyFile := nettest.WriteCertKey(t, certPEM, keyPEM)
 
 	for _, tt := range []struct {
 		name     string
@@ -643,14 +638,14 @@ func TestCertReloader(t *testing.T) {
 func TestCertReloaderRotation(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		now := time.Now()
-		certPEM1, keyPEM1, _, _ := generateCert(t, certOptions{
-			cn:        "localhost",
-			notBefore: now.Add(-1 * time.Hour),
-			notAfter:  now.Add(24 * time.Hour),
-			dns:       "localhost",
-			ip:        "127.0.0.1",
+		certPEM1, keyPEM1, _, _ := nettest.MustGenCert(t, nettest.CertOptions{
+			CN:        "localhost",
+			NotBefore: now.Add(-1 * time.Hour),
+			NotAfter:  now.Add(24 * time.Hour),
+			SanDNS:    []string{"localhost"},
+			SanIP:     []string{"127.0.0.1"},
 		})
-		certFile, keyFile := writeTempCertFiles(t, certPEM1, keyPEM1)
+		certFile, keyFile := nettest.WriteCertKey(t, certPEM1, keyPEM1)
 
 		cr, err := NewCertReloader(certFile, keyFile, 20*time.Millisecond, &logging.DefaultLog{})
 		if err != nil {
@@ -660,12 +655,12 @@ func TestCertReloaderRotation(t *testing.T) {
 
 		initial := cr.cert.Load()
 
-		certPEM2, keyPEM2, _, _ := generateCert(t, certOptions{
-			cn:        "localhost",
-			notBefore: now.Add(-1 * time.Hour),
-			notAfter:  now.Add(24 * time.Hour),
-			dns:       "localhost",
-			ip:        "127.0.0.1",
+		certPEM2, keyPEM2, _, _ := nettest.MustGenCert(t, nettest.CertOptions{
+			CN:        "localhost",
+			NotBefore: now.Add(-1 * time.Hour),
+			NotAfter:  now.Add(24 * time.Hour),
+			SanDNS:    []string{"localhost"},
+			SanIP:     []string{"127.0.0.1"},
 		})
 		if err := os.WriteFile(certFile, certPEM2, 0600); err != nil {
 			t.Fatalf("failed to update cert file: %v", err)
@@ -686,14 +681,14 @@ func TestCertReloaderRotation(t *testing.T) {
 func TestClientMTLSNoLeak(t *testing.T) {
 	noleak.Check(t)
 	now := time.Now()
-	certPEM, keyPEM, _, _ := generateCert(t, certOptions{
-		cn:        "localhost",
-		notBefore: now.Add(-1 * time.Hour),
-		notAfter:  now.Add(24 * time.Hour),
-		dns:       "localhost",
-		ip:        "127.0.0.1",
+	certPEM, keyPEM, _, _ := nettest.MustGenCert(t, nettest.CertOptions{
+		CN:        "localhost",
+		NotBefore: now.Add(-1 * time.Hour),
+		NotAfter:  now.Add(24 * time.Hour),
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
 	})
-	certFile, keyFile := writeTempCertFiles(t, certPEM, keyPEM)
+	certFile, keyFile := nettest.WriteCertKey(t, certPEM, keyPEM)
 
 	cli := NewClient(Options{
 		CertFile:            certFile,
@@ -729,18 +724,18 @@ func TestClientMTLS(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			now := time.Now()
-			certPEM, keyPEM, _, _ := generateCert(t, certOptions{
-				cn:        tt.cn,
-				notBefore: now.Add(-1 * time.Hour),
-				notAfter:  now.Add(24 * time.Hour),
-				dns:       tt.dns,
-				ip:        tt.ip,
+			certPEM, keyPEM, _, _ := nettest.MustGenCert(t, nettest.CertOptions{
+				CN:        tt.cn,
+				NotBefore: now.Add(-1 * time.Hour),
+				NotAfter:  now.Add(24 * time.Hour),
+				SanDNS:    []string{tt.dns},
+				SanIP:     []string{tt.ip},
 			})
 			clientCert, err := tls.X509KeyPair(certPEM, keyPEM)
 			if err != nil {
 				t.Fatalf("failed to parse client cert: %v", err)
 			}
-			certFile, keyFile := writeTempCertFiles(t, certPEM, keyPEM)
+			certFile, keyFile := nettest.WriteCertKey(t, certPEM, keyPEM)
 
 			rootCAs, err := x509.SystemCertPool()
 			if err != nil {
@@ -783,106 +778,32 @@ func TestClientMTLS(t *testing.T) {
 	}
 }
 
-type certOptions struct {
-	cn           string
-	dns          string
-	ip           string
-	notBefore    time.Time
-	notAfter     time.Time
-	extKeyUsages []x509.ExtKeyUsage
-	signerCert   *x509.Certificate // If nil, certificate will be self-signed
-	signerKey    *ecdsa.PrivateKey
-}
-
-// generateCert handles creating customized test certificates based on options
-func generateCert(t *testing.T, opts certOptions) (certPEM, keyPEM []byte, parsedCert *x509.Certificate, privateKey *ecdsa.PrivateKey) {
-	t.Helper()
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatalf("failed to generate key: %v", err)
-	}
-
-	template := &x509.Certificate{
-		SerialNumber: big.NewInt(time.Now().UnixNano()),
-		Subject:      pkix.Name{CommonName: opts.cn},
-		NotBefore:    opts.notBefore,
-		NotAfter:     opts.notAfter,
-
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:           opts.extKeyUsages,
-		BasicConstraintsValid: true,
-	}
-
-	// SAN DNS
-	if opts.dns != "" {
-		template.DNSNames = []string{opts.dns}
-	}
-	// SAN IP
-	if opts.ip != "" {
-		if ip := net.ParseIP(opts.ip); ip != nil {
-			template.IPAddresses = []net.IP{ip}
-		}
-	}
-
-	signingTemplate := template
-	signingKey := privateKey
-
-	// If a separate signer CA is provided, use it instead of self-signing
-	if opts.signerCert != nil && opts.signerKey != nil {
-		signingTemplate = opts.signerCert
-		signingKey = opts.signerKey
-	} else {
-		// If self-signed, act as a CA so it can be added to RootCAs pools
-		template.IsCA = true
-		template.KeyUsage |= x509.KeyUsageCertSign
-	}
-
-	certDER, err := x509.CreateCertificate(rand.Reader, template, signingTemplate, &privateKey.PublicKey, signingKey)
-	if err != nil {
-		t.Fatalf("failed to create certificate: %v", err)
-	}
-
-	parsedCert, err = x509.ParseCertificate(certDER)
-	if err != nil {
-		t.Fatalf("failed to parse generated certificate: %v", err)
-	}
-
-	keyDER, err := x509.MarshalECPrivateKey(privateKey)
-	if err != nil {
-		t.Fatalf("failed to marshal key: %v", err)
-	}
-
-	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-	return
-}
-
 // 1. Trust & Authority Boundaries (Adversarial Tests)
 // 2. Certificate Lifecycle & Cryptographic Constraints
 // 4. Protocol Hardening
 func TestClientMTLS_SecurityAndHardening(t *testing.T) {
 	now := time.Now()
-	caPEM, caKeyPEM, caCert, caKey := generateCert(t, certOptions{
-		cn:        "Test Master Root CA",
-		notBefore: now.Add(-1 * time.Hour),
-		notAfter:  now.Add(24 * time.Hour),
-		dns:       "localhost",
-		ip:        "127.0.0.1",
+	caPEM, caKeyPEM, caCert, caKey := nettest.MustGenCert(t, nettest.CertOptions{
+		CN:        "Test Master Root CA",
+		NotBefore: now.Add(-1 * time.Hour),
+		NotAfter:  now.Add(24 * time.Hour),
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
 	})
 
 	for _, tt := range []struct {
 		name              string
-		modifyOptions     func(opts *certOptions)
+		modifyOptions     func(opts *nettest.CertOptions)
 		serverMinTLS      uint16
 		bypassClientCerts bool
 		wantErr           bool
 	}{
 		{
 			name: "Untrusted Rogue Client CA must be denied",
-			modifyOptions: func(opts *certOptions) {
+			modifyOptions: func(opts *nettest.CertOptions) {
 				// Break relationship to Master CA: make it self-signed by a random rogue CA
-				opts.signerCert = nil
-				opts.signerKey = nil
+				opts.SignerCert = nil
+				opts.SignerKey = nil
 			},
 			wantErr: true,
 		},
@@ -893,33 +814,32 @@ func TestClientMTLS_SecurityAndHardening(t *testing.T) {
 		},
 		{
 			name: "Expired Client Certificate must be denied",
-			modifyOptions: func(opts *certOptions) {
-				opts.notBefore = now.Add(-5 * time.Hour)
-				opts.notAfter = now.Add(-1 * time.Hour) // expired
+			modifyOptions: func(opts *nettest.CertOptions) {
+				opts.NotBefore = now.Add(-5 * time.Hour)
+				opts.NotAfter = now.Add(-1 * time.Hour) // expired
 			},
 			wantErr: true,
 		},
 		{
 			name: "Future Client Certificate must be denied",
-			modifyOptions: func(opts *certOptions) {
-				opts.notBefore = now.Add(1 * time.Hour) // valid in the future
-				opts.notAfter = now.Add(5 * time.Hour)
+			modifyOptions: func(opts *nettest.CertOptions) {
+				opts.NotBefore = now.Add(1 * time.Hour) // valid in the future
+				opts.NotAfter = now.Add(5 * time.Hour)
 			},
 			wantErr: true,
 		},
 		{
 			name: "Incompatible Key Usage (Missing ClientAuth) must be denied",
-			modifyOptions: func(opts *certOptions) {
+			modifyOptions: func(opts *nettest.CertOptions) {
 				// ServerAuth only, missing ClientAuth role
-				opts.extKeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+				opts.ExtKeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
 			},
 			wantErr: true,
 		},
 		{
 			name: "missing SAN (DNS/IP)",
-			modifyOptions: func(opts *certOptions) {
-				opts.ip = ""
-				opts.dns = ""
+			modifyOptions: func(opts *nettest.CertOptions) {
+				opts.SanDNS, opts.SanIP = nil, nil
 			},
 			serverMinTLS: tls.VersionTLS13, // Force server to demand modern TLS 1.3
 			wantErr:      true,
@@ -932,25 +852,25 @@ func TestClientMTLS_SecurityAndHardening(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			// Default valid options signed by our trusted Master CA
-			opts := certOptions{
-				cn:        "localhost",
-				dns:       "localhost",
-				ip:        "127.0.0.1",
-				notBefore: now.Add(-1 * time.Hour),
-				notAfter:  now.Add(1 * time.Hour),
-				extKeyUsages: []x509.ExtKeyUsage{
+			opts := nettest.CertOptions{
+				CN:        "localhost",
+				SanDNS:    []string{"localhost"},
+				SanIP:     []string{"127.0.0.1"},
+				NotBefore: now.Add(-1 * time.Hour),
+				NotAfter:  now.Add(1 * time.Hour),
+				ExtKeyUsages: []x509.ExtKeyUsage{
 					x509.ExtKeyUsageServerAuth,
 					x509.ExtKeyUsageClientAuth,
 				},
-				signerCert: caCert,
-				signerKey:  caKey,
+				SignerCert: caCert,
+				SignerKey:  caKey,
 			}
 
 			if tt.modifyOptions != nil {
 				tt.modifyOptions(&opts)
 			}
 
-			clientCertPEM, clientKeyPEM, _, _ := generateCert(t, opts)
+			clientCertPEM, clientKeyPEM, _, _ := nettest.MustGenCert(t, opts)
 
 			// Setup trust pools
 			serverClientCAs := x509.NewCertPool()
@@ -992,7 +912,7 @@ func TestClientMTLS_SecurityAndHardening(t *testing.T) {
 
 			var certFile, keyFile string
 			if !tt.bypassClientCerts {
-				certFile, keyFile = writeTempCertFiles(t, clientCertPEM, clientKeyPEM)
+				certFile, keyFile = nettest.WriteCertKey(t, clientCertPEM, clientKeyPEM)
 			} else {
 				certFile, keyFile = "missing_cert.crt", "missing_key.key"
 			}
@@ -1030,28 +950,28 @@ func TestClientMTLS_SecurityAndHardening(t *testing.T) {
 // lose its current in-memory certificates.
 func TestClientMTLS_RotationFallback(t *testing.T) {
 	now := time.Now()
-	caPEM, _, caCert, caKey := generateCert(t, certOptions{
-		cn:        "Master Root CA",
-		notBefore: now.Add(-1 * time.Hour),
-		notAfter:  now.Add(24 * time.Hour),
-		dns:       "localhost",
-		ip:        "127.0.0.1",
+	caPEM, _, caCert, caKey := nettest.MustGenCert(t, nettest.CertOptions{
+		CN:        "Master Root CA",
+		NotBefore: now.Add(-1 * time.Hour),
+		NotAfter:  now.Add(24 * time.Hour),
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
 	})
 
-	opts := certOptions{
-		cn:        "localhost",
-		dns:       "localhost",
-		ip:        "127.0.0.1",
-		notBefore: now.Add(-1 * time.Hour),
-		notAfter:  now.Add(1 * time.Hour),
-		extKeyUsages: []x509.ExtKeyUsage{
+	opts := nettest.CertOptions{
+		CN:        "localhost",
+		SanDNS:    []string{"localhost"},
+		SanIP:     []string{"127.0.0.1"},
+		NotBefore: now.Add(-1 * time.Hour),
+		NotAfter:  now.Add(1 * time.Hour),
+		ExtKeyUsages: []x509.ExtKeyUsage{
 			x509.ExtKeyUsageServerAuth,
 			x509.ExtKeyUsageClientAuth,
 		},
-		signerCert: caCert,
-		signerKey:  caKey,
+		SignerCert: caCert,
+		SignerKey:  caKey,
 	}
-	certPEM, keyPEM, _, _ := generateCert(t, opts)
+	certPEM, keyPEM, _, _ := nettest.MustGenCert(t, opts)
 
 	serverClientCAs := x509.NewCertPool()
 	serverClientCAs.AppendCertsFromPEM(caPEM)
@@ -1076,7 +996,7 @@ func TestClientMTLS_RotationFallback(t *testing.T) {
 	srv.StartTLS()
 	defer srv.Close()
 
-	certFile, keyFile := writeTempCertFiles(t, certPEM, keyPEM)
+	certFile, keyFile := nettest.WriteCertKey(t, certPEM, keyPEM)
 
 	cli := NewClient(Options{
 		CertFile:            certFile,
@@ -1112,29 +1032,4 @@ func TestClientMTLS_RotationFallback(t *testing.T) {
 	if rspFallback.StatusCode != http.StatusOK {
 		t.Errorf("Unexpected fallback status code: %d", rspFallback.StatusCode)
 	}
-}
-
-func writeTempCertFiles(t *testing.T, cert, key []byte) (string, string) {
-	t.Helper()
-	cFile, err := os.CreateTemp("", "client-cert-*.crt")
-	if err != nil {
-		t.Fatalf("failed to create temp cert file: %v", err)
-	}
-	kFile, err := os.CreateTemp("", "client-key-*.key")
-	if err != nil {
-		t.Fatalf("failed to create temp key file: %v", err)
-	}
-
-	if err := os.WriteFile(cFile.Name(), cert, 0644); err != nil {
-		t.Fatalf("failed to write temp cert: %v", err)
-	}
-	if err := os.WriteFile(kFile.Name(), key, 0600); err != nil {
-		t.Fatalf("failed to write temp key: %v", err)
-	}
-
-	t.Cleanup(func() {
-		_ = os.Remove(cFile.Name())
-		_ = os.Remove(kFile.Name())
-	})
-	return cFile.Name(), kFile.Name()
 }

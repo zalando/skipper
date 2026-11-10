@@ -1,1 +1,1 @@
-\[routegroup\] parse failed after token foo, position 3: syntax error
+\[routegroup\] error in route group foo/myapp: parse failed after token foo, position 3: syntax error

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ type stubValkeyClient struct {
 	data       map[string]string
 	broken     bool          // if true, all operations return an error
 	lastExpire time.Duration // records the expire arg of the last SetWithExpire call
+	getCalls   int
 }
 
 func newStubValkeyClient() *stubValkeyClient {
@@ -35,6 +37,7 @@ func newBrokenStubValkeyClient() *stubValkeyClient {
 func (s *stubValkeyClient) Get(_ context.Context, key string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.getCalls++
 	if s.broken {
 		return "", errors.New("stub: broken")
 	}
@@ -354,6 +357,33 @@ func TestValkeyStorage_RecordsL2Hit(t *testing.T) {
 	}
 }
 
+func TestValkeyStorage_RecordsGetSetDuration(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	ctx := context.Background()
+	key := "l2-duration-key"
+	entry := &Entry{StatusCode: 200, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}
+
+	if err := s.Set(ctx, key, entry); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	if _, err := s.Get(ctx, key); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		if len(measures["cache.l2_set_duration"]) != 1 {
+			t.Errorf("expected exactly 1 cache.l2_set_duration measurement, got %d", len(measures["cache.l2_set_duration"]))
+		}
+		if len(measures["cache.l2_get_duration"]) != 1 {
+			t.Errorf("expected exactly 1 cache.l2_get_duration measurement, got %d", len(measures["cache.l2_get_duration"]))
+		}
+	})
+}
+
 func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	// Uses a broken stub — no Docker or live Valkey needed.
 	// Set triggers l2_set_fallback, which writes the entry to L1.
@@ -395,6 +425,97 @@ func TestValkeyStorage_SplitFallbackCounters(t *testing.T) {
 	}
 }
 
+func TestValkeyStorage_LabeledMetrics_L2Miss(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	if _, err := s.Get(context.Background(), "missing"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l2_miss", "n/a"); got != 1 {
+		t.Errorf("expected labeled l2_miss/n_a=1, got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_L2GetError(t *testing.T) {
+	stub := newBrokenStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	if _, err := s.Get(context.Background(), "k"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l2_get_error", "n/a"); got != 1 {
+		t.Errorf("expected labeled l2_get_error/n_a=1, got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_L2Hit(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil) // l1TTL=0: write-around, forces a real L2 Get
+
+	ctx := context.Background()
+	if err := s.Set(ctx, "k", &Entry{StatusCode: http.StatusNotFound, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	if _, err := s.Get(ctx, "k"); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l2_hit", "4xx"); got != 1 {
+		t.Errorf("expected labeled l2_hit/4xx=1 (entry StatusCode 404), got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_L1Hit(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 60*time.Second, valkey.IsValkeyNil) // l1TTL>0: write-through warms L1
+
+	ctx := context.Background()
+	if err := s.Set(ctx, "k", &Entry{StatusCode: http.StatusOK, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	stub.broken = true // any Get must now be served from the warmed L1
+	if _, err := s.Get(ctx, "k"); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l1_hit", "2xx"); got != 1 {
+		t.Errorf("expected labeled l1_hit/2xx=1, got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_L2SetFallback(t *testing.T) {
+	stub := newBrokenStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	if err := s.Set(context.Background(), "k", &Entry{StatusCode: http.StatusOK, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("Set should fall back to L1, not error: %v", err)
+	}
+	if got, _ := m.CacheResultCount("l2_set_fallback", "2xx"); got != 1 {
+		t.Errorf("expected labeled l2_set_fallback/2xx=1, got %d", got)
+	}
+}
+
+func TestValkeyStorage_LabeledMetrics_StorageErrorOnDelete(t *testing.T) {
+	stub := newBrokenStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	_ = s.Delete(context.Background(), "k") // Valkey Delete errors; L1 delete still runs
+	if got, _ := m.CacheResultCount("storage_error", "n/a"); got != 1 {
+		t.Errorf("expected labeled storage_error/n_a=1, got %d", got)
+	}
+}
+
 func TestValkeyStorage_DeleteCleansL1EvenOnValkeyError(t *testing.T) {
 	// Valkey is broken, so Set falls back to L1. Delete must still clean L1
 	// regardless of the Delete error from Valkey.
@@ -431,8 +552,9 @@ func TestL2Storage_NewL2Storage_NegativeL1TTL_ClampsToDefault(t *testing.T) {
 
 func TestL2Storage_Get_CorruptJSON_ReturnsError(t *testing.T) {
 	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
 	lru := NewLRUStorage(64<<20, nil, &metricstest.MockMetrics{})
-	s := NewL2Storage(stub, lru, &metricstest.MockMetrics{}, 0, valkey.IsValkeyNil)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
 
 	// Write corrupt JSON directly into the stub, bypassing Set.
 	stub.mu.Lock()
@@ -442,6 +564,9 @@ func TestL2Storage_Get_CorruptJSON_ReturnsError(t *testing.T) {
 	_, err := s.Get(context.Background(), "bad-key")
 	if err == nil {
 		t.Fatal("expected error for corrupt JSON in L2, got nil")
+	}
+	if got, _ := m.StorageErrorCount("l2", "get"); got != 1 {
+		t.Errorf("expected labeled storage_error l2/get=1, got %d", got)
 	}
 }
 
@@ -531,5 +656,158 @@ func TestL2Storage_Set_ZeroTTL_UsesDefaultMinTTL(t *testing.T) {
 
 	if gotExpire != defaultMinTTL {
 		t.Errorf("expected SetWithExpire called with %v, got %v", defaultMinTTL, gotExpire)
+	}
+}
+
+func TestL2Storage_GetSilent_SuppressesLookupOutcomes(t *testing.T) {
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, metrics.Default)
+	s := NewL2Storage(stub, lru, m, 0, valkey.IsValkeyNil)
+
+	ctx := context.Background()
+	hitKey := "sentinel-hit-key"
+	entry := &Entry{StatusCode: 200, Payload: []byte("v"), TTL: time.Minute, CreatedAt: time.Now()}
+	if err := s.Set(ctx, hitKey, entry); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	// Isolate GetSilent's effect from the Set call above.
+	m2 := &metricstest.MockMetrics{}
+	s.metrics = m2
+
+	// Exercise hit, clean-miss, and error scenarios through GetSilent only.
+	if got, err := s.GetSilent(ctx, hitKey); err != nil || got == nil || string(got.Payload) != "v" {
+		t.Fatalf("GetSilent (hit case): expected cached entry, got (%v, %v)", got, err)
+	}
+	assertL2GetMeasurements(t, m2, 1)
+	if got, err := s.GetSilent(ctx, "sentinel-miss-key"); err != nil || got != nil {
+		t.Fatalf("GetSilent (miss case): expected (nil, nil), got (%v, %v)", got, err)
+	}
+	assertL2GetMeasurements(t, m2, 2)
+	stub.broken = true
+	// Transport errors remain graceful misses; timing and logging are preserved.
+	if got, err := s.GetSilent(ctx, hitKey); err != nil || got != nil {
+		t.Errorf("GetSilent (broken-client case): expected (nil, nil), got (%v, %v)", got, err)
+	}
+	stub.broken = false
+	assertL2GetMeasurements(t, m2, 3)
+
+	assertSilentLookupOutcomes(t, m2)
+
+	// Sanity: the regular Get on the same storage still records metrics as usual —
+	// proves GetSilent is a distinct code path, not a global metrics kill switch.
+	// l1TTL=0 (write-around) means this entry was never warmed into L1 by any of the
+	// calls above, so a real Get here is an L2 hit, not an L1 hit.
+	if _, err := s.Get(ctx, hitKey); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if v, _ := m2.Counter("cache.l2_hit"); v != 1 {
+		t.Errorf("expected regular Get to still record l2_hit=1, got %d", v)
+	}
+}
+
+func TestL2Storage_GetSilent_WarmsL1(t *testing.T) {
+	ctx := context.Background()
+	stub := newStubValkeyClient()
+	m := &metricstest.MockMetrics{}
+	lru := NewLRUStorage(64<<20, nil, m)
+	s := NewL2Storage(stub, lru, m, time.Minute, valkey.IsValkeyNil)
+	key := "sentinel-warming-key"
+	entry := &Entry{StatusCode: 200, Payload: []byte("warm"), TTL: time.Minute, CreatedAt: time.Now()}
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stub.SetWithExpire(ctx, key, string(data), entry.TTL); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 2; i++ {
+		got, err := s.GetSilent(ctx, key)
+		if err != nil || got == nil || string(got.Payload) != "warm" {
+			t.Fatalf("GetSilent call %d: expected cached entry, got (%v, %v)", i+1, got, err)
+		}
+		stub.mu.Lock()
+		getCalls := stub.getCalls
+		stub.mu.Unlock()
+		if getCalls != 1 {
+			t.Errorf("expected exactly one L2 read after call %d, got %d", i+1, getCalls)
+		}
+		assertL2GetMeasurements(t, m, 1)
+		assertSilentLookupOutcomes(t, m)
+	}
+	if got, err := lru.GetSilent(ctx, key); err != nil || got == nil {
+		t.Fatalf("expected L1 to be warmed, got (%v, %v)", got, err)
+	}
+}
+
+func TestStorage_GetSilent_ReportsDecodeErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		backend     string
+		lruOnly     bool
+		wantErr     bool
+		wantL2Reads int
+	}{
+		{name: "LRU", backend: "l1", lruOnly: true, wantErr: true},
+		{name: "L2 storage corrupt L1", backend: "l1", wantL2Reads: 1},
+		{name: "L2 storage corrupt L2", backend: "l2", wantErr: true, wantL2Reads: 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &metricstest.MockMetrics{}
+			lru := NewLRUStorage(64<<20, nil, m)
+			stub := newStubValkeyClient()
+			var s Storage = NewL2Storage(stub, lru, m, time.Minute, valkey.IsValkeyNil)
+			if tt.lruOnly {
+				s = lru
+			}
+			key := "corrupt-sentinel"
+			if tt.backend == "l1" {
+				lru.lru.Set(key, []byte("{"))
+			} else if err := stub.SetWithExpire(context.Background(), key, "{", time.Minute); err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := s.GetSilent(context.Background(), key)
+			if got != nil || (err != nil) != tt.wantErr {
+				t.Fatalf("GetSilent: got (%v, %v), want nil entry and error=%v", got, err, tt.wantErr)
+			}
+			if got, _ := m.StorageErrorCount(tt.backend, "get"); got != 1 {
+				t.Errorf("expected %s/get storage-error hook count=1, got %d", tt.backend, got)
+			}
+			if got, _ := m.Counter("cache.storage_error"); got != 1 {
+				t.Errorf("expected storage_error=1, got %d", got)
+			}
+			if got, _ := m.CacheResultCount("storage_error", "n/a"); got != 1 {
+				t.Errorf("expected storage_error/n/a hook count=1, got %d", got)
+			}
+			assertL2GetMeasurements(t, m, tt.wantL2Reads)
+			assertSilentLookupOutcomes(t, m)
+		})
+	}
+}
+
+func assertL2GetMeasurements(t *testing.T, m *metricstest.MockMetrics, want int) {
+	t.Helper()
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		if got := len(measures["cache.l2_get_duration"]); got != want {
+			t.Errorf("expected %d cache.l2_get_duration measurements, got %d", want, got)
+		}
+	})
+}
+
+func assertSilentLookupOutcomes(t *testing.T, m *metricstest.MockMetrics) {
+	t.Helper()
+	for _, result := range []string{"l1_hit", "l2_hit", "l2_miss", "l2_get_error"} {
+		if got, _ := m.Counter("cache." + result); got != 0 {
+			t.Errorf("GetSilent must suppress %s, got %d", result, got)
+		}
+		// These are mock hook counts, not samples gathered from Prometheus.
+		for _, codeClass := range []string{"1xx", "2xx", "3xx", "4xx", "5xx", "n/a"} {
+			if got, _ := m.CacheResultCount(result, codeClass); got != 0 {
+				t.Errorf("GetSilent must suppress %s/%s hook count, got %d", result, codeClass, got)
+			}
+		}
 	}
 }

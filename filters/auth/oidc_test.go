@@ -30,6 +30,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -1160,6 +1161,51 @@ func TestCreateFilterOIDCWithSecretRefCredentials(t *testing.T) {
 	assert.NotNil(t, f)
 }
 
+func TestOIDCSecretRefClientSecretIsReloaded(t *testing.T) {
+	oidcServer := createOIDCServer("", "", "", nil, nil)
+	defer oidcServer.Close()
+
+	sr := mapSecretsReader{
+		"/oidc/client-id":     []byte("valid-client"),
+		"/oidc/client-secret": []byte("v1"),
+	}
+
+	spec := NewOAuthOidcAnyClaimsWithOptions("/foo", secrettest.NewTestRegistry(), OidcOptions{SecretsReader: sr}).(*tokenOidcSpec)
+
+	f, err := spec.CreateFilter([]any{
+		oidcServer.URL,
+		"secretRef:/oidc/client-id",
+		"secretRef:/oidc/client-secret",
+		oidcServer.URL + "/redirect",
+		"",
+		"",
+	})
+	require.NoError(t, err)
+
+	filter := f.(*tokenOidcFilter)
+	assert.Equal(t, "v1", filter.oauth2Config().ClientSecret)
+
+	sr["/oidc/client-secret"] = []byte("v2")
+	assert.Equal(t, "v2", filter.oauth2Config().ClientSecret)
+	assert.Equal(t, "v1", filter.config.ClientSecret)
+
+	delete(sr, "/oidc/client-secret")
+	assert.Equal(t, "v1", filter.oauth2Config().ClientSecret)
+}
+
+func TestOIDCLiteralClientSecretIsNotReloaded(t *testing.T) {
+	oidcServer := createOIDCServer("", "", "", nil, nil)
+	defer oidcServer.Close()
+
+	spec := NewOAuthOidcAnyClaimsWithOptions("/foo", secrettest.NewTestRegistry(), OidcOptions{SecretsReader: mapSecretsReader{}}).(*tokenOidcSpec)
+
+	f, err := spec.CreateFilter([]any{oidcServer.URL, "valid-client", "static", oidcServer.URL + "/redirect", "", ""})
+	require.NoError(t, err)
+
+	filter := f.(*tokenOidcFilter)
+	assert.Same(t, filter.config, filter.oauth2Config())
+}
+
 func TestCreateFilterOIDCWithSecretRefMissingSecretFails(t *testing.T) {
 	oidcServer := createOIDCServer("", "", "", nil, nil)
 	defer oidcServer.Close()
@@ -1861,6 +1907,56 @@ func TestOIDCNormalFlow(t *testing.T) {
 	if rsp.StatusCode != http.StatusNoContent {
 		t.Errorf("step 4: expected 204 from backend, got %d", rsp.StatusCode)
 	}
+}
+
+// TestOIDCRedirectStaysOnOrigin verifies that the post-login redirect for a
+// request path starting with "//" does not become a protocol-relative URL
+// pointing to another host.
+func TestOIDCRedirectStaysOnOrigin(t *testing.T) {
+	proxy, _, _, cleanup := setupOIDCProxy(t)
+	defer cleanup()
+
+	noRedirects := func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	browser := &http.Client{
+		Timeout:       5 * time.Second,
+		Jar:           newInsecureCookieJar(),
+		CheckRedirect: noRedirects,
+	}
+
+	rsp, err := browser.Get(proxy.URL + "//evil.example/path?q=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsp.Body.Close()
+	if rsp.StatusCode != http.StatusTemporaryRedirect {
+		t.Fatalf("expected 307, got %d", rsp.StatusCode)
+	}
+
+	rsp, err = browser.Get(rsp.Header.Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsp.Body.Close()
+
+	rsp, err = browser.Get(rsp.Header.Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsp.Body.Close()
+	if rsp.StatusCode != http.StatusTemporaryRedirect {
+		t.Fatalf("expected 307 after callback, got %d", rsp.StatusCode)
+	}
+
+	location := rsp.Header.Get("Location")
+	base, _ := url.Parse(proxy.URL)
+	rel, err := url.Parse(location)
+	if err != nil {
+		t.Fatalf("bad location %q: %v", location, err)
+	}
+	if got := base.ResolveReference(rel); got.Host != base.Host {
+		t.Errorf("post-login redirect %q leaves the origin: %s", location, got.Host)
+	}
+	assert.Equal(t, "/evil.example/path?q=1", location)
 }
 
 // TestOIDCLoginCSRF verifies that a browser which never started a login flow

@@ -147,6 +147,8 @@ type Config struct {
 	RoutesFile         string               `yaml:"routes-file"`
 	RoutesURLs         *listFlag            `yaml:"routes-urls"`
 	InlineRoutes       string               `yaml:"inline-routes"`
+	PriorityRoutes     string               `yaml:"priority-routes"`
+	PriorityRoutesFile string               `yaml:"priority-routes-file"`
 	ForwardBackendURL  string               `yaml:"forward-backend-url"`
 	AppendFilters      *defaultFiltersFlags `yaml:"default-filters-append"`
 	PrependFilters     *defaultFiltersFlags `yaml:"default-filters-prepend"`
@@ -187,8 +189,11 @@ type Config struct {
 	KubernetesPathModeString                             string                             `yaml:"kubernetes-path-mode"`
 	KubernetesPathMode                                   kubernetes.PathMode                `yaml:"-"`
 	KubernetesNamespace                                  string                             `yaml:"kubernetes-namespace"`
+	KubernetesListChunkSize                              int                                `yaml:"kubernetes-list-chunk-size"`
 	KubernetesEnableEndpointSlices                       bool                               `yaml:"enable-kubernetes-endpointslices"`
 	KubernetesTopologyZone                               string                             `yaml:"kubernetes-topology-zone"`
+	KubernetesDataPlaneLabelSelector                     mapFlags                           `yaml:"kubernetes-data-plane-label-selector"`
+	KubernetesZoneMaxSkew                                int                                `yaml:"kubernetes-zone-max-skew"`
 	KubernetesEnableEastWest                             bool                               `yaml:"enable-kubernetes-east-west"`
 	KubernetesEastWestDomain                             string                             `yaml:"kubernetes-east-west-domain"`
 	KubernetesEastWestRangeDomains                       *listFlag                          `yaml:"kubernetes-east-west-range-domains"`
@@ -558,6 +563,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.RoutesFile, "routes-file", "", "file containing route definitions")
 	flag.Var(cfg.RoutesURLs, "routes-urls", "comma separated URLs to route definitions in eskip format")
 	flag.StringVar(&cfg.InlineRoutes, "inline-routes", "", "inline routes in eskip format")
+	flag.StringVar(&cfg.PriorityRoutes, "priority-routes", "", "priority, similar to inline routes in eskip format")
+	flag.StringVar(&cfg.PriorityRoutesFile, "priority-routes-file", "", "file containing priority route definitions in eskip format")
 	flag.StringVar(&cfg.ForwardBackendURL, "forward-backend-url", "", "target url of the <forward> backend")
 	flag.Int64Var(&cfg.SourcePollTimeout, "source-poll-timeout", int64(3000), "polling timeout of the routing data sources, in milliseconds")
 	flag.Var(cfg.AppendFilters, "default-filters-append", "set of default filters to apply to append to all filters of all routes")
@@ -599,8 +606,11 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.WhitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", "sets the iprange/CIDRS to be whitelisted during healthcheck")
 	flag.StringVar(&cfg.KubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", "controls the default interpretation of Kubernetes ingress paths: <kubernetes-ingress|path-regexp|path-prefix>")
 	flag.StringVar(&cfg.KubernetesNamespace, "kubernetes-namespace", "", "watch only this namespace for ingresses")
+	flag.IntVar(&cfg.KubernetesListChunkSize, "kubernetes-list-chunk-size", 0, "configures the chunk size (limit parameter) when listing Kubernetes resources. If 0 or negative, pagination is disabled")
 	flag.BoolVar(&cfg.KubernetesEnableEndpointSlices, "enable-kubernetes-endpointslices", false, "Enables that skipper fetches Kubernetes endpointslices instead of endpoints to scale more than 1000 pods within a service")
 	flag.StringVar(&cfg.KubernetesTopologyZone, "kubernetes-topology-zone", "", "sets the topology zone to be used for zone aware routing")
+	flag.Var(&cfg.KubernetesDataPlaneLabelSelector, "kubernetes-data-plane-label-selector", "comma separated key=value label selector used to find the Service(s) that make up the data plane for zone distribution checks, e.g. 'application=skipper-ingress,component=ingress'. Defaults to application=skipper-ingress,component=ingress when unset")
+	flag.IntVar(&cfg.KubernetesZoneMaxSkew, "kubernetes-zone-max-skew", kubernetes.DefaultMaxZoneSkew, "maximum permitted endpoint count difference between the most and least populated zone for the data plane, following Kubernetes TopologySpreadConstraints maxSkew semantics; 0 means no skew is tolerated")
 	flag.BoolVar(&cfg.KubernetesEnableEastWest, "enable-kubernetes-east-west", false, "*Deprecated*: use kubernetes-east-west-range feature. Enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local")
 	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", "*Deprecated*: use kubernetes-east-west-range feature. Sets the east-west domain, defaults to .skipper.cluster.local")
 	flag.Var(cfg.KubernetesEastWestRangeDomains, "kubernetes-east-west-range-domains", "set the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates")
@@ -860,6 +870,9 @@ func validate(c *Config) error {
 	if err != nil {
 		return err
 	}
+	if c.KubernetesZoneMaxSkew < 0 {
+		return fmt.Errorf("kubernetes-zone-max-skew must be >= 0, got %d", c.KubernetesZoneMaxSkew)
+	}
 	return c.parseForwardedHeaders()
 }
 
@@ -1086,17 +1099,19 @@ func (c *Config) ToOptions() skipper.Options {
 		OpenTelemetry: c.OpenTelemetry,
 
 		// route sources:
-		EtcdUrls:          eus,
-		EtcdPrefix:        c.EtcdPrefix,
-		EtcdWaitTimeout:   c.EtcdTimeout,
-		EtcdInsecure:      c.EtcdInsecure,
-		EtcdOAuthToken:    c.EtcdOAuthToken,
-		EtcdUsername:      c.EtcdUsername,
-		EtcdPassword:      c.EtcdPassword,
-		WatchRoutesFile:   c.RoutesFile,
-		RoutesURLs:        c.RoutesURLs.values,
-		InlineRoutes:      c.InlineRoutes,
-		ForwardBackendURL: c.ForwardBackendURL,
+		EtcdUrls:            eus,
+		EtcdPrefix:          c.EtcdPrefix,
+		EtcdWaitTimeout:     c.EtcdTimeout,
+		EtcdInsecure:        c.EtcdInsecure,
+		EtcdOAuthToken:      c.EtcdOAuthToken,
+		EtcdUsername:        c.EtcdUsername,
+		EtcdPassword:        c.EtcdPassword,
+		WatchRoutesFile:     c.RoutesFile,
+		RoutesURLs:          c.RoutesURLs.values,
+		InlineRoutes:        c.InlineRoutes,
+		PriorityRouteString: c.PriorityRoutes,
+		PriorityRoutesFile:  c.PriorityRoutesFile,
+		ForwardBackendURL:   c.ForwardBackendURL,
 		DefaultFilters: &eskip.DefaultFilters{
 			Prepend: c.PrependFilters.filters,
 			Append:  c.AppendFilters.filters,
@@ -1120,8 +1135,11 @@ func (c *Config) ToOptions() skipper.Options {
 		WhitelistedHealthCheckCIDR:                     whitelistCIDRS,
 		KubernetesPathMode:                             c.KubernetesPathMode,
 		KubernetesNamespace:                            c.KubernetesNamespace,
+		KubernetesListChunkSize:                        c.KubernetesListChunkSize,
 		KubernetesEnableEndpointslices:                 c.KubernetesEnableEndpointSlices,
 		KubernetesTopologyZone:                         c.KubernetesTopologyZone,
+		KubernetesDataPlaneLabelSelector:               c.KubernetesDataPlaneLabelSelector.values,
+		KubernetesZoneMaxSkew:                          c.KubernetesZoneMaxSkew,
 		KubernetesEnableEastWest:                       c.KubernetesEnableEastWest,
 		KubernetesEastWestDomain:                       c.KubernetesEastWestDomain,
 		KubernetesEastWestRangeDomains:                 c.KubernetesEastWestRangeDomains.values,

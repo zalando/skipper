@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -1250,34 +1251,41 @@ func TestPrometheusMetrics(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			pm := metrics.NewPrometheus(test.opts)
-			path := "/awesome-metrics"
+			synctest.Test(t, func(t *testing.T) {
+				pm := metrics.NewPrometheus(test.opts)
+				path := "/awesome-metrics"
 
-			// Create the muxer and register as handler on the Metrics service.
-			mux := http.NewServeMux()
-			pm.RegisterHandler(path, mux)
+				// Create the muxer and register as handler on the Metrics service.
+				mux := http.NewServeMux()
+				pm.RegisterHandler(path, mux)
 
-			// Add the required metrics.
-			test.addMetrics(pm)
+				// Add the required metrics.
+				test.addMetrics(pm)
 
-			// Make the request to the metrics.
-			req := httptest.NewRequest("GET", path, nil)
-			w := httptest.NewRecorder()
-			mux.ServeHTTP(w, req)
+				// Make the request to the metrics.
+				req := httptest.NewRequest("GET", path, nil)
+				w := httptest.NewRecorder()
+				mux.ServeHTTP(w, req)
 
-			// Check.
-			resp := w.Result()
-			if test.expCode != resp.StatusCode {
-				t.Errorf("metrics service returned an incorrect status code, should be: %d, got: %d", test.expCode, resp.StatusCode)
-			} else {
-				body, _ := io.ReadAll(resp.Body)
+				// Check.
+				resp := w.Result()
+				defer resp.Body.Close()
+				if test.expCode != resp.StatusCode {
+					t.Errorf("metrics service returned an incorrect status code, should be: %d, got: %d", test.expCode, resp.StatusCode)
+					return
+				}
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Errorf("failed to read metrics response body: %v", err)
+					return
+				}
 				// Check all the metrics are present.
 				for _, expMetric := range test.expMetrics {
 					if ok := strings.Contains(string(body), expMetric); !ok {
 						t.Errorf("'%s' metric not present on the result of metrics service", expMetric)
 					}
 				}
-			}
+			})
 		})
 	}
 }
@@ -1338,6 +1346,89 @@ func TestPrometheusMetricsStartTimestamp(t *testing.T) {
 	checkMetric(`skipper_serve_host_count{code="200",host="foo_test",method="GET",start="(\d+)"} 1`)
 	checkMetric(`skipper_serve_host_count{code="201",host="bar_test",method="POST",start="(\d+)"} 2`)
 	checkMetric(`skipper_route_error_total{start="(\d+)"} 3`)
+}
+
+func TestPrometheusCacheMetrics(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(strconv.FormatBool(enabled), func(t *testing.T) {
+			reg := prometheus.NewRegistry()
+			pm := metrics.NewPrometheus(metrics.Options{
+				PrometheusRegistry: reg,
+				EnableCacheMetrics: enabled,
+			})
+
+			pm.IncCacheResult("hit", "2xx")
+			pm.SetCacheLRUBytes("route1", 1024)
+			pm.IncStorageError("l1", "get")
+			pm.IncStorageError("l2", "set")
+
+			mux := http.NewServeMux()
+			pm.RegisterHandler("/metrics", mux)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+			require.Equal(t, http.StatusOK, w.Code)
+			body := w.Body.String()
+			assert.Contains(t, body, `skipper_custom_total{key="cache.storage_error"} 2`)
+
+			dedicated := []string{
+				`skipper_cache_result_total{code_class="2xx",result="hit"} 1`,
+				`skipper_cache_result_total{code_class="n/a",result="storage_error"} 2`,
+				`skipper_cache_lru_bytes{route="route1"} 1024`,
+				`skipper_cache_storage_error_total{backend="l1",op="get"} 1`,
+				`skipper_cache_storage_error_total{backend="l2",op="set"} 1`,
+			}
+			if enabled {
+				for _, sample := range dedicated {
+					assert.Contains(t, body, sample)
+				}
+			} else {
+				assert.NotContains(t, body, "skipper_cache_")
+			}
+
+			collectors := []prometheus.Collector{
+				prometheus.NewCounterVec(prometheus.CounterOpts{
+					Name: "skipper_cache_result_total",
+					Help: "Total cache results by result type (hit/miss/stale) and status code class (2xx/4xx/5xx/other).",
+				}, []string{"result", "code_class"}),
+				prometheus.NewGaugeVec(prometheus.GaugeOpts{
+					Name: "skipper_cache_lru_bytes",
+					Help: "Current LRU cache bytes used per route.",
+				}, []string{"route"}),
+				prometheus.NewCounterVec(prometheus.CounterOpts{
+					Name: "skipper_cache_storage_error_total",
+					Help: "Total cache storage errors by backend (l1/l2) and operation (get/set/delete).",
+				}, []string{"backend", "op"}),
+			}
+			for _, collector := range collectors {
+				assert.Equal(t, enabled, reg.Unregister(collector))
+			}
+		})
+	}
+}
+
+func BenchmarkPrometheusCacheMetrics(b *testing.B) {
+	for _, enabled := range []bool{false, true} {
+		b.Run(strconv.FormatBool(enabled), func(b *testing.B) {
+			pm := metrics.NewPrometheus(metrics.Options{EnableCacheMetrics: enabled})
+			for _, metric := range []struct {
+				name   string
+				record func()
+			}{
+				{"result", func() { pm.IncCacheResult("hit", "2xx") }},
+				{"bytes", func() { pm.SetCacheLRUBytes("route1", 1024) }},
+				{"storage-error", func() { pm.IncStorageError("l1", "get") }},
+			} {
+				b.Run(metric.name, func(b *testing.B) {
+					metric.record()
+					b.ReportAllocs()
+					b.ResetTimer()
+					for b.Loop() {
+						metric.record()
+					}
+				})
+			}
+		})
+	}
 }
 
 // Compile-time check that Prometheus implements PrometheusMetrics

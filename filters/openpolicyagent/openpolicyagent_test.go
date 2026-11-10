@@ -1248,6 +1248,56 @@ func TestBodyExtractionExhaustingTotalBytes(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestBodyExtractionPartialSemaphoreRelease verifies that when the actual body
+// is shorter than what was reserved from the semaphore (ContentLength > real
+// body size), the unused portion is released immediately so subsequent requests
+// are not blocked.
+func TestBodyExtractionPartialSemaphoreRelease(t *testing.T) {
+	_, config := mockControlPlaneWithResourceBundle()
+
+	// maxBodyBytes=50, semaphore budget=50: exactly one "full" request fits.
+	// The real body is only 22 bytes but ContentLength claims 50, so
+	// requestedBodyBytes=50 and actualBodyBytes=22 → 28 bytes must be
+	// released immediately at line 1353, leaving 28 free for req2.
+	registry, err := NewOpenPolicyAgentRegistry(
+		WithMaxRequestBodyBytes(50),
+		WithReadBodyBufferSize(50),
+		WithMaxMemoryBodyParsing(50),
+		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
+	)
+	assert.NoError(t, err)
+
+	inst, err := registry.GetOrStartInstance("use_body")
+	assert.NoError(t, err)
+
+	body1 := `{ "welcome": "world" }` // 22 bytes
+	req1 := http.Request{
+		ContentLength: 50, // claims more than actual
+		Body:          io.NopCloser(bytes.NewReader([]byte(body1))),
+	}
+
+	_, peekBody1, truncated1, f1, err := inst.ExtractHttpBodyOptionally(&req1)
+	assert.NoError(t, err)
+	assert.False(t, truncated1)
+	assert.Equal(t, body1, string(peekBody1))
+
+	// The 28 unused bytes should have been released already.
+	// req2 (22 bytes actual, 22 claimed) must succeed without f1 being called.
+	body2 := `{ "welcome": "world" }` // 22 bytes
+	req2 := http.Request{
+		ContentLength: 22,
+		Body:          io.NopCloser(bytes.NewReader([]byte(body2))),
+	}
+
+	_, peekBody2, truncated2, f2, err := inst.ExtractHttpBodyOptionally(&req2)
+	assert.NoError(t, err, "partial release must free capacity for a second request")
+	assert.False(t, truncated2)
+	assert.Equal(t, body2, string(peekBody2))
+
+	f1()
+	f2()
+}
+
 func TestBodyExtractionEmptyBody(t *testing.T) {
 
 	_, config := mockControlPlaneWithResourceBundle()

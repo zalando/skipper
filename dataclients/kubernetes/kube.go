@@ -15,6 +15,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/loadbalancer"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/secrets/certregistry"
 )
 
@@ -28,7 +29,22 @@ const (
 	httpRedirectRouteID    = "kube__redirect"
 	defaultEastWestDomain  = "skipper.cluster.local"
 	minEndpointsByZone     = 3
+	minZones               = 3
+
+	// DefaultMaxZoneSkew is the default maximum permitted difference between
+	// the endpoint count in any zone and the global minimum across all zones,
+	// following Kubernetes TopologySpreadConstraints maxSkew semantics.
+	DefaultMaxZoneSkew = 1
 )
+
+// DefaultDataPlaneLabelSelector selects the Service(s) considered part of
+// the data plane whose combined endpoint zone distribution is checked to
+// decide whether zone-aware routing is enabled, when no selector is
+// explicitly configured.
+var DefaultDataPlaneLabelSelector = map[string]string{
+	"application": "skipper-ingress",
+	"component":   "ingress",
+}
 
 // PathMode values are used to control the ingress path interpretation. The path mode can
 // be set globally for all ingress paths, and it can be overruled by the individual ingress
@@ -99,6 +115,14 @@ type Options struct {
 	// KubernetesEnableEndpointslices if set skipper will fetch
 	// endpointslices instead of endpoints to scale more than 1000 pods within a service
 	KubernetesEnableEndpointslices bool
+
+	// KubernetesListChunkSize configures the chunk size (limit parameter) when listing
+	// Kubernetes resources. If 0 or negative, pagination is disabled.
+	KubernetesListChunkSize int
+
+	// Metrics is used to record Kubernetes client metrics.
+	// Defaults to metrics.Default if nil.
+	Metrics metrics.Metrics
 
 	// *DEPRECATED* KubernetesEnableEastWest if set adds automatically routes
 	// with "%s.%s.skipper.cluster.local" domain pattern
@@ -279,6 +303,24 @@ type Options struct {
 	// IngressStatusFromService, when set to <namespace>/<name>, makes skipper update ingress status.loadBalancer.ingress
 	// addresses from the referenced Service object.
 	IngressStatusFromService string
+
+	// DataPlaneLabelSelector selects the Service(s) considered part of the data
+	// plane whose combined endpoint zone distribution is checked to decide
+	// whether zone-aware routing is enabled. All matching Services across all
+	// namespaces are aggregated into a single pool before the balance check
+	// runs. nil means use DefaultDataPlaneLabelSelector
+	// ({"application": "skipper-ingress", "component": "ingress"}). An
+	// explicitly empty, non-nil map matches no Service, which permanently
+	// disables zone-aware routing (safe default-closed behavior, logged on
+	// every poll).
+	DataPlaneLabelSelector map[string]string
+
+	// MaxZoneSkew is the maximum permitted difference between the endpoint count in any
+	// zone and the global minimum across all zones for the data plane, following
+	// Kubernetes TopologySpreadConstraints maxSkew semantics.
+	// nil means use DefaultMaxZoneSkew. A pointer to 0 means no skew is tolerated.
+	// Negative values are rejected: New returns an error if *MaxZoneSkew < 0.
+	MaxZoneSkew *int
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.

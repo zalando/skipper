@@ -89,7 +89,9 @@ func (s *lruShard) setLocked(key string, data []byte) int {
 	return evictions
 }
 
-func (s *lruShard) get(key string) ([]byte, bool) {
+// Without copyData, get returns a read-only snapshot. This is only safe when
+// the caller owns the bytes passed to set and never modifies their contents.
+func (s *lruShard) get(key string, copyData bool) ([]byte, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -97,6 +99,9 @@ func (s *lruShard) get(key string) ([]byte, bool) {
 		s.ll.MoveToFront(ele)
 		item := ele.Value.(*lruItem)
 
+		if !copyData {
+			return item.data, true
+		}
 		dst := make([]byte, len(item.data))
 		copy(dst, item.data)
 		return dst, true
@@ -163,7 +168,7 @@ func (s *ShardedByteLRU) Set(key string, data []byte) {
 }
 
 func (s *ShardedByteLRU) Get(key string) ([]byte, bool) {
-	return s.getShard(key).get(key)
+	return s.getShard(key).get(key, true)
 }
 
 func (s *ShardedByteLRU) Delete(key string) {

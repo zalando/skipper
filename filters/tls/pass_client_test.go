@@ -219,6 +219,48 @@ func TestPassTLSClientCert_PEM(t *testing.T) {
 	}
 }
 
+func TestPassTLSClientCert_DropsInboundHeader(t *testing.T) {
+	testCases := []struct {
+		desc           string
+		tls            *tls.ConnectionState
+		expectedHeader string
+	}{
+		{
+			desc: "No TLS",
+		},
+		{
+			desc: "TLS without client certificate",
+			tls:  &tls.ConnectionState{},
+		},
+		{
+			desc:           "TLS with client certificate",
+			tls:            buildTLSWith([]string{minimalCheeseCrt}),
+			expectedHeader: getCleanCertContents([]string{minimalCheeseCrt}),
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			f, err := New().CreateFilter([]any{})
+			require.NoError(t, err)
+
+			req, err := http.NewRequest(http.MethodGet, "http://example.com/foo", nil)
+			require.NoError(t, err)
+			req.Header.Set(certHeaderName, "forged")
+			req.TLS = test.tls
+
+			ctx := &filtertest.Context{
+				FRequest: req,
+			}
+			f.Request(ctx)
+
+			assert.Equal(t, test.expectedHeader, req.Header.Get(certHeaderName), "The client supplied header must not reach the backend")
+		})
+	}
+}
+
 func Test_sanitize(t *testing.T) {
 	testCases := []struct {
 		desc       string

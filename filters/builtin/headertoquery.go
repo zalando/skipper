@@ -52,8 +52,11 @@ func (*headerToQuerySpec) CreateFilter(args []any) (filters.Filter, error) {
 
 func (f *headerToQueryFilter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
-	params := req.URL.Query()
+	if len(req.Header.Values(f.headerName)) == 0 {
+		return
+	}
 
+	params := req.URL.Query()
 	headerValue := req.Header.Get(f.headerName)
 	params.Set(f.queryParamName, headerValue)
 

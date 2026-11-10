@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"sync"
 
@@ -21,6 +22,71 @@ type clusterState struct {
 	cachedEndpoints      map[endpointID][]string
 	cachedEndpointSlices map[endpointID][]skipperEndpoint
 	enableEndpointSlices bool
+}
+
+// matchesAllLabels reports whether m contains every key/value pair in selector.
+func matchesAllLabels(labels, toMatch map[string]string) bool {
+	for k, v := range toMatch {
+		if labels[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+// isServiceBalancedAcrossZones reports whether the combined endpoints of
+// every Service matching labelSelector are evenly spread across zones.
+func (state *clusterState) isServiceBalancedAcrossZones(labelSelector map[string]string, maxZoneSkew int) bool {
+	if !state.enableEndpointSlices {
+		return false
+	}
+
+	if len(labelSelector) == 0 {
+		log.Errorf("empty data-plane label selector; cannot determine zone balance")
+		return false
+	}
+
+	var matched int
+	zoneCounts := map[string]int{}
+	for resID, svc := range state.services {
+		if svc.Meta == nil || !matchesAllLabels(svc.Meta.Labels, labelSelector) {
+			continue
+		}
+		matched++
+		eps, ok := state.endpointSlices[resID]
+		if !ok {
+			log.Errorf("endpointslice %s not found for service matching %v; excluding it from the data-plane zone balance check", resID, labelSelector)
+			continue
+		}
+		for _, ep := range eps.Endpoints {
+			if ep.Zone != "" {
+				zoneCounts[ep.Zone]++
+			}
+		}
+	}
+
+	if matched == 0 {
+		log.Errorf("no service found matching %v; cannot determine data-plane zone balance", labelSelector)
+		return false
+	}
+
+	if len(zoneCounts) < minZones {
+		return false
+	}
+
+	globalMin := math.MaxInt
+	for _, count := range zoneCounts {
+		if count < globalMin {
+			globalMin = count
+		}
+	}
+
+	for _, count := range zoneCounts {
+		if count-globalMin > maxZoneSkew {
+			return false
+		}
+	}
+	return true
 }
 
 func (state *clusterState) getService(namespace, name string) (*service, error) {

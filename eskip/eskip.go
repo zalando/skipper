@@ -15,8 +15,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const duplicateHeaderPredicateErrorFmt = "duplicate header predicate: %s"
-const zoneQueryParam = "zone"
+const (
+	ApplicationAnnotationKey         = "Application"
+	duplicateHeaderPredicateErrorFmt = "duplicate header predicate: %s"
+	zoneQueryParam                   = "zone"
+)
 
 var (
 	errDuplicatePathTreePredicate = errors.New("duplicate path tree predicate")

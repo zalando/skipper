@@ -452,7 +452,7 @@ func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
 	return rt.m.match(req)
 }
 
-// FirstLoad, when enabled, blocks until the first routing configuration was received
+// FirstLoad when enabled, blocks until the first routing configuration was received
 // by the routing during the startup. When disabled, it doesn't block.
 func (r *Routing) FirstLoad() <-chan struct{} {
 	return r.firstLoad
