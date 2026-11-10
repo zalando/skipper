@@ -944,6 +944,12 @@ Open Policy Agent [native Prometheus metrics](https://www.openpolicyagent.org/do
 
 The OPA native metrics are prefixed with `skipper_openpolicyagent_`, e.g. `skipper_openpolicyagent_plugin_status_gauge` will be exposed via Skipper's `/metrics` endpoint. Two extra labels are added to all metrics: `opa_instance_name` (set to the bundle name parameter of the filters) and `opa_instance_id` (a random ID that identifies the virtual OPA instance).
 
+### OpenID Connect metrics
+
+When using OpenID Connect authentication filters, the following counter metrics are exposed:
+
+- `oidc.token.invalid`: Number of times an invalid or malformed state token was encountered during the OAuth2/OIDC callback flow.
+
 ### RouteSRV metrics
 
 RouteSRV metrics expose the following metrics in Prometheus format:
