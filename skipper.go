@@ -31,6 +31,7 @@ import (
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/zalando/skipper/aws/nitro"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/routestring"
@@ -1201,6 +1202,15 @@ type Options struct {
 	// KubernetesEnableTLS enables kubernetes to use resources to terminate tls
 	KubernetesEnableTLS bool
 
+	// EnableAWSNitroTLS enables AWS Nitro Enclave TLS certificate and signing provider over vsock
+	EnableAWSNitroTLS       bool
+	AWSNitroEnclaveCID      uint32
+	AWSNitroEnclavePort     uint32
+	AWSNitroModulePath      string
+	AWSNitroConfPath        string
+	AWSNitroPIN             string
+	AWSNitroRefreshInterval time.Duration
+
 	// EnableLua allows to use lua() filters, if not enabled
 	// skipper does not support Lua, because of security
 	// considerations.
@@ -2002,8 +2012,23 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	var cr *certregistry.CertRegistry
-	if o.KubernetesEnableTLS {
+	if o.KubernetesEnableTLS || o.EnableAWSNitroTLS {
 		cr = certregistry.NewCertRegistry()
+	}
+
+	if o.EnableAWSNitroTLS {
+		nitroProvider, err := nitro.NewProvider(nitro.Options{
+			EnclaveCID:      o.AWSNitroEnclaveCID,
+			EnclavePort:     o.AWSNitroEnclavePort,
+			ModulePath:      o.AWSNitroModulePath,
+			ConfPath:        o.AWSNitroConfPath,
+			PIN:             o.AWSNitroPIN,
+			RefreshInterval: o.AWSNitroRefreshInterval,
+		}, cr)
+		if err != nil {
+			return fmt.Errorf("failed to initialize AWS Nitro Enclave TLS: %w", err)
+		}
+		defer nitroProvider.Close()
 	}
 
 	// create data clients

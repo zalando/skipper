@@ -16,6 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper/aws/nitro"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/openpolicyagent"
@@ -204,6 +205,10 @@ func defaultConfig(with func(*Config)) *Config {
 		MtlsAuthnCaFile:                         "",
 		MtlsAuthnCA:                             x509.NewCertPool(),
 		KubernetesZoneMaxSkew:                   kubernetes.DefaultMaxZoneSkew,
+		AWSNitroEnclavePort:                     nitro.DefaultEnclavePort,
+		AWSNitroModulePath:                      nitro.DefaultModulePath,
+		AWSNitroConfPath:                        nitro.DefaultConfPath,
+		AWSNitroRefreshInterval:                 nitro.DefaultRefreshInterval,
 	}
 	with(cfg)
 	return cfg

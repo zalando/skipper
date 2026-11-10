@@ -63,6 +63,12 @@ build.linux.armv7: ## build linux binary for arm7
 build.linux:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
+build.linux.awsnitro: ## build linux binary for amd64 with awsnitro build tag enabled
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags awsnitro -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+
+build.linux.arm64.awsnitro: ## build linux binary for arm64 with awsnitro build tag enabled
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags awsnitro -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+
 build.darwin.arm64: ## build osx binary for arm64
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 

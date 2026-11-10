@@ -223,6 +223,12 @@ Proxy-level config (`TLSClientAuth`) requesting or requiring client certificates
 **Outbound mTLS to Backends**:
 Proxy-level config (`EnableMTLS`) presenting a client certificate when connecting to upstream backends, with hot cert rotation.
 
+**CertRegistry**:
+Dynamic SNI-based store of server TLS certificates used to terminate incoming HTTPS connections and seamlessly rotate renewed certificates.
+
+**Nitro Enclave TLS Offload**:
+Terminates incoming HTTPS connections using ACM certificates whose private keys remain isolated inside an AWS Nitro Enclave, delegating cryptographic handshake signing over a local vsock channel.
+
 ## Kubernetes Integration
 
 **Ingress**:

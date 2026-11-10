@@ -20,6 +20,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper"
+	"github.com/zalando/skipper/aws/nitro"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/openpolicyagent"
@@ -297,6 +298,15 @@ type Config struct {
 
 	// TLS Config
 	KubernetesEnableTLS bool `yaml:"kubernetes-enable-tls"`
+
+	// AWS Nitro Enclave TLS
+	EnableAWSNitroTLS       bool          `yaml:"enable-aws-nitro-tls"`
+	AWSNitroEnclaveCID      uint          `yaml:"aws-nitro-enclave-cid"`
+	AWSNitroEnclavePort     uint          `yaml:"aws-nitro-enclave-port"`
+	AWSNitroModulePath      string        `yaml:"aws-nitro-module-path"`
+	AWSNitroConfPath        string        `yaml:"aws-nitro-conf-path"`
+	AWSNitroPIN             string        `yaml:"aws-nitro-pin"`
+	AWSNitroRefreshInterval time.Duration `yaml:"aws-nitro-refresh-interval"`
 
 	// Letsencrypt
 	EnableLetsencrypt       bool      `yaml:"enable-letsencrypt"`
@@ -763,6 +773,15 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.MaxIdleConnsBackend, "max-idle-connection-backend", 0, "sets the maximum idle connections for all backend connections")
 	flag.BoolVar(&cfg.DisableHTTPKeepalives, "disable-http-keepalives", false, "forces backend to always create a new connection")
 	flag.BoolVar(&cfg.KubernetesEnableTLS, "kubernetes-enable-tls", false, "enable using kubernetes resources to terminate tls")
+
+	// AWS Nitro Enclave TLS
+	flag.BoolVar(&cfg.EnableAWSNitroTLS, "enable-aws-nitro-tls", false, "enable using AWS Nitro Enclave over vsock to terminate TLS with ACM certificates (requires binary built with awsnitro build tag)")
+	flag.UintVar(&cfg.AWSNitroEnclaveCID, "aws-nitro-enclave-cid", 0, "vsock CID of the AWS Nitro Enclave (0 for auto-discovery from module path)")
+	flag.UintVar(&cfg.AWSNitroEnclavePort, "aws-nitro-enclave-port", nitro.DefaultEnclavePort, "vsock port of the p11-kit server in the AWS Nitro Enclave")
+	flag.StringVar(&cfg.AWSNitroModulePath, "aws-nitro-module-path", nitro.DefaultModulePath, "path to the p11-kit module file written by nitro-enclaves-acm")
+	flag.StringVar(&cfg.AWSNitroConfPath, "aws-nitro-conf-path", nitro.DefaultConfPath, "glob pattern for target configuration files written by nitro-enclaves-acm")
+	flag.StringVar(&cfg.AWSNitroPIN, "aws-nitro-pin", "", "optional explicit PKCS#11 token PIN override for AWS Nitro Enclave")
+	flag.DurationVar(&cfg.AWSNitroRefreshInterval, "aws-nitro-refresh-interval", nitro.DefaultRefreshInterval, "interval for refreshing certificates from the AWS Nitro Enclave")
 
 	// Swarm:
 	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, "enable swarm communication between nodes in a skipper fleet")
@@ -1243,6 +1262,13 @@ func (c *Config) ToOptions() skipper.Options {
 		MaxIdleConnsBackend:          c.MaxIdleConnsBackend,
 		DisableHTTPKeepalives:        c.DisableHTTPKeepalives,
 		KubernetesEnableTLS:          c.KubernetesEnableTLS,
+		EnableAWSNitroTLS:            c.EnableAWSNitroTLS,
+		AWSNitroEnclaveCID:           uint32(c.AWSNitroEnclaveCID),
+		AWSNitroEnclavePort:          uint32(c.AWSNitroEnclavePort),
+		AWSNitroModulePath:           c.AWSNitroModulePath,
+		AWSNitroConfPath:             c.AWSNitroConfPath,
+		AWSNitroPIN:                  c.AWSNitroPIN,
+		AWSNitroRefreshInterval:      c.AWSNitroRefreshInterval,
 		AllowInsecureBackend:         c.AllowInsecureBackends,
 
 		// swarm:
