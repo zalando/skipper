@@ -1437,33 +1437,49 @@ func TestPrometheusImplementsPrometheusMetrics(t *testing.T) {
 }
 
 func TestScopedPrometheusRegistererPrefix(t *testing.T) {
-	reg := prometheus.NewRegistry()
-	pm := metrics.NewPrometheus(metrics.Options{
-		PrometheusRegistry: reg,
-		Prefix:             "customprefix",
-	})
+	for _, tt := range []struct {
+		subsystem string
+		wantName  string
+	}{
+		{
+			subsystem: "mysubsystem",
+			wantName:  "customprefix_mysubsystem_mycounter",
+		},
+		{
+			subsystem: "",
+			wantName:  "customprefix_mycounter",
+		},
+	} {
+		t.Run(tt.subsystem, func(t *testing.T) {
+			reg := prometheus.NewRegistry()
+			pm := metrics.NewPrometheus(metrics.Options{
+				PrometheusRegistry: reg,
+				Prefix:             "customprefix",
+			})
 
-	registerer := pm.ScopedPrometheusRegisterer("mysubsystem")
-	counter := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "mycounter",
-		Help: "test counter",
-	})
-	registerer.MustRegister(counter)
+			registerer := pm.ScopedPrometheusRegisterer(tt.subsystem)
+			counter := prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "mycounter",
+				Help: "test counter",
+			})
+			registerer.MustRegister(counter)
 
-	metricsFamilies, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("failed to gather metrics: %v", err)
-	}
+			metricsFamilies, err := reg.Gather()
+			if err != nil {
+				t.Fatalf("failed to gather metrics: %v", err)
+			}
 
-	found := false
-	for _, mf := range metricsFamilies {
-		if mf.GetName() == "customprefix_mysubsystem_mycounter" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("expected metric with name 'customprefix_mysubsystem_mycounter' to be registered")
+			found := false
+			for _, mf := range metricsFamilies {
+				if mf.GetName() == tt.wantName {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected metric with name %q to be registered", tt.wantName)
+			}
+		})
 	}
 }
 

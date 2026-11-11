@@ -3,12 +3,22 @@ package otel
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/AlexanderYastrebov/noleak"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
+
+func TestMain(m *testing.M) {
+	os.Exit(noleak.CheckMain(m))
+}
 
 func TestOtel(t *testing.T) {
 	for _, tt := range []struct {
@@ -357,4 +367,120 @@ func TestPropagatorExtractMalformedTraceparent(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOtelSDKObservabilityMetrics(t *testing.T) {
+	t.Setenv("OTEL_GO_X_OBSERVABILITY", "true")
+
+	blockCh := make(chan struct{})
+	closed := false
+	defer func() {
+		if !closed {
+			close(blockCh)
+		}
+	}()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-blockCh:
+		case <-r.Context().Done():
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	reg := prometheus.NewRegistry()
+	opt := &Options{
+		TracesExporter:       "otlp",
+		PrometheusRegisterer: reg,
+		ExporterOtlp: ExporterOtlp{
+			Endpoint: srv.URL,
+			Protocol: "http/protobuf",
+		},
+		Sampler: "always_on",
+		BatchSpanProcessor: BatchSpanProcessor{
+			MaxQueueSize:       1,
+			MaxExportBatchSize: 1,
+			ScheduleDelay:      10 * time.Millisecond,
+			ExportTimeout:      50 * time.Millisecond,
+		},
+	}
+
+	shutdown, err := Init(context.Background(), opt)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer func() {
+		if err := shutdown(context.Background()); err != nil {
+			t.Errorf("shutdown: %v", err)
+		}
+	}()
+
+	tr := otel.Tracer("test-tracer")
+	for range 20 {
+		_, span := tr.Start(context.Background(), "test-span")
+		span.End()
+	}
+
+	close(blockCh)
+	closed = true
+
+	var (
+		hasQueueFull     bool
+		hasQueueCapacity bool
+		hasExported      bool
+	)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		mfs, err := reg.Gather()
+		if err != nil {
+			t.Fatalf("Gather: %v", err)
+		}
+		for _, mf := range mfs {
+			switch mf.GetName() {
+			case "otel_sdk_processor_span_processed_total":
+				for _, m := range mf.GetMetric() {
+					if hasLabel(m, "error_type", "queue_full") && m.GetCounter().GetValue() > 0 {
+						hasQueueFull = true
+					}
+				}
+			case "otel_sdk_processor_span_queue_capacity":
+				for _, m := range mf.GetMetric() {
+					if m.GetGauge().GetValue() == 1 {
+						hasQueueCapacity = true
+					}
+				}
+			case "otel_sdk_exporter_span_exported_total":
+				for _, m := range mf.GetMetric() {
+					if m.GetCounter().GetValue() > 0 {
+						hasExported = true
+					}
+				}
+			}
+		}
+		if hasQueueFull && hasQueueCapacity && hasExported {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if !hasQueueFull {
+		t.Errorf("expected otel_sdk_processor_span_processed_total with error_type=queue_full > 0")
+	}
+	if !hasQueueCapacity {
+		t.Errorf("expected otel_sdk_processor_span_queue_capacity == 1")
+	}
+	if !hasExported {
+		t.Errorf("expected otel_sdk_exporter_span_exported_total > 0")
+	}
+}
+
+func hasLabel(m *dto.Metric, name, value string) bool {
+	for _, lp := range m.GetLabel() {
+		if lp.GetName() == name && lp.GetValue() == value {
+			return true
+		}
+	}
+	return false
 }

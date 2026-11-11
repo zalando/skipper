@@ -2055,6 +2055,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	)
 
 	if o.OpenTelemetry != nil {
+		if o.OpenTelemetry.PrometheusRegisterer == nil {
+			if promMetrics, ok := mtr.(metrics.PrometheusMetrics); ok {
+				o.OpenTelemetry.PrometheusRegisterer = promMetrics.ScopedPrometheusRegisterer("")
+			}
+		}
 		shutdown, err := sotel.Init(context.Background(), o.OpenTelemetry)
 		if err != nil {
 			return fmt.Errorf("failed to setup OpenTelemetry: %w", err)
