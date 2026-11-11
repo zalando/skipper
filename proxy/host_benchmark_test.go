@@ -16,8 +16,6 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/metrics"
-	skippernet "github.com/zalando/skipper/net"
-	"github.com/zalando/skipper/predicates/host"
 	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -80,7 +78,7 @@ func BenchmarkProxyKubernetesHosts(b *testing.B) {
 				b.Cleanup(dc.Close)
 				rt := routing.New(routing.Options{
 					FilterRegistry: builtin.MakeRegistry(), DataClients: []routing.DataClient{dc},
-					Predicates:      []routing.PredicateSpec{host.NewAny(), query.New()},
+					Predicates:      []routing.PredicateSpec{query.New()},
 					PreProcessors:   []routing.PreProcessor{sr.PreProcessor()},
 					PostProcessors:  []routing.PostProcessor{loadbalancer.NewAlgorithmProvider(), er, sr},
 					SignalFirstLoad: true, SuppressLogs: true,
@@ -102,17 +100,13 @@ func BenchmarkProxyKubernetesHosts(b *testing.B) {
 				}
 				p := WithParams(params)
 				b.Cleanup(func() { p.Close() })
-				handler := &skippernet.HostPatchHandler{
-					Patch:   skippernet.HostPatch{RemovePort: true, RemoteTrailingDot: true, ToLower: true},
-					Handler: p,
-				}
 				for _, req := range requests {
 					route, _ := rt.Route(req)
 					if route == nil {
 						b.Fatalf("unexpected route for %s: %v", req.Host, route)
 					}
 					rsp := httptest.NewRecorder()
-					handler.ServeHTTP(rsp, req)
+					p.ServeHTTP(rsp, req)
 					if rsp.Code != http.StatusOK || rsp.Body.String() != "ok" {
 						b.Fatalf("unexpected response: %d %s", rsp.Code, rsp.Body)
 					}
@@ -122,7 +116,7 @@ func BenchmarkProxyKubernetesHosts(b *testing.B) {
 				i := 0
 				for b.Loop() {
 					rsp = httptest.NewRecorder()
-					handler.ServeHTTP(rsp, requests[i])
+					p.ServeHTTP(rsp, requests[i])
 					i = (i + 1) % len(requests)
 				}
 				if rsp.Code != http.StatusOK || rsp.Body.String() != "ok" {
