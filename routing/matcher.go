@@ -27,7 +27,7 @@ func (m *leafRequestMatcher) Match(value any) (bool, any) {
 	}
 
 	var l *leafMatcher
-	if v.hostLeaves == nil {
+	if v.hostIndex == nil {
 		l = matchLeaves(v.leaves, m.r, m.path, m.exactPath)
 	} else {
 		l = v.matchHostLeaves(m.r, m.path, m.exactPath)
@@ -73,9 +73,8 @@ func (ls leafMatchers) Swap(i, j int)      { ls[i], ls[j] = ls[j], ls[i] }
 func (ls leafMatchers) Less(i, j int) bool { return leafWeight(ls[i]) > leafWeight(ls[j]) }
 
 type pathMatcher struct {
-	leaves      leafMatchers
-	hostLeaves  map[string][]int
-	otherLeaves []int
+	leaves    leafMatchers
+	hostIndex *hostIndex
 }
 
 // root structure representing the routing tree.
@@ -506,7 +505,7 @@ func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 	}
 
 	// if no path match, match root leaves for other conditions
-	if m.rootLeaves.hostLeaves == nil {
+	if m.rootLeaves.hostIndex == nil {
 		l = matchLeaves(m.rootLeaves.leaves, r, path, exact)
 	} else {
 		l = m.rootLeaves.matchHostLeaves(r, path, exact)

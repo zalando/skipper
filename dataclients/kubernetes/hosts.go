@@ -24,33 +24,6 @@ func createHostRx(hosts ...string) string {
 	return "^(" + strings.Join(hrx, "|") + ")$"
 }
 
-func createHostPredicate(hosts ...string) *eskip.Predicate {
-	if len(hosts) == 0 {
-		return nil
-	}
-	args := make([]any, 0, 2*len(hosts))
-	for _, host := range hosts {
-		if host == "" || strings.IndexFunc(host, func(c rune) bool {
-			return !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' ||
-				c >= '0' && c <= '9' || c == '-' || c == '.')
-		}) >= 0 {
-			return &eskip.Predicate{Name: "Host", Args: []any{createHostRx(hosts...)}}
-		}
-		// Normalization removes one trailing dot. Keep the old match for
-		// requests that still have one after normalization.
-		args = append(args, host, host+".")
-	}
-	return &eskip.Predicate{Name: "HostAny", Args: args}
-}
-
-func setHostPredicate(r *eskip.Route, host string) {
-	if r == nil || len(r.HostRegexps) == 0 {
-		return
-	}
-	r.HostRegexps = nil
-	r.Predicates = append([]*eskip.Predicate{createHostPredicate(host)}, r.Predicates...)
-}
-
 // hostCatchAllRoutes creates catch-all routes for those hosts that only have routes with
 // a Host predicate and at least one additional predicate.
 //
@@ -60,13 +33,7 @@ func hostCatchAllRoutes(hostRoutes map[string][]*eskip.Route, createID func(stri
 	for h, r := range hostRoutes {
 		var hasHostOnlyRoute bool
 		for _, ri := range r {
-			route := *ri
-			// The first predicate is the generated group host condition.
-			// User-supplied HostAny predicates remain additional conditions.
-			if len(route.Predicates) > 0 && route.Predicates[0].Name == "HostAny" {
-				route.Predicates = route.Predicates[1:]
-			}
-			ct := eskip.Canonical(&route)
+			ct := eskip.Canonical(ri)
 			var hasNonHostPredicate bool
 			for _, p := range ct.Predicates {
 				if p.Name != "Host" {
@@ -83,8 +50,11 @@ func hostCatchAllRoutes(hostRoutes map[string][]*eskip.Route, createID func(stri
 
 		if !hasHostOnlyRoute {
 			catchAll = append(catchAll, &eskip.Route{
-				Id:          createID(h),
-				Predicates:  []*eskip.Predicate{createHostPredicate(h)},
+				Id: createID(h),
+				Predicates: []*eskip.Predicate{{
+					Name: "Host",
+					Args: []any{createHostRx(h)},
+				}},
 				BackendType: eskip.ShuntBackend,
 			})
 		}

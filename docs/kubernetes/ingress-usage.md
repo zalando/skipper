@@ -11,19 +11,6 @@ choice, instead of ingress.  The documentation contains a section with
 [mapping](routegroups.md#mapping-from-ingress-to-routegroups) Ingress
 to RouteGroups.
 
-## Host matching
-
-Ingress and RouteGroup DNS hostnames, including East-West hosts, generate
-[`HostAny`](../reference/predicates.md#hostany) predicates. Host specifications
-containing regexp characters continue to generate `Host` predicates.
-
-These routes require request host normalization before routing: remove the
-port and one trailing dot, and convert the host to lowercase. The `-kubernetes`
-flag enables this automatically. Library users must use `net.HostPatchHandler`
-with `RemovePort`, `RemoteTrailingDot` and `ToLower` enabled and register
-`host.NewAny()` in `routing.Options.Predicates`.
-Skipper instances consuming RouteSRV routes through `-routes-urls` without `-kubernetes` must enable `-normalize-host` to match hosts with a port or trailing dot.
-
 ## Skipper Ingress Annotations
 
 Annotation | example data | usage

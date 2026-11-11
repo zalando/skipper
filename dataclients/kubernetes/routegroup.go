@@ -26,7 +26,7 @@ type routeGroupContext struct {
 	logger                       *logger
 	hosts                        []string
 	allowedExternalNames         []*regexp.Regexp
-	hostPredicate                *eskip.Predicate
+	hostRx                       string
 	eastWestDomain               string
 	hostRoutes                   map[string][]*eskip.Route
 	defaultBackendTraffic        map[string]backendTraffic
@@ -327,7 +327,6 @@ func appendEastWest(ctx *routeGroupContext, routes []*eskip.Route, current *eski
 		namespaceString(ctx.routeGroup.Metadata.Namespace),
 		ctx.eastWestDomain,
 		current,
-		ctx.hostPredicate != nil,
 	)
 
 	return append(routes, ewr)
@@ -359,8 +358,8 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 			return nil, err
 		}
 
-		if ctx.hostPredicate != nil {
-			ri.Predicates = append(ri.Predicates, ctx.hostPredicate)
+		if ctx.hostRx != "" {
+			ri.Predicates = appendPredicate(ri.Predicates, "Host", ctx.hostRx)
 		}
 
 		ctx.defaultBackendTraffic[beref.BackendName].apply(ri)
@@ -382,9 +381,6 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 	gr := ctx.groupRoute
 	r := &eskip.Route{Id: ctx.id}
-	if ctx.group.hostPredicate != nil {
-		r.Predicates = append(r.Predicates, ctx.group.hostPredicate)
-	}
 
 	// Path or PathSubtree, prefer Path if we have, because it is more specific
 	if gr.Path != "" {
@@ -395,6 +391,10 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 
 	if gr.PathRegexp != "" {
 		r.Predicates = appendPredicate(r.Predicates, "PathRegexp", gr.PathRegexp)
+	}
+
+	if ctx.group.hostRx != "" {
+		r.Predicates = appendPredicate(r.Predicates, "Host", ctx.group.hostRx)
 	}
 
 	if ctx.method != "" {
@@ -583,7 +583,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				logger:                       logger,
 				defaultFilters:               df,
 				hosts:                        externalHosts,
-				hostPredicate:                createHostPredicate(externalHosts...),
+				hostRx:                       createHostRx(externalHosts...),
 				hostRoutes:                   make(map[string][]*eskip.Route),
 				hasEastWestHost:              hasEastWestHost(r.options.KubernetesEastWestDomain, externalHosts),
 				eastWestEnabled:              r.options.KubernetesEnableEastWest,
@@ -639,7 +639,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				logger:                       logger,
 				defaultFilters:               df,
 				hosts:                        internalHosts,
-				hostPredicate:                createHostPredicate(internalHosts...),
+				hostRx:                       createHostRx(internalHosts...),
 				hostRoutes:                   make(map[string][]*eskip.Route),
 				backendsByName:               backends,
 				backendNameTracingTag:        r.options.BackendNameTracingTag,

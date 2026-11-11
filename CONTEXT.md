@@ -235,7 +235,7 @@ Custom Skipper CRD for advanced routing beyond what Ingress supports.
 Automatic endpoint updates from Kubernetes EndpointSlices.
 
 **East-West Routing**:
-Internal service-to-service routing within Kubernetes, bypassing the public ingress path. DNS host routes use `HostAny` to match `<name>.<namespace>.<eastWestDomain>`; regexp host specifications retain `Host` predicates.
+Internal service-to-service routing within Kubernetes, bypassing the public ingress path. Routes are copied with a `Host` predicate matching `<name>.<namespace>.<eastWestDomain>`.
 _Avoid_: internal routing
 
 **East-West Domain**:

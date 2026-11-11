@@ -7,7 +7,7 @@ kube_namespace1__ingress1______:
 
 // path rule, target 1:
 kube_namespace1__ingress1__test_example_org___test1__service1:
-  HostAny("test.example.org", "test.example.org.")
+  Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/)
   && PathRegexp(/^(\/test1)/)
   -> enableAccessLog(4, 5)
   -> status(200)
@@ -15,7 +15,7 @@ kube_namespace1__ingress1__test_example_org___test1__service1:
 
 // catch all:
 kube___catchall__test_example_org____:
-  HostAny("test.example.org", "test.example.org.")
+  Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/)
   -> enableAccessLog(4, 5)
   -> status(200)
   -> <shunt>;

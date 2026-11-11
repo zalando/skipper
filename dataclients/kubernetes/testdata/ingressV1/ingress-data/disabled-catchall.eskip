@@ -1,9 +1,9 @@
 kube_namespace1__ingress1__test_example_org___test1__service1:
-  HostAny("test.example.org", "test.example.org.")
+  Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/)
   && PathRegexp(/^(\/test1)/)
   -> "http://42.0.1.2:8080";
 
 kube_namespace1__ingress1__test_ingress_cluster_local___test1__service1:
-  HostAny("test.ingress.cluster.local", "test.ingress.cluster.local.")
+  Host("^(test[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
   && PathRegexp("^(/test1)")
   -> "http://42.0.1.2:8080";

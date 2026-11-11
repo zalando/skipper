@@ -21,21 +21,26 @@ func createEastWestRouteIng(eastWestDomain, name, ns string, r *eskip.Route) *es
 	return &ewR
 }
 
-func createEastWestRouteRG(name, ns, postfix string, r *eskip.Route, hasHostPredicate bool) *eskip.Route {
-	hostPredicate := createHostPredicate(fmt.Sprintf("%s.%s.%s", name, ns, postfix))
+func createEastWestRouteRG(name, ns, postfix string, r *eskip.Route) *eskip.Route {
+	hostRx := createHostRx(fmt.Sprintf("%s.%s.%s", name, ns, postfix))
 
 	ewr := eskip.Copy(r)
 	ewr.Id = eastWestRouteID(ewr.Id)
 	ewr.HostRegexps = nil
 
 	p := make([]*eskip.Predicate, 0, len(ewr.Predicates))
-	for i, pi := range ewr.Predicates {
-		if !(hasHostPredicate && i == 0) && pi.Name != "Host" {
+	for _, pi := range ewr.Predicates {
+		if pi.Name != "Host" {
 			p = append(p, pi)
 		}
 	}
 
-	ewr.Predicates = append([]*eskip.Predicate{hostPredicate}, p...)
+	p = append(p, &eskip.Predicate{
+		Name: "Host",
+		Args: []any{hostRx},
+	})
+
+	ewr.Predicates = p
 	return ewr
 }
 

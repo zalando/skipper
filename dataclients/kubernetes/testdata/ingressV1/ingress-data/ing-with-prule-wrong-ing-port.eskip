@@ -1,5 +1,5 @@
 kube_foo__qux__www_example_org_____bar:
-	HostAny("www.example.org", "www.example.org.") && PathRegexp("^/")
+	Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/")
 	-> setResponseHeader("default", "filter")
 	-> status(502)
 	-> inlineContent("no endpoints")

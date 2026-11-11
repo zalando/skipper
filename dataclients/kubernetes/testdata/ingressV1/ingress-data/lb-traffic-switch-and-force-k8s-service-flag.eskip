@@ -3,16 +3,16 @@ kube_namespace1__ingress1______:
   -> "http://service1v1.namespace1.svc.cluster.local:8080";
 
 kube_namespace1__ingress1__test_example_org___test1__service1v1:
-  HostAny("test.example.org", "test.example.org.") &&
+  Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/) &&
   PathRegexp(/^(\/test1)/) &&
   Traffic(0.3)
   -> "http://service1v1.namespace1.svc.cluster.local:8080";
 
 kube_namespace1__ingress1__test_example_org___test1__service1v2:
-  HostAny("test.example.org", "test.example.org.") &&
+  Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/) &&
   PathRegexp(/^(\/test1)/)
   -> "http://service1v2.namespace1.svc.cluster.local:8080";
 
 kube___catchall__test_example_org____:
-  HostAny("test.example.org", "test.example.org.")
+  Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/)
   -> <shunt>;
