@@ -1306,13 +1306,15 @@ are not configured independently.
 
 When OpenTelemetry tracing is enabled (`-open-telemetry`) and the `OTEL_GO_X_OBSERVABILITY="true"` environment variable is set, the OpenTelemetry Go SDK emits self-observability metrics for the `BatchSpanProcessor` and OTLP span exporter. Skipper exposes these metrics through the active metrics backend:
 
-- With `-metrics-flavour=prometheus` (default prefix `skipper`), they are exposed on `/metrics` as:
-  - `skipper_otel_sdk_processor_span_processed_total`: Number of spans processed by the `BatchSpanProcessor`. Spans dropped due to a full queue are recorded with `error_type="queue_full"`.
-  - `skipper_otel_sdk_processor_span_queue_size`: Current number of spans queued in the `BatchSpanProcessor`.
-  - `skipper_otel_sdk_processor_span_queue_capacity`: Maximum number of spans the `BatchSpanProcessor` queue can hold.
-  - `skipper_otel_sdk_exporter_span_exported_total`: Number of spans exported by the OTLP span exporter, labeled by `error_type` when an export fails.
-  - `skipper_otel_sdk_exporter_span_inflight`: Number of spans currently in flight in the OTLP span exporter.
-  - `skipper_otel_sdk_exporter_operation_duration_seconds`: Duration of OTLP span export operations.
+- With `-metrics-flavour=prometheus`, they are exposed on `/metrics` as:
+  - `otel_sdk_processor_span_processed_total`: Number of spans processed by the `BatchSpanProcessor`. Spans dropped due to a full queue are recorded with `error_type="queue_full"`.
+  - `otel_sdk_processor_span_queue_size`: Current number of spans queued in the `BatchSpanProcessor`.
+  - `otel_sdk_processor_span_queue_capacity`: Maximum number of spans the `BatchSpanProcessor` queue can hold.
+  - `otel_sdk_exporter_span_exported_total`: Number of spans exported by the OTLP span exporter, labeled by `error_type` when an export fails.
+  - `otel_sdk_exporter_span_inflight`: Number of spans currently in flight in the OTLP span exporter.
+  - `otel_sdk_exporter_operation_duration_seconds`: Duration of OTLP span export operations.
+  - `otel_sdk_span_started_total`: Number of spans started.
+  - `otel_sdk_span_live`: Number of spans currently live.
 - With `-metrics-flavour=otel`, the corresponding `otel.sdk.*` instruments are exported via the OTLP metrics pipeline.
 
 Skipper creates up to 5 different

@@ -640,11 +640,7 @@ func (p *Prometheus) String() string { return "prometheus" }
 
 // ScopedPrometheusRegisterer implements the PrometheusMetrics interface
 func (p *Prometheus) ScopedPrometheusRegisterer(subsystem string) prometheus.Registerer {
-	prefix := p.namespace + "_"
-	if subsystem != "" {
-		prefix += subsystem + "_"
-	}
-	return prometheus.WrapRegistererWithPrefix(prefix, p.registry)
+	return prometheus.WrapRegistererWithPrefix(p.namespace+"_"+subsystem+"_", p.registry)
 }
 
 // withStartLabelGatherer adds a "start" label to all counters with
