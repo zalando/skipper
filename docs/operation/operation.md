@@ -1570,9 +1570,7 @@ Hedging is disabled by default. To enable it, set both options:
 
 A request is only hedged if all of the following are true:
 
-- the route is a load balanced route with at least two endpoints that are not
-  fading in and not dropped by passive health check, and it does not use the
-  `consistentHash` algorithm,
+- the route is a load balanced route and does not use the `consistentHash` algorithm,
 - the method is `GET` or `HEAD` and the request has no body,
 - the request is not an upgrade request and the backend is not a proxy,
 - the route does not use the [disableHedge](../reference/filters.md#disablehedge) filter,
@@ -1582,9 +1580,18 @@ A request is only hedged if all of the following are true:
 Routes with network and dynamic backends are never hedged, because they have no
 other endpoint to send the hedge request to.
 
-A hedge request never goes to the endpoint of the first request. A `5xx` response
-does not win while the other request is still pending. If both requests fail, the
-result of the first request is returned.
+A hedge request never goes to the endpoint of the first request. If there is no
+other endpoint to choose from, because the route has only one endpoint or the others
+are fading in or dropped by the passive health check, no hedge request is sent and
+`no_alternate` is counted.
+
+The first response wins, except that a `5xx` response does not win while the other
+request is still pending. If both requests end in a `5xx` response, or both end in
+an error, the result of the original request is returned, not the one of the hedge
+request. If one ends in a `5xx` response and the other in an error, the `5xx`
+response is returned.
+
+Requests that the client cancels are not counted as failures of the route.
 
 ### Limiting the additional load
 
@@ -1594,11 +1601,15 @@ Hedge requests add load to the backend. Skipper limits them per route:
   the observed request rate of the route and holds at most 10 tokens.
 - **Cold start:** a route is not hedged before it has seen 100 requests.
 - **Error rate:** hedging stops for a route if more than 10% of its requests in the
-  last 10 seconds failed with an error or a `5xx` status.
-- **Surge:** hedging stops for a route if its request rate is more than 1.5 times
-  its long term average.
+  last 10 seconds failed with an error or a `5xx` status. The ratio is only used if the
+  route had at least 20 requests in these 10 seconds.
+- **Surge:** hedging stops for a route if its request rate, averaged over about 10
+  seconds, is more than 1.5 times its average over about 5 minutes. The surge is only
+  checked if the 5 minute average is at least 1 request per second.
 
-The state is kept per route ID in memory and is removed after the route was idle for five minutes.
+These limits are fixed. The state is kept per route ID in memory, survives routing
+table updates, and is removed once the route was idle for five minutes. Idle state is
+removed by a check that runs every minute.
 
 ### Known limitations
 

@@ -1945,6 +1945,13 @@ func (o Options) hedgeParams() (*proxy.HedgeParams, error) {
 	}, nil
 }
 
+func (o Options) hedgePreProcessors() []routing.PreProcessor {
+	if !o.HedgeEnabled {
+		return nil
+	}
+	return []routing.PreProcessor{hedgefilters.NewShadowTrafficPreProcessor()}
+}
+
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// init log
 	accessLogger, err := initLog(o)
@@ -2827,9 +2834,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	ro.PreProcessors = append(ro.PreProcessors, admissionControlSpec.PreProcessor())
 
-	if o.HedgeEnabled {
-		ro.PreProcessors = append(ro.PreProcessors, hedgefilters.NewShadowTrafficPreProcessor())
-	}
+	ro.PreProcessors = append(ro.PreProcessors, o.hedgePreProcessors()...)
 
 	ro.PreProcessors = append(ro.PreProcessors, eskip.ForwardPreProcessor(o.ForwardBackendURL))
 

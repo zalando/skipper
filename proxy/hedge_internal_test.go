@@ -2,12 +2,18 @@ package proxy
 
 import (
 	stdlibcontext "context"
+	"fmt"
+	"math/rand/v2"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/loadbalancer"
+	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -685,6 +691,482 @@ func TestHedgeClientCancelIsNotCountedAsBackendFailure(t *testing.T) {
 
 			if got := errorsInWindow(p.hedger.route(lbRoute.Id)); got != tc.want {
 				t.Fatalf("errors in window=%d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func newSelectionProxy(tb testing.TB, algorithm string, n int, fadeInDuration time.Duration, young map[int]bool) (*Proxy, *routing.Route, []string) {
+	tb.Helper()
+	return newSelectionProxyWithRegistry(tb, routing.RegistryOptions{}, algorithm, n, fadeInDuration, young)
+}
+
+func newSelectionProxyWithRegistry(tb testing.TB, ro routing.RegistryOptions, algorithm string, n int, fadeInDuration time.Duration, young map[int]bool) (*Proxy, *routing.Route, []string) {
+	tb.Helper()
+
+	registry := routing.NewEndpointRegistry(ro)
+	tb.Cleanup(registry.Close)
+
+	eskipRoute := eskip.Route{Id: "r", BackendType: eskip.LBBackend, LBAlgorithm: algorithm}
+	var hosts []string
+	for i := range n {
+		host := fmt.Sprintf("ep-%d.test:80", i)
+		hosts = append(hosts, host)
+		eskipRoute.LBEndpoints = append(eskipRoute.LBEndpoints, &eskip.LBEndpoint{Address: "http://" + host})
+
+		age := time.Hour
+		if young[i] {
+			age = time.Millisecond
+		}
+		registry.GetMetrics(host).SetDetected(time.Now().Add(-age))
+	}
+
+	route := &routing.Route{Route: eskipRoute, LBFadeInDuration: fadeInDuration, LBFadeInExponent: 1}
+	route = loadbalancer.NewAlgorithmProvider().Do([]*routing.Route{route})[0]
+	registry.Do([]*routing.Route{route})
+
+	p := &Proxy{
+		registry: registry,
+		fadein:   &fadeIn{rnd: rand.New(rand.NewPCG(1, 2))},
+		metrics:  metrics.Void,
+	}
+	return p, route, hosts
+}
+
+func TestSelectEndpointExcluding(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		algorithm string
+		n         int
+		fadeIn    time.Duration
+		young     map[int]bool
+		exclude   int
+		wantNil   bool
+	}{
+		{name: "two endpoints", algorithm: "roundRobin", n: 2, exclude: 0},
+		{name: "many endpoints", algorithm: "random", n: 5, exclude: 3},
+		{name: "power of random choices", algorithm: "powerOfRandomNChoices", n: 3, exclude: 1},
+		{name: "least requests", algorithm: "leastRequests", n: 3, exclude: 2},
+		{name: "single endpoint has no alternate", algorithm: "roundRobin", n: 1, exclude: 0, wantNil: true},
+		{
+			name: "a fading-in endpoint does not stop an old alternate", algorithm: "roundRobin",
+			n: 3, fadeIn: time.Hour, young: map[int]bool{1: true}, exclude: 0,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p, route, hosts := newSelectionProxy(t, tc.algorithm, tc.n, tc.fadeIn, tc.young)
+			ctx := &context{route: route, request: &http.Request{}, stateBag: map[string]any{}}
+
+			for range 200 {
+				ep := p.selectEndpointExcluding(ctx, hosts[tc.exclude])
+				if tc.wantNil {
+					if ep != nil {
+						t.Fatalf("got %q, want no alternate", ep.Host)
+					}
+					continue
+				}
+				if ep == nil {
+					t.Fatal("no alternate endpoint although one exists")
+				}
+				if ep.Host == hosts[tc.exclude] {
+					t.Fatalf("selected the excluded endpoint %q", ep.Host)
+				}
+			}
+		})
+	}
+}
+
+func TestSelectEndpointExcludingNothingBehavesLikeSelectEndpoint(t *testing.T) {
+	p, route, hosts := newSelectionProxy(t, "roundRobin", 3, 0, nil)
+	ctx := &context{route: route, request: &http.Request{}, stateBag: map[string]any{}}
+
+	seen := map[string]bool{}
+	for range 30 {
+		seen[p.selectEndpoint(ctx).Host] = true
+	}
+	for _, h := range hosts {
+		if !seen[h] {
+			t.Fatalf("endpoint %q was never selected", h)
+		}
+	}
+}
+
+func TestSelectEndpointExcludingSkipsDroppedEndpoints(t *testing.T) {
+	p, route, hosts := newSelectionProxyWithRegistry(t, routing.RegistryOptions{
+		PassiveHealthCheckEnabled:     true,
+		StatsResetPeriod:              50 * time.Millisecond,
+		MinRequests:                   5,
+		MinHealthCheckDropProbability: 0.01,
+		MaxHealthCheckDropProbability: 1,
+	}, "roundRobin", 3, 0, nil)
+	p.healthyEndpoints = &healthyEndpoints{
+		rnd:                        rand.New(rand.NewPCG(1, 2)),
+		maxUnhealthyEndpointsRatio: 1,
+	}
+	ctx := &context{route: route, request: &http.Request{}, stateBag: map[string]any{}}
+
+	failing := p.registry.GetMetrics(hosts[1])
+	deadline := time.Now().Add(5 * time.Second)
+	for failing.HealthCheckDropProbability() < 0.9 {
+		if time.Now().After(deadline) {
+			t.Fatal("the failing endpoint was never marked unhealthy")
+		}
+		for range 20 {
+			failing.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: true})
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	for range 200 {
+		ep := p.selectEndpointExcluding(ctx, hosts[0])
+		if ep == nil {
+			t.Fatal("no alternate endpoint although a healthy one remains")
+		}
+		if ep.Host == hosts[0] {
+			t.Fatalf("selected the excluded endpoint %q", ep.Host)
+		}
+	}
+}
+
+func TestSelectEndpointExcludingDoesNotHedgeToFadingInEndpoint(t *testing.T) {
+	p, route, hosts := newSelectionProxy(t, "roundRobin", 2, time.Hour, map[int]bool{1: true})
+	ctx := &context{route: route, request: &http.Request{}, stateBag: map[string]any{}}
+
+	const n = 500
+	selected := 0
+	for range n {
+		ep := p.selectEndpointExcluding(ctx, hosts[0])
+		if ep == nil {
+			continue
+		}
+		if ep.Host == hosts[0] {
+			t.Fatalf("selected the excluded endpoint %q", ep.Host)
+		}
+		selected++
+	}
+	if selected > n/20 {
+		t.Fatalf("the fading-in endpoint was chosen for %d of %d hedges, want it to be rarely used", selected, n)
+	}
+}
+
+type countingMetrics struct {
+	routing.Metrics
+	inflight atomic.Int64
+	requests atomic.Int64
+	failed   atomic.Int64
+	maxSeen  atomic.Int64
+}
+
+func (m *countingMetrics) IncInflightRequest() {
+	n := m.inflight.Add(1)
+	for {
+		cur := m.maxSeen.Load()
+		if n <= cur || m.maxSeen.CompareAndSwap(cur, n) {
+			return
+		}
+	}
+}
+
+func (m *countingMetrics) DecInflightRequest() { m.inflight.Add(-1) }
+
+func (m *countingMetrics) IncRequests(o routing.IncRequestsOptions) {
+	m.requests.Add(1)
+	if o.FailedRoundTrip {
+		m.failed.Add(1)
+	}
+}
+
+func TestHedgeEndpointAccounting(t *testing.T) {
+	const bound = 5 * time.Second
+
+	blockUntilCancelled := func(r *http.Request) (*http.Response, error) {
+		select {
+		case <-r.Context().Done():
+			return nil, r.Context().Err()
+		case <-time.After(bound):
+			return nil, http.ErrHandlerTimeout
+		}
+	}
+	okAfter := func(d time.Duration) func(*http.Request) (*http.Response, error) {
+		return func(r *http.Request) (*http.Response, error) {
+			select {
+			case <-time.After(d):
+				return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
+			case <-r.Context().Done():
+				return nil, r.Context().Err()
+			}
+		}
+	}
+
+	for _, tc := range []struct {
+		name       string
+		primary    func(*http.Request) (*http.Response, error)
+		hedge      func(*http.Request) (*http.Response, error)
+		wantFailed int64
+		wantErr    bool
+	}{{
+		name:    "hedge wins and the primary is cancelled",
+		primary: blockUntilCancelled,
+		hedge:   okAfter(0),
+	}, {
+		name:    "hedge fails with an error and the primary wins",
+		primary: okAfter(100 * time.Millisecond),
+		hedge: func(*http.Request) (*http.Response, error) {
+			return nil, http.ErrHandlerTimeout
+		},
+		wantFailed: 1,
+	}, {
+		name:    "hedge loses and is cancelled",
+		primary: okAfter(100 * time.Millisecond),
+		hedge:   blockUntilCancelled,
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			p, route, hosts := newSelectionProxy(t, "roundRobin", 2, 0, nil)
+
+			primary := &countingMetrics{Metrics: route.LBEndpoints[0].Metrics}
+			hedge := &countingMetrics{Metrics: route.LBEndpoints[1].Metrics}
+			route.LBEndpoints[0].Metrics = primary
+			route.LBEndpoints[1].Metrics = hedge
+
+			rt := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				if r.URL.Host == hosts[0] {
+					return tc.primary(r)
+				}
+				return tc.hedge(r)
+			})
+			p.roundTripper = rt
+			p.tracing = newProxyTracing(nil)
+
+			quit := make(chan struct{})
+			t.Cleanup(func() { close(quit) })
+			p.hedger = newHedger(&HedgeParams{FixedDelay: 20 * time.Millisecond}, quit)
+			for range hedgeColdStartMinReqs {
+				p.hedger.route("r").arrive(time.Now())
+			}
+
+			ctx := &context{route: route, request: &http.Request{}, stateBag: map[string]any{}}
+			req, err := http.NewRequest(http.MethodGet, "http://"+hosts[0]+"/", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			rsp, err := p.hedgedRoundTrip(ctx, rt, req, req)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			rsp.Body.Close()
+
+			waitFor := func(what string, cond func() bool) {
+				t.Helper()
+				deadline := time.Now().Add(2 * time.Second)
+				for !cond() {
+					if time.Now().After(deadline) {
+						t.Fatalf("timed out waiting for %s", what)
+					}
+					time.Sleep(5 * time.Millisecond)
+				}
+			}
+			waitFor("the hedge attempt to be counted", func() bool { return hedge.requests.Load() > 0 })
+			waitFor("the hedge endpoint inflight counter to return to zero", func() bool { return hedge.inflight.Load() == 0 })
+
+			if got := hedge.maxSeen.Load(); got != 1 {
+				t.Fatalf("hedge endpoint inflight peaked at %d, want 1", got)
+			}
+			if got := hedge.requests.Load(); got != 1 {
+				t.Fatalf("hedge endpoint IncRequests=%d, want 1", got)
+			}
+			if got := hedge.failed.Load(); got != tc.wantFailed {
+				t.Fatalf("hedge endpoint failed round trips=%d, want %d", got, tc.wantFailed)
+			}
+			if got := primary.requests.Load() + primary.inflight.Load(); got != 0 {
+				t.Fatalf("the hedge helper touched the primary endpoint metrics (%d); makeBackendRequest owns those", got)
+			}
+		})
+	}
+}
+
+func TestHedgeThrottleCountsAndSkipsTheHedge(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		prep         func(*routeHedge, time.Time)
+		wantMetric   string
+		wantHedgeHit bool
+	}{{
+		name: "request rate surge",
+		prep: func(r *routeHedge, now time.Time) {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			r.seen = 10_000
+			r.sec = now.Unix()
+			r.slow = 10
+			r.fast = 100
+			r.tokens = hedgeBurst
+		},
+		wantMetric: "hedge.r.throttled",
+	}, {
+		name: "error ratio",
+		prep: func(r *routeHedge, now time.Time) {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			r.seen = 10_000
+			r.sec = now.Unix()
+			r.window[r.sec%hedgeWindowSeconds] = hedgeWindowBucket{reqs: 100, errs: 50}
+			r.tokens = hedgeBurst
+		},
+		wantMetric: "hedge.r.throttled",
+	}, {
+		name: "steady state hedges",
+		prep: func(r *routeHedge, now time.Time) {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			r.seen = 10_000
+			r.sec = now.Unix()
+			r.slow = 10
+			r.fast = 10
+			r.tokens = hedgeBurst
+		},
+		wantHedgeHit: true,
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			p, route, hosts := newSelectionProxy(t, "roundRobin", 2, 0, nil)
+			m := &metricstest.MockMetrics{}
+			p.metrics = m
+			p.tracing = newProxyTracing(nil)
+
+			var hedgeHits atomic.Int64
+			rt := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				if r.URL.Host != hosts[0] {
+					hedgeHits.Add(1)
+					return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
+				}
+				select {
+				case <-time.After(150 * time.Millisecond):
+					return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
+				case <-r.Context().Done():
+					return nil, r.Context().Err()
+				}
+			})
+			p.roundTripper = rt
+
+			quit := make(chan struct{})
+			t.Cleanup(func() { close(quit) })
+			p.hedger = newHedger(&HedgeParams{FixedDelay: 20 * time.Millisecond}, quit)
+			tc.prep(p.hedger.route("r"), time.Now())
+
+			ctx := &context{route: route, request: &http.Request{}, stateBag: map[string]any{}}
+			req, err := http.NewRequest(http.MethodGet, "http://"+hosts[0]+"/", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rsp, err := p.hedgedRoundTrip(ctx, rt, req, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rsp.Body.Close()
+
+			if got := hedgeHits.Load() > 0; got != tc.wantHedgeHit {
+				t.Fatalf("hedge request sent=%v, want %v", got, tc.wantHedgeHit)
+			}
+			if tc.wantMetric != "" {
+				if n, _ := m.Counter(tc.wantMetric); n != 1 {
+					t.Fatalf("%s=%d, want 1", tc.wantMetric, n)
+				}
+			}
+			if n, _ := m.Counter("hedge.r.fired"); (n == 1) != tc.wantHedgeHit {
+				t.Fatalf("fired=%d, want hedge=%v", n, tc.wantHedgeHit)
+			}
+		})
+	}
+}
+
+func TestHedgeWinnerSelection(t *testing.T) {
+	ok := func() (*http.Response, error) { return &http.Response{StatusCode: 200, Body: http.NoBody}, nil }
+	serverError := func() (*http.Response, error) { return &http.Response{StatusCode: 503, Body: http.NoBody}, nil }
+	failure := func() (*http.Response, error) { return nil, http.ErrHandlerTimeout }
+
+	for _, tc := range []struct {
+		name       string
+		primary    func() (*http.Response, error)
+		hedge      func() (*http.Response, error)
+		hedgeFirst bool
+		wantHedge  bool
+		wantCode   int
+		wantErr    bool
+	}{
+		{name: "hedge ok arrives first", primary: ok, hedge: ok, hedgeFirst: true, wantHedge: true, wantCode: 200},
+		{name: "primary ok arrives first", primary: ok, hedge: ok, wantCode: 200},
+		{name: "hedge 5xx first, primary ok later", primary: ok, hedge: serverError, hedgeFirst: true, wantCode: 200},
+		{name: "primary 5xx first, hedge ok later", primary: serverError, hedge: ok, wantHedge: true, wantCode: 200},
+		{name: "both 5xx, hedge first", primary: serverError, hedge: serverError, hedgeFirst: true, wantCode: 503},
+		{name: "both 5xx, primary first", primary: serverError, hedge: serverError, wantCode: 503},
+		{name: "both fail, hedge first", primary: failure, hedge: failure, hedgeFirst: true, wantErr: true},
+		{name: "error then 5xx prefers the response", primary: failure, hedge: serverError, wantHedge: true, wantCode: 503},
+		{name: "5xx then error prefers the response", primary: serverError, hedge: failure, hedgeFirst: true, wantCode: 503},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p, route, hosts := newSelectionProxy(t, "roundRobin", 2, 0, nil)
+			m := &metricstest.MockMetrics{}
+			p.metrics = m
+			p.tracing = newProxyTracing(nil)
+
+			hedgeSent := make(chan struct{})
+			releasePrimary := make(chan struct{})
+			rt := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				if r.URL.Host == hosts[0] {
+					if tc.hedgeFirst {
+						<-hedgeSent
+						select {
+						case <-releasePrimary:
+						case <-time.After(5 * time.Second):
+						}
+					} else {
+						select {
+						case <-hedgeSent:
+						case <-time.After(5 * time.Second):
+						}
+					}
+					return tc.primary()
+				}
+				close(hedgeSent)
+				if !tc.hedgeFirst {
+					time.Sleep(50 * time.Millisecond)
+				} else {
+					defer func() { go func() { time.Sleep(50 * time.Millisecond); close(releasePrimary) }() }()
+				}
+				return tc.hedge()
+			})
+			p.roundTripper = rt
+
+			quit := make(chan struct{})
+			t.Cleanup(func() { close(quit) })
+			p.hedger = newHedger(&HedgeParams{FixedDelay: 20 * time.Millisecond}, quit)
+			for range hedgeColdStartMinReqs {
+				p.hedger.route("r").arrive(time.Now())
+			}
+
+			ctx := &context{route: route, request: &http.Request{}, stateBag: map[string]any{}}
+			req, err := http.NewRequest(http.MethodGet, "http://"+hosts[0]+"/", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			rsp, err := p.hedgedRoundTrip(ctx, rt, req, req)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err=%v, wantErr=%v", err, tc.wantErr)
+			}
+			if rsp != nil {
+				defer rsp.Body.Close()
+				if rsp.StatusCode != tc.wantCode {
+					t.Fatalf("status=%d, want %d", rsp.StatusCode, tc.wantCode)
+				}
+			}
+			if tc.wantErr {
+				return
+			}
+
+			won, _ := m.Counter("hedge.r.won")
+			if (won == 1) != tc.wantHedge {
+				t.Fatalf("hedge won=%d, want hedge to win=%v", won, tc.wantHedge)
 			}
 		})
 	}

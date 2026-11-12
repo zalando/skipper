@@ -1311,3 +1311,47 @@ func TestRunRejectsHedgeWithoutDelay(t *testing.T) {
 		t.Fatal("run did not reject HedgeEnabled without HedgeFixedDelay")
 	}
 }
+
+func TestOptionsHedgePreProcessors(t *testing.T) {
+	routes := func() []*eskip.Route {
+		return eskip.MustParse(`
+			plain: Path("/plain") -> "http://a.example.org";
+			tee: Path("/tee") -> tee("http://b.example.org") -> "http://a.example.org";
+			loop: Path("/loop") -> teeLoopback("k") -> "http://a.example.org";
+			shadow: Tee("k") && True() -> "http://a.example.org";
+		`)
+	}
+	hasOptOut := func(r *eskip.Route) bool {
+		for _, f := range r.Filters {
+			if f.Name == filters.DisableHedgeName {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("disabled adds no preprocessor", func(t *testing.T) {
+		if pp := (Options{}).hedgePreProcessors(); len(pp) != 0 {
+			t.Fatalf("got %d preprocessors, want none", len(pp))
+		}
+	})
+
+	t.Run("enabled opts out routes with tee and shadow traffic", func(t *testing.T) {
+		pp := (Options{HedgeEnabled: true, HedgeFixedDelay: time.Second}).hedgePreProcessors()
+		if len(pp) != 1 {
+			t.Fatalf("got %d preprocessors, want 1", len(pp))
+		}
+
+		rs := routes()
+		for _, p := range pp {
+			rs = p.Do(rs)
+		}
+
+		want := map[string]bool{"plain": false, "tee": true, "loop": true, "shadow": true}
+		for _, r := range rs {
+			if got := hasOptOut(r); got != want[r.Id] {
+				t.Errorf("route %q: opted out=%v, want %v", r.Id, got, want[r.Id])
+			}
+		}
+	})
+}
