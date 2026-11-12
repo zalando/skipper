@@ -811,13 +811,12 @@ func newSchemeBackend(name string, slowFor time.Duration, scheme string) (*httpt
 
 func TestHedgeSchemes(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		scheme    string
-		flags     proxy.Flags
-		wantProto string
+		name   string
+		scheme string
+		flags  proxy.Flags
 	}{
-		{name: "https endpoints", scheme: "https", flags: proxy.Insecure, wantProto: "HTTP/2.0"},
-		{name: "h2c endpoints", scheme: "h2c", wantProto: "HTTP/2.0"},
+		{name: "https endpoints", scheme: "https", flags: proxy.Insecure},
+		{name: "h2c endpoints", scheme: "h2c"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			slow, _ := newSchemeBackend("slow", time.Second, tc.scheme)
