@@ -58,7 +58,7 @@ func TestShadowTrafficPreProcessor(t *testing.T) {
 		{"already disabled", `r: Tee("k") -> disableHedge() -> "http://a.example.org";`, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			routes := hedge.NewShadowTrafficPreProcessor().Do(eskip.MustParse(tc.route))
+			routes := hedge.NewShadowTrafficPreProcessor(registryWithDisableHedge()).Do(eskip.MustParse(tc.route))
 
 			n := 0
 			for _, f := range routes[0].Filters {
@@ -73,5 +73,31 @@ func TestShadowTrafficPreProcessor(t *testing.T) {
 				t.Fatalf("got %d disableHedge filters, want 0", n)
 			}
 		})
+	}
+}
+
+func registryWithDisableHedge() filters.Registry {
+	fr := make(filters.Registry)
+	fr.Register(hedge.NewDisableHedge())
+	return fr
+}
+
+func TestShadowTrafficPreProcessorWithoutDisableHedgeFilter(t *testing.T) {
+	doc := `
+		plain: Path("/plain") -> "http://a.example.org";
+		tee: Path("/tee") -> tee("http://b.example.org") -> "http://a.example.org";
+		shadow: Tee("k") && True() -> "http://a.example.org";
+	`
+
+	routes := hedge.NewShadowTrafficPreProcessor(make(filters.Registry)).Do(eskip.MustParse(doc))
+	if len(routes) != 3 {
+		t.Fatalf("got %d routes, want 3", len(routes))
+	}
+	for _, r := range routes {
+		for _, f := range r.Filters {
+			if f.Name == filters.DisableHedgeName {
+				t.Errorf("route %q got %s although the filter is not registered, routes using it would be dropped", r.Id, f.Name)
+			}
+		}
 	}
 }

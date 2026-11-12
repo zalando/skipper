@@ -11,13 +11,17 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
-type shadowTrafficPreProcessor struct{}
+type shadowTrafficPreProcessor struct {
+	registry filters.Registry
+}
 
 // NewShadowTrafficPreProcessor creates a routing.PreProcessor that appends
 // disableHedge() to every route that produces or receives tee or shadow
 // traffic, so that hedged requests and shadow traffic are never mixed.
-func NewShadowTrafficPreProcessor() routing.PreProcessor {
-	return shadowTrafficPreProcessor{}
+// It does not change any route if the registry has no disableHedge filter,
+// because routes with an unknown filter are dropped.
+func NewShadowTrafficPreProcessor(registry filters.Registry) routing.PreProcessor {
+	return shadowTrafficPreProcessor{registry: registry}
 }
 
 var shadowFilters = []string{
@@ -28,7 +32,12 @@ var shadowFilters = []string{
 	filters.TeeResponseName,
 }
 
-func (shadowTrafficPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
+func (p shadowTrafficPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
+	if _, ok := p.registry[filters.DisableHedgeName]; !ok {
+		log.Errorf("hedge: filter %s is not registered, tee and shadow traffic routes are not excluded from hedged requests", filters.DisableHedgeName)
+		return routes
+	}
+
 	for _, r := range routes {
 		if !usesShadowTraffic(r) || hasDisableHedge(r) {
 			continue

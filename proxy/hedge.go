@@ -36,7 +36,8 @@ const (
 // disables hedged requests.
 type HedgeParams struct {
 	// FixedDelay is the time to wait for the response headers of the
-	// primary attempt before a hedge attempt is sent. Required.
+	// primary attempt before a hedge attempt is sent. It must be greater
+	// than zero, otherwise hedged requests are disabled.
 	FixedDelay time.Duration
 
 	// BudgetPercent is the maximum hedge rate as a percentage of the

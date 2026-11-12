@@ -1568,6 +1568,10 @@ Hedging is disabled by default. To enable it, set both options:
 - `-hedge-fixed-delay=<duration>`, for example `50ms`. It is required, because no
   delay is right for every service. Skipper does not start without it.
 
+The `disableHedge` filter must not be disabled with `-disabled-filters` while hedging
+is enabled, because Skipper adds it to routes with tee and shadow traffic. Skipper does
+not start in this case.
+
 A request is only hedged if all of the following are true:
 
 - the route is a load balanced route and does not use the `consistentHash` algorithm,

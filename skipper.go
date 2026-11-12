@@ -1939,17 +1939,20 @@ func (o Options) hedgeParams() (*proxy.HedgeParams, error) {
 	if o.HedgeFixedDelay <= 0 {
 		return nil, errors.New("hedge: HedgeFixedDelay must be greater than zero if HedgeEnabled is set")
 	}
+	if slices.Contains(o.DisabledFilters, filters.DisableHedgeName) {
+		return nil, fmt.Errorf("hedge: the %s filter cannot be disabled if HedgeEnabled is set, it excludes tee and shadow traffic from hedged requests", filters.DisableHedgeName)
+	}
 	return &proxy.HedgeParams{
 		FixedDelay:    o.HedgeFixedDelay,
 		BudgetPercent: o.HedgeBudgetPercent,
 	}, nil
 }
 
-func (o Options) hedgePreProcessors() []routing.PreProcessor {
+func (o Options) hedgePreProcessors(registry filters.Registry) []routing.PreProcessor {
 	if !o.HedgeEnabled {
 		return nil
 	}
-	return []routing.PreProcessor{hedgefilters.NewShadowTrafficPreProcessor()}
+	return []routing.PreProcessor{hedgefilters.NewShadowTrafficPreProcessor(registry)}
 }
 
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
@@ -2834,7 +2837,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	ro.PreProcessors = append(ro.PreProcessors, admissionControlSpec.PreProcessor())
 
-	ro.PreProcessors = append(ro.PreProcessors, o.hedgePreProcessors()...)
+	ro.PreProcessors = append(ro.PreProcessors, o.hedgePreProcessors(ro.FilterRegistry)...)
 
 	ro.PreProcessors = append(ro.PreProcessors, eskip.ForwardPreProcessor(o.ForwardBackendURL))
 

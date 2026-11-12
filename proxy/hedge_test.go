@@ -744,3 +744,37 @@ func TestHedgeTracing(t *testing.T) {
 		t.Fatalf("%d hedged spans but only %d hedges fired", hedged, fired)
 	}
 }
+
+func TestHedgeDisabledForNonPositiveDelay(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		delay time.Duration
+	}{
+		{"zero", 0},
+		{"negative", -time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newHedgeBackend("a", 0, http.StatusOK)
+			defer a.Close()
+			b := newHedgeBackend("b", 0, http.StatusOK)
+			defer b.Close()
+
+			s := newHedgeProxy(t, fmt.Sprintf(`r: * -> <roundRobin, "%s", "%s">;`, a.URL, b.URL),
+				&proxy.HedgeParams{FixedDelay: tc.delay})
+
+			const n = 300
+			var wg sync.WaitGroup
+			for range n {
+				wg.Go(func() { s.get(t, "/") })
+			}
+			wg.Wait()
+
+			if got := a.hits.Load() + b.hits.Load(); got != n {
+				t.Fatalf("backends saw %d requests for %d client requests, want no hedge requests", got, n)
+			}
+			if fired, _ := s.metrics.Counter("hedge.r.fired"); fired != 0 {
+				t.Fatalf("fired=%d, want 0", fired)
+			}
+		})
+	}
+}

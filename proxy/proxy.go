@@ -412,6 +412,7 @@ type Params struct {
 	AllowInsecureBackend bool
 
 	// Hedge enables hedged requests for LB routes when not nil. See HedgeParams.
+	// Hedged requests stay disabled and an error is logged if its FixedDelay is not positive.
 	Hedge *HedgeParams
 }
 
@@ -955,7 +956,11 @@ func WithParams(p Params) *Proxy {
 		}
 	}
 	var hedgeState *hedger
-	if p.Hedge != nil {
+	switch {
+	case p.Hedge == nil:
+	case p.Hedge.FixedDelay <= 0:
+		log.Errorf("Hedged requests are disabled, the hedge delay must be greater than zero, got: %v", p.Hedge.FixedDelay)
+	default:
 		hedgeState = newHedger(p.Hedge, quit)
 	}
 	return &Proxy{
