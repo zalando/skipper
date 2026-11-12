@@ -177,7 +177,6 @@ func (client *remoteEskipFile) DownloadRemoteFile() error {
 	if err != nil {
 		return err
 	}
-	defer outFile.Close()
 
 	if _, err = io.Copy(outFile, resp.Body); err != nil {
 		_ = outFile.Close()
