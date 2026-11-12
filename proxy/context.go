@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -28,6 +29,15 @@ type flushedResponseWriter interface {
 	Unwrap() http.ResponseWriter
 }
 
+type backendAttempt struct {
+	context         context
+	headersReturned atomic.Bool
+	request         http.Request
+	requestURL      url.URL
+	response        *http.Response
+	err             *proxyError
+}
+
 type context struct {
 	responseWriter       flushedResponseWriter
 	request              *http.Request
@@ -42,10 +52,13 @@ type context struct {
 	originalResponse     *http.Response
 	outgoingHost         string
 	backendZone          string
+	retryEndpoint        *routing.LBEndpoint
 	application          string // application on behalf visibility is made
 	outgoingDebugRequest *http.Request
 	executionCounter     int
 	startServe           time.Time
+	backendAttemptStart  time.Time
+	backendHeaderTime    time.Time
 	clientTraceTime      time.Time
 	metrics              *filterMetrics
 	tracer               opentracing.Tracer
@@ -53,6 +66,7 @@ type context struct {
 	proxySpan            opentracing.Span
 	parentSpan           opentracing.Span
 	proxy                *Proxy
+	backendAttempt       *backendAttempt
 	routeLookup          *routing.RouteLookup
 	cancelBackendContext stdlibcontext.CancelFunc
 	logger               filters.FilterContextLogger
@@ -302,6 +316,42 @@ func (c *context) clone() *context {
 	cc.pathParams = appendParams(nil, c.pathParams)
 
 	return &cc
+}
+
+func (c *context) newBackendAttemptContext(attempt *backendAttempt) *context {
+	attempt.context = *c
+	attempt.context.backendAttempt = attempt
+	if c.request != nil {
+		attempt.request = *c.request
+		if c.request.URL != nil {
+			attempt.requestURL = *c.request.URL
+			attempt.request.URL = &attempt.requestURL
+		}
+		attempt.context.request = &attempt.request
+	}
+	attempt.context.response = nil
+	attempt.context.backendZone = ""
+	attempt.context.clientTraceTime = time.Time{}
+	attempt.context.proxySpan = nil
+	attempt.context.proxyRequestElapsed = 0
+	attempt.context.proxyResponseElapsed = 0
+	attempt.context.backendAttemptStart = time.Time{}
+	attempt.context.backendHeaderTime = time.Time{}
+	return &attempt.context
+}
+
+func (c *context) applyBackendAttempt(attempt *backendAttempt) {
+	if c.request != nil && c.request.URL != nil {
+		if attempt.context.request != nil && attempt.context.request.URL != nil {
+			*c.request.URL = *attempt.context.request.URL
+		}
+	}
+	c.backendZone = attempt.context.backendZone
+	c.clientTraceTime = attempt.context.clientTraceTime
+	c.proxySpan = attempt.context.proxySpan
+	c.proxyRequestElapsed = attempt.context.proxyRequestElapsed
+	c.proxyResponseElapsed = attempt.context.proxyResponseElapsed
+	c.successfulUpgrade = attempt.context.successfulUpgrade
 }
 
 func (c *context) wasExecuted() bool {
