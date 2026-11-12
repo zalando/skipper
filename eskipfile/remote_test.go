@@ -6,7 +6,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,9 +16,38 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/routing"
 )
 
 const routeBody string = `Path("/") -> setPath("/homepage/") -> "https://example.com/"`
+
+type gatedRemoteWatch struct {
+	client        routing.DataClient
+	updateStarted chan struct{}
+	releaseUpdate <-chan struct{}
+	updateErr     chan error
+	updateOnce    sync.Once
+}
+
+func (g *gatedRemoteWatch) LoadAll() ([]*eskip.Route, error) {
+	return g.client.LoadAll()
+}
+
+func (g *gatedRemoteWatch) LoadUpdate() ([]*eskip.Route, []string, error) {
+	first := false
+	g.updateOnce.Do(func() { first = true })
+	if !first {
+		return nil, nil, nil
+	}
+
+	g.updateStarted <- struct{}{}
+	<-g.releaseUpdate
+	routes, deleted, err := g.client.LoadUpdate()
+	g.updateErr <- err
+	return routes, deleted, err
+}
 
 func TestIsRemoteFile(t *testing.T) {
 	for _, test := range []struct {
@@ -220,6 +251,121 @@ func TestRemoteLoadAllFail(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 0, len(r))
 	assert.Equal(t, 0, len(delR))
+}
+
+func TestRemoteInterruptedDownloadPreservesRoutes(t *testing.T) {
+	const (
+		etag1 = "routes-v1"
+		etag2 = "routes-v2"
+	)
+	initialRoutes := `A: Path("/a") -> "https://a.example.org"; B: Path("/b") -> "https://b.example.org";`
+	prefix := `A: Path("/a") -> "https://a.example.org";`
+	requestCount := atomic.Int32{}
+	requestEtags := make(chan string, 4)
+	recoveryStarted := make(chan struct{})
+	recoveryRelease := make(chan struct{})
+	var recoveryOnce sync.Once
+	releaseRecovery := func() { recoveryOnce.Do(func() { close(recoveryRelease) }) }
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestEtags <- r.Header.Get("If-None-Match")
+		switch requestCount.Add(1) {
+		case 1:
+			w.Header().Set("ETag", etag1)
+			_, _ = io.WriteString(w, initialRoutes)
+		case 2:
+			w.WriteHeader(http.StatusNotModified)
+		case 3:
+			w.Header().Set("ETag", etag2)
+			w.Header().Set("Content-Length", fmt.Sprint(len(initialRoutes)))
+			_, _ = io.WriteString(w, prefix)
+			w.(http.Flusher).Flush()
+		case 4:
+			close(recoveryStarted)
+			<-recoveryRelease
+			w.WriteHeader(http.StatusNotModified)
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	client, err := RemoteWatch(&RemoteWatchOptions{RemoteFile: server.URL, FailOnStartup: true})
+	require.NoError(t, err)
+	remote := client.(*remoteEskipFile)
+	defer remote.Close()
+
+	releaseUpdate := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseUpdateGate := func() { releaseOnce.Do(func() { close(releaseUpdate) }) }
+	gate := &gatedRemoteWatch{
+		client:        client,
+		updateStarted: make(chan struct{}, 1),
+		releaseUpdate: releaseUpdate,
+		updateErr:     make(chan error, 1),
+	}
+	logger := loggingtest.New()
+	defer logger.Close()
+	rt := routing.New(routing.Options{
+		FilterRegistry: builtin.MakeRegistry(),
+		DataClients:    []routing.DataClient{gate},
+		PollTimeout:    time.Millisecond,
+		Log:            logger,
+	})
+	defer rt.Close()
+	defer releaseRecovery()
+	defer releaseUpdateGate()
+
+	require.NoError(t, logger.WaitFor("route settings applied", 5*time.Second))
+	select {
+	case <-gate.updateStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("routing did not start a route update")
+	}
+
+	checkRoutes := func() {
+		for _, tc := range []struct {
+			id   string
+			path string
+		}{
+			{id: "A", path: "/a"},
+			{id: "B", path: "/b"},
+		} {
+			route, _ := rt.Route(&http.Request{URL: &url.URL{Path: tc.path}})
+			require.NotNil(t, route, "route %s is not active", tc.id)
+			require.Equal(t, tc.id, route.Id)
+		}
+	}
+
+	checkRoutes()
+	releaseUpdateGate()
+
+	select {
+	case err := <-gate.updateErr:
+		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	case <-time.After(5 * time.Second):
+		t.Fatal("remote route update did not return")
+	}
+	select {
+	case <-recoveryStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("recovery LoadAll did not reach the 304 response")
+	}
+
+	for _, want := range []string{"", etag1, etag1, etag2} {
+		select {
+		case got := <-requestEtags:
+			require.Equal(t, want, got)
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for the expected HTTP request")
+		}
+	}
+	require.Equal(t, int32(4), requestCount.Load())
+	checkRoutes()
+
+	releaseRecovery()
+	require.NoError(t, logger.WaitForN("route settings applied", 2, 5*time.Second))
+	checkRoutes()
 }
 
 func TestHTTPTimeout(t *testing.T) {
