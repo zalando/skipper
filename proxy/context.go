@@ -32,6 +32,7 @@ type flushedResponseWriter interface {
 type backendAttempt struct {
 	context         context
 	headersReturned atomic.Bool
+	roundTripState  atomic.Uint32
 	request         http.Request
 	requestURL      url.URL
 	response        *http.Response

@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — Preserve streaming and clean up losing attempts.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Design:** [Adaptive hedged-request filter design](../../../docs/issue-3943-hedge-design.md). Source: [Skipper issue #3943](https://github.com/zalando/skipper/issues/3943).
 
@@ -20,3 +20,7 @@
 - [ ] Request-level results and winning backend metadata remain consistent; duplicate attempts do not become duplicate incoming requests in accounting.
 - [ ] End-to-end tests cover algorithm variants, filtered/no-alternative endpoints, tracing modes, and cancellation without passive-health degradation.
 - [ ] Focused race/leak checks and no-filter regression tests pass.
+
+## Comments
+
+Implemented and accepted. Red-before-green coverage demonstrated that intentional loser cancellation previously counted as a health failure. An atomic attempt completion/cancellation state now preserves real failures while excluding deliberate loser cancellation from failed-round-trip flags. Public tests cover all six built-in algorithms, fade-in/passive-health eligibility and fallbacks, no alternative, inflight/request accounting, winning backend zone, and both tracing modes. Focused repeated/race/vet checks passed; lead reran hedge and retry-tracing tests successfully. Full integrated checks and performance verification remain ticket 08 work. Before the ticket commit, make fmt, make lint (repository-wide vet/staticcheck), and whitespace checks passed. Make shortcheck was attempted with Colima settings and package parallelism limited to two, but was stopped within the 90-second bound without package results. That attempt is incomplete, not a pass or evidence of a code/environment failure.

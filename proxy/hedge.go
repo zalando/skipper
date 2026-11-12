@@ -12,6 +12,12 @@ import (
 	"github.com/zalando/skipper/tracing"
 )
 
+const (
+	backendRoundTripPending uint32 = iota
+	backendRoundTripFinished
+	backendRoundTripIntentionallyCanceled
+)
+
 type backendAttemptExecution struct {
 	attempt   *backendAttempt
 	cancel    stdlibcontext.CancelFunc
@@ -56,6 +62,7 @@ func (e *backendAttemptExecution) discard() {
 		return
 	}
 	e.discarded = true
+	e.attempt.roundTripState.CompareAndSwap(backendRoundTripPending, backendRoundTripIntentionallyCanceled)
 	var response *http.Response
 	var span ot.Span
 	if e.completed {

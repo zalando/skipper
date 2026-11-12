@@ -1265,6 +1265,9 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	requestStopWatch.Stop()
 
 	response, err := roundTripper.RoundTrip(req)
+	if ctx.backendAttempt != nil {
+		ctx.backendAttempt.roundTripState.CompareAndSwap(backendRoundTripPending, backendRoundTripFinished)
+	}
 	ctx.backendHeaderTime = time.Now()
 	if response != nil && err == nil && ctx.backendAttempt != nil {
 		ctx.backendAttempt.response = response
@@ -1274,7 +1277,11 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	responseStopWatch.Start()
 
 	if endpointMetrics != nil {
-		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil})
+		failedRoundTrip := err != nil
+		if ctx.backendAttempt != nil && ctx.backendAttempt.roundTripState.Load() == backendRoundTripIntentionallyCanceled {
+			failedRoundTrip = false
+		}
+		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: failedRoundTrip})
 	}
 	if p.tracing.clientTraceByTag {
 		ctx.proxySpan.SetTag(ClientTraceHTTPRoundTrip, time.Since(httpRoundtripTime).Microseconds())

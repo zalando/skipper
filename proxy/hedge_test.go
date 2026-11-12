@@ -19,8 +19,12 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/loadbalancer"
+	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
@@ -59,6 +63,29 @@ type hedgeStateSeedFilter struct {
 	sampleCount   int
 	eligibleCount int
 	sampleLatency time.Duration
+}
+
+type trackedLBMetrics struct {
+	detected        time.Time
+	lastSeen        time.Time
+	inflight        atomic.Int64
+	requests        atomic.Int64
+	failures        atomic.Int64
+	dropProbability float64
+	fixedDrop       bool
+}
+
+type trackedLBMetricsPostProcessor struct {
+	mu      sync.Mutex
+	entries map[string]*trackedLBMetrics
+}
+
+type hedgeEndpointPolicyPostProcessor struct {
+	fadeInDuration time.Duration
+	fadeInExponent float64
+	detectedAges   map[string]time.Duration
+	dropProb       map[string]float64
+	zones          map[string]string
 }
 
 type observedResponseBody struct {
@@ -166,6 +193,79 @@ func (b *observedResponseBody) Close() error {
 	return nil
 }
 
+func (m *trackedLBMetrics) DetectedTime() time.Time     { return m.detected }
+func (m *trackedLBMetrics) SetDetected(value time.Time) { m.detected = value }
+func (m *trackedLBMetrics) LastSeen() time.Time         { return m.lastSeen }
+func (m *trackedLBMetrics) SetLastSeen(value time.Time) { m.lastSeen = value }
+func (m *trackedLBMetrics) InflightRequests() int64     { return m.inflight.Load() }
+func (m *trackedLBMetrics) IncInflightRequest()         { m.inflight.Add(1) }
+func (m *trackedLBMetrics) DecInflightRequest()         { m.inflight.Add(-1) }
+func (m *trackedLBMetrics) IncRequests(options routing.IncRequestsOptions) {
+	m.requests.Add(1)
+	if options.FailedRoundTrip {
+		m.failures.Add(1)
+	}
+}
+func (m *trackedLBMetrics) HealthCheckDropProbability() float64 {
+	if m.fixedDrop {
+		return m.dropProbability
+	}
+	if requests := m.requests.Load(); requests != 0 {
+		return float64(m.failures.Load()) / float64(requests)
+	}
+	return 0
+}
+func (*trackedLBMetrics) Weight() float64 { return 1 }
+
+func (p *trackedLBMetricsPostProcessor) Do(routes []*routing.Route) []*routing.Route {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, route := range routes {
+		for i := range route.LBEndpoints {
+			endpoint := &route.LBEndpoints[i]
+			metrics := p.entries[endpoint.Host]
+			if metrics == nil {
+				metrics = &trackedLBMetrics{detected: time.Now(), lastSeen: time.Now()}
+				p.entries[endpoint.Host] = metrics
+			}
+			endpoint.Metrics = metrics
+		}
+	}
+	return routes
+}
+
+func (p *trackedLBMetricsPostProcessor) forHost(host string) *trackedLBMetrics {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.entries[host]
+}
+
+func (p *hedgeEndpointPolicyPostProcessor) Do(routes []*routing.Route) []*routing.Route {
+	for _, route := range routes {
+		if route.BackendType != eskip.LBBackend {
+			continue
+		}
+		route.LBFadeInDuration = p.fadeInDuration
+		route.LBFadeInExponent = p.fadeInExponent
+		for i := range route.LBEndpoints {
+			endpoint := &route.LBEndpoints[i]
+			if age, ok := p.detectedAges[endpoint.Host]; ok {
+				endpoint.Metrics.SetDetected(time.Now().Add(-age))
+			}
+			if drop, ok := p.dropProb[endpoint.Host]; ok {
+				if tracked, ok := endpoint.Metrics.(*trackedLBMetrics); ok {
+					tracked.dropProbability = drop
+					tracked.fixedDrop = true
+				}
+			}
+			if zone, ok := p.zones[endpoint.Host]; ok {
+				endpoint.Zone = zone
+			}
+		}
+	}
+	return routes
+}
+
 func (r *hedgeAttemptRecorder) wrap(inner http.RoundTripper) http.RoundTripper {
 	return &hedgeRecordingRoundTripper{inner: inner, recorder: r}
 }
@@ -268,6 +368,70 @@ func newSeededHedgeTestProxy(t *testing.T, sampleCount, eligibleCount int, sampl
 	}, route[0])
 	t.Cleanup(func() { _ = tp.Close() })
 	return tp
+}
+
+func waitForEndpointRequests(t *testing.T, endpoint *trackedLBMetrics, count int64) {
+	t.Helper()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	for endpoint.requests.Load() < count {
+		select {
+		case <-ticker.C:
+		case <-timer.C:
+			t.Fatalf("endpoint recorded %d requests, want at least %d", endpoint.requests.Load(), count)
+		}
+	}
+}
+
+func newHedgeEndpointAccountingProxy(t *testing.T, roundTrip func(*http.Request, http.RoundTripper) (*http.Response, error)) (*httptest.Server, *trackedLBMetricsPostProcessor, []string) {
+	return newHedgeEndpointAccountingProxyWithAlgorithm(t, "roundRobin", roundTrip)
+}
+
+func newHedgeEndpointAccountingProxyWithAlgorithm(t *testing.T, algorithm string, roundTrip func(*http.Request, http.RoundTripper) (*http.Response, error)) (*httptest.Server, *trackedLBMetricsPostProcessor, []string) {
+	t.Helper()
+	endpoints := []string{closedHedgeBackend(t), closedHedgeBackend(t)}
+	server, metrics := newHedgeEndpointAccountingProxyWithPolicy(t, endpoints, algorithm, proxy.Params{}, nil, roundTrip)
+	return server, metrics, endpoints
+}
+
+func newHedgeEndpointAccountingProxyWithPolicy(t *testing.T, endpoints []string, algorithm string, proxyParams proxy.Params, policy routing.PostProcessor, roundTrip func(*http.Request, http.RoundTripper) (*http.Response, error)) (*httptest.Server, *trackedLBMetricsPostProcessor) {
+	t.Helper()
+	routes := eskip.MustParse(fmt.Sprintf("r: Path(\"/hedge\") -> hedge() -> hedgeStateSeed() -> <%s, %q, %q>;", algorithm, endpoints[0], endpoints[1]))
+	registry := builtin.MakeRegistry()
+	registry.Register(&hedgeStateSeedSpec{sampleCount: 100, eligibleCount: 20, sampleLatency: time.Millisecond})
+	dataClient := testdataclient.New(routes)
+	endpointMetrics := &trackedLBMetricsPostProcessor{entries: make(map[string]*trackedLBMetrics)}
+	postProcessors := []routing.PostProcessor{loadbalancer.NewAlgorithmProvider(), endpointMetrics}
+	if policy != nil {
+		postProcessors = append(postProcessors, policy)
+	}
+	routingInstance := routing.New(routing.Options{
+		FilterRegistry:  registry,
+		DataClients:     []routing.DataClient{dataClient},
+		SignalFirstLoad: true,
+		PostProcessors:  postProcessors,
+	})
+	select {
+	case <-routingInstance.FirstLoad():
+	case <-time.After(2 * time.Second):
+		t.Fatal("routing table did not load")
+	}
+	proxyParams.Routing = routingInstance
+	proxyParams.CloseIdleConnsPeriod = -time.Second
+	proxyParams.CustomHttpRoundTripperWrap = func(inner http.RoundTripper) http.RoundTripper {
+		return scriptedHedgeRoundTripper(func(req *http.Request) (*http.Response, error) {
+			return roundTrip(req, inner)
+		})
+	}
+	proxyInstance := proxy.WithParams(proxyParams)
+	server := httptest.NewServer(proxyInstance)
+	t.Cleanup(dataClient.Close)
+	t.Cleanup(routingInstance.Close)
+	t.Cleanup(func() { _ = proxyInstance.Close() })
+	t.Cleanup(server.Close)
+	return server, endpointMetrics
 }
 
 func newTracedSeededHedgeTestProxy(t *testing.T, tracer *tracingtest.MockTracer, roundTrip func(*http.Request) (*http.Response, error)) *proxytest.TestProxy {
@@ -673,6 +837,391 @@ func TestHedgeUpgradeRemainsBidirectional(t *testing.T) {
 	}
 	if pong != "pong\n" {
 		t.Fatalf("upgrade response = %q, want pong", pong)
+	}
+}
+
+func TestHedgeIntentionalLoserCancellationDoesNotMarkHealthFailure(t *testing.T) {
+	var attempts atomic.Int32
+	primaryHost := make(chan string, 1)
+	winnerHost := make(chan string, 1)
+	primaryCanceled := make(chan struct{})
+	server, endpointMetrics, _ := newHedgeEndpointAccountingProxy(t, func(req *http.Request, _ http.RoundTripper) (*http.Response, error) {
+		if attempts.Add(1) == 1 {
+			primaryHost <- req.URL.Host
+			<-req.Context().Done()
+			close(primaryCanceled)
+			return nil, req.Context().Err()
+		}
+		winnerHost <- req.URL.Host
+		return hedgeTestResponse(req, http.StatusOK, "winner"), nil
+	})
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/hedge", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Hedge-Seed", "seed")
+	response, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.Copy(io.Discard, response.Body)
+	_ = response.Body.Close()
+	<-primaryCanceled
+	failedHost, winner := <-primaryHost, <-winnerHost
+	if failedHost == winner {
+		t.Fatalf("hedged attempts used the same endpoint %q", failedHost)
+	}
+
+	failedMetrics, winnerMetrics := endpointMetrics.forHost(failedHost), endpointMetrics.forHost(winner)
+	waitForEndpointRequests(t, failedMetrics, 1)
+	waitForEndpointRequests(t, winnerMetrics, 1)
+	if got := failedMetrics.requests.Load(); got != 1 {
+		t.Fatalf("losing endpoint recorded %d attempts, want 1", got)
+	}
+	if got := winnerMetrics.requests.Load(); got != 1 {
+		t.Fatalf("winning endpoint recorded %d attempts, want 1", got)
+	}
+	if got := failedMetrics.failures.Load(); got != 0 {
+		t.Fatalf("intentional loser cancellation recorded %d backend health failures, want 0", got)
+	}
+	if got := failedMetrics.HealthCheckDropProbability(); got != 0 {
+		t.Fatalf("intentional loser cancellation raised endpoint drop probability to %v, want 0", got)
+	}
+	if got := winnerMetrics.failures.Load(); got != 0 {
+		t.Fatalf("winning HTTP response recorded %d backend health failures, want 0", got)
+	}
+	if got := failedMetrics.InflightRequests(); got != 0 {
+		t.Fatalf("losing endpoint has %d inflight requests, want 0", got)
+	}
+	if got := winnerMetrics.InflightRequests(); got != 0 {
+		t.Fatalf("winning endpoint has %d inflight requests, want 0", got)
+	}
+}
+
+func TestGenuineDialFailureRemainsBackendHealthFailure(t *testing.T) {
+	var attempts atomic.Int32
+	failedHost := make(chan string, 1)
+	winnerHost := make(chan string, 1)
+	server, endpointMetrics, _ := newHedgeEndpointAccountingProxy(t, func(req *http.Request, inner http.RoundTripper) (*http.Response, error) {
+		if attempts.Add(1) == 1 {
+			failedHost <- req.URL.Host
+			return inner.RoundTrip(req)
+		}
+		winnerHost <- req.URL.Host
+		return hedgeTestResponse(req, http.StatusOK, "winner"), nil
+	})
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/hedge", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Hedge-Seed", "seed")
+	response, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.Copy(io.Discard, response.Body)
+	_ = response.Body.Close()
+	failed, winner := <-failedHost, <-winnerHost
+	if failed == winner {
+		t.Fatalf("retry used the same endpoint %q", failed)
+	}
+
+	failedMetrics, winnerMetrics := endpointMetrics.forHost(failed), endpointMetrics.forHost(winner)
+	waitForEndpointRequests(t, failedMetrics, 1)
+	waitForEndpointRequests(t, winnerMetrics, 1)
+	if got := failedMetrics.requests.Load(); got != 1 {
+		t.Fatalf("failed endpoint recorded %d attempts, want 1", got)
+	}
+	if got := winnerMetrics.requests.Load(); got != 1 {
+		t.Fatalf("winning endpoint recorded %d attempts, want 1", got)
+	}
+	if got := failedMetrics.failures.Load(); got != 1 {
+		t.Fatalf("genuine dial failure recorded %d backend health failures, want 1", got)
+	}
+	if got := failedMetrics.HealthCheckDropProbability(); got != 1 {
+		t.Fatalf("genuine dial failure produced endpoint drop probability %v, want 1", got)
+	}
+	if got := winnerMetrics.failures.Load(); got != 0 {
+		t.Fatalf("winning HTTP response recorded %d backend health failures, want 0", got)
+	}
+	if got := failedMetrics.InflightRequests(); got != 0 {
+		t.Fatalf("failed endpoint has %d inflight requests, want 0", got)
+	}
+	if got := winnerMetrics.InflightRequests(); got != 0 {
+		t.Fatalf("winning endpoint has %d inflight requests, want 0", got)
+	}
+}
+
+func TestHedgeEndpointEligibilityFallbacks(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		policyKind    string
+		passiveHealth bool
+		wantAttempts  int32
+		wantStatus    int
+	}{
+		{name: "fade-in fallback keeps alternative endpoint", policyKind: "fade-in-fallback", wantAttempts: 2, wantStatus: http.StatusOK},
+		{name: "fade-in does not bypass a filtered alternative", policyKind: "fade-in-filtered", wantAttempts: 1, wantStatus: http.StatusBadGateway},
+		{name: "passive-health fallback keeps alternative endpoint", policyKind: "passive-health-fallback", passiveHealth: true, wantAttempts: 2, wantStatus: http.StatusOK},
+		{name: "passive-health does not bypass a filtered alternative", policyKind: "passive-health-filtered", passiveHealth: true, wantAttempts: 1, wantStatus: http.StatusOK},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			endpoints := []string{closedHedgeBackend(t), closedHedgeBackend(t)}
+			hosts := []string{mustEndpointHost(t, endpoints[0]), mustEndpointHost(t, endpoints[1])}
+			policy := &hedgeEndpointPolicyPostProcessor{}
+			switch tc.policyKind {
+			case "fade-in-fallback":
+				policy.fadeInDuration, policy.fadeInExponent = time.Hour, 1000
+				policy.detectedAges = map[string]time.Duration{hosts[0]: time.Millisecond, hosts[1]: time.Millisecond}
+			case "fade-in-filtered":
+				policy.fadeInDuration, policy.fadeInExponent = time.Hour, 1000
+				policy.detectedAges = map[string]time.Duration{hosts[0]: 2 * time.Hour, hosts[1]: time.Millisecond}
+			case "passive-health-fallback":
+				policy.dropProb = map[string]float64{hosts[0]: 1, hosts[1]: 1}
+			case "passive-health-filtered":
+				policy.dropProb = map[string]float64{hosts[1]: 1}
+			}
+			var attempts atomic.Int32
+			primaryHost := make(chan string, 1)
+			winnerHost := make(chan string, 1)
+			releasePrimary := make(chan struct{})
+			var releasePrimaryOnce sync.Once
+			releasePrimaryRequest := func() { releasePrimaryOnce.Do(func() { close(releasePrimary) }) }
+			server, endpointMetrics := newHedgeEndpointAccountingProxyWithPolicy(t, endpoints, "roundRobin", proxy.Params{
+				EnablePassiveHealthCheck: tc.passiveHealth,
+				PassiveHealthCheck:       &proxy.PassiveHealthCheck{MaxUnhealthyEndpointsRatio: 1},
+			}, policy, func(req *http.Request, inner http.RoundTripper) (*http.Response, error) {
+				if attempts.Add(1) == 1 {
+					primaryHost <- req.URL.Host
+					if tc.policyKind == "passive-health-filtered" {
+						select {
+						case <-req.Context().Done():
+							return nil, req.Context().Err()
+						case <-releasePrimary:
+							return hedgeTestResponse(req, http.StatusOK, "primary"), nil
+						}
+					}
+					if tc.wantAttempts == 1 {
+						return inner.RoundTrip(req)
+					}
+					<-req.Context().Done()
+					return nil, req.Context().Err()
+				}
+				winnerHost <- req.URL.Host
+				return hedgeTestResponse(req, http.StatusOK, "winner"), nil
+			})
+			for host, wantDrop := range policy.dropProb {
+				if gotDrop := endpointMetrics.forHost(host).HealthCheckDropProbability(); gotDrop != wantDrop {
+					t.Fatalf("endpoint %q drop probability = %v, want %v", host, gotDrop, wantDrop)
+				}
+			}
+
+			req, err := http.NewRequest(http.MethodGet, server.URL+"/hedge", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("X-Hedge-Seed", "seed")
+			type responseResult struct {
+				response *http.Response
+				err      error
+			}
+			responses := make(chan responseResult, 1)
+			go func() {
+				response, err := server.Client().Do(req)
+				responses <- responseResult{response: response, err: err}
+			}()
+			var primary string
+			if tc.policyKind == "passive-health-filtered" {
+				primary = <-primaryHost
+				timer := time.NewTimer(20 * time.Millisecond)
+				<-timer.C
+				timer.Stop()
+				releasePrimaryRequest()
+			}
+			var response *http.Response
+			select {
+			case result := <-responses:
+				if result.err != nil {
+					t.Fatal(result.err)
+				}
+				response = result.response
+			case <-time.After(2 * time.Second):
+				releasePrimaryRequest()
+				t.Fatal("hedge request did not complete")
+			}
+			_, _ = io.Copy(io.Discard, response.Body)
+			_ = response.Body.Close()
+			if primary == "" {
+				primary = <-primaryHost
+			}
+			primaryEligible := false
+			for _, host := range hosts {
+				primaryEligible = primaryEligible || host == primary
+			}
+			if !primaryEligible {
+				t.Fatalf("primary selected unexpected endpoint %q", primary)
+			}
+			if got := attempts.Load(); got != tc.wantAttempts {
+				t.Fatalf("made %d attempts, want %d; endpoint drops=%v/%v", got, tc.wantAttempts, endpointMetrics.forHost(hosts[0]).HealthCheckDropProbability(), endpointMetrics.forHost(hosts[1]).HealthCheckDropProbability())
+			}
+			if tc.wantAttempts == 1 {
+				if response.StatusCode != tc.wantStatus {
+					t.Fatalf("response status = %d, want %d", response.StatusCode, tc.wantStatus)
+				}
+				return
+			}
+			winner := <-winnerHost
+			if winner == primary {
+				t.Fatalf("fallback reintroduced primary endpoint %q", primary)
+			}
+			if response.StatusCode != tc.wantStatus {
+				t.Fatalf("response status = %d, want %d", response.StatusCode, tc.wantStatus)
+			}
+		})
+	}
+}
+
+func mustEndpointHost(t *testing.T, address string) string {
+	t.Helper()
+	u, err := url.Parse(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u.Host
+}
+
+func TestHedgeWinnerMetadataAndTracingModes(t *testing.T) {
+	for _, clientTraceByTag := range []bool{false, true} {
+		t.Run(fmt.Sprintf("clientTraceByTag-%v", clientTraceByTag), func(t *testing.T) {
+			endpoints := []string{closedHedgeBackend(t), closedHedgeBackend(t)}
+			hosts := []string{mustEndpointHost(t, endpoints[0]), mustEndpointHost(t, endpoints[1])}
+			zones := map[string]string{hosts[0]: "zone-a", hosts[1]: "zone-b"}
+			policy := &hedgeEndpointPolicyPostProcessor{zones: zones}
+			var attempts atomic.Int32
+			primaryHost := make(chan string, 1)
+			winnerHost := make(chan string, 1)
+			tracer := tracingtest.NewTracer()
+			mockMetrics := &metricstest.MockMetrics{}
+			server, endpointMetrics := newHedgeEndpointAccountingProxyWithPolicy(t, endpoints, "roundRobin", proxy.Params{
+				Metrics: mockMetrics,
+				OpenTracing: &proxy.OpenTracingParams{
+					Tracer:           tracer,
+					ClientTraceByTag: clientTraceByTag,
+				},
+			}, policy, func(req *http.Request, _ http.RoundTripper) (*http.Response, error) {
+				if attempts.Add(1) == 1 {
+					primaryHost <- req.URL.Host
+					<-req.Context().Done()
+					return nil, req.Context().Err()
+				}
+				winnerHost <- req.URL.Host
+				return hedgeTestResponse(req, http.StatusServiceUnavailable, "winner"), nil
+			})
+			defer mockMetrics.Close()
+
+			req, err := http.NewRequest(http.MethodGet, server.URL+"/hedge", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("X-Hedge-Seed", "seed")
+			response, err := server.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _ = io.Copy(io.Discard, response.Body)
+			_ = response.Body.Close()
+			if response.StatusCode != http.StatusServiceUnavailable {
+				t.Fatalf("winning HTTP status = %d, want %d", response.StatusCode, http.StatusServiceUnavailable)
+			}
+			failedHost, winningHost := <-primaryHost, <-winnerHost
+			if failedHost == winningHost {
+				t.Fatalf("attempts used the same endpoint %q", failedHost)
+			}
+			failedMetrics, winningMetrics := endpointMetrics.forHost(failedHost), endpointMetrics.forHost(winningHost)
+			waitForEndpointRequests(t, failedMetrics, 1)
+			waitForEndpointRequests(t, winningMetrics, 1)
+			if failedMetrics.failures.Load() != 0 || winningMetrics.failures.Load() != 0 {
+				t.Fatalf("HTTP response or intentional cancellation counted as health failure: primary=%d winner=%d", failedMetrics.failures.Load(), winningMetrics.failures.Load())
+			}
+			if failedMetrics.InflightRequests() != 0 || winningMetrics.InflightRequests() != 0 {
+				t.Fatalf("attempt inflight accounting did not return to zero")
+			}
+			mockMetrics.WithCounters(func(counters map[string]int64) {
+				if got := counters["incoming.HTTP/1.1"]; got != 1 {
+					t.Errorf("incoming request count = %d, want 1", got)
+				}
+			})
+			winnerZone, loserZone := zones[winningHost], zones[failedHost]
+			mockMetrics.WithMeasures(func(measures map[string][]time.Duration) {
+				if len(measures["backendzone."+winnerZone]) != 1 {
+					t.Errorf("winning backend zone %q measurements = %d, want 1", winnerZone, len(measures["backendzone."+winnerZone]))
+				}
+				if len(measures["backendzone."+loserZone]) != 0 {
+					t.Errorf("losing backend zone %q measurements = %d, want 0", loserZone, len(measures["backendzone."+loserZone]))
+				}
+			})
+			assertProxySpanCount(t, tracer, 2)
+		})
+	}
+}
+
+func TestHedgeAdditionalAttemptUsesEachBuiltInLBAlgorithm(t *testing.T) {
+	for _, algorithm := range []string{"roundRobin", "random", "consistentHash", "powerOfRandomNChoices", "weightedRoundRobin", "leastRequests"} {
+		t.Run(algorithm, func(t *testing.T) {
+			var attempts atomic.Int32
+			primaryHost := make(chan string, 1)
+			winnerHost := make(chan string, 1)
+			primaryCanceled := make(chan struct{})
+			endpoints := []string{closedHedgeBackend(t), closedHedgeBackend(t), closedHedgeBackend(t)}
+			server, endpointMetrics := newHedgeEndpointAccountingProxyWithPolicy(t, endpoints, algorithm, proxy.Params{}, nil, func(req *http.Request, _ http.RoundTripper) (*http.Response, error) {
+				if attempts.Add(1) == 1 {
+					primaryHost <- req.URL.Host
+					<-req.Context().Done()
+					close(primaryCanceled)
+					return nil, req.Context().Err()
+				}
+				winnerHost <- req.URL.Host
+				return hedgeTestResponse(req, http.StatusOK, "winner"), nil
+			})
+
+			req, err := http.NewRequest(http.MethodGet, server.URL+"/hedge", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("X-Hedge-Seed", "seed")
+			response, err := server.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _ = io.Copy(io.Discard, response.Body)
+			_ = response.Body.Close()
+			<-primaryCanceled
+			primary, winner := <-primaryHost, <-winnerHost
+			if primary == winner {
+				t.Fatalf("%s selected the primary endpoint again", algorithm)
+			}
+			eligibleWinner := false
+			for _, endpoint := range endpoints {
+				eligibleWinner = eligibleWinner || winner == mustEndpointHost(t, endpoint)
+			}
+			if !eligibleWinner {
+				t.Fatalf("%s selected ineligible endpoint %q", algorithm, winner)
+			}
+			primaryMetrics, winnerMetrics := endpointMetrics.forHost(primary), endpointMetrics.forHost(winner)
+			waitForEndpointRequests(t, primaryMetrics, 1)
+			waitForEndpointRequests(t, winnerMetrics, 1)
+			if got := primaryMetrics.InflightRequests(); got != 0 {
+				t.Fatalf("primary endpoint has %d inflight attempts", got)
+			}
+			if got := winnerMetrics.InflightRequests(); got != 0 {
+				t.Fatalf("winning endpoint has %d inflight attempts", got)
+			}
+			if got := attempts.Load(); got != 2 {
+				t.Fatalf("%s made %d attempts, want 2", algorithm, got)
+			}
+		})
 	}
 }
 
