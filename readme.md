@@ -43,7 +43,7 @@ Skipper
      header to reduce amount of CPU used in your skipper data plane
    - webhook: Kubernetes validation webhook to make sure your
      manifests are deployed safely
-- support for HTTP/1.1, H2C, HTTP/2
+- support for HTTP/1.1, H2C, HTTP/2, HTTP/3
 - outstanding features
    - HTTP proxy library implementation to enable you to build rock solid proxies
    - Authentication and Authorization (no external dependency on oauth-proxy or OpenPolicyAgent containers)
