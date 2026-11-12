@@ -364,6 +364,7 @@ func (c *OAuthConfig) GetAuthURLParameters(redirectURI string) []oauth2.AuthCode
 
 // RedirectURLs constructs the redirect URI based on the request and the
 // configured CallbackPath.
+// X-Skipper-Redirect-Host header overrides the host generated in the redirect URL
 func (c *OAuthConfig) RedirectURLs(req *http.Request) (redirect, original string) {
 	u := *req.URL
 
@@ -373,10 +374,22 @@ func (c *OAuthConfig) RedirectURLs(req *http.Request) (redirect, original string
 		u.Scheme = "https"
 	}
 
-	u.Host = req.Host
-
 	original = u.String()
 
+	redirectBaseOverride := req.Header.Get("X-Skipper-Redirect-Base-Uri")
+	if redirectBaseOverride != "" {
+		u, err := url.Parse(redirectBaseOverride)
+		if err == nil {
+			redirect = (&url.URL{
+				Scheme: u.Scheme,
+				Host:   u.Host,
+				Path:   c.CallbackPath,
+			}).String()
+			return
+		}
+	}
+
+	u.Host = req.Host
 	redirect = (&url.URL{
 		Scheme: u.Scheme,
 		Host:   u.Host,
