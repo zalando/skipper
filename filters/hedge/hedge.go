@@ -29,16 +29,11 @@ type (
 		retryAvailable   bool
 		retryReserved    bool
 		headerLatencies  metrics.Sample
+		routeState       *routeState
 	}
 
 	filter struct {
 		state *routeState
-	}
-
-	requestState struct {
-		mu         sync.Mutex
-		routeState *routeState
-		generation *adaptiveState
 	}
 
 	routeState struct {
@@ -63,7 +58,9 @@ type (
 	}
 )
 
-// New returns the hedge filter specification.
+// New returns the hedge filter specification and its route-state registry. When
+// building routing options directly, register the specification as a routing
+// postprocessor to preserve state across route updates.
 func New() filters.Spec {
 	return &spec{registry: newRouteRegistry()}
 }
@@ -79,7 +76,8 @@ func (*spec) CreateFilter(args []any) (filters.Filter, error) {
 	return &filter{state: newRouteState()}, nil
 }
 
-// NewRoutePostProcessor returns an independent postprocessor registry for a route population.
+// NewRoutePostProcessor returns an independent state registry for another
+// route population, such as priority routes. Apply it only to that population.
 func (*spec) NewRoutePostProcessor() routing.PostProcessor {
 	return newRouteRegistry()
 }
@@ -89,70 +87,47 @@ func (s *spec) Do(routes []*routing.Route) []*routing.Route {
 }
 
 func (f *filter) Request(ctx filters.FilterContext) {
-	ctx.StateBag()[filters.HedgeStateKey] = f.state.requestState()
+	ctx.StateBag()[filters.HedgeStateKey] = f.state.currentGeneration()
 }
 
 func (*filter) Response(filters.FilterContext) {}
 
 func newRouteState() *routeState {
-	return &routeState{generation: newAdaptiveState()}
+	s := &routeState{}
+	s.generation = newAdaptiveState(s)
+	return s
 }
 
-func newAdaptiveState() *adaptiveState {
+func newAdaptiveState(routeState *routeState) *adaptiveState {
 	return &adaptiveState{
 		headerLatencies: metrics.NewExpDecaySample(headerLatencySampleSize, headerLatencySampleAlpha),
+		routeState:      routeState,
 	}
 }
 
-func (s *routeState) requestState() *requestState {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return &requestState{routeState: s, generation: s.generation}
-}
-
-func (s *requestState) RecordEligibleRequest() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	now := timeNow()
-	s.routeState.mu.Lock()
-	if s.routeState.hasEligible && now.Sub(s.routeState.lastEligible) >= idleStateResetDuration {
-		s.routeState.generation = newAdaptiveState()
-	}
-	s.routeState.hasEligible = true
-	s.routeState.lastEligible = now
-	s.generation = s.routeState.generation
-	generation := s.generation
-	s.routeState.mu.Unlock()
-
-	generation.recordEligibleRequest()
-}
-
-func (s *requestState) TryReserveRetry() bool {
-	return s.currentGeneration().tryReserveRetry()
-}
-
-func (s *requestState) CommitRetry() {
-	s.currentGeneration().commitRetry()
-}
-
-func (s *requestState) ReleaseRetry() {
-	s.currentGeneration().releaseRetry()
-}
-
-func (s *requestState) ObserveResponseHeaderLatency(latency time.Duration) {
-	s.currentGeneration().observeResponseHeaderLatency(latency)
-}
-
-func (s *requestState) HedgeDelay() (time.Duration, bool) {
-	return s.currentGeneration().hedgeDelay()
-}
-
-func (s *requestState) currentGeneration() *adaptiveState {
+func (s *routeState) currentGeneration() *adaptiveState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.generation
+}
+
+func (s *routeState) recordEligibleRequest() *adaptiveState {
+	now := timeNow()
+	s.mu.Lock()
+	if s.hasEligible && now.Sub(s.lastEligible) >= idleStateResetDuration {
+		s.generation = newAdaptiveState(s)
+	}
+	s.hasEligible = true
+	s.lastEligible = now
+	generation := s.generation
+	s.mu.Unlock()
+
+	generation.recordEligibleRequest()
+	return generation
+}
+
+func (s *adaptiveState) RecordEligibleRequest() filters.HedgeState {
+	return s.routeState.recordEligibleRequest()
 }
 
 func (s *adaptiveState) recordEligibleRequest() {
@@ -169,7 +144,7 @@ func (s *adaptiveState) recordEligibleRequest() {
 	}
 }
 
-func (s *adaptiveState) tryReserveRetry() bool {
+func (s *adaptiveState) TryReserveRetry() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -181,13 +156,13 @@ func (s *adaptiveState) tryReserveRetry() bool {
 	return true
 }
 
-func (s *adaptiveState) commitRetry() {
+func (s *adaptiveState) CommitRetry() {
 	s.mu.Lock()
 	s.retryReserved = false
 	s.mu.Unlock()
 }
 
-func (s *adaptiveState) releaseRetry() {
+func (s *adaptiveState) ReleaseRetry() {
 	s.mu.Lock()
 	if s.retryReserved {
 		s.retryReserved = false
@@ -196,14 +171,14 @@ func (s *adaptiveState) releaseRetry() {
 	s.mu.Unlock()
 }
 
-func (s *adaptiveState) observeResponseHeaderLatency(latency time.Duration) {
+func (s *adaptiveState) ObserveResponseHeaderLatency(latency time.Duration) {
 	if latency < 0 {
 		return
 	}
 	s.headerLatencies.Update(int64(latency))
 }
 
-func (s *adaptiveState) hedgeDelay() (time.Duration, bool) {
+func (s *adaptiveState) HedgeDelay() (time.Duration, bool) {
 	if s.headerLatencies.Count() < headerLatencyWarmup {
 		return 0, false
 	}
@@ -260,7 +235,7 @@ func (s *routeRegistry) Do(routes []*routing.Route) []*routing.Route {
 
 var (
 	_ filters.Filter        = (*filter)(nil)
-	_ filters.HedgeState    = (*requestState)(nil)
+	_ filters.HedgeState    = (*adaptiveState)(nil)
 	_ routing.PostProcessor = (*spec)(nil)
 	_ routing.PostProcessor = (*routeRegistry)(nil)
 )

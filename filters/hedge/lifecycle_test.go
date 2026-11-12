@@ -47,18 +47,18 @@ func TestHedgeIdleResetUsesFreshGeneration(t *testing.T) {
 
 	initial := postProcessor.Do([]*routing.Route{createRoute()})[0]
 	oldState := stateFor(initial)
-	oldState.RecordEligibleRequest()
+	oldState = oldState.RecordEligibleRequest()
 	for sample := 1; sample <= 100; sample++ {
 		oldState.ObserveResponseHeaderLatency(time.Duration(sample) * time.Millisecond)
 	}
 	for request := 1; request < 20; request++ {
-		oldState.RecordEligibleRequest()
+		oldState = oldState.RecordEligibleRequest()
 	}
 
 	currentTime = currentTime.Add(time.Minute - time.Nanosecond)
 	beforeIdle := postProcessor.Do([]*routing.Route{createRoute()})[0]
 	beforeIdleState := stateFor(beforeIdle)
-	beforeIdleState.RecordEligibleRequest()
+	beforeIdleState = beforeIdleState.RecordEligibleRequest()
 	if _, ok := beforeIdleState.HedgeDelay(); !ok {
 		t.Fatal("route reset before one minute without eligible requests")
 	}
@@ -66,7 +66,7 @@ func TestHedgeIdleResetUsesFreshGeneration(t *testing.T) {
 	currentTime = currentTime.Add(time.Minute)
 	afterIdle := postProcessor.Do([]*routing.Route{createRoute()})[0]
 	afterIdleState := stateFor(afterIdle)
-	afterIdleState.RecordEligibleRequest()
+	afterIdleState = afterIdleState.RecordEligibleRequest()
 	if _, ok := afterIdleState.HedgeDelay(); ok {
 		t.Fatal("idle route retained response-header history")
 	}
@@ -116,9 +116,9 @@ func TestHedgeConcurrentOldAndNewGenerations(t *testing.T) {
 
 	oldRoute := postProcessor.Do([]*routing.Route{createRoute()})[0]
 	oldState := stateFor(oldRoute)
-	oldState.RecordEligibleRequest()
+	oldState = oldState.RecordEligibleRequest()
 	for request := 1; request < 20; request++ {
-		oldState.RecordEligibleRequest()
+		oldState = oldState.RecordEligibleRequest()
 	}
 	if !oldState.TryReserveRetry() {
 		t.Fatal("old generation did not earn its allowance")
@@ -127,7 +127,7 @@ func TestHedgeConcurrentOldAndNewGenerations(t *testing.T) {
 	currentTime = currentTime.Add(time.Minute)
 	newRoute := postProcessor.Do([]*routing.Route{createRoute()})[0]
 	newState := stateFor(newRoute)
-	newState.RecordEligibleRequest()
+	newState = newState.RecordEligibleRequest()
 
 	var workers sync.WaitGroup
 	workers.Add(2)

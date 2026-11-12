@@ -18,27 +18,29 @@ const (
 	backendRoundTripIntentionallyCanceled
 )
 
-type backendAttemptExecution struct {
-	attempt   *backendAttempt
-	cancel    stdlibcontext.CancelFunc
-	startedAt time.Time
-	done      chan struct{}
+type (
+	backendAttemptExecution struct {
+		attempt   *backendAttempt
+		cancel    stdlibcontext.CancelFunc
+		startedAt time.Time
+		done      chan struct{}
 
-	mu        sync.Mutex
-	completed bool
-	discarded bool
-}
+		mu        sync.Mutex
+		completed bool
+		discarded bool
+	}
 
-type hedgedBackendResult struct {
-	attempt         *backendAttempt
-	err             *proxyError
-	primaryError    *proxyError
-	secondStarted   bool
-	winnerCancel    stdlibcontext.CancelFunc
-	headerLatency   time.Duration
-	requestElapsed  time.Duration
-	responseElapsed time.Duration
-}
+	hedgedBackendResult struct {
+		attempt         *backendAttempt
+		err             *proxyError
+		primaryError    *proxyError
+		secondStarted   bool
+		winnerCancel    stdlibcontext.CancelFunc
+		headerLatency   time.Duration
+		requestElapsed  time.Duration
+		responseElapsed time.Duration
+	}
+)
 
 func (e *backendAttemptExecution) completedResult() (*http.Response, *proxyError, time.Time, bool) {
 	e.mu.Lock()

@@ -2,7 +2,7 @@
 
 Issue: [#3943 — Adaptive hedge request filter](https://github.com/zalando/skipper/issues/3943)
 
-Status: Design agreed. Implementation has not started.
+Status: Design agreed and implementation committed in stages. Release verification remains blocked; see local ticket 08.
 
 ## Goal
 

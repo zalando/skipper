@@ -45,25 +45,29 @@ type hedgeObservation struct {
 	delay time.Duration
 }
 
-type hedgeObservationSpec struct {
-	observations chan<- hedgeObservation
-}
+type (
+	hedgeObservationSpec struct {
+		observations chan<- hedgeObservation
+	}
 
-type hedgeObservationFilter struct {
-	observations chan<- hedgeObservation
-}
+	hedgeObservationFilter struct {
+		observations chan<- hedgeObservation
+	}
+)
 
-type hedgeStateSeedSpec struct {
-	sampleCount   int
-	eligibleCount int
-	sampleLatency time.Duration
-}
+type (
+	hedgeStateSeedSpec struct {
+		sampleCount   int
+		eligibleCount int
+		sampleLatency time.Duration
+	}
 
-type hedgeStateSeedFilter struct {
-	sampleCount   int
-	eligibleCount int
-	sampleLatency time.Duration
-}
+	hedgeStateSeedFilter struct {
+		sampleCount   int
+		eligibleCount int
+		sampleLatency time.Duration
+	}
+)
 
 type trackedLBMetrics struct {
 	detected        time.Time
@@ -149,7 +153,7 @@ func (f *hedgeStateSeedFilter) Request(ctx filters.FilterContext) {
 		state.ObserveResponseHeaderLatency(f.sampleLatency)
 	}
 	for request := 0; request < f.eligibleCount; request++ {
-		state.RecordEligibleRequest()
+		state = state.RecordEligibleRequest()
 	}
 }
 
@@ -460,6 +464,172 @@ func assertProxySpanCount(t *testing.T, tracer *tracingtest.MockTracer, want int
 	if count != want {
 		t.Fatalf("finished %d proxy spans, want %d", count, want)
 	}
+}
+
+func TestHedgeStateSurvivesHTTPRouteEndpointUpdate(t *testing.T) {
+	var backendRequests [2]atomic.Int32
+	backends := [2]*httptest.Server{}
+	for i := range backends {
+		index := i
+		backends[i] = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			backendRequests[index].Add(1)
+			if r.Header.Get("X-Hedge-Seed") == "" {
+				time.Sleep(100 * time.Millisecond)
+			}
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		defer backends[i].Close()
+	}
+
+	registry := builtin.MakeRegistry()
+	registry.Register(&hedgeStateSeedSpec{sampleCount: 100, eligibleCount: 20, sampleLatency: 20 * time.Millisecond})
+	route := func(endpoints ...string) *eskip.Route {
+		return eskip.MustParse(fmt.Sprintf("r: Path(\"/hedge\") -> hedge() -> hedgeStateSeed() -> <roundRobin, %s>;", strings.Join(quotedEndpoints(endpoints), ", ")))[0]
+	}
+	dataClient := testdataclient.New([]*eskip.Route{route(backends[0].URL)})
+	routeProcessor := registry[filters.HedgeName].(routing.PostProcessor)
+	routingInstance := routing.New(routing.Options{
+		FilterRegistry:  registry,
+		DataClients:     []routing.DataClient{dataClient},
+		PostProcessors:  []routing.PostProcessor{loadbalancer.NewAlgorithmProvider(), routeProcessor},
+		SignalFirstLoad: true,
+	})
+	select {
+	case <-routingInstance.FirstLoad():
+	case <-time.After(2 * time.Second):
+		t.Fatal("routing table did not load")
+	}
+	proxyInstance := proxy.WithParams(proxy.Params{Routing: routingInstance, CloseIdleConnsPeriod: -time.Second})
+	server := httptest.NewServer(proxyInstance)
+	defer server.Close()
+	defer proxyInstance.Close()
+	defer routingInstance.Close()
+	defer dataClient.Close()
+
+	request := func(path string, seed bool) {
+		t.Helper()
+		req, err := http.NewRequest(http.MethodGet, server.URL+path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if seed {
+			req.Header.Set("X-Hedge-Seed", "true")
+		}
+		response, err := server.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = response.Body.Close()
+		if response.StatusCode != http.StatusNoContent {
+			t.Fatalf("response status = %d, want %d", response.StatusCode, http.StatusNoContent)
+		}
+	}
+
+	request("/hedge", true)
+	if err := dataClient.UpdateDoc(fmt.Sprintf("r: Path(\"/hedge\") -> hedge() -> hedgeStateSeed() -> <roundRobin, %q, %q>;", backends[0].URL, backends[1].URL), nil); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		lookupRequest, err := http.NewRequest(http.MethodGet, "http://proxy/hedge", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		updatedRoute, _ := routingInstance.Route(lookupRequest)
+		if updatedRoute != nil && len(updatedRoute.LBEndpoints) == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("updated route endpoints were not installed")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	beforeUpdateRequestCount := backendRequests[0].Load() + backendRequests[1].Load()
+	request("/hedge", false)
+	requestCount := backendRequests[0].Load() + backendRequests[1].Load() - beforeUpdateRequestCount
+	if requestCount != 2 {
+		t.Fatalf("backend requests after endpoint update = %d, want primary and hedged attempt", requestCount)
+	}
+
+	request("/hedge", true)
+	if err := dataClient.UpdateDoc(fmt.Sprintf("r: Path(\"/hedge/changed\") -> hedge() -> hedgeStateSeed() -> <roundRobin, %q, %q>;", backends[0].URL, backends[1].URL), nil); err != nil {
+		t.Fatal(err)
+	}
+	deadline = time.Now().Add(2 * time.Second)
+	for {
+		lookupRequest, err := http.NewRequest(http.MethodGet, "http://proxy/hedge/changed", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		updatedRoute, _ := routingInstance.Route(lookupRequest)
+		if updatedRoute != nil && len(updatedRoute.LBEndpoints) == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("changed route definition was not installed")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	beforeChangedDefinitionRequestCount := backendRequests[0].Load() + backendRequests[1].Load()
+	request("/hedge/changed", false)
+	requestCount = backendRequests[0].Load() + backendRequests[1].Load() - beforeChangedDefinitionRequestCount
+	if requestCount != 1 {
+		t.Fatalf("backend requests after route-definition change = %d, want one attempt with reset state", requestCount)
+	}
+}
+
+func quotedEndpoints(endpoints []string) []string {
+	quoted := make([]string, len(endpoints))
+	for i, endpoint := range endpoints {
+		quoted[i] = strconv.Quote(endpoint)
+	}
+	return quoted
+}
+
+func TestLoopbackHedgeStateIsScopedToSelectedRoute(t *testing.T) {
+	endpoints := []string{closedHedgeBackend(t), closedHedgeBackend(t)}
+	quotedEndpoints := []string{strconv.Quote(endpoints[0]), strconv.Quote(endpoints[1])}
+	routes := eskip.MustParse(fmt.Sprintf(`
+		a: Path("/a") -> hedge() -> setPath("/b") -> <loopback>;
+		b: Path("/b") -> <roundRobin, %s, %s>;
+		aOptIn: Path("/a-opt-in") -> hedge() -> hedgeStateSeed() -> setPath("/c") -> <loopback>;
+		c: Path("/c") -> hedge() -> <roundRobin, %s, %s>;
+	`, quotedEndpoints[0], quotedEndpoints[1], quotedEndpoints[0], quotedEndpoints[1]))
+	registry := builtin.MakeRegistry()
+	registry.Register(&hedgeStateSeedSpec{sampleCount: 100, eligibleCount: 20, sampleLatency: time.Millisecond})
+	recorder := &hedgeAttemptRecorder{}
+	testProxy := proxytest.WithParams(registry, proxy.Params{CustomHttpRoundTripperWrap: recorder.wrap}, routes...)
+	t.Cleanup(func() { _ = testProxy.Close() })
+
+	t.Run("unhedged destination retains legacy retry", func(t *testing.T) {
+		before := len(recorder.snapshot())
+		requestHedgeRoute(t, testProxy.Client(), testProxy.URL+"/a", http.MethodGet, "")
+		if attempts := len(recorder.snapshot()) - before; attempts != 2 {
+			t.Fatalf("destination attempts = %d, want legacy retry's two attempts", attempts)
+		}
+	})
+
+	t.Run("opt-in destination uses its own state", func(t *testing.T) {
+		before := len(recorder.snapshot())
+		request, err := http.NewRequest(http.MethodGet, testProxy.URL+"/a-opt-in", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("X-Hedge-Seed", "true")
+		response, err := testProxy.Client().Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = response.Body.Close()
+		if response.StatusCode != http.StatusBadGateway {
+			t.Fatalf("response status = %d, want %d", response.StatusCode, http.StatusBadGateway)
+		}
+		if attempts := len(recorder.snapshot()) - before; attempts != 1 {
+			t.Fatalf("opt-in destination attempts = %d, want one with its empty state", attempts)
+		}
+	})
 }
 
 func TestHedgeStreamsWinnerAndClosesLateLoserOnce(t *testing.T) {

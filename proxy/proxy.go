@@ -1506,6 +1506,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 	parentSpan.SetTag(SkipperRouteIDTag, route.Id)
 
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
+	delete(ctx.StateBag(), filters.HedgeStateKey)
 
 	requestStopWatch.Stop()
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx, &processedFiltersCounter)
@@ -1584,7 +1585,8 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 	} else {
 		hedgeState := eligibleHedgeState(ctx)
 		if hedgeState != nil {
-			hedgeState.RecordEligibleRequest()
+			hedgeState = hedgeState.RecordEligibleRequest()
+			ctx.StateBag()[filters.HedgeStateKey] = hedgeState
 		}
 
 		done, allow := p.checkBreaker(ctx)
@@ -1662,12 +1664,9 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 				responseElapsed += attempt.context.proxyResponseElapsed
 			}
 		} else {
-			attempt = p.makeBackendAttempt(ctx, backendContext, nil)
-			firstAttemptStart = attempt.context.backendAttemptStart
-			ctx.applyBackendAttempt(attempt)
-			rsp, perr = attempt.response, attempt.err
-			requestElapsed += attempt.context.proxyRequestElapsed
-			responseElapsed += attempt.context.proxyResponseElapsed
+			rsp, perr = p.makeBackendRequest(ctx, backendContext)
+			requestElapsed += ctx.proxyRequestElapsed
+			responseElapsed += ctx.proxyResponseElapsed
 		}
 		if perr != nil {
 			requestStopWatch.Start()
@@ -1699,11 +1698,17 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 				perr = nil
 				var perr2 *proxyError
 				requestStopWatch.Stop()
-				attempt = p.makeBackendAttempt(ctx, backendContext, retryEndpoint)
-				ctx.applyBackendAttempt(attempt)
-				rsp, perr2 = attempt.response, attempt.err
-				requestElapsed += attempt.context.proxyRequestElapsed
-				responseElapsed += attempt.context.proxyResponseElapsed
+				if hedgeState == nil {
+					rsp, perr2 = p.makeBackendRequest(ctx, backendContext)
+					requestElapsed += ctx.proxyRequestElapsed
+					responseElapsed += ctx.proxyResponseElapsed
+				} else {
+					attempt = p.makeBackendAttempt(ctx, backendContext, retryEndpoint)
+					ctx.applyBackendAttempt(attempt)
+					rsp, perr2 = attempt.response, attempt.err
+					requestElapsed += attempt.context.proxyRequestElapsed
+					responseElapsed += attempt.context.proxyResponseElapsed
+				}
 				responseStopWatch.Start()
 				if perr2 != nil {
 					ctx.Logger().Errorf("Failed to retry backend request: %v", perr2)

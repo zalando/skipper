@@ -162,6 +162,10 @@ A single backend address within an LB Backend route, carrying scheme, host, port
 
 ## Resilience
 
+**Adaptive Hedge**:
+A route-scoped second backend attempt that races response headers after an eligible request exceeds the route's observed p95 response-header latency. It shares a bounded additional-attempt allowance with dial-failure retries and requires safe request semantics.
+_Avoid_: duplicate request
+
 **Circuit Breaker**:
 Egress fault-tolerance mechanism that short-circuits requests to a failing backend, returning 503 while open. Applied on the client (proxy) side of outgoing connections.
 

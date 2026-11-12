@@ -191,8 +191,9 @@ type Filter interface {
 
 // HedgeState provides the per-route retry budget shared by the hedge filter and proxy.
 type HedgeState interface {
-	// RecordEligibleRequest records an eligible request for the route.
-	RecordEligibleRequest()
+	// RecordEligibleRequest records an eligible request and returns the generation
+	// to use for the rest of that request.
+	RecordEligibleRequest() HedgeState
 
 	// TryReserveRetry reserves the route's available retry allowance.
 	TryReserveRetry() bool

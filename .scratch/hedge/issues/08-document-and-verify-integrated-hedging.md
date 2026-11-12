@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 — Keep hedging compatible with LB selection and observability; 07 — Reclaim and reset route state safely.
 
-**Status:** ready-for-agent
+**Status:** needs-info
 
 **Design:** [Adaptive hedged-request filter design](../../../docs/issue-3943-hedge-design.md). Source: [Skipper issue #3943](https://github.com/zalando/skipper/issues/3943).
 
@@ -25,3 +25,19 @@
 ## Comments
 
 Pre-ticket-05 checkpoint: formatting, whitespace checks, and make lint passed (including repository-wide vet and staticcheck). Make shortcheck was attempted with the documented Colima socket environment but terminated after about 290 seconds. Container-subnet connectivity failures and loopback address exhaustion occurred; there was no clean baseline comparison, so this does not prove the broad failures are unrelated to hedging. Hedge and builtin packages passed within that run; proxy completion was not observed. Test processes and test-session containers were cleaned up. The checkpoint is unfinished and is not release-ready.
+
+### Final implementation and internal review
+
+Documentation, public HTTP routing-update integration coverage, package documentation, and benchmarks are implemented. The legacy no-filter/ineligible path avoids the attempt wrapper allocation. Internal review found and fixed loopback opt-in leakage, a per-request allocation, and related-type grouping. Public regressions demonstrated the opt-in failure and one allocation before the fixes. Re-review: Standards 2 resolved, 0 open; Spec 1 resolved, 0 open. These are internal reviews, not maintainer approval.
+
+### Benchmarks
+
+Twenty samples on darwin/arm64, Go 1.27.4, compared with the starting commit. Disabled baseline: 96.09 microseconds/op, 22.17 KiB/op, 198 allocations/op. Post-fix disabled: 93.97 microseconds/op, 22.24 KiB/op, 198 allocations/op; time difference was not significant and bytes/op increased 0.28%. Enabled with no additional attempt: 105.5 microseconds/op, 31.45 KiB/op, 200 allocations/op. Budget-limited second-attempt workload: 5.732 milliseconds/op, 26.06 KiB/op, 207 allocations/op, and 0.05 additional attempts/op. Enabled cases use a scripted transport; the latter simulates fixed 5 ms backend latency and is not a production prediction. The final mechanical removal of private forwarding wrappers followed this benchmark run.
+
+### Final verification and release blocker
+
+On the corrected snapshot, make lint passed (including repository-wide build, vet, and staticcheck), focused hedge/loopback/retry/tracing race tests passed, and whitespace checks passed. The race-test expression matched no loadbalancer tests; the non-short full suite passed the loadbalancer package separately. The full non-short suite was attempted once with two package workers and a 60-second package timeout and failed. Container Redis/Valkey subnet connections timed out, testcontainers reaper goroutines were reported by a cache leak check, and the proxy package exceeded the total package timeout during a passive-health test. No clean broad baseline comparison was performed.
+
+Shortcheck also failed because generated plugins were built against the earlier filter interface. Forced plugin rebuilding subsequently passed all plugin-loading tests. The exact proxy passive-health subtest where the package timed out passed in isolation with a 120-second allowance (17.7 seconds). This resolves the stale-plugin artifact and isolated-test concerns, but does not make the broad suites green.
+
+Ticket 08 remains needs-info and the feature is NOT release-ready. Container networking requires the documented Colima host route, which has not been changed. Complete broad checks in a working container-network environment, with an adequate aggregate package timeout, before resolving this ticket.

@@ -15,6 +15,19 @@ type hedgeAdaptiveState interface {
 	filters.HedgeState
 }
 
+func TestHedgeFilterRequestDoesNotAllocate(t *testing.T) {
+	filter, err := hedge.New().CreateFilter(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &filtertest.Context{FStateBag: make(map[string]any)}
+	filter.Request(ctx)
+
+	if allocations := testing.AllocsPerRun(1000, func() { filter.Request(ctx) }); allocations != 0 {
+		t.Fatalf("filter Request allocations = %v, want zero", allocations)
+	}
+}
+
 func TestHedgeFilterUsesObservedHeaderP95AfterWarmup(t *testing.T) {
 	filter, err := hedge.New().CreateFilter(nil)
 	if err != nil {
@@ -83,7 +96,7 @@ func TestHedgeStateContinuesAcrossEndpointUpdates(t *testing.T) {
 		initialState.ObserveResponseHeaderLatency(time.Duration(sample) * time.Millisecond)
 	}
 	for request := 0; request < 20; request++ {
-		initialState.RecordEligibleRequest()
+		initialState = initialState.RecordEligibleRequest()
 	}
 
 	updated := postProcessor.Do([]*routing.Route{createRoute("http://one.example", "http://two.example")})[0]
@@ -96,7 +109,7 @@ func TestHedgeStateContinuesAcrossEndpointUpdates(t *testing.T) {
 	}
 	updatedState.CommitRetry()
 	for request := 0; request < 20; request++ {
-		updatedState.RecordEligibleRequest()
+		updatedState = updatedState.RecordEligibleRequest()
 	}
 
 	shrunk := postProcessor.Do([]*routing.Route{createRoute("http://two.example")})[0]
@@ -150,7 +163,7 @@ func TestHedgePostProcessorSeparatesRoutePopulations(t *testing.T) {
 			state.ObserveResponseHeaderLatency(time.Duration(sample) * time.Millisecond)
 		}
 		for request := 0; request < 20; request++ {
-			state.RecordEligibleRequest()
+			state = state.RecordEligibleRequest()
 		}
 	}
 
@@ -179,7 +192,7 @@ func TestHedgePostProcessorSeparatesRoutePopulations(t *testing.T) {
 	}
 	normalUpdatedState.CommitRetry()
 	for request := 0; request < 20; request++ {
-		normalUpdatedState.RecordEligibleRequest()
+		normalUpdatedState = normalUpdatedState.RecordEligibleRequest()
 	}
 
 	priorityFresh := priorityPostProcessor.Do([]*routing.Route{createRoute()})[0]
@@ -235,7 +248,7 @@ func TestHedgeStateResetsForChangedDefinitionAndIsolatedByRouteID(t *testing.T) 
 		oldState.ObserveResponseHeaderLatency(time.Duration(sample) * time.Millisecond)
 	}
 	for request := 0; request < 20; request++ {
-		oldState.RecordEligibleRequest()
+		oldState = oldState.RecordEligibleRequest()
 	}
 
 	routes := postProcessor.Do([]*routing.Route{
