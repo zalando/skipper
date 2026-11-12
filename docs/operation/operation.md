@@ -1317,6 +1317,8 @@ When OpenTelemetry tracing is enabled (`-open-telemetry`) and the `OTEL_GO_X_OBS
   - `otel_sdk_span_live`: Number of spans currently live.
 - With `-metrics-flavour=otel`, the corresponding `otel.sdk.*` instruments are exported via the OTLP metrics pipeline.
 
+### Spans
+
 Skipper creates up to 5 different
 [spans](https://opentelemetry.io/docs/concepts/signals/traces/#spans):
 ![Spans](../img/skipper_opentracing_spans.png)
