@@ -164,30 +164,34 @@ func isFileRemote(remotePath string) bool {
 }
 
 func (client *remoteEskipFile) DownloadRemoteFile() error {
-	resBody, err := client.getRemoteData()
+	resp, err := client.makeHTTPRequest()
 	if err != nil {
 		if errors.Is(err, errContentNotChanged) {
 			return nil
 		}
 		return err
 	}
-	defer resBody.Close()
+	defer resp.Body.Close()
 
 	outFile, err := os.OpenFile(client.localPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
-	defer outFile.Close()
 
-	if _, err = io.Copy(outFile, resBody); err != nil {
+	if _, err = io.Copy(outFile, resp.Body); err != nil {
 		_ = outFile.Close()
 		return err
 	}
 
-	return outFile.Close()
+	if err := outFile.Close(); err != nil {
+		return err
+	}
+
+	client.etag = resp.Header.Get("ETag")
+	return nil
 }
 
-func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
+func (client *remoteEskipFile) makeHTTPRequest() (*http.Response, error) {
 	req, err := http.NewRequest("GET", client.remotePath, nil)
 
 	if err != nil {
@@ -213,7 +217,5 @@ func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
 		return nil, fmt.Errorf("failed to download remote file %s, status code: %d", client.remotePath, resp.StatusCode)
 	}
 
-	client.etag = resp.Header.Get("ETag")
-
-	return resp.Body, err
+	return resp, nil
 }
