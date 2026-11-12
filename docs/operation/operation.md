@@ -488,6 +488,21 @@ OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production,k8s.cluster.name=my-c
 OTEL_METRIC_EXPORT_INTERVAL=30s
 ```
 
+#### SDK Self-Observability Metrics
+
+When OpenTelemetry tracing is enabled (`-open-telemetry`) and the `OTEL_GO_X_OBSERVABILITY="true"` environment variable is set, the OpenTelemetry Go SDK emits self-observability metrics for the `BatchSpanProcessor` and OTLP span exporter. Skipper exposes these metrics through the active metrics backend:
+
+- With `-metrics-flavour=prometheus`, they are exposed on `/metrics` as:
+  - `otel_sdk_processor_span_processed_total`: Number of spans processed by the `BatchSpanProcessor`. Spans dropped due to a full queue are recorded with `error_type="queue_full"`.
+  - `otel_sdk_processor_span_queue_size`: Current number of spans queued in the `BatchSpanProcessor`.
+  - `otel_sdk_processor_span_queue_capacity`: Maximum number of spans the `BatchSpanProcessor` queue can hold.
+  - `otel_sdk_exporter_span_exported_total`: Number of spans exported by the OTLP span exporter, labeled by `error_type` when an export fails.
+  - `otel_sdk_exporter_span_inflight`: Number of spans currently in flight in the OTLP span exporter.
+  - `otel_sdk_exporter_operation_duration_seconds`: Duration of OTLP span export operations.
+  - `otel_sdk_span_started_total`: Number of spans started.
+  - `otel_sdk_span_live`: Number of spans currently live.
+- With `-metrics-flavour=otel`, the corresponding `otel.sdk.*` instruments are exported via the OTLP metrics pipeline.
+
 ### Proxy Metrics
 
 Skipper Proxy Metrics provides information about the time spent by skipper in processing a request i.e., the time spent by a request inside skipper (this excludes the response application of filters to a req/res, the backend roundtrip and serving the response). The total proxy metrics are enabled by default and these metrics can be used to build KPIs / SLOs, so as to understand and monitor the performance of skipper.
@@ -1266,59 +1281,6 @@ batchSpanProcessor:
 '
 ```
 
-### Sampler
-
-By default the OTel SDK uses a `parentbased_always_on` Sampler: root spans (no
-incoming trace context) are always sampled, but spans with an incoming
-`traceparent` respect the parent's sampled flag. This means that once an
-upstream hop marks a trace as *not* sampled, Skipper stops sampling for the
-rest of that trace and also stops propagating `sampled=1` downstream.
-
-To make Skipper always record its own spans and always propagate
-`sampled=1` to the backend regardless of the incoming trace context, set
-the sampler to `always_on`, either via the `sampler` field or the
-`OTEL_TRACES_SAMPLER` environment variable:
-
-```sh
-skipper -open-telemetry='
-tracesExporter: otlp
-exporterOtlp:
-  endpoint: "https://telemetry-otlp-endpoint.test:4317"
-sampler: always_on
-'
-```
-
-Supported `sampler` values (matching `OTEL_TRACES_SAMPLER`):
-
-- `always_on`
-- `always_off`
-- `traceidratio` (use `samplerArg`/`OTEL_TRACES_SAMPLER_ARG` to set the ratio, e.g. `0.1`)
-- `parentbased_always_on` (default)
-- `parentbased_always_off`
-- `parentbased_traceidratio` (use `samplerArg`/`OTEL_TRACES_SAMPLER_ARG` to set the ratio)
-
-Note that `always_on` also forces 100% of Skipper's own spans to be
-recorded and exported: the sampled bit controls both whether Skipper
-exports a span and whether it propagates `sampled=1` downstream, these
-are not configured independently.
-
-### SDK Self-Observability Metrics
-
-When OpenTelemetry tracing is enabled (`-open-telemetry`) and the `OTEL_GO_X_OBSERVABILITY="true"` environment variable is set, the OpenTelemetry Go SDK emits self-observability metrics for the `BatchSpanProcessor` and OTLP span exporter. Skipper exposes these metrics through the active metrics backend:
-
-- With `-metrics-flavour=prometheus`, they are exposed on `/metrics` as:
-  - `otel_sdk_processor_span_processed_total`: Number of spans processed by the `BatchSpanProcessor`. Spans dropped due to a full queue are recorded with `error_type="queue_full"`.
-  - `otel_sdk_processor_span_queue_size`: Current number of spans queued in the `BatchSpanProcessor`.
-  - `otel_sdk_processor_span_queue_capacity`: Maximum number of spans the `BatchSpanProcessor` queue can hold.
-  - `otel_sdk_exporter_span_exported_total`: Number of spans exported by the OTLP span exporter, labeled by `error_type` when an export fails.
-  - `otel_sdk_exporter_span_inflight`: Number of spans currently in flight in the OTLP span exporter.
-  - `otel_sdk_exporter_operation_duration_seconds`: Duration of OTLP span export operations.
-  - `otel_sdk_span_started_total`: Number of spans started.
-  - `otel_sdk_span_live`: Number of spans currently live.
-- With `-metrics-flavour=otel`, the corresponding `otel.sdk.*` instruments are exported via the OTLP metrics pipeline.
-
-### Spans
-
 Skipper creates up to 5 different
 [spans](https://opentelemetry.io/docs/concepts/signals/traces/#spans):
 ![Spans](../img/skipper_opentracing_spans.png)
@@ -1461,6 +1423,42 @@ instances.
 
 Operation querying the oldest request event for the rate limiting Retry-After header with cluster rate limiting
 when used with auxiliary Redis instances.
+
+### Sampler
+
+By default the OTel SDK uses a `parentbased_always_on` Sampler: root spans (no
+incoming trace context) are always sampled, but spans with an incoming
+`traceparent` respect the parent's sampled flag. This means that once an
+upstream hop marks a trace as *not* sampled, Skipper stops sampling for the
+rest of that trace and also stops propagating `sampled=1` downstream.
+
+To make Skipper always record its own spans and always propagate
+`sampled=1` to the backend regardless of the incoming trace context, set
+the sampler to `always_on`, either via the `sampler` field or the
+`OTEL_TRACES_SAMPLER` environment variable:
+
+```sh
+skipper -open-telemetry='
+tracesExporter: otlp
+exporterOtlp:
+  endpoint: "https://telemetry-otlp-endpoint.test:4317"
+sampler: always_on
+'
+```
+
+Supported `sampler` values (matching `OTEL_TRACES_SAMPLER`):
+
+- `always_on`
+- `always_off`
+- `traceidratio` (use `samplerArg`/`OTEL_TRACES_SAMPLER_ARG` to set the ratio, e.g. `0.1`)
+- `parentbased_always_on` (default)
+- `parentbased_always_off`
+- `parentbased_traceidratio` (use `samplerArg`/`OTEL_TRACES_SAMPLER_ARG` to set the ratio)
+
+Note that `always_on` also forces 100% of Skipper's own spans to be
+recorded and exported: the sampled bit controls both whether Skipper
+exports a span and whether it propagates `sampled=1` downstream, these
+are not configured independently.
 
 ## Dataclient
 
