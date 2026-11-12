@@ -184,6 +184,7 @@ func defaultConfig(with func(*Config)) *Config {
 		ClusterRatelimitMaxGroupShards:          1,
 		ValidateQuery:                           true,
 		ValidateQueryLog:                        true,
+		HedgeBudgetPercent:                      proxy.DefaultHedgeBudgetPercent,
 		LetsencryptDomains:                      commaListFlag(),
 		LetsencryptCache:                        net.DefaultLetsencryptCache,
 		LetsencryptCacheDir:                     net.DefaultLetsencryptCacheDirectory,
@@ -351,6 +352,35 @@ func Test_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			want:    errors.New(`unable to parse histogram-metric-buckets: strconv.ParseFloat: parsing "10kb": invalid syntax`),
+		},
+		{
+			name:   "hedge disabled needs no delay",
+			change: func(c *Config) {},
+		},
+		{
+			name: "hedge enabled without delay",
+			change: func(c *Config) {
+				c.HedgeEnabled = true
+			},
+			wantErr: true,
+			want:    errors.New("hedge-fixed-delay must be greater than zero if hedge-enabled is set"),
+		},
+		{
+			name: "hedge enabled with delay",
+			change: func(c *Config) {
+				c.HedgeEnabled = true
+				c.HedgeFixedDelay = 50 * time.Millisecond
+			},
+		},
+		{
+			name: "hedge budget out of range",
+			change: func(c *Config) {
+				c.HedgeEnabled = true
+				c.HedgeFixedDelay = 50 * time.Millisecond
+				c.HedgeBudgetPercent = 101
+			},
+			wantErr: true,
+			want:    errors.New("hedge-budget-percent must be greater than zero and not greater than 100"),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

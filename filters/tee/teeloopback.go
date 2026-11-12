@@ -43,6 +43,7 @@ func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 	cc.Request().Header.Set(teepredicate.HeaderKey, f.teeKey)
+	cc.StateBag()[filters.BackendHedgeDisabled] = true
 	go cc.Loopback()
 
 }

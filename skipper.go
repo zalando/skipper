@@ -44,6 +44,7 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/cache"
 	"github.com/zalando/skipper/filters/fadein"
+	hedgefilters "github.com/zalando/skipper/filters/hedge"
 	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/filters/openpolicyagent"
 	"github.com/zalando/skipper/filters/openpolicyagent/opaauthorizerequest"
@@ -832,6 +833,19 @@ type Options struct {
 	// AllowInsecureBackend enables the per-route proxySSLVerifyOff() filter.
 	// When false (the default), the filter has no effect even if present in a route.
 	AllowInsecureBackend bool
+
+	// HedgeEnabled enables hedged requests for GET and HEAD requests to load
+	// balanced routes. Routes can opt out with the disableHedge() filter and
+	// routes using tee or shadow traffic are excluded. HedgeFixedDelay is required.
+	HedgeEnabled bool
+
+	// HedgeFixedDelay is the time to wait for the response headers of the
+	// primary attempt before a hedge request is sent to a different endpoint.
+	HedgeFixedDelay time.Duration
+
+	// HedgeBudgetPercent is the maximum rate of hedge requests as a percentage
+	// of the observed request rate of a route. Defaults to proxy.DefaultHedgeBudgetPercent.
+	HedgeBudgetPercent float64
 
 	// TLSMinVersion to set the minimal TLS version for all TLS configurations
 	TLSMinVersion uint16
@@ -2696,6 +2710,17 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		return err
 	}
 
+	var hedgeParams *proxy.HedgeParams
+	if o.HedgeEnabled {
+		if o.HedgeFixedDelay <= 0 {
+			return errors.New("hedge: HedgeFixedDelay must be greater than zero if HedgeEnabled is set")
+		}
+		hedgeParams = &proxy.HedgeParams{
+			FixedDelay:    o.HedgeFixedDelay,
+			BudgetPercent: o.HedgeBudgetPercent,
+		}
+	}
+
 	// create a routing engine
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
 		PassiveHealthCheckEnabled:     passiveHealthCheckEnabled,
@@ -2795,6 +2820,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	ro.PreProcessors = append(ro.PreProcessors, admissionControlSpec.PreProcessor())
 
+	if o.HedgeEnabled {
+		ro.PreProcessors = append(ro.PreProcessors, hedgefilters.NewShadowTrafficPreProcessor())
+	}
+
 	ro.PreProcessors = append(ro.PreProcessors, eskip.ForwardPreProcessor(o.ForwardBackendURL))
 
 	ro.Metrics = mtr
@@ -2832,6 +2861,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ClientCertRefreshInterval:        o.ClientCertRefreshInterval,
 		EnableMTLS:                       o.EnableMTLS,
 		AllowInsecureBackend:             o.AllowInsecureBackend,
+		Hedge:                            hedgeParams,
 		CustomHttpRoundTripperWrap:       o.CustomHttpRoundTripperWrap,
 		RateLimiters:                     ratelimitRegistry,
 		EndpointRegistry:                 endpointRegistry,

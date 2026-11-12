@@ -174,6 +174,13 @@ Opens when N failures occur within a sliding window of the last M events.
 **Breaker States**:
 Closed (traffic flows), Open (traffic blocked for timeout), Half-Open (trial requests; any failure reverts to Open).
 
+**Hedge Request**:
+A duplicate of a slow idempotent request sent to a different endpoint of an LB Backend; the first acceptable response wins and the other request is cancelled.
+_Avoid_: speculative request, backup request
+
+**Hedge Budget**:
+The per-route limit on Hedge Requests, expressed as a percentage of the observed request rate.
+
 **Rate Limiting**:
 Traffic control that bounds request rate, rejecting excess with 429.
 
