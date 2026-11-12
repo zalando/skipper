@@ -283,7 +283,8 @@ func TestRemoteInterruptedDownloadPreservesRoutes(t *testing.T) {
 		case 4:
 			close(recoveryStarted)
 			<-recoveryRelease
-			w.WriteHeader(http.StatusNotModified)
+			w.Header().Set("ETag", etag2)
+			_, _ = io.WriteString(w, initialRoutes)
 		default:
 			w.WriteHeader(http.StatusInternalServerError)
 		}
@@ -349,10 +350,10 @@ func TestRemoteInterruptedDownloadPreservesRoutes(t *testing.T) {
 	select {
 	case <-recoveryStarted:
 	case <-time.After(5 * time.Second):
-		t.Fatal("recovery LoadAll did not reach the 304 response")
+		t.Fatal("recovery LoadAll did not reach the HTTP endpoint")
 	}
 
-	for _, want := range []string{"", etag1, etag1, etag2} {
+	for _, want := range []string{"", etag1, etag1, etag1} {
 		select {
 		case got := <-requestEtags:
 			require.Equal(t, want, got)
