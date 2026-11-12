@@ -1932,6 +1932,19 @@ func getRemoteURLShardAddrUpdater(address string) func() ([]string, error) {
 	}
 }
 
+func (o Options) hedgeParams() (*proxy.HedgeParams, error) {
+	if !o.HedgeEnabled {
+		return nil, nil
+	}
+	if o.HedgeFixedDelay <= 0 {
+		return nil, errors.New("hedge: HedgeFixedDelay must be greater than zero if HedgeEnabled is set")
+	}
+	return &proxy.HedgeParams{
+		FixedDelay:    o.HedgeFixedDelay,
+		BudgetPercent: o.HedgeBudgetPercent,
+	}, nil
+}
+
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// init log
 	accessLogger, err := initLog(o)
@@ -2710,15 +2723,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		return err
 	}
 
-	var hedgeParams *proxy.HedgeParams
-	if o.HedgeEnabled {
-		if o.HedgeFixedDelay <= 0 {
-			return errors.New("hedge: HedgeFixedDelay must be greater than zero if HedgeEnabled is set")
-		}
-		hedgeParams = &proxy.HedgeParams{
-			FixedDelay:    o.HedgeFixedDelay,
-			BudgetPercent: o.HedgeBudgetPercent,
-		}
+	hedgeParams, err := o.hedgeParams()
+	if err != nil {
+		return err
 	}
 
 	// create a routing engine

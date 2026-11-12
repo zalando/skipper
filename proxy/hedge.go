@@ -317,7 +317,7 @@ func (p *Proxy) hedgeable(ctx *context, req *http.Request) bool {
 	if req.URL.Scheme != "http" && req.URL.Scheme != "https" {
 		return false
 	}
-	if ctx.arrivedAsShadow || getUpgradeRequest(ctx.Request()) != "" {
+	if ctx.arrivedAsShadow || isUpgradeRequest(ctx.Request()) {
 		return false
 	}
 	if ctx.route.Route.LBAlgorithm == loadbalancer.ConsistentHash.String() {
@@ -332,6 +332,15 @@ func (p *Proxy) hedgeable(ctx *context, req *http.Request) bool {
 		return false
 	}
 	return true
+}
+
+// backendFailed reports whether the outcome counts as a backend failure for
+// the error throttle. Errors caused by the client giving up are not.
+func backendFailed(req *http.Request, resp *http.Response, err error) bool {
+	if err != nil {
+		return req.Context().Err() == nil
+	}
+	return resp.StatusCode >= http.StatusInternalServerError
 }
 
 // roundTrip sends the backend request and, for eligible requests, a hedge
@@ -353,7 +362,7 @@ func (p *Proxy) hedgedRoundTrip(ctx *context, rt http.RoundTripper, req, preTrac
 	if dl, ok := req.Context().Deadline(); ok && time.Until(dl) <= h.delay {
 		p.hedgeCount(ctx, "skipped_deadline")
 		resp, err := rt.RoundTrip(req)
-		state.observe(time.Now(), err != nil || resp.StatusCode >= http.StatusInternalServerError)
+		state.observe(time.Now(), backendFailed(req, resp, err))
 		return resp, err
 	}
 
@@ -361,9 +370,8 @@ func (p *Proxy) hedgedRoundTrip(ctx *context, rt http.RoundTripper, req, preTrac
 	primary := &hedgeAttempt{cancel: primaryCancel}
 	ch := make(chan *hedgeAttempt, 2)
 	go func() {
-		a := *primary
-		a.resp, a.err = rt.RoundTrip(req.WithContext(primaryCtx))
-		ch <- &a
+		primary.resp, primary.err = rt.RoundTrip(req.WithContext(primaryCtx))
+		ch <- primary
 	}()
 
 	timer := time.NewTimer(h.delay)
@@ -376,7 +384,7 @@ func (p *Proxy) hedgedRoundTrip(ctx *context, rt http.RoundTripper, req, preTrac
 		winner = p.hedge(ctx, rt, preTrace, req.URL.Host, state, primary, ch)
 	}
 
-	state.observe(time.Now(), winner.rank() != 0)
+	state.observe(time.Now(), backendFailed(req, winner.resp, winner.err))
 	if winner.hedge {
 		ctx.backendZone = winner.ep.Zone
 	}

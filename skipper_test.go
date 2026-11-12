@@ -9,6 +9,7 @@ import (
 	"net/http"
 	stdlibhttptest "net/http/httptest"
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -1252,5 +1253,61 @@ func TestPriorityRoutesInlineAndFileComposed(t *testing.T) {
 			rsp.Body.Close()
 			assert.Equal(t, tt.wantStatus, rsp.StatusCode)
 		})
+	}
+}
+
+func TestOptionsHedgeParams(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		o       Options
+		want    *proxy.HedgeParams
+		wantErr bool
+	}{{
+		name: "disabled",
+	}, {
+		name: "disabled ignores the delay",
+		o:    Options{HedgeFixedDelay: time.Second, HedgeBudgetPercent: 7},
+	}, {
+		name:    "enabled without delay",
+		o:       Options{HedgeEnabled: true},
+		wantErr: true,
+	}, {
+		name:    "enabled with negative delay",
+		o:       Options{HedgeEnabled: true, HedgeFixedDelay: -time.Second},
+		wantErr: true,
+	}, {
+		name: "enabled",
+		o:    Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: 7},
+		want: &proxy.HedgeParams{FixedDelay: 50 * time.Millisecond, BudgetPercent: 7},
+	}} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.o.hedgeParams()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err=%v, wantErr=%v", err, tt.wantErr)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("got %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRunRejectsHedgeWithoutDelay(t *testing.T) {
+	sig := make(chan os.Signal, 1)
+	errc := make(chan error, 1)
+	go func() {
+		errc <- run(Options{
+			HedgeEnabled: true,
+			InlineRoutes: `r: * -> <shunt>`,
+			Address:      "127.0.0.1:0",
+		}, sig, nil)
+	}()
+
+	select {
+	case err := <-errc:
+		require.ErrorContains(t, err, "HedgeFixedDelay")
+	case <-time.After(10 * time.Second):
+		sig <- syscall.SIGTERM
+		t.Fatal("run did not reject HedgeEnabled without HedgeFixedDelay")
 	}
 }

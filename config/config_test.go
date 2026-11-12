@@ -16,6 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/openpolicyagent"
@@ -914,6 +915,50 @@ func TestH2cFlags_ParseAndToOptions(t *testing.T) {
 			opts := cfg.ToOptions()
 			if opts.EnableH2cServer != tt.wantH2cServer {
 				t.Errorf("ToOptions EnableH2cServer: got %v, want %v", opts.EnableH2cServer, tt.wantH2cServer)
+			}
+		})
+	}
+}
+
+func TestHedgeFlags(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		args    []string
+		want    skipper.Options
+		wantErr bool
+	}{{
+		name: "default is disabled",
+		args: []string{"skipper"},
+		want: skipper.Options{HedgeBudgetPercent: proxy.DefaultHedgeBudgetPercent},
+	}, {
+		name: "enabled",
+		args: []string{"skipper", "-hedge-enabled", "-hedge-fixed-delay=50ms", "-hedge-budget-percent=7.5"},
+		want: skipper.Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: 7.5},
+	}, {
+		name:    "enabled without delay",
+		args:    []string{"skipper", "-hedge-enabled"},
+		wantErr: true,
+	}, {
+		name:    "budget out of range",
+		args:    []string{"skipper", "-hedge-enabled", "-hedge-fixed-delay=50ms", "-hedge-budget-percent=0"},
+		wantErr: true,
+	}} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			err := cfg.ParseArgs(tt.args[0], tt.args[1:])
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err=%v, wantErr=%v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+
+			o := cfg.ToOptions()
+			if o.HedgeEnabled != tt.want.HedgeEnabled ||
+				o.HedgeFixedDelay != tt.want.HedgeFixedDelay ||
+				o.HedgeBudgetPercent != tt.want.HedgeBudgetPercent {
+				t.Fatalf("got enabled=%v delay=%v budget=%v, want %+v",
+					o.HedgeEnabled, o.HedgeFixedDelay, o.HedgeBudgetPercent, tt.want)
 			}
 		})
 	}
