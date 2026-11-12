@@ -847,6 +847,10 @@ type Options struct {
 	// of the observed request rate of a route. Defaults to proxy.DefaultHedgeBudgetPercent.
 	HedgeBudgetPercent float64
 
+	// HedgeRouteCounters enables the hedge counters for each route, in
+	// addition to the counters for all routes.
+	HedgeRouteCounters bool
+
 	// TLSMinVersion to set the minimal TLS version for all TLS configurations
 	TLSMinVersion uint16
 
@@ -1945,6 +1949,7 @@ func (o Options) hedgeParams() (*proxy.HedgeParams, error) {
 	return &proxy.HedgeParams{
 		FixedDelay:    o.HedgeFixedDelay,
 		BudgetPercent: o.HedgeBudgetPercent,
+		RouteCounters: o.HedgeRouteCounters,
 	}, nil
 }
 

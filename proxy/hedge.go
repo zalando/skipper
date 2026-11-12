@@ -43,11 +43,17 @@ type HedgeParams struct {
 	// BudgetPercent is the maximum hedge rate as a percentage of the
 	// observed request rate of a route. Defaults to DefaultHedgeBudgetPercent.
 	BudgetPercent float64
+
+	// RouteCounters enables the hedge counters per route ID, in addition to
+	// the counters for all routes. Every route ID adds a Prometheus series
+	// that is never removed.
+	RouteCounters bool
 }
 
 type hedger struct {
 	delay         time.Duration
 	budgetPercent float64
+	routeCounters bool
 
 	mu     sync.RWMutex
 	routes map[string]*routeHedge
@@ -57,6 +63,7 @@ func newHedger(p *HedgeParams, quit <-chan struct{}) *hedger {
 	h := &hedger{
 		delay:         p.FixedDelay,
 		budgetPercent: p.BudgetPercent,
+		routeCounters: p.RouteCounters,
 		routes:        make(map[string]*routeHedge),
 	}
 	if h.budgetPercent <= 0 {
@@ -117,8 +124,6 @@ const (
 
 type hedgeWindowBucket struct{ reqs, errs int }
 
-// routeHedge holds the per route state: the observed request rate, the
-// error window and the hedge budget.
 type routeHedge struct {
 	mu       sync.Mutex
 	seen     int64
@@ -249,6 +254,11 @@ func (r *routeHedge) refund() {
 	r.mu.Unlock()
 }
 
+type primaryOutcome struct {
+	skip   bool
+	failed bool
+}
+
 type hedgeAttempt struct {
 	resp   *http.Response
 	err    error
@@ -300,11 +310,12 @@ func discardAttempt(a *hedgeAttempt) {
 }
 
 func (p *Proxy) hedgeCount(ctx *context, name string) {
-	p.metrics.IncCounter("hedge." + ctx.route.Id + "." + name)
+	p.metrics.IncCounter("hedge." + name)
+	if p.hedger.routeCounters {
+		p.metrics.IncCounter("hedge." + ctx.route.Id + "." + name)
+	}
 }
 
-// hedgeable reports whether the request can be hedged without looking at
-// the per route state.
 func (p *Proxy) hedgeable(ctx *context, req *http.Request) bool {
 	if ctx.route == nil || ctx.route.BackendType != eskip.LBBackend {
 		return false
@@ -335,8 +346,6 @@ func (p *Proxy) hedgeable(ctx *context, req *http.Request) bool {
 	return true
 }
 
-// backendFailed reports whether the outcome counts as a backend failure for
-// the error throttle. Errors caused by the client giving up are not.
 func backendFailed(req *http.Request, resp *http.Response, err error) bool {
 	if err != nil {
 		return req.Context().Err() == nil
@@ -344,11 +353,10 @@ func backendFailed(req *http.Request, resp *http.Response, err error) bool {
 	return resp.StatusCode >= http.StatusInternalServerError
 }
 
-// roundTrip sends the backend request and, for eligible requests, a hedge
-// request to a different endpoint if the response headers do not arrive
-// within the hedge delay. req is the outgoing request, preTrace is the same
-// request before the client trace was injected into its context.
+// preTrace is req before the client trace was injected: the hedge request is
+// built from it so that both attempts do not write to the same trace.
 func (p *Proxy) roundTrip(ctx *context, rt http.RoundTripper, req, preTrace *http.Request) (*http.Response, error) {
+	ctx.hedgePrimary = primaryOutcome{}
 	if p.hedger == nil || !p.hedgeable(ctx, req) {
 		return rt.RoundTrip(req)
 	}
@@ -382,7 +390,7 @@ func (p *Proxy) hedgedRoundTrip(ctx *context, rt http.RoundTripper, req, preTrac
 	select {
 	case winner = <-ch:
 	case <-timer.C:
-		winner = p.hedge(ctx, rt, preTrace, req.URL.Host, state, primary, ch)
+		winner, ctx.hedgePrimary = p.hedge(ctx, rt, preTrace, req.URL.Host, state, primary, ch)
 	}
 
 	state.observe(time.Now(), backendFailed(req, winner.resp, winner.err))
@@ -392,7 +400,6 @@ func (p *Proxy) hedgedRoundTrip(ctx *context, rt http.RoundTripper, req, preTrac
 	return winner.release()
 }
 
-// hedge sends the hedge attempt if allowed and returns the winning attempt.
 func (p *Proxy) hedge(
 	ctx *context,
 	rt http.RoundTripper,
@@ -401,25 +408,25 @@ func (p *Proxy) hedge(
 	state *routeHedge,
 	primary *hedgeAttempt,
 	ch chan *hedgeAttempt,
-) *hedgeAttempt {
+) (*hedgeAttempt, primaryOutcome) {
 	h := p.hedger
 
 	switch state.acquire(time.Now(), h.budgetPercent) {
 	case hedgeColdStart:
-		return <-ch
+		return <-ch, primaryOutcome{}
 	case hedgeThrottled:
 		p.hedgeCount(ctx, "throttled")
-		return <-ch
+		return <-ch, primaryOutcome{}
 	case hedgeBudgetExhausted:
 		p.hedgeCount(ctx, "budget_exhausted")
-		return <-ch
+		return <-ch, primaryOutcome{}
 	}
 
 	ep := p.selectEndpointExcluding(ctx, primaryHost)
 	if ep == nil {
 		state.refund()
 		p.hedgeCount(ctx, "no_alternate")
-		return <-ch
+		return <-ch, primaryOutcome{}
 	}
 
 	hedgeCtx, hedgeCancel := stdlibcontext.WithCancel(preTrace.Context())
@@ -431,12 +438,12 @@ func (p *Proxy) hedge(
 	if err != nil {
 		hedgeCancel()
 		state.refund()
-		return <-ch
+		return <-ch, primaryOutcome{}
 	}
 	if _, rejected := p.rejectBackend(ctx, hreq); rejected {
 		hedgeCancel()
 		state.refund()
-		return <-ch
+		return <-ch, primaryOutcome{}
 	}
 
 	p.hedgeCount(ctx, "fired")
@@ -458,10 +465,12 @@ func (p *Proxy) hedge(
 
 	first := <-ch
 	var winner, loser *hedgeAttempt
+	var outcome primaryOutcome
 	if first.rank() == 0 {
 		winner = first
 		loser = otherAttempt(primary, first, hedgeCancel)
 		go func() { discardAttempt(<-ch) }()
+		outcome.skip = first.hedge
 	} else {
 		second := <-ch
 		winner, loser = first, second
@@ -469,6 +478,7 @@ func (p *Proxy) hedge(
 			winner, loser = second, first
 		}
 		discardAttempt(loser)
+		outcome.failed = winner.hedge && primary.err != nil
 	}
 	loser.cancel()
 
@@ -478,11 +488,9 @@ func (p *Proxy) hedge(
 	} else {
 		p.tracing.setTag(ctx.proxySpan, "hedge.winner", "primary")
 	}
-	return winner
+	return winner, outcome
 }
 
-// otherAttempt returns a stand-in for the attempt that is still pending
-// after first has won, so its context can be cancelled.
 func otherAttempt(primary, first *hedgeAttempt, hedgeCancel stdlibcontext.CancelFunc) *hedgeAttempt {
 	if first.hedge {
 		return primary

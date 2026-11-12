@@ -40,6 +40,7 @@ type context struct {
 	stateBag             map[string]any
 	originalRequest      *http.Request
 	arrivedAsShadow      bool
+	hedgePrimary         primaryOutcome
 	originalResponse     *http.Response
 	outgoingHost         string
 	backendZone          string

@@ -44,7 +44,7 @@ func (p shadowTrafficPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
 		}
 
 		log.Infof("hedge: route %q uses tee or shadow traffic, adding %s()", r.Id, filters.DisableHedgeName)
-		r.Filters = append(r.Filters, &eskip.Filter{Name: filters.DisableHedgeName})
+		r.Filters = append(r.Filters[:len(r.Filters):len(r.Filters)], &eskip.Filter{Name: filters.DisableHedgeName})
 	}
 	return routes
 }

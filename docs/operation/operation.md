@@ -1620,6 +1620,12 @@ removed by a check that runs every minute.
 - The circuit breaker sees one result per request, the one that is returned to the
   client. If a slow endpoint loses against the hedge request, the breaker does not
   see its failure.
+- The passive health check and the endpoint weights see the original request's own
+  result, with one exception: if the original request failed with an error before
+  the hedge request won, the failure is counted for its endpoint. If the hedge
+  request wins while the original request is still running, the original request is
+  not counted at all, because Skipper cancelled it. A slow endpoint that always loses
+  the race is therefore never marked unhealthy by hedged requests.
 - Hedge requests are invisible to `fifo`, `lifo` and admission control, which count
   one request. The budget is the only limit for them.
 - The round robin counter advances once more for each hedge request.
@@ -1627,14 +1633,19 @@ removed by a check that runs every minute.
 
 ### Metrics
 
-Per route, with the route ID in the key:
+For all routes together:
 
-- `hedge.<routeID>.fired`: hedge requests that were sent
-- `hedge.<routeID>.won`: hedge requests whose response was returned
-- `hedge.<routeID>.budget_exhausted`: hedges skipped because the budget is empty
-- `hedge.<routeID>.throttled`: hedges skipped because of the error rate or a surge
-- `hedge.<routeID>.no_alternate`: hedges skipped because there is no other endpoint
-- `hedge.<routeID>.skipped_deadline`: requests not hedged because the deadline is shorter than the delay
+- `hedge.fired`: hedge requests that were sent
+- `hedge.won`: hedge requests whose response was returned
+- `hedge.budget_exhausted`: hedges skipped because the budget is empty
+- `hedge.throttled`: hedges skipped because of the error rate or a surge
+- `hedge.no_alternate`: hedges skipped because there is no other endpoint
+- `hedge.skipped_deadline`: requests not hedged because the deadline is shorter than the delay
+
+With `-hedge-route-counters`, the same counters are also reported per route, as
+`hedge.<routeID>.fired` and so on. They are off by default, because every route ID
+adds a Prometheus series that is never removed. Enable them if the number of routes is
+small or you need to find the route that causes hedge requests.
 
 The proxy span of a hedged request has the tags `hedge` and `hedge.winner` (`primary` or `hedge`).
 

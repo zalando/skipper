@@ -36,8 +36,6 @@ type hedgeBackend struct {
 	hits atomic.Int64
 }
 
-// newHedgeBackend serves name as body. The path /slow takes slowFor, the
-// path /err responds with 500, and the delay is cut short when the request is cancelled.
 func newHedgeBackend(name string, slowFor time.Duration, slowStatus int) *hedgeBackend {
 	b := &hedgeBackend{}
 	b.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -73,6 +71,11 @@ func newHedgeProxy(t *testing.T, doc string, hp *proxy.HedgeParams) *hedgeSetup 
 	fr.Register(builtin.NewBackendTimeout())
 	fr.Register(circuitfilters.NewRateBreaker())
 	routes := eskip.MustParse(doc)
+	if hp != nil {
+		c := *hp
+		c.RouteCounters = true
+		hp = &c
+	}
 	p := proxytest.WithParams(fr, proxy.Params{
 		CloseIdleConnsPeriod: -time.Second,
 		Metrics:              m,
@@ -130,8 +133,6 @@ func (s *hedgeSetup) warmUp(t *testing.T) {
 	})
 }
 
-// counter returns the hedge counter value accumulated since warmUp. Slow
-// warm-up requests on a loaded machine may legitimately fire hedges.
 func (s *hedgeSetup) counter(route, name string) int64 {
 	key := fmt.Sprintf("hedge.%s.%s", route, name)
 	v, _ := s.metrics.Counter(key)
@@ -412,7 +413,7 @@ func TestHedgeTeeLoopbackCopyIsNotHedged(t *testing.T) {
 	p := proxytest.WithParamsAndRoutingOptions(fr, proxy.Params{
 		CloseIdleConnsPeriod: -time.Second,
 		Metrics:              m,
-		Hedge:                &proxy.HedgeParams{FixedDelay: hedgeDelay},
+		Hedge:                &proxy.HedgeParams{FixedDelay: hedgeDelay, RouteCounters: true},
 	}, ro, routes...)
 	defer p.Close()
 	s := &hedgeSetup{proxy: p, metrics: m}
@@ -707,7 +708,7 @@ func TestHedgeTracing(t *testing.T) {
 	p := proxytest.WithParams(fr, proxy.Params{
 		CloseIdleConnsPeriod: -time.Second,
 		Metrics:              m,
-		Hedge:                &proxy.HedgeParams{FixedDelay: hedgeDelay},
+		Hedge:                &proxy.HedgeParams{FixedDelay: hedgeDelay, RouteCounters: true},
 		OpenTracing:          &proxy.OpenTracingParams{Tracer: tracer, ExcludeTags: nil},
 	}, routes...)
 	defer p.Close()
@@ -776,5 +777,163 @@ func TestHedgeDisabledForNonPositiveDelay(t *testing.T) {
 				t.Fatalf("fired=%d, want 0", fired)
 			}
 		})
+	}
+}
+
+func newSchemeBackend(name string, slowFor time.Duration, scheme string) (*httptest.Server, *atomic.Int64) {
+	hits := &atomic.Int64{}
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if r.URL.Path == "/slow" {
+			select {
+			case <-time.After(slowFor):
+			case <-r.Context().Done():
+				return
+			}
+		}
+		io.WriteString(w, name+" "+r.Proto)
+	})
+
+	switch scheme {
+	case "https":
+		return httptest.NewTLSServer(h), hits
+	case "h2c":
+		srv := httptest.NewUnstartedServer(h)
+		srv.Config.Protocols = new(http.Protocols)
+		srv.Config.Protocols.SetHTTP1(true)
+		srv.Config.Protocols.SetUnencryptedHTTP2(true)
+		srv.Start()
+		return srv, hits
+	default:
+		return httptest.NewServer(h), hits
+	}
+}
+
+func TestHedgeSchemes(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		scheme    string
+		flags     proxy.Flags
+		wantProto string
+	}{
+		{name: "https endpoints", scheme: "https", flags: proxy.Insecure, wantProto: "HTTP/2.0"},
+		{name: "h2c endpoints", scheme: "h2c", wantProto: "HTTP/2.0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			slow, _ := newSchemeBackend("slow", time.Second, tc.scheme)
+			defer slow.Close()
+			fast, _ := newSchemeBackend("fast", 0, tc.scheme)
+			defer fast.Close()
+
+			url := func(s *httptest.Server) string {
+				if tc.scheme == "h2c" {
+					return "h2c" + s.URL[len("http"):]
+				}
+				return s.URL
+			}
+
+			m := &metricstest.MockMetrics{}
+			fr := make(filters.Registry)
+			routes := eskip.MustParse(fmt.Sprintf(`r: * -> <roundRobin, "%s", "%s">;`, url(slow), url(fast)))
+			p := proxytest.WithParams(fr, proxy.Params{
+				CloseIdleConnsPeriod: -time.Second,
+				Metrics:              m,
+				Flags:                tc.flags,
+				Hedge:                &proxy.HedgeParams{FixedDelay: hedgeDelay, RouteCounters: true},
+			}, routes...)
+			defer p.Close()
+			s := &hedgeSetup{proxy: p, metrics: m}
+			s.warmUp(t)
+
+			for range 6 {
+				body, code, d := s.get(t, "/slow")
+				if code != http.StatusOK || !strings.HasPrefix(body, "fast ") {
+					t.Fatalf("got %d %q, want 200 from the fast endpoint", code, body)
+				}
+				if d > 700*time.Millisecond {
+					t.Fatalf("response took %v, want the hedge to answer", d)
+				}
+			}
+			if s.counter("r", "fired") == 0 || s.counter("r", "won") == 0 {
+				t.Fatalf("fired=%d won=%d", s.counter("r", "fired"), s.counter("r", "won"))
+			}
+		})
+	}
+}
+
+func TestHedgeShadowRequestIsNotHedgedAfterLoopback(t *testing.T) {
+	slow := newHedgeBackend("slow", 300*time.Millisecond, http.StatusOK)
+	defer slow.Close()
+	fast := newHedgeBackend("fast", 0, http.StatusOK)
+	defer fast.Close()
+
+	m := &metricstest.MockMetrics{}
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewSetRequestHeader())
+	routes := eskip.MustParse(fmt.Sprintf(`
+		entry: *
+			-> setRequestHeader("X-Loop-Route", "1")
+			-> <loopback>;
+		looped: Header("X-Loop-Route", "1")
+			-> <roundRobin, "%s", "%s">;
+	`, slow.URL, fast.URL))
+
+	p := proxytest.WithParams(fr, proxy.Params{
+		CloseIdleConnsPeriod: -time.Second,
+		Metrics:              m,
+		Hedge:                &proxy.HedgeParams{FixedDelay: hedgeDelay, RouteCounters: true},
+	}, routes...)
+	defer p.Close()
+	s := &hedgeSetup{proxy: p, metrics: m}
+
+	for range 120 {
+		if _, code, _ := s.get(t, "/"); code != http.StatusOK {
+			t.Fatalf("warm-up request got %d, the loopback route does not reach a backend", code)
+		}
+	}
+	s.base = map[string]int64{}
+
+	for range 4 {
+		if _, code, _ := s.get(t, "/slow", filters.ShadowTrafficHeader, "example.org"); code != http.StatusOK {
+			t.Fatalf("got %d", code)
+		}
+	}
+
+	if got := s.counter("looped", "fired"); got != 0 {
+		t.Fatalf("a request that arrived with the shadow header and looped back fired %d hedges, want 0", got)
+	}
+}
+
+func TestHedgeAfterLoopbackWithoutShadowHeader(t *testing.T) {
+	slow := newHedgeBackend("slow", time.Second, http.StatusOK)
+	defer slow.Close()
+	fast := newHedgeBackend("fast", 0, http.StatusOK)
+	defer fast.Close()
+
+	m := &metricstest.MockMetrics{}
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewSetRequestHeader())
+	routes := eskip.MustParse(fmt.Sprintf(`
+		entry: *
+			-> setRequestHeader("X-Loop-Route", "1")
+			-> <loopback>;
+		looped: Header("X-Loop-Route", "1")
+			-> <roundRobin, "%s", "%s">;
+	`, slow.URL, fast.URL))
+
+	p := proxytest.WithParams(fr, proxy.Params{
+		CloseIdleConnsPeriod: -time.Second,
+		Metrics:              m,
+		Hedge:                &proxy.HedgeParams{FixedDelay: hedgeDelay, RouteCounters: true},
+	}, routes...)
+	defer p.Close()
+	s := &hedgeSetup{proxy: p, metrics: m}
+	s.warmUp(t)
+
+	for range 6 {
+		s.get(t, "/slow")
+	}
+	if got := s.counter("looped", "fired"); got == 0 {
+		t.Fatal("a route reached through <loopback> is never hedged, so the previous test proves nothing")
 	}
 }

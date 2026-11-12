@@ -1210,8 +1210,8 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 	responseStopWatch.Start()
 
-	if endpointMetrics != nil {
-		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil})
+	if endpointMetrics != nil && !ctx.hedgePrimary.skip {
+		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil || ctx.hedgePrimary.failed})
 	}
 	if p.tracing.clientTraceByTag {
 		ctx.proxySpan.SetTag(ClientTraceHTTPRoundTrip, time.Since(httpRoundtripTime).Microseconds())

@@ -935,6 +935,10 @@ func TestHedgeFlags(t *testing.T) {
 		args: []string{"skipper", "-hedge-enabled", "-hedge-fixed-delay=50ms", "-hedge-budget-percent=7.5"},
 		want: skipper.Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: 7.5},
 	}, {
+		name: "route counters",
+		args: []string{"skipper", "-hedge-enabled", "-hedge-fixed-delay=50ms", "-hedge-route-counters"},
+		want: skipper.Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: proxy.DefaultHedgeBudgetPercent, HedgeRouteCounters: true},
+	}, {
 		name:    "enabled without delay",
 		args:    []string{"skipper", "-hedge-enabled"},
 		wantErr: true,
@@ -956,7 +960,8 @@ func TestHedgeFlags(t *testing.T) {
 			o := cfg.ToOptions()
 			if o.HedgeEnabled != tt.want.HedgeEnabled ||
 				o.HedgeFixedDelay != tt.want.HedgeFixedDelay ||
-				o.HedgeBudgetPercent != tt.want.HedgeBudgetPercent {
+				o.HedgeBudgetPercent != tt.want.HedgeBudgetPercent ||
+				o.HedgeRouteCounters != tt.want.HedgeRouteCounters {
 				t.Fatalf("got enabled=%v delay=%v budget=%v, want %+v",
 					o.HedgeEnabled, o.HedgeFixedDelay, o.HedgeBudgetPercent, tt.want)
 			}

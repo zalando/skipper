@@ -101,3 +101,25 @@ func TestShadowTrafficPreProcessorWithoutDisableHedgeFilter(t *testing.T) {
 		}
 	}
 }
+
+func TestShadowTrafficPreProcessorDoesNotShareFilterSlices(t *testing.T) {
+	shared := make([]*eskip.Filter, 1, 8)
+	shared[0] = &eskip.Filter{Name: filters.TeeName, Args: []any{"http://b.example.org"}}
+
+	a := &eskip.Route{Id: "a", Filters: shared, Backend: "http://a.example.org"}
+	b := &eskip.Route{Id: "b", Filters: shared, Backend: "http://a.example.org"}
+
+	routes := hedge.NewShadowTrafficPreProcessor(registryWithDisableHedge()).Do([]*eskip.Route{a, b})
+
+	for _, r := range routes {
+		if len(r.Filters) != 2 || r.Filters[1].Name != filters.DisableHedgeName {
+			t.Fatalf("route %q filters: %v", r.Id, r.Filters)
+		}
+	}
+	if len(shared) != 1 || shared[0].Name != filters.TeeName {
+		t.Fatalf("the shared filter slice was modified: %v", shared)
+	}
+	if routes[0].Filters[1] == routes[1].Filters[1] {
+		t.Fatal("the two routes share the added filter")
+	}
+}

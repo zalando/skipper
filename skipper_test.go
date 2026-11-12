@@ -1286,8 +1286,8 @@ func TestOptionsHedgeParams(t *testing.T) {
 		o:    Options{DisabledFilters: []string{filters.DisableHedgeName}},
 	}, {
 		name: "enabled",
-		o:    Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: 7},
-		want: &proxy.HedgeParams{FixedDelay: 50 * time.Millisecond, BudgetPercent: 7},
+		o:    Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: 7, HedgeRouteCounters: true},
+		want: &proxy.HedgeParams{FixedDelay: 50 * time.Millisecond, BudgetPercent: 7, RouteCounters: true},
 	}} {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.o.hedgeParams()
