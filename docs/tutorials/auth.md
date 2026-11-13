@@ -439,6 +439,10 @@ scope by doing the following:
 
 To enable [Open Policy Agent](https://www.openpolicyagent.org/) filter, use the `-enable-open-policy-agent` command line flag.
 
+The Open Policy Agent filters are only included in Skipper binaries built with the `opa` build tag, for example `go build -tags opa ./cmd/skipper`.
+The release binaries and container images are built with this tag.
+A binary built without it fails to start when `-enable-open-policy-agent` is set.
+
 Open Policy Agent is integrated as a Go library so no extra setup is needed to run. Every filter creates a virtual OPA instance in memory that is configured using a configuration file in the same [configuration format](https://www.openpolicyagent.org/docs/latest/configuration/) that a standalone OPA would use. To allow for configurability, the configuration file is interpolated using Go Templates to allow every virtual instance to pull different bundles. This template file is passed using the `-open-policy-agent-config-template` flag.
 
 ### Configuration File
