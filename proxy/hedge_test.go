@@ -116,8 +116,11 @@ func (s *hedgeSetup) warmUp(t *testing.T) {
 	t.Helper()
 
 	var wg sync.WaitGroup
+	sem := make(chan struct{}, 8)
 	for range 120 {
+		sem <- struct{}{}
 		wg.Go(func() {
+			defer func() { <-sem }()
 			s.get(t, "/")
 		})
 	}
@@ -838,7 +841,7 @@ func TestHedgeSchemes(t *testing.T) {
 				CloseIdleConnsPeriod: -time.Second,
 				Metrics:              m,
 				Flags:                tc.flags,
-				Hedge:                &proxy.HedgeParams{FixedDelay: hedgeDelay, RouteCounters: true},
+				Hedge:                &proxy.HedgeParams{FixedDelay: 3 * hedgeDelay, RouteCounters: true},
 			}, routes...)
 			defer p.Close()
 			s := &hedgeSetup{proxy: p, metrics: m}
@@ -847,7 +850,9 @@ func TestHedgeSchemes(t *testing.T) {
 			for range 6 {
 				body, code, d := s.get(t, "/slow")
 				if code != http.StatusOK || !strings.HasPrefix(body, "fast ") {
-					t.Fatalf("got %d %q, want 200 from the fast endpoint", code, body)
+					t.Fatalf("got %d %q in %v, want 200 from the fast endpoint; fired=%d won=%d throttled=%d budget_exhausted=%d no_alternate=%d",
+						code, body, d, s.counter("r", "fired"), s.counter("r", "won"), s.counter("r", "throttled"),
+						s.counter("r", "budget_exhausted"), s.counter("r", "no_alternate"))
 				}
 				if d > 700*time.Millisecond {
 					t.Fatalf("response took %v, want the hedge to answer", d)
