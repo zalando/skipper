@@ -1056,3 +1056,45 @@ func TestHedgeAdaptiveWithoutFixedDelay(t *testing.T) {
 		t.Fatal("no hedge was fired after warm-up")
 	}
 }
+
+func TestHedgeShadowHeaderSetByFilterBeforeLoopback(t *testing.T) {
+	slow := newHedgeBackend("slow", 300*time.Millisecond, http.StatusOK)
+	defer slow.Close()
+	fast := newHedgeBackend("fast", 0, http.StatusOK)
+	defer fast.Close()
+
+	m := &metricstest.MockMetrics{}
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewSetRequestHeader())
+	routes := eskip.MustParse(fmt.Sprintf(`
+		entry: *
+			-> setRequestHeader("%s", "example.org")
+			-> <loopback>;
+		looped: Header("%s", "example.org")
+			-> <roundRobin, "%s", "%s">;
+	`, filters.ShadowTrafficHeader, filters.ShadowTrafficHeader, slow.URL, fast.URL))
+
+	p := proxytest.WithParams(fr, proxy.Params{
+		CloseIdleConnsPeriod: -time.Second,
+		Metrics:              m,
+		Hedge:                &proxy.HedgeParams{FixedDelay: hedgeDelay, RouteCounters: true},
+	}, routes...)
+	defer p.Close()
+	s := &hedgeSetup{proxy: p, metrics: m}
+
+	for range 120 {
+		if _, code, _ := s.get(t, "/"); code != http.StatusOK {
+			t.Fatalf("warm-up request got %d, the loopback route does not reach a backend", code)
+		}
+	}
+	s.base = map[string]int64{}
+
+	for range 4 {
+		if _, code, _ := s.get(t, "/slow"); code != http.StatusOK {
+			t.Fatalf("got %d", code)
+		}
+	}
+	if got := s.counter("looped", "fired"); got != 0 {
+		t.Fatalf("a request marked as shadow traffic by a filter before the loopback fired %d hedges, want 0", got)
+	}
+}

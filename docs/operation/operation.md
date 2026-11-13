@@ -1607,7 +1607,7 @@ A request is only hedged if all of the following are true:
 - the method is `GET` or `HEAD` and the request has no body,
 - the request is not an upgrade request and the backend is not a proxy,
 - the route does not use the [disableHedge](../reference/filters.md#disablehedge) filter,
-- the route and the request are not part of tee or shadow traffic,
+- the route and the request are not part of tee or shadow traffic, including a request that carries the `X-Skipper-Shadow-Traffic` header when it enters a `<loopback>` route,
 - the remaining time of the backend context (see `backendTimeout`) is longer than the delay.
 
 Routes with network and dynamic backends are never hedged, because they have no

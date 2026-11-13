@@ -1485,6 +1485,9 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		r := loopCTX.Request()
 		r = r.WithContext(ot.ContextWithSpan(r.Context(), loopSpan))
 		loopCTX.request = r
+		if p.hedger != nil && r.Header.Get(filters.ShadowTrafficHeader) != "" {
+			loopCTX.arrivedAsShadow = true
+		}
 
 		requestStopWatch.Stop()
 
