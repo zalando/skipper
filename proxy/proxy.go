@@ -412,7 +412,8 @@ type Params struct {
 	AllowInsecureBackend bool
 
 	// Hedge enables hedged requests for LB routes when not nil. See HedgeParams.
-	// Hedged requests stay disabled and an error is logged if its FixedDelay is not positive.
+	// Hedged requests stay disabled and an error is logged if its FixedDelay is negative
+	// or if both its FixedDelay and its Percentile are zero.
 	Hedge *HedgeParams
 }
 
@@ -958,8 +959,14 @@ func WithParams(p Params) *Proxy {
 	var hedgeState *hedger
 	switch {
 	case p.Hedge == nil:
-	case p.Hedge.FixedDelay <= 0:
-		log.Errorf("Hedged requests are disabled, the hedge delay must be greater than zero, got: %v", p.Hedge.FixedDelay)
+	case p.Hedge.FixedDelay < 0:
+		log.Errorf("Hedged requests are disabled, the fixed hedge delay must not be negative, got: %v", p.Hedge.FixedDelay)
+	case p.Hedge.FixedDelay == 0 && p.Hedge.Percentile == 0:
+		log.Errorf("Hedged requests are disabled, either the fixed hedge delay or the hedge percentile must be set")
+	case p.Hedge.Percentile != 0 && (p.Hedge.Percentile < hedgeMinPercentile || p.Hedge.Percentile >= 1):
+		log.Errorf("Hedged requests are disabled, the hedge percentile must be zero or in [%v, 1), got: %v", hedgeMinPercentile, p.Hedge.Percentile)
+	case p.Hedge.MinDelay < 0:
+		log.Errorf("Hedged requests are disabled, the minimum hedge delay must not be negative, got: %v", p.Hedge.MinDelay)
 	default:
 		hedgeState = newHedger(p.Hedge, quit)
 	}
@@ -1478,6 +1485,9 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		r := loopCTX.Request()
 		r = r.WithContext(ot.ContextWithSpan(r.Context(), loopSpan))
 		loopCTX.request = r
+		if p.hedger != nil && r.Header.Get(filters.ShadowTrafficHeader) != "" {
+			loopCTX.arrivedAsShadow = true
+		}
 
 		requestStopWatch.Stop()
 

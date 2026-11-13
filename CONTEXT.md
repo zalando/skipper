@@ -178,6 +178,10 @@ Closed (traffic flows), Open (traffic blocked for timeout), Half-Open (trial req
 A duplicate of a slow idempotent request sent to a different endpoint of an LB Backend; the first acceptable response wins and the other request is cancelled.
 _Avoid_: speculative request, backup request
 
+**Hedge Delay**:
+The time a Hedge Request waits for the response headers before the duplicate is sent; either fixed or a percentile of the latency observed on the route.
+_Avoid_: hedge timeout
+
 **Hedge Budget**:
 The per-route limit on Hedge Requests, expressed as a percentage of the observed request rate.
 
