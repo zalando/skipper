@@ -1946,6 +1946,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		metricsKind = metrics.CodaHaleKind
 	}
 
+	if o.PrometheusRegistry == nil {
+		o.PrometheusRegistry = prometheus.NewRegistry()
+	}
+
 	mtrOpts := metrics.Options{
 		Format:                                metricsKind,
 		Prefix:                                o.MetricsPrefix,
@@ -2055,6 +2059,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	)
 
 	if o.OpenTelemetry != nil {
+		if o.OpenTelemetry.PrometheusRegisterer == nil {
+			if _, ok := mtr.(metrics.PrometheusMetrics); ok {
+				o.OpenTelemetry.PrometheusRegisterer = o.PrometheusRegistry
+			}
+		}
 		shutdown, err := sotel.Init(context.Background(), o.OpenTelemetry)
 		if err != nil {
 			return fmt.Errorf("failed to setup OpenTelemetry: %w", err)
