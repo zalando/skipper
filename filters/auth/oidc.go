@@ -121,6 +121,7 @@ type (
 		config               *oauth2.Config
 		clientSecretRef      string
 		provider             *oidc.Provider
+		issuer               string
 		verifier             *oidc.IDTokenVerifier
 		claims               []string
 		validity             time.Duration
@@ -327,6 +328,7 @@ func (s *tokenOidcSpec) CreateFilter(args []any) (filters.Filter, error) {
 			Scopes:       []string{oidc.ScopeOpenID}, // mandatory scope by spec
 		},
 		provider: provider,
+		issuer:   issuerURL.String(),
 		verifier: provider.Verifier(&oidc.Config{
 			ClientID: oidcClientId,
 		}),
@@ -445,6 +447,24 @@ func (f *tokenOidcFilter) validateAnyClaims(h map[string]any) bool {
 	for _, c := range f.claims {
 		if _, ok := h[c]; ok {
 			return true
+		}
+	}
+	return false
+}
+
+func (f *tokenOidcFilter) validateIssuerAudience(claims map[string]any) bool {
+	if iss, ok := claims["iss"].(string); !ok || iss != f.issuer {
+		return false
+	}
+
+	switch aud := claims["aud"].(type) {
+	case string:
+		return aud == f.config.ClientID
+	case []any:
+		for _, a := range aud {
+			if a == f.config.ClientID {
+				return true
+			}
 		}
 	}
 	return false
@@ -906,6 +926,21 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	log.Debugf("Request: Cookie merged, %d chunks, len: %d", len(cookies), len(sessionCookie.String()))
 
 	cookie, ok := f.validateCookie(sessionCookie)
+	if ok {
+		err := json.Unmarshal([]byte(cookie), &container)
+		if err != nil {
+			unauthorized(
+				ctx,
+				"",
+				invalidToken,
+				r.Host,
+				fmt.Sprintf("Failed to deserialize cookie: %v.", err),
+			)
+
+			return
+		}
+		ok = f.validateIssuerAudience(container.Claims)
+	}
 	log.Debugf("Request: Cookie Validation: %v", ok)
 	if !ok {
 		// 5. Authorization Server sends the End-User back to the Client with an Authorization Code.
@@ -923,18 +958,6 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	err := json.Unmarshal([]byte(cookie), &container)
-	if err != nil {
-		unauthorized(
-			ctx,
-			"",
-			invalidToken,
-			r.Host,
-			fmt.Sprintf("Failed to deserialize cookie: %v.", err),
-		)
-
-		return
-	}
 	// filter specific checks
 	switch f.typ {
 	case checkOIDCUserInfo:
@@ -959,7 +982,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	ctx.StateBag()[oidcClaimsCacheKey] = container
 
 	// adding upstream headers
-	err = setHeaders(f.upstreamHeaders, ctx, container)
+	err := setHeaders(f.upstreamHeaders, ctx, container)
 	if err != nil {
 		ctx.Logger().Errorf("%v", err)
 		f.internalServerError(ctx)
