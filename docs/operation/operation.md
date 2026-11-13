@@ -1555,6 +1555,100 @@ A set of metrics will be exposed to track passive health check:
 - `passive-health-check.endpoints.dropped`: Number of all endpoints dropped before load balancing a request, so after N requests and M endpoints are being dropped this counter would be N\*M.
 - `passive-health-check.requests.passed`: Number of unique requests where PHC was able to avoid sending them to unhealthy endpoints.
 
+## Hedged requests
+
+Hedged requests cut the tail latency of load balanced routes. If a backend endpoint
+has not returned the response headers after a delay, Skipper sends the same request
+to a different endpoint of the route and returns the first response. The other
+request is cancelled.
+
+Hedging is disabled by default. To enable it, set both options:
+
+- `-hedge-enabled`
+- `-hedge-fixed-delay=<duration>`, for example `50ms`. It is required, because no
+  delay is right for every service. Skipper does not start without it.
+
+The `disableHedge` filter must not be disabled with `-disabled-filters` while hedging
+is enabled, because Skipper adds it to routes with tee and shadow traffic. Skipper does
+not start in this case.
+
+A request is only hedged if all of the following are true:
+
+- the route is a load balanced route and does not use the `consistentHash` algorithm,
+- the method is `GET` or `HEAD` and the request has no body,
+- the request is not an upgrade request and the backend is not a proxy,
+- the route does not use the [disableHedge](../reference/filters.md#disablehedge) filter,
+- the route and the request are not part of tee or shadow traffic,
+- the remaining time of the backend context (see `backendTimeout`) is longer than the delay.
+
+Routes with network and dynamic backends are never hedged, because they have no
+other endpoint to send the hedge request to.
+
+A hedge request never goes to the endpoint of the first request. If there is no
+other endpoint to choose from, because the route has only one endpoint or the others
+are fading in or dropped by the passive health check, no hedge request is sent and
+`no_alternate` is counted.
+
+The first response wins, except that a `5xx` response does not win while the other
+request is still pending. If both requests end in a `5xx` response, or both end in
+an error, the result of the original request is returned, not the one of the hedge
+request. If one ends in a `5xx` response and the other in an error, the `5xx`
+response is returned.
+
+Requests that the client cancels are not counted as failures of the route.
+
+### Limiting the additional load
+
+Hedge requests add load to the backend. Skipper limits them per route:
+
+- **Budget:** a token bucket that refills with `-hedge-budget-percent` (default `5`) of
+  the observed request rate of the route and holds at most 10 tokens.
+- **Cold start:** a route is not hedged before it has seen 100 requests.
+- **Error rate:** hedging stops for a route if more than 10% of its requests in the
+  last 10 seconds failed with an error or a `5xx` status. The ratio is only used if the
+  route had at least 20 requests in these 10 seconds.
+- **Surge:** hedging stops for a route if its request rate, averaged over about 10
+  seconds, is more than 1.5 times its average over about 5 minutes. The surge is only
+  checked if the 5 minute average is at least 1 request per second.
+
+These limits are fixed. The state is kept per route ID in memory, survives routing
+table updates, and is removed once the route was idle for five minutes. Idle state is
+removed by a check that runs every minute.
+
+### Known limitations
+
+- The circuit breaker sees one result per request, the one that is returned to the
+  client. If a slow endpoint loses against the hedge request, the breaker does not
+  see its failure.
+- The passive health check and the endpoint weights see the original request's own
+  result, with one exception: if the original request failed with an error before
+  the hedge request won, the failure is counted for its endpoint. If the hedge
+  request wins while the original request is still running, the original request is
+  not counted at all, because Skipper cancelled it. A slow endpoint that always loses
+  the race is therefore never marked unhealthy by hedged requests.
+- Hedge requests are invisible to `fifo`, `lifo` and admission control, which count
+  one request. The budget is the only limit for them.
+- The round robin counter advances once more for each hedge request.
+- The time of the backend metrics includes the hedge delay.
+
+### Metrics
+
+For all routes together:
+
+- `hedge.fired`: hedge requests that were sent
+- `hedge.won`: hedge requests whose response was returned
+- `hedge.budget_exhausted`: hedges skipped because the budget is empty
+- `hedge.throttled`: hedges skipped because of the error rate or a surge
+- `hedge.no_alternate`: hedges skipped because there is no other endpoint
+- `hedge.skipped_deadline`: requests not hedged because the deadline is shorter than the delay
+
+With `-hedge-route-counters`, the same counters are also reported per route, as
+`hedge.<routeID>.fired` and so on. They are off by default, because every route ID
+adds a Prometheus series that is never removed. Enable them if the number of routes is
+small or you need to find the route that causes hedge requests.
+
+The proxy span of a hedged request has the tags `hedge` and `hedge.winner` (`primary` or `hedge`).
+
 ## Memory consumption
 
 While Skipper is generally not memory bound, some features may require

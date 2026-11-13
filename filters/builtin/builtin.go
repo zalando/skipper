@@ -16,6 +16,7 @@ import (
 	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/filters/fadein"
 	"github.com/zalando/skipper/filters/flowid"
+	"github.com/zalando/skipper/filters/hedge"
 	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/filters/rfc"
 	"github.com/zalando/skipper/filters/scheduler"
@@ -207,6 +208,7 @@ func Filters() []filters.Spec {
 		tee.NewTeeNoFollow(),
 		tee.NewTeeLoopback(),
 		tee.NewTeeResponse(tee.Options{}),
+		hedge.NewDisableHedge(),
 		sed.New(),
 		sed.NewDelimited(),
 		sed.NewRequest(),

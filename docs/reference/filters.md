@@ -1218,6 +1218,20 @@ See also:
 * [Tee predicate](predicates.md#tee)
 * [Shadow Traffic Tutorial](../tutorials/shadow-traffic.md)
 
+### disableHedge
+
+Opts a route out of [hedged requests](../operation/operation.md#hedged-requests).
+The filter has no arguments and only has an effect if Skipper runs with `-hedge-enabled`.
+
+Routes that use the `tee`, `teenf`, `teeLoopback` or `teeResponse` filters, or the `Tee`
+predicate, are opted out automatically.
+
+Example:
+
+```
+r: * -> disableHedge() -> <roundRobin, "http://10.2.0.1:8080", "http://10.2.0.2:8080">;
+```
+
 ### teeResponse
 
 The teeResponse filter provides the possibility to send the HTTP body

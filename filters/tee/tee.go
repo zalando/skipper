@@ -29,7 +29,7 @@ const (
 
 const (
 	// ShadowTrafficHeader marks outgoing requests as shadow traffic
-	ShadowTrafficHeader = "X-Skipper-Shadow-Traffic"
+	ShadowTrafficHeader = filters.ShadowTrafficHeader
 
 	defaultTeeTimeout          = time.Second
 	defaultMaxIdleConns        = 100

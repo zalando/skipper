@@ -39,6 +39,13 @@ const (
 	// BackendSkipTLSVerify is the key used in the state bag to instruct the proxy to skip TLS
 	// certificate verification for the backend. Only effective when AllowInsecureBackend is enabled globally.
 	BackendSkipTLSVerify = "backend:skip-tls-verify"
+
+	// ShadowTrafficHeader marks outgoing requests as shadow traffic.
+	ShadowTrafficHeader = "X-Skipper-Shadow-Traffic"
+
+	// BackendHedgeDisabled is the key used in the state bag to instruct the proxy
+	// to never send a hedge request for the request.
+	BackendHedgeDisabled = "backend:hedge-disabled"
 )
 
 // FilterContext object providing state and information that is unique to a request.
@@ -362,6 +369,7 @@ const (
 	HeaderToQueryName                          = "headerToQuery"
 	QueryToHeaderName                          = "queryToHeader"
 	DisableAccessLogName                       = "disableAccessLog"
+	DisableHedgeName                           = "disableHedge"
 	MaskAccessLogQueryName                     = "maskAccessLogQuery"
 	EnableAccessLogName                        = "enableAccessLog"
 	AuditLogName                               = "auditLog"

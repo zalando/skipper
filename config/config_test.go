@@ -16,6 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/openpolicyagent"
@@ -184,6 +185,7 @@ func defaultConfig(with func(*Config)) *Config {
 		ClusterRatelimitMaxGroupShards:          1,
 		ValidateQuery:                           true,
 		ValidateQueryLog:                        true,
+		HedgeBudgetPercent:                      proxy.DefaultHedgeBudgetPercent,
 		LetsencryptDomains:                      commaListFlag(),
 		LetsencryptCache:                        net.DefaultLetsencryptCache,
 		LetsencryptCacheDir:                     net.DefaultLetsencryptCacheDirectory,
@@ -351,6 +353,35 @@ func Test_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			want:    errors.New(`unable to parse histogram-metric-buckets: strconv.ParseFloat: parsing "10kb": invalid syntax`),
+		},
+		{
+			name:   "hedge disabled needs no delay",
+			change: func(c *Config) {},
+		},
+		{
+			name: "hedge enabled without delay",
+			change: func(c *Config) {
+				c.HedgeEnabled = true
+			},
+			wantErr: true,
+			want:    errors.New("hedge-fixed-delay must be greater than zero if hedge-enabled is set"),
+		},
+		{
+			name: "hedge enabled with delay",
+			change: func(c *Config) {
+				c.HedgeEnabled = true
+				c.HedgeFixedDelay = 50 * time.Millisecond
+			},
+		},
+		{
+			name: "hedge budget out of range",
+			change: func(c *Config) {
+				c.HedgeEnabled = true
+				c.HedgeFixedDelay = 50 * time.Millisecond
+				c.HedgeBudgetPercent = 101
+			},
+			wantErr: true,
+			want:    errors.New("hedge-budget-percent must be greater than zero and not greater than 100"),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -884,6 +915,55 @@ func TestH2cFlags_ParseAndToOptions(t *testing.T) {
 			opts := cfg.ToOptions()
 			if opts.EnableH2cServer != tt.wantH2cServer {
 				t.Errorf("ToOptions EnableH2cServer: got %v, want %v", opts.EnableH2cServer, tt.wantH2cServer)
+			}
+		})
+	}
+}
+
+func TestHedgeFlags(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		args    []string
+		want    skipper.Options
+		wantErr bool
+	}{{
+		name: "default is disabled",
+		args: []string{"skipper"},
+		want: skipper.Options{HedgeBudgetPercent: proxy.DefaultHedgeBudgetPercent},
+	}, {
+		name: "enabled",
+		args: []string{"skipper", "-hedge-enabled", "-hedge-fixed-delay=50ms", "-hedge-budget-percent=7.5"},
+		want: skipper.Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: 7.5},
+	}, {
+		name: "route counters",
+		args: []string{"skipper", "-hedge-enabled", "-hedge-fixed-delay=50ms", "-hedge-route-counters"},
+		want: skipper.Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: proxy.DefaultHedgeBudgetPercent, HedgeRouteCounters: true},
+	}, {
+		name:    "enabled without delay",
+		args:    []string{"skipper", "-hedge-enabled"},
+		wantErr: true,
+	}, {
+		name:    "budget out of range",
+		args:    []string{"skipper", "-hedge-enabled", "-hedge-fixed-delay=50ms", "-hedge-budget-percent=0"},
+		wantErr: true,
+	}} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			err := cfg.ParseArgs(tt.args[0], tt.args[1:])
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err=%v, wantErr=%v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+
+			o := cfg.ToOptions()
+			if o.HedgeEnabled != tt.want.HedgeEnabled ||
+				o.HedgeFixedDelay != tt.want.HedgeFixedDelay ||
+				o.HedgeBudgetPercent != tt.want.HedgeBudgetPercent ||
+				o.HedgeRouteCounters != tt.want.HedgeRouteCounters {
+				t.Fatalf("got enabled=%v delay=%v budget=%v, want %+v",
+					o.HedgeEnabled, o.HedgeFixedDelay, o.HedgeBudgetPercent, tt.want)
 			}
 		})
 	}

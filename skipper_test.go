@@ -9,6 +9,7 @@ import (
 	"net/http"
 	stdlibhttptest "net/http/httptest"
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -31,12 +32,14 @@ import (
 	"github.com/zalando/skipper/filters/cache"
 	fscheduler "github.com/zalando/skipper/filters/scheduler"
 	"github.com/zalando/skipper/loadbalancer"
+	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/metrics/metricstest"
 	skpnet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/secrets/certregistry"
 	"github.com/zalando/skipper/tracing/tracingtest"
@@ -1253,4 +1256,137 @@ func TestPriorityRoutesInlineAndFileComposed(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, rsp.StatusCode)
 		})
 	}
+}
+
+func TestOptionsHedgeParams(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		o       Options
+		want    *proxy.HedgeParams
+		wantErr bool
+	}{{
+		name: "disabled",
+	}, {
+		name: "disabled ignores the delay",
+		o:    Options{HedgeFixedDelay: time.Second, HedgeBudgetPercent: 7},
+	}, {
+		name:    "enabled without delay",
+		o:       Options{HedgeEnabled: true},
+		wantErr: true,
+	}, {
+		name:    "enabled with negative delay",
+		o:       Options{HedgeEnabled: true, HedgeFixedDelay: -time.Second},
+		wantErr: true,
+	}, {
+		name:    "enabled but disableHedge filter disabled",
+		o:       Options{HedgeEnabled: true, HedgeFixedDelay: time.Second, DisabledFilters: []string{filters.DisableHedgeName}},
+		wantErr: true,
+	}, {
+		name: "disableHedge filter disabled while hedging is off is fine",
+		o:    Options{DisabledFilters: []string{filters.DisableHedgeName}},
+	}, {
+		name: "enabled",
+		o:    Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: 7, HedgeRouteCounters: true},
+		want: &proxy.HedgeParams{FixedDelay: 50 * time.Millisecond, BudgetPercent: 7, RouteCounters: true},
+	}} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.o.hedgeParams()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err=%v, wantErr=%v", err, tt.wantErr)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("got %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRunRejectsHedgeWithoutDelay(t *testing.T) {
+	sig := make(chan os.Signal, 1)
+	errc := make(chan error, 1)
+	go func() {
+		errc <- run(Options{
+			HedgeEnabled: true,
+			InlineRoutes: `r: * -> <shunt>`,
+			Address:      "127.0.0.1:0",
+		}, sig, nil)
+	}()
+
+	select {
+	case err := <-errc:
+		require.ErrorContains(t, err, "HedgeFixedDelay")
+	case <-time.After(10 * time.Second):
+		sig <- syscall.SIGTERM
+		t.Fatal("run did not reject HedgeEnabled without HedgeFixedDelay")
+	}
+}
+
+func TestOptionsHedgePreProcessors(t *testing.T) {
+	routes := func() []*eskip.Route {
+		return eskip.MustParse(`
+			plain: Path("/plain") -> "http://a.example.org";
+			tee: Path("/tee") -> tee("http://b.example.org") -> "http://a.example.org";
+			loop: Path("/loop") -> teeLoopback("k") -> "http://a.example.org";
+			shadow: Tee("k") && True() -> "http://a.example.org";
+		`)
+	}
+	hasOptOut := func(r *eskip.Route) bool {
+		for _, f := range r.Filters {
+			if f.Name == filters.DisableHedgeName {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("disabled adds no preprocessor", func(t *testing.T) {
+		if pp := (Options{}).hedgePreProcessors((&Options{}).filterRegistry()); len(pp) != 0 {
+			t.Fatalf("got %d preprocessors, want none", len(pp))
+		}
+	})
+
+	t.Run("enabled opts out routes with tee and shadow traffic", func(t *testing.T) {
+		o := Options{HedgeEnabled: true, HedgeFixedDelay: time.Second}
+		pp := o.hedgePreProcessors(o.filterRegistry())
+		if len(pp) != 1 {
+			t.Fatalf("got %d preprocessors, want 1", len(pp))
+		}
+
+		rs := routes()
+		for _, p := range pp {
+			rs = p.Do(rs)
+		}
+
+		want := map[string]bool{"plain": false, "tee": true, "loop": true, "shadow": true}
+		for _, r := range rs {
+			if got := hasOptOut(r); got != want[r.Id] {
+				t.Errorf("route %q: opted out=%v, want %v", r.Id, got, want[r.Id])
+			}
+		}
+	})
+}
+
+func TestHedgeKeepsTeeRoutesWhenDisableHedgeFilterIsMissing(t *testing.T) {
+	o := Options{HedgeEnabled: true, HedgeFixedDelay: time.Second}
+	fr := o.filterRegistry()
+	delete(fr, filters.DisableHedgeName)
+
+	dc := testdataclient.New(eskip.MustParse(`r: * -> tee("http://b.example.org") -> "http://a.example.org";`))
+	defer dc.Close()
+	l := loggingtest.New()
+	defer l.Close()
+	rt := routing.New(routing.Options{
+		FilterRegistry: fr,
+		DataClients:    []routing.DataClient{dc},
+		PreProcessors:  o.hedgePreProcessors(fr),
+		Log:            l,
+	})
+	defer rt.Close()
+
+	require.NoError(t, l.WaitFor("route settings applied", 2*time.Second))
+	req, err := http.NewRequest(http.MethodGet, "http://example.org/", nil)
+	require.NoError(t, err)
+	route, _ := rt.Get().Do(req)
+	require.NotNil(t, route, "the tee route was dropped")
+	assert.Equal(t, "r", route.Id)
 }
