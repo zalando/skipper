@@ -1007,3 +1007,52 @@ func TestHedgeAdaptiveDelayNeedsWarmUp(t *testing.T) {
 		t.Fatalf("fired=%d before the route had enough samples; the cold start must not hedge", got)
 	}
 }
+
+func TestHedgeAdaptiveWithoutFixedDelay(t *testing.T) {
+	const typical = 60 * time.Millisecond
+	stalling := newLatencyBackend("stalling", typical, 3*time.Second)
+	defer stalling.Close()
+	healthy := newLatencyBackend("healthy", typical, 0)
+	defer healthy.Close()
+
+	s := newHedgeProxy(t, fmt.Sprintf(`r: * -> <roundRobin, "%s", "%s">;`, stalling.URL, healthy.URL),
+		&proxy.HedgeParams{Percentile: 0.9, MinDelay: 500 * time.Millisecond})
+
+	start := time.Now()
+	for range 4 {
+		if _, code, _ := s.get(t, "/stall"); code != http.StatusOK {
+			t.Fatalf("got %d", code)
+		}
+	}
+	if got := s.counter("r", "fired"); got != 0 {
+		t.Fatalf("fired=%d during warm-up without a fixed delay, want 0", got)
+	}
+	if time.Since(start) < 3*time.Second {
+		t.Fatal("stalled requests returned early without a hedge")
+	}
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 8)
+	for range 300 {
+		sem <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-sem }()
+			s.get(t, "/")
+		})
+	}
+	wg.Wait()
+	s.warmUp(t)
+
+	for range 8 {
+		body, code, d := s.get(t, "/stall")
+		if code != http.StatusOK || body != "healthy" {
+			t.Fatalf("got %d %q, want the healthy backend to answer", code, body)
+		}
+		if d > 1500*time.Millisecond {
+			t.Fatalf("a stalled request took %v after warm-up, want a hedge", d)
+		}
+	}
+	if got := s.counter("r", "fired"); got == 0 {
+		t.Fatal("no hedge was fired after warm-up")
+	}
+}

@@ -1562,11 +1562,12 @@ has not returned the response headers after a delay, Skipper sends the same requ
 to a different endpoint of the route and returns the first response. The other
 request is cancelled.
 
-Hedging is disabled by default. To enable it, set both options:
-
-- `-hedge-enabled`
-- `-hedge-fixed-delay=<duration>`, for example `50ms`. It is required, because no
-  delay is right for every service. Skipper does not start without it.
+Hedging is disabled by default. To enable it, set `-hedge-enabled`. Skipper then
+derives the delay of each route from the latency it observes, see below. Optionally
+set `-hedge-fixed-delay=<duration>`, for example `50ms`, to hedge a route before it
+has enough samples. Without it, a route is not hedged until it has 100 samples.
+Skipper does not start if `-hedge-percentile=0` is set without `-hedge-fixed-delay`,
+because then there is no delay.
 
 ### The hedge delay
 
@@ -1578,14 +1579,20 @@ By default it follows the latency that Skipper observes for each route:
   must be `0` or at least `0.5` and less than `1`.
 - `-hedge-min-delay` (default `10ms`): the adaptive delay is never shorter than this.
 - `-hedge-fixed-delay` is used until the route has 100 samples in the last 30 to 60
-  seconds, and again if the samples run out, for example on an idle route.
+  seconds, and again if the samples run out, for example on an idle route. If it is
+  not set, the route is not hedged in these periods.
 
 Latency is measured per route, from the start of the request to the response headers
 of the response that is returned to the client. Responses with a `5xx` status and
 requests that end with an error are not measured. Because the winner is measured, the
 measured latency includes the effect of hedging: a hedge request that wins makes the
-route look faster, which makes the delay shorter. The minimum delay, the budget and the
-throttles below limit this.
+route look faster, which makes the delay shorter. The budget limits the hedge rate to
+`-hedge-budget-percent` of the requests of the route. A simulation with log-normal
+latencies, 200 requests per second and a 5% budget over 30 minutes did not move the
+delay at the 90th, 95th or 99th percentile. A hedge request is sent only after the
+delay has passed, so the latency of a request that it wins is never below the delay and
+cannot pull the percentile down. The minimum delay and the throttles below limit it
+further.
 
 The state of a route, including its latency samples, is reset when the route
 definition changes. Changes to the endpoints of a load balanced route do not reset it.
@@ -1664,7 +1671,7 @@ For all routes together:
 - `hedge.fired`: hedge requests that were sent
 - `hedge.won`: hedge requests whose response was returned
 - `hedge.budget_exhausted`: hedges skipped because the budget is empty
-- `hedge.throttled`: hedges skipped because of the error rate or a surge
+- `hedge.throttled`: hedges skipped because of the error rate, a latency shift or a surge
 - `hedge.no_alternate`: hedges skipped because there is no other endpoint
 - `hedge.skipped_deadline`: requests not hedged because the deadline is shorter than the delay
 

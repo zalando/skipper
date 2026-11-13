@@ -836,11 +836,14 @@ type Options struct {
 
 	// HedgeEnabled enables hedged requests for GET and HEAD requests to load
 	// balanced routes. Routes can opt out with the disableHedge() filter and
-	// routes using tee or shadow traffic are excluded. HedgeFixedDelay is required.
+	// routes using tee or shadow traffic are excluded. HedgeFixedDelay is required
+	// if HedgePercentile is zero.
 	HedgeEnabled bool
 
 	// HedgeFixedDelay is the time to wait for the response headers of the
 	// primary attempt before a hedge request is sent to a different endpoint.
+	// If HedgePercentile is set, it is used until a route has enough samples
+	// and a route is not hedged until then if it is zero.
 	HedgeFixedDelay time.Duration
 
 	// HedgeBudgetPercent is the maximum rate of hedge requests as a percentage
@@ -853,7 +856,7 @@ type Options struct {
 
 	// HedgePercentile is the percentile of the observed response header
 	// latency of a route that is used as the hedge delay once the route has
-	// enough samples. HedgeFixedDelay is used before that. Zero uses only
+	// enough samples. HedgeFixedDelay is used before that if it is set. Zero uses only
 	// HedgeFixedDelay. It must be zero or in [0.5, 1).
 	HedgePercentile float64
 
@@ -1949,8 +1952,11 @@ func (o Options) hedgeParams() (*proxy.HedgeParams, error) {
 	if !o.HedgeEnabled {
 		return nil, nil
 	}
-	if o.HedgeFixedDelay <= 0 {
-		return nil, errors.New("hedge: HedgeFixedDelay must be greater than zero if HedgeEnabled is set")
+	if o.HedgeFixedDelay < 0 {
+		return nil, errors.New("hedge: HedgeFixedDelay must not be negative")
+	}
+	if o.HedgeFixedDelay == 0 && o.HedgePercentile == 0 {
+		return nil, errors.New("hedge: HedgeFixedDelay must be greater than zero if HedgeEnabled is set and HedgePercentile is zero")
 	}
 	if o.HedgePercentile != 0 && (o.HedgePercentile < 0.5 || o.HedgePercentile >= 1) {
 		return nil, errors.New("hedge: HedgePercentile must be zero or at least 0.5 and less than 1")

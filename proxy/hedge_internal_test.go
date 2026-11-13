@@ -4,6 +4,7 @@ import (
 	stdlibcontext "context"
 	"fmt"
 	"io"
+	"math"
 	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
@@ -1723,6 +1724,228 @@ func BenchmarkHedgedRoundTripAdaptive(b *testing.B) {
 					rsp.Body.Close()
 				}
 			})
+		})
+	}
+}
+
+type driftModel struct {
+	median time.Duration
+	sigma  float64
+}
+
+func (m driftModel) sample(rnd *rand.Rand) time.Duration {
+	return time.Duration(float64(m.median) * math.Exp(m.sigma*rnd.NormFloat64()))
+}
+
+func simulateDrift(tb testing.TB, m driftModel, percentile float64, rps, minutes int, hedge bool) (delays []time.Duration, hedgeRate float64) {
+	tb.Helper()
+
+	quit := make(chan struct{})
+	tb.Cleanup(func() { close(quit) })
+	h := newHedger(&HedgeParams{FixedDelay: 200 * time.Millisecond, Percentile: percentile, MinDelay: DefaultHedgeMinDelay}, quit)
+	r := h.route("r")
+	rnd := rand.New(rand.NewPCG(1, 2))
+
+	now := hedgeEpoch
+	var requests, hedges int
+	for i := range minutes * 60 {
+		for j := range rps {
+			at := now.Add(time.Duration(j) * time.Second / time.Duration(rps))
+			r.arrive(at)
+			requests++
+
+			d := h.delayFor(r, at)
+			winner := m.sample(rnd)
+			if hedge && winner > d && r.acquire(at, h.budgetPercent) == hedgeAllowed {
+				hedges++
+				winner = min(winner, d+m.sample(rnd))
+			}
+			r.record(at, winner)
+		}
+		now = now.Add(time.Second)
+		if i%60 == 59 {
+			delays = append(delays, h.delayFor(r, now))
+		}
+	}
+	return delays, float64(hedges) / float64(requests)
+}
+
+func TestHedgeDelayDoesNotDriftDown(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		m    driftModel
+		q    float64
+	}{
+		{"p90 narrow", driftModel{median: 20 * time.Millisecond, sigma: 0.2}, 0.9},
+		{"p90 typical", driftModel{median: 20 * time.Millisecond, sigma: 0.6}, 0.9},
+		{"p90 heavy tail", driftModel{median: 20 * time.Millisecond, sigma: 1.2}, 0.9},
+		{"p90 very heavy tail", driftModel{median: 20 * time.Millisecond, sigma: 2.0}, 0.9},
+		{"p95 typical", driftModel{median: 20 * time.Millisecond, sigma: 0.6}, 0.95},
+		{"p99 typical", driftModel{median: 20 * time.Millisecond, sigma: 0.6}, 0.99},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			off, _ := simulateDrift(t, tc.m, tc.q, 200, 30, false)
+			on, rate := simulateDrift(t, tc.m, tc.q, 200, 30, true)
+			t.Logf("delay without hedging: first %v last %v", off[0], off[len(off)-1])
+			t.Logf("delay with hedging:    first %v last %v, hedge rate %.2f%%", on[0], on[len(on)-1], rate*100)
+
+			for i := range on {
+				if float64(on[i]) < 0.8*float64(off[i]) {
+					t.Fatalf("minute %d: the delay with hedging %v is more than 20%% below the delay without hedging %v", i+1, on[i], off[i])
+				}
+			}
+			if rate > DefaultHedgeBudgetPercent/100*1.1 {
+				t.Fatalf("hedge rate %.2f%% is above the budget", rate*100)
+			}
+		})
+	}
+}
+
+type fakeClock struct{ nanos atomic.Int64 }
+
+func (c *fakeClock) now() time.Time          { return time.Unix(0, c.nanos.Load()) }
+func (c *fakeClock) advance(d time.Duration) { c.nanos.Add(int64(d)) }
+
+type clockedHedge struct {
+	p         *Proxy
+	m         *metricstest.MockMetrics
+	clock     *fakeClock
+	latency   atomic.Int64
+	hedgeHits atomic.Int64
+	do        func(path string)
+}
+
+func newClockedHedge(t *testing.T, stall time.Duration) *clockedHedge {
+	t.Helper()
+
+	c := &clockedHedge{clock: &fakeClock{}, m: &metricstest.MockMetrics{}}
+	c.clock.nanos.Store(time.Unix(1_700_000_010, 0).UnixNano())
+
+	p, route, hosts := newSelectionProxy(t, "roundRobin", 2, 0, nil)
+	p.metrics = c.m
+	p.tracing = newProxyTracing(nil)
+	c.p = p
+
+	rt := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/stall" {
+			c.clock.advance(time.Duration(c.latency.Load()))
+			return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
+		}
+		if r.URL.Host != hosts[0] {
+			c.hedgeHits.Add(1)
+			return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
+		}
+		select {
+		case <-time.After(stall):
+			return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
+		case <-r.Context().Done():
+			return nil, r.Context().Err()
+		}
+	})
+	p.roundTripper = rt
+
+	quit := make(chan struct{})
+	t.Cleanup(func() { close(quit) })
+	p.hedger = newHedger(&HedgeParams{Percentile: 0.9, MinDelay: 10 * time.Millisecond, RouteCounters: true}, quit)
+	p.hedger.now = c.clock.now
+
+	c.do = func(path string) {
+		t.Helper()
+		ctx := &context{route: route, request: &http.Request{}, stateBag: map[string]any{}}
+		req, err := http.NewRequest(http.MethodGet, "http://"+hosts[0]+path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rsp, err := p.hedgedRoundTrip(ctx, rt, req, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rsp.Body.Close()
+	}
+	return c
+}
+
+func (c *clockedHedge) run(seconds, perSecond int, d time.Duration) {
+	c.latency.Store(int64(d))
+	for range seconds {
+		for range perSecond {
+			c.do("/")
+		}
+		c.clock.advance(time.Second - time.Duration(perSecond)*d)
+	}
+}
+
+func (c *clockedHedge) fired(t *testing.T) int64 {
+	t.Helper()
+	n, _ := c.m.Counter("hedge.r.fired")
+	return n
+}
+
+func (c *clockedHedge) throttled() int64 {
+	n, _ := c.m.Counter("hedge.r.throttled")
+	return n
+}
+
+func TestHedgeLatencyThrottleEndToEnd(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		before     time.Duration
+		after      time.Duration
+		wantHedged bool
+	}{
+		{name: "latency tripled", before: 10 * time.Millisecond, after: 30 * time.Millisecond},
+		{name: "latency unchanged", before: 10 * time.Millisecond, after: 10 * time.Millisecond, wantHedged: true},
+		{name: "latency dropped", before: 30 * time.Millisecond, after: 10 * time.Millisecond, wantHedged: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newClockedHedge(t, 300*time.Millisecond)
+
+			c.run(30, 20, tc.before)
+			c.run(29, 20, tc.after)
+			if n := c.fired(t); n != 0 {
+				t.Fatalf("%d hedges fired while sending fast requests", n)
+			}
+
+			c.do("/stall")
+
+			if got := c.hedgeHits.Load() > 0; got != tc.wantHedged {
+				t.Fatalf("hedge request sent=%v, want %v", got, tc.wantHedged)
+			}
+			if (c.throttled() == 1) == tc.wantHedged {
+				t.Fatalf("throttled=%d, want a throttle=%v", c.throttled(), !tc.wantHedged)
+			}
+		})
+	}
+}
+
+func TestHedgeRequestRateSurgeEndToEnd(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		steady     int
+		surge      int
+		wantHedged bool
+	}{
+		{name: "request rate quadruples", steady: 10, surge: 40},
+		{name: "request rate stays", steady: 10, surge: 10, wantHedged: true},
+		{name: "request rate drops", steady: 40, surge: 10, wantHedged: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newClockedHedge(t, 300*time.Millisecond)
+
+			c.run(600, tc.steady, time.Millisecond)
+			c.run(20, tc.surge, time.Millisecond)
+			if n := c.fired(t); n != 0 {
+				t.Fatalf("%d hedges fired while sending fast requests", n)
+			}
+
+			c.do("/stall")
+
+			if got := c.hedgeHits.Load() > 0; got != tc.wantHedged {
+				t.Fatalf("hedge request sent=%v, want %v", got, tc.wantHedged)
+			}
+			if (c.throttled() == 1) == tc.wantHedged {
+				t.Fatalf("throttled=%d, want a throttle=%v", c.throttled(), !tc.wantHedged)
+			}
 		})
 	}
 }

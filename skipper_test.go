@@ -1274,6 +1274,10 @@ func TestOptionsHedgeParams(t *testing.T) {
 		o:       Options{HedgeEnabled: true},
 		wantErr: true,
 	}, {
+		name: "enabled with percentile and without delay",
+		o:    Options{HedgeEnabled: true, HedgePercentile: 0.9},
+		want: &proxy.HedgeParams{Percentile: 0.9},
+	}, {
 		name:    "enabled with negative delay",
 		o:       Options{HedgeEnabled: true, HedgeFixedDelay: -time.Second},
 		wantErr: true,

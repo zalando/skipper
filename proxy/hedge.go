@@ -45,8 +45,10 @@ const (
 // disables hedged requests.
 type HedgeParams struct {
 	// FixedDelay is the time to wait for the response headers of the
-	// primary attempt before a hedge attempt is sent. It must be greater
-	// than zero, otherwise hedged requests are disabled.
+	// primary attempt before a hedge attempt is sent. It is the only delay
+	// if Percentile is zero and then it must be greater than zero. If
+	// Percentile is set, FixedDelay is used until a route has enough
+	// samples, and a route is not hedged until then if FixedDelay is zero.
 	FixedDelay time.Duration
 
 	// BudgetPercent is the maximum hedge rate as a percentage of the
@@ -75,6 +77,7 @@ type hedger struct {
 	routeCounters bool
 	percentile    float64
 	minDelay      time.Duration
+	now           func() time.Time
 
 	mu     sync.RWMutex
 	routes map[string]*routeHedge
@@ -87,6 +90,7 @@ func newHedger(p *HedgeParams, quit <-chan struct{}) *hedger {
 		routeCounters: p.RouteCounters,
 		percentile:    p.Percentile,
 		minDelay:      p.MinDelay,
+		now:           time.Now,
 		routes:        make(map[string]*routeHedge),
 	}
 	if h.budgetPercent <= 0 {
@@ -111,7 +115,7 @@ func (h *hedger) route(id string) *routeHedge {
 		if q <= 0 {
 			q = 0.9
 		}
-		r = &routeHedge{tokens: hedgeBurst, lastSeen: time.Now(), lat: newLatencyEstimator(q)}
+		r = &routeHedge{tokens: hedgeBurst, lastSeen: h.now(), lat: newLatencyEstimator(q)}
 		h.routes[id] = r
 	}
 	return r
@@ -129,7 +133,7 @@ func (h *hedger) sweepLoop(quit <-chan struct{}) {
 	for {
 		select {
 		case <-t.C:
-			h.sweep(time.Now())
+			h.sweep(h.now())
 		case <-quit:
 			return
 		}
@@ -457,14 +461,20 @@ func (p *Proxy) roundTrip(ctx *context, rt http.RoundTripper, req, preTrace *htt
 func (p *Proxy) hedgedRoundTrip(ctx *context, rt http.RoundTripper, req, preTrace *http.Request) (*http.Response, error) {
 	h := p.hedger
 	state := h.forRoute(ctx.route)
-	start := time.Now()
+	start := h.now()
 	state.arrive(start)
 	delay := h.delayFor(state, start)
 
+	deadlineTooShort := false
 	if dl, ok := req.Context().Deadline(); ok && time.Until(dl) <= delay {
-		p.hedgeCount(ctx, "skipped_deadline")
+		deadlineTooShort = true
+	}
+	if delay <= 0 || deadlineTooShort {
+		if deadlineTooShort {
+			p.hedgeCount(ctx, "skipped_deadline")
+		}
 		resp, err := rt.RoundTrip(req)
-		now := time.Now()
+		now := h.now()
 		state.observe(now, backendFailed(req, resp, err))
 		if err == nil && resp.StatusCode < http.StatusInternalServerError {
 			state.record(now, now.Sub(start))
@@ -490,7 +500,7 @@ func (p *Proxy) hedgedRoundTrip(ctx *context, rt http.RoundTripper, req, preTrac
 		winner, ctx.hedgePrimary = p.hedge(ctx, rt, preTrace, req.URL.Host, state, primary, ch)
 	}
 
-	now := time.Now()
+	now := h.now()
 	state.observe(now, backendFailed(req, winner.resp, winner.err))
 	if winner.err == nil && winner.resp.StatusCode < http.StatusInternalServerError {
 		state.record(now, now.Sub(start))
@@ -512,7 +522,7 @@ func (p *Proxy) hedge(
 ) (*hedgeAttempt, primaryOutcome) {
 	h := p.hedger
 
-	switch state.acquire(time.Now(), h.budgetPercent) {
+	switch state.acquire(h.now(), h.budgetPercent) {
 	case hedgeColdStart:
 		return <-ch, primaryOutcome{}
 	case hedgeThrottled:

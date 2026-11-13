@@ -361,12 +361,39 @@ func Test_Validate(t *testing.T) {
 			change: func(c *Config) {},
 		},
 		{
-			name: "hedge enabled without delay",
+			name: "hedge enabled without a delay uses the default percentile",
 			change: func(c *Config) {
 				c.HedgeEnabled = true
 			},
+		},
+		{
+			name: "hedge enabled without delay and without percentile",
+			change: func(c *Config) {
+				c.HedgeEnabled = true
+				c.HedgeBudgetPercent = 5
+				c.HedgePercentile = 0
+			},
 			wantErr: true,
-			want:    errors.New("hedge-fixed-delay must be greater than zero if hedge-enabled is set"),
+			want:    errors.New("hedge-fixed-delay must be greater than zero if hedge-enabled is set and hedge-percentile is zero"),
+		},
+		{
+			name: "hedge enabled with percentile and without fixed delay",
+			change: func(c *Config) {
+				c.HedgeEnabled = true
+				c.HedgeBudgetPercent = 5
+				c.HedgePercentile = 0.9
+			},
+		},
+		{
+			name: "hedge negative fixed delay",
+			change: func(c *Config) {
+				c.HedgeEnabled = true
+				c.HedgeFixedDelay = -time.Millisecond
+				c.HedgeBudgetPercent = 5
+				c.HedgePercentile = 0.9
+			},
+			wantErr: true,
+			want:    errors.New("hedge-fixed-delay must not be negative"),
 		},
 		{
 			name: "hedge enabled with delay",
@@ -995,8 +1022,12 @@ func TestHedgeFlags(t *testing.T) {
 		args:    []string{"skipper", "-hedge-enabled", "-hedge-fixed-delay=50ms", "-hedge-percentile=1.2"},
 		wantErr: true,
 	}, {
-		name:    "enabled without delay",
-		args:    []string{"skipper", "-hedge-enabled"},
+		name: "enabled without delay uses the default percentile",
+		args: []string{"skipper", "-hedge-enabled"},
+		want: skipper.Options{HedgeEnabled: true, HedgeBudgetPercent: proxy.DefaultHedgeBudgetPercent, HedgePercentile: proxy.DefaultHedgePercentile, HedgeMinDelay: proxy.DefaultHedgeMinDelay},
+	}, {
+		name:    "enabled without delay and without percentile",
+		args:    []string{"skipper", "-hedge-enabled", "-hedge-percentile=0"},
 		wantErr: true,
 	}, {
 		name:    "budget out of range",
