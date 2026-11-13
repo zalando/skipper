@@ -851,6 +851,15 @@ type Options struct {
 	// addition to the counters for all routes.
 	HedgeRouteCounters bool
 
+	// HedgePercentile is the percentile of the observed response header
+	// latency of a route that is used as the hedge delay once the route has
+	// enough samples. HedgeFixedDelay is used before that. Zero uses only
+	// HedgeFixedDelay. It must be zero or in [0.5, 1).
+	HedgePercentile float64
+
+	// HedgeMinDelay is the lower limit of the adaptive hedge delay.
+	HedgeMinDelay time.Duration
+
 	// TLSMinVersion to set the minimal TLS version for all TLS configurations
 	TLSMinVersion uint16
 
@@ -1943,6 +1952,12 @@ func (o Options) hedgeParams() (*proxy.HedgeParams, error) {
 	if o.HedgeFixedDelay <= 0 {
 		return nil, errors.New("hedge: HedgeFixedDelay must be greater than zero if HedgeEnabled is set")
 	}
+	if o.HedgePercentile != 0 && (o.HedgePercentile < 0.5 || o.HedgePercentile >= 1) {
+		return nil, errors.New("hedge: HedgePercentile must be zero or at least 0.5 and less than 1")
+	}
+	if o.HedgeMinDelay < 0 {
+		return nil, errors.New("hedge: HedgeMinDelay must not be negative")
+	}
 	if slices.Contains(o.DisabledFilters, filters.DisableHedgeName) {
 		return nil, fmt.Errorf("hedge: the %s filter cannot be disabled if HedgeEnabled is set, it excludes tee and shadow traffic from hedged requests", filters.DisableHedgeName)
 	}
@@ -1950,6 +1965,8 @@ func (o Options) hedgeParams() (*proxy.HedgeParams, error) {
 		FixedDelay:    o.HedgeFixedDelay,
 		BudgetPercent: o.HedgeBudgetPercent,
 		RouteCounters: o.HedgeRouteCounters,
+		Percentile:    o.HedgePercentile,
+		MinDelay:      o.HedgeMinDelay,
 	}, nil
 }
 

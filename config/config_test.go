@@ -186,6 +186,8 @@ func defaultConfig(with func(*Config)) *Config {
 		ValidateQuery:                           true,
 		ValidateQueryLog:                        true,
 		HedgeBudgetPercent:                      proxy.DefaultHedgeBudgetPercent,
+		HedgePercentile:                         proxy.DefaultHedgePercentile,
+		HedgeMinDelay:                           proxy.DefaultHedgeMinDelay,
 		LetsencryptDomains:                      commaListFlag(),
 		LetsencryptCache:                        net.DefaultLetsencryptCache,
 		LetsencryptCacheDir:                     net.DefaultLetsencryptCacheDirectory,
@@ -372,6 +374,48 @@ func Test_Validate(t *testing.T) {
 				c.HedgeEnabled = true
 				c.HedgeFixedDelay = 50 * time.Millisecond
 			},
+		},
+		{
+			name: "hedge percentile below the limit",
+			change: func(c *Config) {
+				c.HedgeEnabled = true
+				c.HedgeFixedDelay = 50 * time.Millisecond
+				c.HedgeBudgetPercent = 5
+				c.HedgePercentile = 0.3
+			},
+			wantErr: true,
+			want:    errors.New("hedge-percentile must be zero or at least 0.5 and less than 1"),
+		},
+		{
+			name: "hedge percentile of one",
+			change: func(c *Config) {
+				c.HedgeEnabled = true
+				c.HedgeFixedDelay = 50 * time.Millisecond
+				c.HedgeBudgetPercent = 5
+				c.HedgePercentile = 1
+			},
+			wantErr: true,
+			want:    errors.New("hedge-percentile must be zero or at least 0.5 and less than 1"),
+		},
+		{
+			name: "hedge percentile zero means fixed delay only",
+			change: func(c *Config) {
+				c.HedgeEnabled = true
+				c.HedgeFixedDelay = 50 * time.Millisecond
+				c.HedgeBudgetPercent = 5
+				c.HedgePercentile = 0
+			},
+		},
+		{
+			name: "hedge negative minimum delay",
+			change: func(c *Config) {
+				c.HedgeEnabled = true
+				c.HedgeFixedDelay = 50 * time.Millisecond
+				c.HedgeBudgetPercent = 5
+				c.HedgeMinDelay = -time.Millisecond
+			},
+			wantErr: true,
+			want:    errors.New("hedge-min-delay must not be negative"),
 		},
 		{
 			name: "hedge budget out of range",
@@ -929,15 +973,27 @@ func TestHedgeFlags(t *testing.T) {
 	}{{
 		name: "default is disabled",
 		args: []string{"skipper"},
-		want: skipper.Options{HedgeBudgetPercent: proxy.DefaultHedgeBudgetPercent},
+		want: skipper.Options{HedgeBudgetPercent: proxy.DefaultHedgeBudgetPercent, HedgePercentile: proxy.DefaultHedgePercentile, HedgeMinDelay: proxy.DefaultHedgeMinDelay},
 	}, {
 		name: "enabled",
 		args: []string{"skipper", "-hedge-enabled", "-hedge-fixed-delay=50ms", "-hedge-budget-percent=7.5"},
-		want: skipper.Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: 7.5},
+		want: skipper.Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: 7.5, HedgePercentile: proxy.DefaultHedgePercentile, HedgeMinDelay: proxy.DefaultHedgeMinDelay},
 	}, {
 		name: "route counters",
 		args: []string{"skipper", "-hedge-enabled", "-hedge-fixed-delay=50ms", "-hedge-route-counters"},
-		want: skipper.Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: proxy.DefaultHedgeBudgetPercent, HedgeRouteCounters: true},
+		want: skipper.Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: proxy.DefaultHedgeBudgetPercent, HedgeRouteCounters: true, HedgePercentile: proxy.DefaultHedgePercentile, HedgeMinDelay: proxy.DefaultHedgeMinDelay},
+	}, {
+		name: "adaptive delay",
+		args: []string{"skipper", "-hedge-enabled", "-hedge-fixed-delay=50ms", "-hedge-percentile=0.95", "-hedge-min-delay=20ms"},
+		want: skipper.Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: proxy.DefaultHedgeBudgetPercent, HedgePercentile: 0.95, HedgeMinDelay: 20 * time.Millisecond},
+	}, {
+		name: "adaptive delay switched off",
+		args: []string{"skipper", "-hedge-enabled", "-hedge-fixed-delay=50ms", "-hedge-percentile=0"},
+		want: skipper.Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: proxy.DefaultHedgeBudgetPercent, HedgeMinDelay: proxy.DefaultHedgeMinDelay},
+	}, {
+		name:    "percentile out of range",
+		args:    []string{"skipper", "-hedge-enabled", "-hedge-fixed-delay=50ms", "-hedge-percentile=1.2"},
+		wantErr: true,
 	}, {
 		name:    "enabled without delay",
 		args:    []string{"skipper", "-hedge-enabled"},
@@ -961,7 +1017,9 @@ func TestHedgeFlags(t *testing.T) {
 			if o.HedgeEnabled != tt.want.HedgeEnabled ||
 				o.HedgeFixedDelay != tt.want.HedgeFixedDelay ||
 				o.HedgeBudgetPercent != tt.want.HedgeBudgetPercent ||
-				o.HedgeRouteCounters != tt.want.HedgeRouteCounters {
+				o.HedgeRouteCounters != tt.want.HedgeRouteCounters ||
+				o.HedgePercentile != tt.want.HedgePercentile ||
+				o.HedgeMinDelay != tt.want.HedgeMinDelay {
 				t.Fatalf("got enabled=%v delay=%v budget=%v, want %+v",
 					o.HedgeEnabled, o.HedgeFixedDelay, o.HedgeBudgetPercent, tt.want)
 			}

@@ -50,6 +50,8 @@ type Config struct {
 	HedgeFixedDelay                       time.Duration  `yaml:"hedge-fixed-delay"`
 	HedgeBudgetPercent                    float64        `yaml:"hedge-budget-percent"`
 	HedgeRouteCounters                    bool           `yaml:"hedge-route-counters"`
+	HedgePercentile                       float64        `yaml:"hedge-percentile"`
+	HedgeMinDelay                         time.Duration  `yaml:"hedge-min-delay"`
 	ProxyPreserveHost                     bool           `yaml:"proxy-preserve-host"`
 	ProxyPreserveOriginal                 bool           `yaml:"proxy-preserve-original"`
 	DevMode                               bool           `yaml:"dev-mode"`
@@ -474,6 +476,8 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.HedgeFixedDelay, "hedge-fixed-delay", 0, "time to wait for the response headers before a hedge request is sent to a different endpoint; required if -hedge-enabled is set")
 	flag.Float64Var(&cfg.HedgeBudgetPercent, "hedge-budget-percent", proxy.DefaultHedgeBudgetPercent, "maximum rate of hedge requests as a percentage of the observed request rate of a route")
 	flag.BoolVar(&cfg.HedgeRouteCounters, "hedge-route-counters", false, "enables the hedge counters for each route, in addition to the counters for all routes; every route ID adds a Prometheus series")
+	flag.Float64Var(&cfg.HedgePercentile, "hedge-percentile", proxy.DefaultHedgePercentile, "percentile of the observed response header latency of a route that is used as the hedge delay once the route has enough samples; -hedge-fixed-delay is used before that; 0 uses only -hedge-fixed-delay")
+	flag.DurationVar(&cfg.HedgeMinDelay, "hedge-min-delay", proxy.DefaultHedgeMinDelay, "lower limit of the adaptive hedge delay; does not apply to -hedge-fixed-delay")
 	flag.BoolVar(&cfg.ProxyPreserveHost, "proxy-preserve-host", false, "flag indicating to preserve the incoming request 'Host' header in the outgoing requests")
 	flag.BoolVar(&cfg.ProxyPreserveOriginal, "proxy-preserve-original", false, "flag indicating to preserve the original, pre-filter-chain request and response metadata, accessible to filters via ctx.OriginalRequest()/ctx.OriginalResponse(); required by any filter that needs the request as it was before path or header modifying filters ran; adds a per-request metadata clone")
 	flag.BoolVar(&cfg.DevMode, "dev-mode", false, "enables developer time behavior, like unbuffered routing updates")
@@ -840,6 +844,12 @@ func validate(c *Config) error {
 		}
 		if c.HedgeBudgetPercent <= 0 || c.HedgeBudgetPercent > 100 {
 			return errors.New("hedge-budget-percent must be greater than zero and not greater than 100")
+		}
+		if c.HedgePercentile != 0 && (c.HedgePercentile < 0.5 || c.HedgePercentile >= 1) {
+			return errors.New("hedge-percentile must be zero or at least 0.5 and less than 1")
+		}
+		if c.HedgeMinDelay < 0 {
+			return errors.New("hedge-min-delay must not be negative")
 		}
 	}
 	_, err = kubernetes.ParsePathMode(c.KubernetesPathModeString)
@@ -1265,6 +1275,8 @@ func (c *Config) ToOptions() skipper.Options {
 		HedgeFixedDelay:              c.HedgeFixedDelay,
 		HedgeBudgetPercent:           c.HedgeBudgetPercent,
 		HedgeRouteCounters:           c.HedgeRouteCounters,
+		HedgePercentile:              c.HedgePercentile,
+		HedgeMinDelay:                c.HedgeMinDelay,
 
 		// swarm:
 		EnableSwarm: c.EnableSwarm,

@@ -960,6 +960,10 @@ func WithParams(p Params) *Proxy {
 	case p.Hedge == nil:
 	case p.Hedge.FixedDelay <= 0:
 		log.Errorf("Hedged requests are disabled, the hedge delay must be greater than zero, got: %v", p.Hedge.FixedDelay)
+	case p.Hedge.Percentile != 0 && (p.Hedge.Percentile < hedgeMinPercentile || p.Hedge.Percentile >= 1):
+		log.Errorf("Hedged requests are disabled, the hedge percentile must be zero or in [%v, 1), got: %v", hedgeMinPercentile, p.Hedge.Percentile)
+	case p.Hedge.MinDelay < 0:
+		log.Errorf("Hedged requests are disabled, the minimum hedge delay must not be negative, got: %v", p.Hedge.MinDelay)
 	default:
 		hedgeState = newHedger(p.Hedge, quit)
 	}

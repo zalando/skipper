@@ -19,6 +19,13 @@ const (
 	// percentage of the observed request rate of a route.
 	DefaultHedgeBudgetPercent = 5.0
 
+	// DefaultHedgePercentile is the default percentile of the observed latency
+	// that is used as the adaptive hedge delay.
+	DefaultHedgePercentile = 0.9
+
+	// DefaultHedgeMinDelay is the default lower limit of the adaptive hedge delay.
+	DefaultHedgeMinDelay = 10 * time.Millisecond
+
 	hedgeBurst            = 10
 	hedgeColdStartMinReqs = 100
 	hedgeFastTau          = 10 * time.Second
@@ -30,6 +37,8 @@ const (
 	hedgeMinBaselineRPS   = 1.0
 	hedgeIdleTTL          = 5 * time.Minute
 	hedgeSweepInterval    = time.Minute
+	hedgeLatencyShift     = 2.0
+	hedgeMinPercentile    = 0.5
 )
 
 // HedgeParams configures hedged requests. A nil *HedgeParams in Params
@@ -48,12 +57,24 @@ type HedgeParams struct {
 	// the counters for all routes. Every route ID adds a Prometheus series
 	// that is never removed.
 	RouteCounters bool
+
+	// Percentile enables the adaptive delay if it is greater than zero: once a
+	// route has enough samples, the delay is this percentile of the observed
+	// response header latency of the route, and FixedDelay is used before
+	// that. It must be zero or in [0.5, 1). Zero uses FixedDelay only.
+	Percentile float64
+
+	// MinDelay is the lower limit of the adaptive delay. It does not apply
+	// to FixedDelay.
+	MinDelay time.Duration
 }
 
 type hedger struct {
 	delay         time.Duration
 	budgetPercent float64
 	routeCounters bool
+	percentile    float64
+	minDelay      time.Duration
 
 	mu     sync.RWMutex
 	routes map[string]*routeHedge
@@ -64,6 +85,8 @@ func newHedger(p *HedgeParams, quit <-chan struct{}) *hedger {
 		delay:         p.FixedDelay,
 		budgetPercent: p.BudgetPercent,
 		routeCounters: p.RouteCounters,
+		percentile:    p.Percentile,
+		minDelay:      p.MinDelay,
 		routes:        make(map[string]*routeHedge),
 	}
 	if h.budgetPercent <= 0 {
@@ -84,9 +107,19 @@ func (h *hedger) route(id string) *routeHedge {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if r = h.routes[id]; r == nil {
-		r = &routeHedge{tokens: hedgeBurst, lastSeen: time.Now()}
+		q := h.percentile
+		if q <= 0 {
+			q = 0.9
+		}
+		r = &routeHedge{tokens: hedgeBurst, lastSeen: time.Now(), lat: newLatencyEstimator(q)}
 		h.routes[id] = r
 	}
+	return r
+}
+
+func (h *hedger) forRoute(rt *routing.Route) *routeHedge {
+	r := h.route(rt.Id)
+	r.sync(rt)
 	return r
 }
 
@@ -128,6 +161,9 @@ type routeHedge struct {
 	mu       sync.Mutex
 	seen     int64
 	lastSeen time.Time
+	route    *routing.Route
+	def      string
+	lat      *latencyEstimator
 
 	tokens     float64
 	lastRefill time.Time
@@ -138,6 +174,36 @@ type routeHedge struct {
 	fast    float64
 	slow    float64
 	window  [hedgeWindowSeconds]hedgeWindowBucket
+}
+
+func routeDefinition(rt *routing.Route) string {
+	d := rt.Route
+	d.LBEndpoints = nil
+	return d.String()
+}
+
+func (r *routeHedge) sync(rt *routing.Route) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.route == rt {
+		return
+	}
+	r.route = rt
+
+	def := routeDefinition(rt)
+	if r.def != "" && r.def != def {
+		r.seen = 0
+		r.tokens = hedgeBurst
+		r.lastRefill = time.Time{}
+		r.sec, r.ticks, r.curReqs = 0, 0, 0
+		r.fast, r.slow = 0, 0
+		r.window = [hedgeWindowSeconds]hedgeWindowBucket{}
+		if r.lat != nil {
+			r.lat.reset()
+		}
+	}
+	r.def = def
 }
 
 func ewmaAlpha(tau time.Duration, ticks int64) float64 {
@@ -215,6 +281,31 @@ func (r *routeHedge) throttled() bool {
 	return r.slow >= hedgeMinBaselineRPS && r.fast > hedgeMaxSurgeRatio*r.slow
 }
 
+func (r *routeHedge) latencyShifted(now time.Time) bool {
+	if r.lat == nil {
+		return false
+	}
+	cur, prev, ok := r.lat.medianShift(now)
+	return ok && float64(cur) > hedgeLatencyShift*float64(prev)
+}
+
+func (r *routeHedge) record(now time.Time, d time.Duration) {
+	if r.lat != nil {
+		r.lat.add(now, d)
+	}
+}
+
+func (h *hedger) delayFor(r *routeHedge, now time.Time) time.Duration {
+	if h.percentile <= 0 || r.lat == nil {
+		return h.delay
+	}
+	d, _ := r.lat.percentile(now)
+	if d <= 0 {
+		return h.delay
+	}
+	return max(d, h.minDelay)
+}
+
 func (r *routeHedge) refill(now time.Time, percent float64) {
 	if !r.lastRefill.IsZero() {
 		dt := now.Sub(r.lastRefill).Seconds()
@@ -234,7 +325,7 @@ func (r *routeHedge) acquire(now time.Time, percent float64) hedgeDecision {
 	if r.seen < hedgeColdStartMinReqs {
 		return hedgeColdStart
 	}
-	if r.throttled() {
+	if r.throttled() || r.latencyShifted(now) {
 		return hedgeThrottled
 	}
 
@@ -365,13 +456,19 @@ func (p *Proxy) roundTrip(ctx *context, rt http.RoundTripper, req, preTrace *htt
 
 func (p *Proxy) hedgedRoundTrip(ctx *context, rt http.RoundTripper, req, preTrace *http.Request) (*http.Response, error) {
 	h := p.hedger
-	state := h.route(ctx.route.Id)
-	state.arrive(time.Now())
+	state := h.forRoute(ctx.route)
+	start := time.Now()
+	state.arrive(start)
+	delay := h.delayFor(state, start)
 
-	if dl, ok := req.Context().Deadline(); ok && time.Until(dl) <= h.delay {
+	if dl, ok := req.Context().Deadline(); ok && time.Until(dl) <= delay {
 		p.hedgeCount(ctx, "skipped_deadline")
 		resp, err := rt.RoundTrip(req)
-		state.observe(time.Now(), backendFailed(req, resp, err))
+		now := time.Now()
+		state.observe(now, backendFailed(req, resp, err))
+		if err == nil && resp.StatusCode < http.StatusInternalServerError {
+			state.record(now, now.Sub(start))
+		}
 		return resp, err
 	}
 
@@ -383,7 +480,7 @@ func (p *Proxy) hedgedRoundTrip(ctx *context, rt http.RoundTripper, req, preTrac
 		ch <- primary
 	}()
 
-	timer := time.NewTimer(h.delay)
+	timer := time.NewTimer(delay)
 	defer timer.Stop()
 
 	var winner *hedgeAttempt
@@ -393,7 +490,11 @@ func (p *Proxy) hedgedRoundTrip(ctx *context, rt http.RoundTripper, req, preTrac
 		winner, ctx.hedgePrimary = p.hedge(ctx, rt, preTrace, req.URL.Host, state, primary, ch)
 	}
 
-	state.observe(time.Now(), backendFailed(req, winner.resp, winner.err))
+	now := time.Now()
+	state.observe(now, backendFailed(req, winner.resp, winner.err))
+	if winner.err == nil && winner.resp.StatusCode < http.StatusInternalServerError {
+		state.record(now, now.Sub(start))
+	}
 	if winner.hedge {
 		ctx.backendZone = winner.ep.Zone
 	}

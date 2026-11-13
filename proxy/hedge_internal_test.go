@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -999,6 +1000,7 @@ func TestHedgeThrottleCountsAndSkipsTheHedge(t *testing.T) {
 			defer r.mu.Unlock()
 			r.seen = 10_000
 			r.sec = now.Unix()
+			r.ticks = 1000
 			r.slow = 10
 			r.fast = 100
 			r.tokens = hedgeBurst
@@ -1022,6 +1024,7 @@ func TestHedgeThrottleCountsAndSkipsTheHedge(t *testing.T) {
 			defer r.mu.Unlock()
 			r.seen = 10_000
 			r.sec = now.Unix()
+			r.ticks = 1000
 			r.slow = 10
 			r.fast = 10
 			r.tokens = hedgeBurst
@@ -1373,6 +1376,353 @@ func BenchmarkMakeBackendRequest(b *testing.B) {
 				io.Copy(io.Discard, rsp.Body)
 				rsp.Body.Close()
 			}
+		})
+	}
+}
+
+func routeFor(tb testing.TB, doc string) *routing.Route {
+	tb.Helper()
+
+	def := eskip.MustParse(doc)[0]
+	r := &routing.Route{Route: *def}
+	return loadbalancer.NewAlgorithmProvider().Do([]*routing.Route{r})[0]
+}
+
+func TestRouteHedgeStateResetOnDefinitionChange(t *testing.T) {
+	const base = `r: Path("/a") -> setRequestHeader("X", "1") -> <roundRobin, "http://a.example.org", "http://b.example.org">;`
+
+	for _, tc := range []struct {
+		name      string
+		next      string
+		wantReset bool
+	}{
+		{name: "same definition, new route object", next: base},
+		{
+			name: "endpoints added and removed",
+			next: `r: Path("/a") -> setRequestHeader("X", "1") -> <roundRobin, "http://a.example.org", "http://c.example.org", "http://d.example.org">;`,
+		},
+		{
+			name:      "filter argument changed",
+			next:      `r: Path("/a") -> setRequestHeader("X", "2") -> <roundRobin, "http://a.example.org", "http://b.example.org">;`,
+			wantReset: true,
+		},
+		{
+			name:      "algorithm changed",
+			next:      `r: Path("/a") -> setRequestHeader("X", "1") -> <random, "http://a.example.org", "http://b.example.org">;`,
+			wantReset: true,
+		},
+		{
+			name:      "predicate changed",
+			next:      `r: Path("/b") -> setRequestHeader("X", "1") -> <roundRobin, "http://a.example.org", "http://b.example.org">;`,
+			wantReset: true,
+		},
+		{
+			name:      "backend replaced by a network backend",
+			next:      `r: Path("/a") -> setRequestHeader("X", "1") -> "http://a.example.org";`,
+			wantReset: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			quit := make(chan struct{})
+			defer close(quit)
+			h := newHedger(&HedgeParams{FixedDelay: time.Second}, quit)
+
+			first := routeFor(t, base)
+			state := h.forRoute(first)
+			now := feed(state, hedgeEpoch, 30, 50, 10)
+			if state.seen == 0 || errorsInWindow(state) == 0 {
+				t.Fatal("test setup did not produce state")
+			}
+
+			again := h.forRoute(routeFor(t, tc.next))
+			if again != state {
+				t.Fatal("a different state object was returned for the same route ID")
+			}
+
+			state.mu.Lock()
+			seen, fast, tokens := state.seen, state.fast, state.tokens
+			state.mu.Unlock()
+			errs := errorsInWindow(state)
+			_ = now
+
+			if tc.wantReset {
+				if seen != 0 || fast != 0 || errs != 0 || tokens != hedgeBurst {
+					t.Fatalf("state not reset: seen=%d fast=%v errs=%d tokens=%v", seen, fast, errs, tokens)
+				}
+			} else if seen == 0 || fast == 0 || errs == 0 {
+				t.Fatalf("state was reset although the definition did not change: seen=%d fast=%v errs=%d", seen, fast, errs)
+			}
+		})
+	}
+}
+
+func TestRouteHedgeStateKeptForTheSameRouteObject(t *testing.T) {
+	quit := make(chan struct{})
+	defer close(quit)
+	h := newHedger(&HedgeParams{FixedDelay: time.Second}, quit)
+
+	rt := routeFor(t, `r: * -> <roundRobin, "http://a.example.org", "http://b.example.org">;`)
+	state := h.forRoute(rt)
+	feed(state, hedgeEpoch, 5, 50, 0)
+
+	for range 100 {
+		h.forRoute(rt)
+	}
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.seen == 0 {
+		t.Fatal("state was reset for an unchanged route object")
+	}
+}
+
+func TestRouteHedgeStateResetIsRaceFree(t *testing.T) {
+	quit := make(chan struct{})
+	defer close(quit)
+	h := newHedger(&HedgeParams{FixedDelay: time.Second}, quit)
+
+	docs := []string{
+		`r: * -> setRequestHeader("X", "1") -> <roundRobin, "http://a.example.org", "http://b.example.org">;`,
+		`r: * -> setRequestHeader("X", "2") -> <roundRobin, "http://a.example.org", "http://b.example.org">;`,
+	}
+	routes := []*routing.Route{routeFor(t, docs[0]), routeFor(t, docs[1])}
+
+	var wg sync.WaitGroup
+	for i := range 8 {
+		wg.Go(func() {
+			for j := range 500 {
+				s := h.forRoute(routes[(i+j)%2])
+				s.arrive(time.Now())
+				s.observe(time.Now(), j%7 == 0)
+				s.acquire(time.Now(), 5)
+			}
+		})
+	}
+	wg.Wait()
+}
+
+func TestHedgerDelayFor(t *testing.T) {
+	now := time.Unix(1_700_000_010, 0)
+
+	for _, tc := range []struct {
+		name    string
+		params  HedgeParams
+		samples int
+		latency time.Duration
+		check   func(t *testing.T, d time.Duration)
+	}{{
+		name:   "fixed only",
+		params: HedgeParams{FixedDelay: 80 * time.Millisecond},
+		check: func(t *testing.T, d time.Duration) {
+			if d != 80*time.Millisecond {
+				t.Fatalf("delay %v", d)
+			}
+		},
+	}, {
+		name:    "fixed only ignores samples",
+		params:  HedgeParams{FixedDelay: 80 * time.Millisecond},
+		samples: 1000,
+		latency: 5 * time.Millisecond,
+		check: func(t *testing.T, d time.Duration) {
+			if d != 80*time.Millisecond {
+				t.Fatalf("delay %v", d)
+			}
+		},
+	}, {
+		name:    "adaptive before warm-up uses the fixed delay",
+		params:  HedgeParams{FixedDelay: 80 * time.Millisecond, Percentile: 0.9},
+		samples: latencyWarmupSample - 1,
+		latency: 5 * time.Millisecond,
+		check: func(t *testing.T, d time.Duration) {
+			if d != 80*time.Millisecond {
+				t.Fatalf("delay %v", d)
+			}
+		},
+	}, {
+		name:    "adaptive after warm-up follows the percentile",
+		params:  HedgeParams{FixedDelay: 80 * time.Millisecond, Percentile: 0.9},
+		samples: 500,
+		latency: 5 * time.Millisecond,
+		check: func(t *testing.T, d time.Duration) {
+			if d < 5*time.Millisecond || d > 6*time.Millisecond {
+				t.Fatalf("delay %v, want about 5ms", d)
+			}
+		},
+	}, {
+		name:    "adaptive follows a slow backend",
+		params:  HedgeParams{FixedDelay: 80 * time.Millisecond, Percentile: 0.9},
+		samples: 500,
+		latency: 400 * time.Millisecond,
+		check: func(t *testing.T, d time.Duration) {
+			if d < 400*time.Millisecond || d > 460*time.Millisecond {
+				t.Fatalf("delay %v, want about 400ms", d)
+			}
+		},
+	}, {
+		name:    "minimum delay is a floor",
+		params:  HedgeParams{FixedDelay: 80 * time.Millisecond, Percentile: 0.9, MinDelay: 20 * time.Millisecond},
+		samples: 500,
+		latency: time.Millisecond,
+		check: func(t *testing.T, d time.Duration) {
+			if d != 20*time.Millisecond {
+				t.Fatalf("delay %v, want the 20ms floor", d)
+			}
+		},
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			quit := make(chan struct{})
+			defer close(quit)
+			h := newHedger(&tc.params, quit)
+			r := h.route("r")
+			for range tc.samples {
+				r.record(now, tc.latency)
+			}
+			tc.check(t, h.delayFor(r, now))
+		})
+	}
+}
+
+func TestHedgeLatencyThrottle(t *testing.T) {
+	t0 := time.Unix(1_700_000_010, 0)
+
+	for _, tc := range []struct {
+		name string
+		prev time.Duration
+		cur  time.Duration
+		want hedgeDecision
+	}{
+		{name: "latency doubled and more", prev: 10 * time.Millisecond, cur: 60 * time.Millisecond, want: hedgeThrottled},
+		{name: "latency about the same", prev: 10 * time.Millisecond, cur: 11 * time.Millisecond, want: hedgeAllowed},
+		{name: "latency dropped", prev: 60 * time.Millisecond, cur: 10 * time.Millisecond, want: hedgeAllowed},
+		{name: "latency up by half", prev: 10 * time.Millisecond, cur: 15 * time.Millisecond, want: hedgeAllowed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &routeHedge{tokens: hedgeBurst, lat: newLatencyEstimator(0.9)}
+			now := feed(r, t0, 60, 20, 0)
+			for range 200 {
+				r.lat.add(now.Add(-latencyWindow), tc.prev)
+				r.lat.add(now, tc.cur)
+			}
+			if got := r.acquire(now, DefaultHedgeBudgetPercent); got != tc.want {
+				t.Fatalf("got decision %d, want %d", got, tc.want)
+			}
+		})
+	}
+
+	t.Run("not enough samples in a window", func(t *testing.T) {
+		r := &routeHedge{tokens: hedgeBurst, lat: newLatencyEstimator(0.9)}
+		now := feed(r, t0, 60, 20, 0)
+		for range 200 {
+			r.lat.add(now.Add(-latencyWindow), 10*time.Millisecond)
+		}
+		for range 3 {
+			r.lat.add(now, 500*time.Millisecond)
+		}
+		if got := r.acquire(now, DefaultHedgeBudgetPercent); got != hedgeAllowed {
+			t.Fatalf("got decision %d, want allowed", got)
+		}
+	})
+}
+
+func TestHedgeRecordsLatencyOfReturnedResponses(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		rt   func(*http.Request) (*http.Response, error)
+		want int64
+	}{
+		{name: "200", rt: func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
+		}, want: 1},
+		{name: "404", rt: func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 404, Body: http.NoBody}, nil
+		}, want: 1},
+		{name: "503 is not a latency sample", rt: func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 503, Body: http.NoBody}, nil
+		}},
+		{name: "error is not a latency sample", rt: func(*http.Request) (*http.Response, error) {
+			return nil, http.ErrHandlerTimeout
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newTestHedgeProxy(t, time.Hour)
+			p.hedger.percentile = 0.9
+			ctx, req := newTestHedgeContext(http.MethodGet, lbRoute, nil)
+
+			rsp, _ := p.hedgedRoundTrip(ctx, roundTripperFunc(tc.rt), req, req)
+			if rsp != nil {
+				rsp.Body.Close()
+			}
+
+			r := p.hedger.route(lbRoute.Id)
+			var n int64
+			for i := range r.lat.win {
+				n += r.lat.win[i].total.Load()
+			}
+			if n != tc.want {
+				t.Fatalf("recorded %d samples, want %d", n, tc.want)
+			}
+		})
+	}
+}
+
+func TestHedgeAdaptiveParamsAreValidated(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		p    HedgeParams
+		off  bool
+	}{
+		{name: "fixed delay only", p: HedgeParams{FixedDelay: time.Second}},
+		{name: "adaptive", p: HedgeParams{FixedDelay: time.Second, Percentile: 0.9, MinDelay: time.Millisecond}},
+		{name: "percentile at the lower limit", p: HedgeParams{FixedDelay: time.Second, Percentile: 0.5}},
+		{name: "percentile below 0.5", p: HedgeParams{FixedDelay: time.Second, Percentile: 0.4}, off: true},
+		{name: "percentile of 1", p: HedgeParams{FixedDelay: time.Second, Percentile: 1}, off: true},
+		{name: "negative percentile", p: HedgeParams{FixedDelay: time.Second, Percentile: -0.1}, off: true},
+		{name: "negative minimum delay", p: HedgeParams{FixedDelay: time.Second, Percentile: 0.9, MinDelay: -time.Millisecond}, off: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pr := WithParams(Params{Hedge: &tc.p, CloseIdleConnsPeriod: -time.Second})
+			defer pr.Close()
+			if got := pr.hedger == nil; got != tc.off {
+				t.Fatalf("hedging disabled=%v, want %v", got, tc.off)
+			}
+		})
+	}
+}
+
+func BenchmarkHedgedRoundTripAdaptive(b *testing.B) {
+	for _, bm := range []struct {
+		name       string
+		percentile float64
+	}{
+		{"fixed delay", 0},
+		{"adaptive delay", 0.9},
+	} {
+		b.Run(bm.name, func(b *testing.B) {
+			p := newTestHedgeProxy(b, time.Hour)
+			p.metrics = metrics.Void
+			p.hedger.percentile = bm.percentile
+			p.hedger.minDelay = time.Hour
+			ctx, req := newTestHedgeContext(http.MethodGet, lbRoute, nil)
+			rt := okRoundTripper()
+
+			if bm.percentile > 0 {
+				r := p.hedger.route(lbRoute.Id)
+				for range 1000 {
+					r.record(time.Now(), 5*time.Millisecond)
+				}
+			}
+
+			b.ReportAllocs()
+			b.RunParallel(func(pb *testing.PB) {
+				c, rq := ctx, req
+				for pb.Next() {
+					rsp, err := p.hedgedRoundTrip(c, rt, rq, rq)
+					if err != nil {
+						b.Error(err)
+						return
+					}
+					rsp.Body.Close()
+				}
+			})
 		})
 	}
 }

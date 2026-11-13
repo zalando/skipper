@@ -1568,6 +1568,28 @@ Hedging is disabled by default. To enable it, set both options:
 - `-hedge-fixed-delay=<duration>`, for example `50ms`. It is required, because no
   delay is right for every service. Skipper does not start without it.
 
+### The hedge delay
+
+The delay is the time to wait for the response headers before a hedge request is sent.
+By default it follows the latency that Skipper observes for each route:
+
+- `-hedge-percentile` (default `0.9`): the delay is this percentile of the response
+  header latency of the route. Use `0` to always use `-hedge-fixed-delay`. The value
+  must be `0` or at least `0.5` and less than `1`.
+- `-hedge-min-delay` (default `10ms`): the adaptive delay is never shorter than this.
+- `-hedge-fixed-delay` is used until the route has 100 samples in the last 30 to 60
+  seconds, and again if the samples run out, for example on an idle route.
+
+Latency is measured per route, from the start of the request to the response headers
+of the response that is returned to the client. Responses with a `5xx` status and
+requests that end with an error are not measured. Because the winner is measured, the
+measured latency includes the effect of hedging: a hedge request that wins makes the
+route look faster, which makes the delay shorter. The minimum delay, the budget and the
+throttles below limit this.
+
+The state of a route, including its latency samples, is reset when the route
+definition changes. Changes to the endpoints of a load balanced route do not reset it.
+
 The `disableHedge` filter must not be disabled with `-disabled-filters` while hedging
 is enabled, because Skipper adds it to routes with tee and shadow traffic. Skipper does
 not start in this case.
@@ -1607,13 +1629,17 @@ Hedge requests add load to the backend. Skipper limits them per route:
 - **Error rate:** hedging stops for a route if more than 10% of its requests in the
   last 10 seconds failed with an error or a `5xx` status. The ratio is only used if the
   route had at least 20 requests in these 10 seconds.
+- **Latency:** hedging stops for a route if the median response header latency of the
+  current 30 second window is more than twice the median of the previous one, because
+  a backend that gets slower as a whole is not helped by more requests. Both windows
+  need at least 20 samples. Hedging resumes when the latency falls back.
 - **Surge:** hedging stops for a route if its request rate, averaged over about 10
   seconds, is more than 1.5 times its average over about 5 minutes. The surge is only
   checked if the 5 minute average is at least 1 request per second.
 
 These limits are fixed. The state is kept per route ID in memory, survives routing
-table updates, and is removed once the route was idle for five minutes. Idle state is
-removed by a check that runs every minute.
+table updates that do not change the route definition, and is removed once the route
+was idle for five minutes. Idle state is removed by a check that runs every minute.
 
 ### Known limitations
 

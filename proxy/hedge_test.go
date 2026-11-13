@@ -941,3 +941,69 @@ func TestHedgeAfterLoopbackWithoutShadowHeader(t *testing.T) {
 		t.Fatal("a route reached through <loopback> is never hedged, so the previous test proves nothing")
 	}
 }
+
+func newLatencyBackend(name string, d, stall time.Duration) *hedgeBackend {
+	b := &hedgeBackend{}
+	b.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b.hits.Add(1)
+		wait := d
+		if r.URL.Path == "/stall" && stall > 0 {
+			wait = stall
+		}
+		select {
+		case <-time.After(wait):
+		case <-r.Context().Done():
+			return
+		}
+		io.WriteString(w, name)
+	}))
+	return b
+}
+
+func TestHedgeAdaptiveDelayFollowsObservedLatency(t *testing.T) {
+	const typical = 60 * time.Millisecond
+	stalling := newLatencyBackend("stalling", typical, 3*time.Second)
+	defer stalling.Close()
+	healthy := newLatencyBackend("healthy", typical, 0)
+	defer healthy.Close()
+
+	s := newHedgeProxy(t, fmt.Sprintf(`r: * -> <roundRobin, "%s", "%s">;`, stalling.URL, healthy.URL),
+		&proxy.HedgeParams{FixedDelay: 5 * time.Second, Percentile: 0.9, MinDelay: 10 * time.Millisecond})
+
+	var wg sync.WaitGroup
+	for range 300 {
+		wg.Go(func() { s.get(t, "/") })
+	}
+	wg.Wait()
+	s.warmUp(t)
+
+	for range 8 {
+		body, code, d := s.get(t, "/stall")
+		if code != http.StatusOK || body != "healthy" {
+			t.Fatalf("got %d %q, want the healthy backend to answer", code, body)
+		}
+		if d > 1500*time.Millisecond {
+			t.Fatalf("a stalled request took %v; the adaptive delay should have hedged long before the 5s fixed delay", d)
+		}
+	}
+	if got := s.counter("r", "fired"); got == 0 {
+		t.Fatal("no hedge was fired")
+	}
+}
+
+func TestHedgeAdaptiveDelayNeedsWarmUp(t *testing.T) {
+	stalling := newLatencyBackend("stalling", 60*time.Millisecond, 400*time.Millisecond)
+	defer stalling.Close()
+	healthy := newLatencyBackend("healthy", 60*time.Millisecond, 0)
+	defer healthy.Close()
+
+	s := newHedgeProxy(t, fmt.Sprintf(`r: * -> <roundRobin, "%s", "%s">;`, stalling.URL, healthy.URL),
+		&proxy.HedgeParams{FixedDelay: 100 * time.Millisecond, Percentile: 0.9})
+
+	for range 6 {
+		s.get(t, "/stall")
+	}
+	if got := s.counter("r", "fired"); got != 0 {
+		t.Fatalf("fired=%d before the route had enough samples; the cold start must not hedge", got)
+	}
+}
