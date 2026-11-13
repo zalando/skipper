@@ -45,6 +45,7 @@ import (
 	opatracing "github.com/open-policy-agent/opa/v1/tracing"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/zalando/skipper/filters/openpolicyagent/defaults"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -57,17 +58,17 @@ import (
 )
 
 const (
-	DefaultCleanIdlePeriod          = 10 * time.Second
-	DefaultControlLoopInterval      = 60 * time.Second
-	DefaultControlLoopMaxJitter     = 1000 * time.Millisecond
+	DefaultCleanIdlePeriod          = defaults.CleanIdlePeriod
+	DefaultControlLoopInterval      = defaults.ControlLoopInterval
+	DefaultControlLoopMaxJitter     = defaults.ControlLoopMaxJitter
 	defaultReuseDuration            = 30 * time.Second
 	defaultShutdownGracePeriod      = 30 * time.Second
-	DefaultOpaStartupTimeout        = 30 * time.Second
+	DefaultOpaStartupTimeout        = defaults.OpaStartupTimeout
 	DefaultBackgroundTaskBufferSize = 100
 	DefaultDecisionLogTaskTimeout   = 5 * time.Second
-	DefaultMaxRequestBodySize       = 1 << 20 // 1 MB
-	DefaultMaxMemoryBodyParsing     = 100 * DefaultMaxRequestBodySize
-	DefaultRequestBodyBufferSize    = 8 * 1024 // 8 KB
+	DefaultMaxRequestBodySize       = defaults.MaxRequestBodySize
+	DefaultMaxMemoryBodyParsing     = defaults.MaxMemoryBodyParsing
+	DefaultRequestBodyBufferSize    = defaults.RequestBodyBufferSize
 
 	spanNameEval = "open-policy-agent"
 )
