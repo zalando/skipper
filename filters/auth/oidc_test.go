@@ -501,6 +501,32 @@ func TestOidcValidateAnyClaims(t *testing.T) {
 		"claims are valid but filter returned false.")
 }
 
+func TestOidcValidateIssuerAudience(t *testing.T) {
+	f := &tokenOidcFilter{
+		issuer: "https://idp.example.org",
+		config: &oauth2.Config{ClientID: "client-a"},
+	}
+
+	for _, tc := range []struct {
+		name   string
+		claims map[string]any
+		want   bool
+	}{
+		{"matching string audience", map[string]any{"iss": "https://idp.example.org", "aud": "client-a"}, true},
+		{"matching audience in list", map[string]any{"iss": "https://idp.example.org", "aud": []any{"client-b", "client-a"}}, true},
+		{"other issuer", map[string]any{"iss": "https://other.example.org", "aud": "client-a"}, false},
+		{"other audience", map[string]any{"iss": "https://idp.example.org", "aud": "client-b"}, false},
+		{"other audience list", map[string]any{"iss": "https://idp.example.org", "aud": []any{"client-b", 1.0}}, false},
+		{"missing issuer", map[string]any{"aud": "client-a"}, false},
+		{"missing audience", map[string]any{"iss": "https://idp.example.org"}, false},
+		{"no claims", nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, f.validateIssuerAudience(tc.claims))
+		})
+	}
+}
+
 func TestExtractDomainFromHost(t *testing.T) {
 
 	for _, ht := range []struct {
@@ -2014,6 +2040,107 @@ func TestOIDCLoginCSRF(t *testing.T) {
 			t.Errorf("victim received unexpected session cookie: %v", c)
 		}
 	}
+}
+
+func TestOIDCSessionCookieFromOtherProvider(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer backend.Close()
+
+	fd, err := os.CreateTemp("", "testSecrets")
+	require.NoError(t, err)
+	fd.Close()
+	defer os.Remove(fd.Name())
+
+	fr := make(filters.Registry)
+	fr.Register(NewOAuthOidcAnyClaimsWithOptions(fd.Name(), secrettest.NewTestRegistry(), OidcOptions{}))
+
+	dc := testdataclient.New(nil)
+	defer dc.Close()
+
+	proxy := proxytest.WithRoutingOptions(fr, routing.Options{DataClients: []routing.DataClient{dc}})
+	defer proxy.Close()
+
+	var routes []*eskip.Route
+	for _, p := range []string{"/a", "/b"} {
+		redirectURL := proxy.URL + p + "/redirect"
+		oidcServer := createOIDCServer(redirectURL, validClient, "mysec", nil, nil)
+		defer oidcServer.Close()
+
+		f, err := parseFilter(
+			`oauthOidcAnyClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "")`,
+			oidcServer.URL, redirectURL)
+		require.NoError(t, err)
+
+		routes = append(routes, &eskip.Route{
+			Id:         strings.TrimPrefix(p, "/"),
+			Predicates: []*eskip.Predicate{{Name: "PathSubtree", Args: []any{p}}},
+			Filters:    f,
+			Backend:    backend.URL,
+		})
+	}
+
+	proxy.Log.Reset()
+	dc.Update(routes, nil)
+	require.NoError(t, proxy.Log.WaitFor("route settings applied", 10*time.Second))
+
+	noRedirects := func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	browser := &http.Client{Timeout: 5 * time.Second, Jar: newInsecureCookieJar(), CheckRedirect: noRedirects}
+
+	cookieName := func(rsp *http.Response) string {
+		for _, c := range rsp.Cookies() {
+			if name, ok := strings.CutSuffix(c.Name, "-state"); ok {
+				return name
+			}
+		}
+		t.Fatalf("no state cookie in %v", rsp.Header)
+		return ""
+	}
+
+	get := func(c *http.Client, u string) *http.Response {
+		rsp, err := c.Get(u)
+		require.NoError(t, err)
+		rsp.Body.Close()
+		return rsp
+	}
+
+	rsp := get(browser, proxy.URL+"/a")
+	require.Equal(t, http.StatusTemporaryRedirect, rsp.StatusCode)
+	cookieA := cookieName(rsp)
+
+	rsp = get(browser, rsp.Header.Get("Location"))
+	rsp = get(browser, rsp.Header.Get("Location"))
+	require.Equal(t, http.StatusTemporaryRedirect, rsp.StatusCode)
+
+	var session []*http.Cookie
+	for _, c := range rsp.Cookies() {
+		if strings.HasPrefix(c.Name, cookieA) && c.MaxAge > 0 {
+			session = append(session, c)
+		}
+	}
+	require.NotEmpty(t, session)
+
+	rsp = get(browser, proxy.URL+"/a")
+	require.Equal(t, http.StatusNoContent, rsp.StatusCode)
+
+	client := &http.Client{Timeout: 5 * time.Second, CheckRedirect: noRedirects}
+	rsp = get(client, proxy.URL+"/b")
+	require.Equal(t, http.StatusTemporaryRedirect, rsp.StatusCode)
+	cookieB := cookieName(rsp)
+	require.NotEqual(t, cookieA, cookieB)
+
+	req, err := http.NewRequest("GET", proxy.URL+"/b", nil)
+	require.NoError(t, err)
+	for _, c := range session {
+		req.AddCookie(&http.Cookie{Name: cookieB + strings.TrimPrefix(c.Name, cookieA), Value: c.Value})
+	}
+	rsp, err = client.Do(req)
+	require.NoError(t, err)
+	rsp.Body.Close()
+
+	assert.Equal(t, http.StatusTemporaryRedirect, rsp.StatusCode, "session cookie issued by another provider was accepted")
+	assert.True(t, strings.HasPrefix(rsp.Header.Get("Location"), routes[1].Filters[0].Args[0].(string)), "expected login redirect to the route's provider, got %q", rsp.Header.Get("Location"))
 }
 
 func TestOidcConstructorsAndInternalServerError(t *testing.T) {
