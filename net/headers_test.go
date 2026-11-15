@@ -69,6 +69,28 @@ func TestForwardedHeaders(t *testing.T) {
 			},
 		},
 		{
+			name:       "append xff with multiple field lines",
+			remoteAddr: "1.2.3.4:56",
+			header: http.Header{
+				"X-Forwarded-For": []string{"4.3.2.1", "5.6.7.8"},
+			},
+			forwarded: ForwardedHeaders{For: true},
+			expected: http.Header{
+				"X-Forwarded-For": []string{"4.3.2.1, 5.6.7.8, 1.2.3.4"},
+			},
+		},
+		{
+			name:       "prepend xff with multiple field lines",
+			remoteAddr: "1.2.3.4:56",
+			header: http.Header{
+				"X-Forwarded-For": []string{"4.3.2.1", "5.6.7.8"},
+			},
+			forwarded: ForwardedHeaders{PrependFor: true},
+			expected: http.Header{
+				"X-Forwarded-For": []string{"1.2.3.4, 4.3.2.1, 5.6.7.8"},
+			},
+		},
+		{
 			name:       "prepend xff",
 			remoteAddr: "1.2.3.4:56",
 			header: http.Header{

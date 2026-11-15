@@ -169,6 +169,25 @@ func TestRemoteHostFromLast(t *testing.T) {
 	}
 }
 
+func TestRemoteFromLastMultipleFieldLines(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		fwdHdr []string
+		want   string
+	}{
+		{"two field lines", []string{"10.1.2.3", "203.0.113.9"}, "203.0.113.9"},
+		{"two field lines with lists", []string{"10.1.2.3, 10.4.5.6", "198.51.100.1, 203.0.113.9"}, "203.0.113.9"},
+		{"invalid last field line", []string{"10.1.2.3", "invalid"}, "127.0.0.1"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &http.Request{RemoteAddr: "127.0.0.1:1234", Header: http.Header{"X-Forwarded-For": tt.fwdHdr}}
+
+			assert.Equal(t, netip.MustParseAddr(tt.want), RemoteAddrFromLast(r))
+			assert.Equal(t, net.ParseIP(tt.want), RemoteHostFromLast(r))
+		})
+	}
+}
+
 func BenchmarkRemoteHostFromLast(b *testing.B) {
 	b.Run("no header", func(b *testing.B) {
 		b.ReportAllocs()

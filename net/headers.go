@@ -3,6 +3,7 @@ package net
 import (
 	"net"
 	"net/http"
+	"strings"
 )
 
 // ForwardedHeaders sets non-standard X-Forwarded-* Headers
@@ -31,7 +32,7 @@ func (h *ForwardedHeaders) Set(req *http.Request) {
 			addr = host
 		}
 
-		v := req.Header.Get("X-Forwarded-For")
+		v := strings.Join(req.Header.Values("X-Forwarded-For"), ", ")
 		if v == "" {
 			v = addr
 		} else if h.PrependFor {

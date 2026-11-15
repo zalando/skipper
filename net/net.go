@@ -68,7 +68,7 @@ func RemoteHost(r *http.Request) net.IP {
 //
 //	X-Forwarded-For: ip-address-1, ip-address-2, client-ip-address
 func RemoteAddrFromLast(r *http.Request) netip.Addr {
-	ffs := r.Header.Get("X-Forwarded-For")
+	ffs := strings.Join(r.Header.Values("X-Forwarded-For"), ",")
 	if ffs == "" {
 		addr, _ := netip.ParseAddr(stripPort(r.RemoteAddr))
 		return addr
@@ -89,7 +89,7 @@ func RemoteAddrFromLast(r *http.Request) netip.Addr {
 
 // RemoteHostFromLast is *deprecated* use RemoteAddrFromLast instead
 func RemoteHostFromLast(r *http.Request) net.IP {
-	ffs := r.Header.Get("X-Forwarded-For")
+	ffs := strings.Join(r.Header.Values("X-Forwarded-For"), ",")
 	ff := ffs
 	if i := strings.LastIndex(ffs, ","); i != -1 {
 		ff = ffs[i+1:]

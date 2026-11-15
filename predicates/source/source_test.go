@@ -209,6 +209,11 @@ func TestMatchingFromLast(t *testing.T) {
 		&http.Request{RemoteAddr: "127.0.0.1", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8, 7.7.7.7, 6.6.6.6"}}},
 		true,
 	}, {
+		"should use last X-Forwarded-For field line for matching",
+		[]any{"10.0.0.0/8"},
+		&http.Request{RemoteAddr: "127.0.0.1", Header: http.Header{"X-Forwarded-For": []string{"10.1.2.3", "203.0.113.9"}}},
+		false,
+	}, {
 		"should work for IPv6",
 		[]any{"C0:FF::EE"},
 		&http.Request{RemoteAddr: "[C0:FF::EE]:4123"},
