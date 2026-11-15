@@ -230,3 +230,30 @@ func TestCreateSpan(t *testing.T) {
 		assert.Equal(t, finishedParent.SpanContext.TraceID, finishedChild.SpanContext.TraceID)
 	})
 }
+
+func TestLogKV(t *testing.T) {
+	t.Run("without span", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			tracing.LogKV("key", "value", context.Background())
+		})
+	})
+
+	t.Run("with span", func(t *testing.T) {
+		tracer := tracingtest.NewTracer()
+
+		span := tracer.StartSpan("test")
+		ctx := ot.ContextWithSpan(context.Background(), span)
+
+		tracing.LogKV("key", "value", ctx)
+		span.Finish()
+
+		finished := tracer.FindSpan("test")
+		require.NotNil(t, finished)
+
+		logs := finished.Logs()
+		require.Len(t, logs, 1)
+		require.Len(t, logs[0].Fields, 1)
+		assert.Equal(t, "key", logs[0].Fields[0].Key)
+		assert.Equal(t, "value", logs[0].Fields[0].ValueString)
+	})
+}
