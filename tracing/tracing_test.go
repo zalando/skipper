@@ -1,6 +1,7 @@
 package tracing_test
 
 import (
+	"context"
 	"testing"
 
 	origbasic "github.com/opentracing/basictracer-go"
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/zalando/skipper/tracing"
+	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
 func TestInitTracer(t *testing.T) {
@@ -195,4 +197,36 @@ func TestLoadTracingPlugin_Errors(t *testing.T) {
 			assert.Nil(t, tracer)
 		})
 	}
+}
+
+func TestCreateSpan(t *testing.T) {
+	t.Run("without parent span", func(t *testing.T) {
+		tracer := tracingtest.NewTracer()
+
+		span := tracing.CreateSpan("test", context.Background(), tracer)
+		span.Finish()
+
+		finished := tracer.FindSpan("test")
+		require.NotNil(t, finished)
+		assert.Zero(t, finished.ParentID)
+	})
+
+	t.Run("with parent span", func(t *testing.T) {
+		tracer := tracingtest.NewTracer()
+
+		parent := tracer.StartSpan("parent")
+		ctx := ot.ContextWithSpan(context.Background(), parent)
+
+		span := tracing.CreateSpan("child", ctx, tracer)
+		span.Finish()
+		parent.Finish()
+
+		finishedParent := tracer.FindSpan("parent")
+		require.NotNil(t, finishedParent)
+		finishedChild := tracer.FindSpan("child")
+		require.NotNil(t, finishedChild)
+
+		assert.Equal(t, finishedParent.SpanContext.SpanID, finishedChild.ParentID)
+		assert.Equal(t, finishedParent.SpanContext.TraceID, finishedChild.SpanContext.TraceID)
+	})
 }
