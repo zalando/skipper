@@ -142,3 +142,57 @@ func TestLoadPlugin_Error(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadTracingPlugin(t *testing.T) {
+	// `plugin.Open()` not tested because it requires built .so file
+	for _, tt := range []struct {
+		name       string
+		pluginDirs []string
+		opts       []string
+		expected       ot.Tracer
+	}{
+		{
+			name: "no plugin directories",
+			opts: []string{"noop"},
+		},
+		{
+			name:       "noop",
+			pluginDirs: []string{t.TempDir()},
+			opts:       []string{"noop"},
+			expected:       &ot.NoopTracer{},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tracer, err := tracing.LoadTracingPlugin(tt.pluginDirs, tt.opts)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, tracer)
+		})
+	}
+}
+
+func TestLoadTracingPlugin_Errors(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		pluginDirs []string
+		opts       []string
+		expectedErr    string
+	}{
+		{
+			name:       "missing options",
+			pluginDirs: []string{t.TempDir()},
+			expectedErr:    "opentracing: the implementation parameter is mandatory",
+		},
+		{
+			name:       "missing plugin file in all directories",
+			pluginDirs: []string{t.TempDir(), t.TempDir()},
+			opts:       []string{"missing"},
+			expectedErr:    "open module",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tracer, err := tracing.LoadTracingPlugin(tt.pluginDirs, tt.opts)
+			require.ErrorContains(t, err, tt.expectedErr)
+			assert.Nil(t, tracer)
+		})
+	}
+}
