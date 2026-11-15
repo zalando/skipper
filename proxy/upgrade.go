@@ -127,7 +127,8 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	resp, err := http.ReadResponse(bufio.NewReader(backendConn), req)
+	backendReader := bufio.NewReader(backendConn)
+	resp, err := http.ReadResponse(backendReader, req)
 	if err != nil {
 		log.Errorf("Error reading response from backend: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -183,9 +184,9 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	done := make(chan struct{}, 2)
 
 	if p.useAuditLog {
-		copyAsync("backend->request+audit", backendConn, io.MultiWriter(p.auditLogOut, requestHijackedConn), done)
+		copyAsync("backend->request+audit", backendReader, io.MultiWriter(p.auditLogOut, requestHijackedConn), done)
 	} else {
-		copyAsync("backend->request", backendConn, requestHijackedConn, done)
+		copyAsync("backend->request", backendReader, requestHijackedConn, done)
 	}
 
 	copyAsync("request->backend", requestHijackedConn, backendConn, done)
