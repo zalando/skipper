@@ -181,12 +181,17 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	var backendStream io.Reader = backendConn
+	if n := backendReader.Buffered(); n > 0 {
+		backendStream = io.MultiReader(io.LimitReader(backendReader, int64(n)), backendConn)
+	}
+
 	done := make(chan struct{}, 2)
 
 	if p.useAuditLog {
-		copyAsync("backend->request+audit", backendReader, io.MultiWriter(p.auditLogOut, requestHijackedConn), done)
+		copyAsync("backend->request+audit", backendStream, io.MultiWriter(p.auditLogOut, requestHijackedConn), done)
 	} else {
-		copyAsync("backend->request", backendReader, requestHijackedConn, done)
+		copyAsync("backend->request", backendStream, requestHijackedConn, done)
 	}
 
 	copyAsync("request->backend", requestHijackedConn, backendConn, done)

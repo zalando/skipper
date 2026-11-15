@@ -392,7 +392,6 @@ func TestUpgradeServerFirst(t *testing.T) {
 						<-release
 						_, result = conn.Write(frame)
 					} else {
-						// One TLS record makes response read-ahead deterministic.
 						_, result = conn.Write(append([]byte(handshake), frame...))
 					}
 					if result != nil {
