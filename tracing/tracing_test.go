@@ -110,3 +110,35 @@ func TestInitTracerBasic(t *testing.T) {
 	assert.IsType(t, origbasic.SpanContext{}, span.Context())
 	assert.NotEmpty(t, tracing.GetTraceID(span))
 }
+
+// LoadPlugin is DEPRECATED but tests are still good for overall coverage
+func TestLoadPlugin(t *testing.T) {
+	tracer, err := tracing.LoadPlugin(t.TempDir(), []string{"noop"})
+	require.NoError(t, err)
+	assert.Equal(t, &ot.NoopTracer{}, tracer)
+}
+
+// LoadPlugin is DEPRECATED but tests are still good for overall coverage
+func TestLoadPlugin_Error(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		opts    []string
+		expectedErr string
+	}{
+		{
+			name:    "no options",
+			expectedErr: "opentracing: the implementation parameter is mandatory",
+		},
+		{
+			name:    "missing plugin file",
+			opts:    []string{"missing", "foo=bar"},
+			expectedErr: "open module",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tracer, err := tracing.LoadPlugin(t.TempDir(), tt.opts)
+			require.ErrorContains(t, err, tt.expectedErr)
+			assert.Nil(t, tracer)
+		})
+	}
+}
