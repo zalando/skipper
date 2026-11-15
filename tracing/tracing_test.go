@@ -2,16 +2,41 @@ package tracing_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
+	originstana "github.com/instana/go-sensor"
+	origlightstep "github.com/lightstep/lightstep-tracer-go"
 	origbasic "github.com/opentracing/basictracer-go"
+	origjaeger "github.com/uber/jaeger-client-go"
+
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zalando/skipper/tracing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 )
+
+type testSpan struct {
+	ot.Span
+	spanContext ot.SpanContext
+}
+
+func (s *testSpan) Context() ot.SpanContext { return s.spanContext }
+
+type otelSpanContext struct {
+	traceID trace.TraceID
+}
+
+func (c otelSpanContext) TraceID() trace.TraceID { return c.traceID }
+
+func (otelSpanContext) ForeachBaggageItem(func(k, v string) bool) {}
+
+type unknownSpanContext struct{}
+
+func (unknownSpanContext) ForeachBaggageItem(func(k, v string) bool) {}
 
 func TestInitTracer(t *testing.T) {
 	for _, tt := range []struct {
@@ -256,4 +281,62 @@ func TestLogKV(t *testing.T) {
 		assert.Equal(t, "key", logs[0].Fields[0].Key)
 		assert.Equal(t, "value", logs[0].Fields[0].ValueString)
 	})
+}
+
+func TestGetTraceID(t *testing.T) {
+	traceHex := strings.Repeat("abcd", 8) // len must equal 32 else error
+	otelTraceID, err := trace.TraceIDFromHex(traceHex)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name string
+		span ot.Span
+		expected string
+	}{
+		{
+			name: "nil span",
+		},
+		{
+			name: "nil span context",
+			span: &testSpan{},
+		},
+		{
+			name: "unknown span context",
+			span: &testSpan{spanContext: unknownSpanContext{}},
+		},
+		{
+			name: "basic",
+			span: &testSpan{spanContext: origbasic.SpanContext{TraceID: 0xabc}},
+			expected: "abc",
+		},
+		{
+			name: "instana",
+			span: &testSpan{spanContext: originstana.SpanContext{TraceID: 0xabc}},
+			expected: "abc",
+		},
+		{
+			name: "jaeger",
+			span: &testSpan{spanContext: origjaeger.NewSpanContext(origjaeger.TraceID{Low: 0xabc}, 1, 0, true, nil)},
+			expected: "0000000000000abc",
+		},
+		{
+			name: "jaeger with 128 bit trace id",
+			span: &testSpan{spanContext: origjaeger.NewSpanContext(origjaeger.TraceID{High: 0x1, Low: 0xabc}, 1, 0, true, nil)},
+			expected: "00000000000000010000000000000abc",
+		},
+		{
+			name: "lightstep",
+			span: &testSpan{spanContext: origlightstep.SpanContext{TraceID: 0xabc}},
+			expected: "abc",
+		},
+		{
+			name: "opentelemetry",
+			span: &testSpan{spanContext: otelSpanContext{traceID: otelTraceID}},
+			expected: "abcdabcdabcdabcdabcdabcdabcdabcd",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tracing.GetTraceID(tt.span))
+		})
+	}
 }
