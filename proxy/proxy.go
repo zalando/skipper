@@ -519,11 +519,12 @@ type Proxy struct {
 // the required status code for the response sent from the main
 // ServeHTTP method. Alternatively, it can indicate that the request
 // was already handled, e.g. in case of deprecated shunting or the
-// upgrade request.
+// upgrade request. The backend outcome is independent of response ownership.
 type proxyError struct {
 	err              error
 	code             int
 	handled          bool
+	backendSuccess   bool
 	dialingFailed    bool
 	additionalHeader http.Header
 }
@@ -1067,7 +1068,7 @@ func (p *Proxy) lookupRoute(ctx *context) (rt *routing.Route, params map[string]
 	return ctx.routeLookup.Do(ctx.request)
 }
 
-func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) {
+func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) bool {
 	backendURL := req.URL
 
 	reverseProxy := httputil.NewSingleHostReverseProxy(backendURL)
@@ -1084,9 +1085,10 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) {
 		dialTimeout:     p.upgradeDialTimeout,
 	}
 
-	upgradeProxy.serveHTTP(ctx.responseWriter, req)
+	backendSuccess := upgradeProxy.serveHTTP(ctx.responseWriter, req)
 	ctx.successfulUpgrade = true
 	ctx.Logger().Debugf("finished upgraded protocol %s session", getUpgradeRequest(ctx.request))
+	return backendSuccess
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
@@ -1120,10 +1122,10 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		// see also https://github.com/golang/go/blob/9159cd4ec6b0e9475dc9c71c830035c1c4c13483/src/net/http/httputil/reverseproxy.go#L423-L428
 		req.Header.Set("Connection", "Upgrade")
 		req.Header.Set("Upgrade", payloadProtocol)
-		p.makeUpgradeRequest(ctx, req)
+		backendSuccess := p.makeUpgradeRequest(ctx, req)
 
 		// We are not owner of the connection anymore.
-		return nil, &proxyError{handled: true}
+		return nil, &proxyError{handled: true, backendSuccess: backendSuccess}
 	}
 
 	roundTripper, err := p.getRoundTripper(ctx, req)
@@ -1508,10 +1510,12 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		if perr != nil {
 			requestStopWatch.Start()
 			if done != nil {
-				done(false)
+				done(perr.backendSuccess)
 			}
 
-			p.metrics.IncErrorsBackend(ctx.route.Id)
+			if !perr.backendSuccess {
+				p.metrics.IncErrorsBackend(ctx.route.Id)
+			}
 
 			if retryable(ctx, perr) {
 				if p.tracing.clientTraceByTag {
