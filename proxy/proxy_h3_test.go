@@ -224,3 +224,91 @@ func TestH3TransportMTLS(t *testing.T) {
 		t.Error("expected GetClientCertificate to be set on h3 transport when mTLS is enabled")
 	}
 }
+
+func TestH3TransportTimeouts(t *testing.T) {
+	tr := newH3Transport(Params{
+		Timeout:              100 * time.Millisecond,
+		TLSHandshakeTimeout:  2 * time.Second,
+		CloseIdleConnsPeriod: 15 * time.Second,
+		KeepAlive:            5 * time.Second,
+	})
+	if tr.Dial == nil {
+		t.Fatal("expected Dial to be set on h3 transport")
+	}
+	if tr.QUICConfig == nil {
+		t.Fatal("expected QUICConfig to be set on h3 transport")
+	}
+	if tr.QUICConfig.MaxIncomingStreams != -1 {
+		t.Errorf("expected MaxIncomingStreams -1, got %d", tr.QUICConfig.MaxIncomingStreams)
+	}
+	if tr.QUICConfig.HandshakeIdleTimeout != 2*time.Second {
+		t.Errorf("expected HandshakeIdleTimeout 2s, got %v", tr.QUICConfig.HandshakeIdleTimeout)
+	}
+	if tr.QUICConfig.MaxIdleTimeout != 15*time.Second {
+		t.Errorf("expected MaxIdleTimeout 15s, got %v", tr.QUICConfig.MaxIdleTimeout)
+	}
+	if tr.QUICConfig.KeepAlivePeriod != 5*time.Second {
+		t.Errorf("expected KeepAlivePeriod 5s, got %v", tr.QUICConfig.KeepAlivePeriod)
+	}
+
+	trNeg := newH3Transport(Params{
+		CloseIdleConnsPeriod: -time.Second,
+	})
+	if trNeg.QUICConfig.MaxIdleTimeout != 0 {
+		t.Errorf("expected MaxIdleTimeout 0 for negative CloseIdleConnsPeriod, got %v", trNeg.QUICConfig.MaxIdleTimeout)
+	}
+}
+
+func TestH3DialTimeoutAndLBRetry(t *testing.T) {
+	blackhole, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to listen UDP: %v", err)
+	}
+	defer blackhole.Close()
+
+	var gotProto string
+	healthyAddr, roots, cleanup := newH3Backend(t, &gotProto)
+	defer cleanup()
+
+	badURL := "h3://" + blackhole.LocalAddr().String()
+	goodURL := "h3://" + healthyAddr
+
+	doc := fmt.Sprintf(`
+		bad: Path("/bad") -> "%s";
+		lb:  Path("/lb")  -> <roundRobin, "%s", "%s">;
+	`, badURL, badURL, goodURL)
+
+	tp, err := newTestProxyWithParams(doc, Params{
+		EnableH3Backend: true,
+		Timeout:         50 * time.Millisecond,
+		ClientTLS:       &tls.Config{RootCAs: roots},
+	})
+	if err != nil {
+		t.Fatalf("failed to create test proxy: %v", err)
+	}
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	rsp, err := ps.Client().Get(ps.URL + "/bad")
+	if err != nil {
+		t.Fatalf("request to /bad failed: %v", err)
+	}
+	rsp.Body.Close()
+	if rsp.StatusCode != http.StatusBadGateway {
+		t.Errorf("expected 502 for unreachable h3 backend, got %d", rsp.StatusCode)
+	}
+
+	rsp, err = ps.Client().Get(ps.URL + "/lb")
+	if err != nil {
+		t.Fatalf("request to /lb failed: %v", err)
+	}
+	rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 after LB retry on h3 backend, got %d", rsp.StatusCode)
+	}
+	if gotProto != "HTTP/3.0" {
+		t.Errorf("expected backend to receive HTTP/3.0, got %q", gotProto)
+	}
+}

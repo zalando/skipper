@@ -529,7 +529,6 @@ type Proxy struct {
 	hostname                 string
 	onPanicSometimes         rate.Sometimes
 	cr                       *snet.CertReloader
-	h3cr                     *snet.CertReloader
 	h3Transport              *http3.Transport
 }
 
@@ -776,13 +775,15 @@ func proxyFromContext(req *http.Request) (*url.URL, error) {
 
 type skipperDialer struct {
 	net.Dialer
-	f func(ctx stdlibcontext.Context, network, addr string) (net.Conn, error)
+	f     func(ctx stdlibcontext.Context, network, addr string) (net.Conn, error)
+	fQuic func(ctx stdlibcontext.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error)
 }
 
 func newSkipperDialer(d net.Dialer) *skipperDialer {
 	return &skipperDialer{
 		Dialer: d,
 		f:      d.DialContext,
+		fQuic:  quic.DialAddr,
 	}
 }
 
@@ -800,6 +801,29 @@ func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr st
 		}
 	} else if cerr := ctx.Err(); cerr != nil {
 		// unclear when this is being triggered
+		return nil, &proxyError{
+			err:  fmt.Errorf("err from dial context: %w", cerr),
+			code: http.StatusGatewayTimeout,
+		}
+	}
+	return con, nil
+}
+
+func (dc *skipperDialer) DialQUIC(ctx stdlibcontext.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
+	dialCtx := ctx
+	if dc.Timeout > 0 {
+		var cancel stdlibcontext.CancelFunc
+		dialCtx, cancel = stdlibcontext.WithTimeout(ctx, dc.Timeout)
+		defer cancel()
+	}
+	con, err := dc.fQuic(dialCtx, addr, tlsCfg, cfg)
+	if err != nil {
+		return nil, &proxyError{
+			err:           err,
+			code:          -1,   // omit 0 handling in proxy.Error()
+			dialingFailed: true, // indicate error happened before http
+		}
+	} else if cerr := ctx.Err(); cerr != nil {
 		return nil, &proxyError{
 			err:  fmt.Errorf("err from dial context: %w", cerr),
 			code: http.StatusGatewayTimeout,
@@ -901,9 +925,11 @@ func WithParams(p Params) *Proxy {
 	}
 
 	var h3Tr *http3.Transport
-	var h3cr *snet.CertReloader
 	if p.EnableH3Backend {
-		h3Tr, h3cr = newH3Transport(p)
+		h3Tr = newH3Transport(p)
+		if tr.TLSClientConfig != nil {
+			h3Tr.TLSClientConfig = tr.TLSClientConfig.Clone()
+		}
 	}
 
 	var insecureTr *http.Transport
@@ -1032,7 +1058,6 @@ func WithParams(p Params) *Proxy {
 		hostname:                 hostname,
 		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
 		cr:                       cr,
-		h3cr:                     h3cr,
 		h3Transport:              h3Tr,
 	}
 }
@@ -1055,61 +1080,25 @@ func newTransport(p Params) *http.Transport {
 	return tr
 }
 
-func newH3Transport(p Params) (*http3.Transport, *snet.CertReloader) {
-	tr := &http3.Transport{}
-
-	if p.ClientTLS != nil {
-		tr.TLSClientConfig = p.ClientTLS.Clone()
+func newH3Transport(p Params) *http3.Transport {
+	tr := &http3.Transport{
+		Dial: newSkipperDialer(net.Dialer{
+			Timeout:   p.Timeout,
+			KeepAlive: p.KeepAlive,
+		}).DialQUIC,
+		QUICConfig: &quic.Config{
+			// https://github.com/quic-go/quic-go/blob/v0.63.0/http3/client.go#L45-L48
+			// defaultQuicConfig sets MaxIncomingStreams=-1 and KeepAlivePeriod=10s;
+			// we replicate MaxIncomingStreams to avoid allowing server-initiated bidi streams.
+			MaxIncomingStreams: -1,
+			// HandshakeIdleTimeout is used as-is; quic doubles it internally for the actual limit:
+			// https://github.com/quic-go/quic-go/blob/v0.63.0/config.go#L17-L18
+			HandshakeIdleTimeout: p.TLSHandshakeTimeout,
+			MaxIdleTimeout:       max(0, p.CloseIdleConnsPeriod),
+			KeepAlivePeriod:      p.KeepAlive,
+		},
 	}
-	if p.Flags.Insecure() {
-		if tr.TLSClientConfig == nil {
-			/* #nosec */
-			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		} else {
-			/* #nosec */
-			tr.TLSClientConfig.InsecureSkipVerify = true
-		}
-	}
-
-	var cr *snet.CertReloader
-	if p.EnableMTLS && p.ClientCertFile != "" && p.ClientKeyFile != "" {
-		log := &logging.DefaultLog{}
-		interval := p.ClientCertRefreshInterval
-		if interval == 0 {
-			interval = 5 * time.Minute
-		}
-		var err error
-		cr, err = snet.NewCertReloader(p.ClientCertFile, p.ClientKeyFile, interval, log)
-		if err != nil {
-			log.Errorf("Failed to initialize cert reloader for H3 transport: %v", err)
-			os.Exit(2)
-		}
-		if tr.TLSClientConfig == nil {
-			tr.TLSClientConfig = &tls.Config{}
-		}
-		tr.TLSClientConfig.GetClientCertificate = cr.GetClientCertificate
-	}
-
-	if p.TLSHandshakeTimeout != 0 || p.CloseIdleConnsPeriod != 0 || p.KeepAlive != 0 {
-		// https://github.com/quic-go/quic-go/blob/v0.63.0/http3/client.go#L45-L48
-		// defaultQuicConfig sets MaxIncomingStreams=-1 and KeepAlivePeriod=10s;
-		// we replicate MaxIncomingStreams to avoid allowing server-initiated bidi streams.
-		qc := &quic.Config{MaxIncomingStreams: -1}
-		// HandshakeIdleTimeout is used as-is; quic doubles it internally for the actual limit:
-		// https://github.com/quic-go/quic-go/blob/v0.63.0/config.go#L17-L18
-		if p.TLSHandshakeTimeout != 0 {
-			qc.HandshakeIdleTimeout = p.TLSHandshakeTimeout
-		}
-		if p.CloseIdleConnsPeriod != 0 {
-			qc.MaxIdleTimeout = p.CloseIdleConnsPeriod
-		}
-		if p.KeepAlive != 0 {
-			qc.KeepAlivePeriod = p.KeepAlive
-		}
-		tr.QUICConfig = qc
-	}
-
-	return tr, cr
+	return tr
 }
 
 // applies filters to a request
@@ -2118,9 +2107,6 @@ func (p *Proxy) Close() error {
 	p.registry.Close()
 	if p.cr != nil {
 		p.cr.Close()
-	}
-	if p.h3cr != nil {
-		p.h3cr.Close()
 	}
 	if p.h3Transport != nil {
 		p.h3Transport.Close()
