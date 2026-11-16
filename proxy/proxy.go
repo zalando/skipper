@@ -28,6 +28,8 @@ import (
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
+	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/http3"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -410,6 +412,18 @@ type Params struct {
 	// AllowInsecureBackend enables per-route TLS certificate verification skip via the
 	// proxySSLVerifyOff filter. When false (the default), the filter has no effect.
 	AllowInsecureBackend bool
+
+	// EnableH2Backend enables HTTP/2 to backends using the h2:// URL scheme.
+	// Disabled by default.
+	EnableH2Backend bool
+
+	// EnableH2CBackend enables unencrypted HTTP/2 to backends using the h2c:// URL scheme.
+	// Disabled by default.
+	EnableH2CBackend bool
+
+	// EnableH3Backend enables HTTP/3 (QUIC) to backends using the h3:// URL scheme.
+	// Disabled by default.
+	EnableH3Backend bool
 }
 
 type (
@@ -494,6 +508,8 @@ type Proxy struct {
 	healthyEndpoints         *healthyEndpoints
 	roundTripper             http.RoundTripper
 	h2cRoundTripper          http.RoundTripper
+	h2RoundTripper           http.RoundTripper
+	h3RoundTripper           http.RoundTripper
 	insecureRoundTripper     http.RoundTripper
 	priorityRoutes           []PriorityRoute
 	flags                    Flags
@@ -513,6 +529,7 @@ type Proxy struct {
 	hostname                 string
 	onPanicSometimes         rate.Sometimes
 	cr                       *snet.CertReloader
+	h3Transport              *http3.Transport
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -758,13 +775,15 @@ func proxyFromContext(req *http.Request) (*url.URL, error) {
 
 type skipperDialer struct {
 	net.Dialer
-	f func(ctx stdlibcontext.Context, network, addr string) (net.Conn, error)
+	f     func(ctx stdlibcontext.Context, network, addr string) (net.Conn, error)
+	fQuic func(ctx stdlibcontext.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error)
 }
 
 func newSkipperDialer(d net.Dialer) *skipperDialer {
 	return &skipperDialer{
 		Dialer: d,
 		f:      d.DialContext,
+		fQuic:  quic.DialAddr,
 	}
 }
 
@@ -782,6 +801,29 @@ func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr st
 		}
 	} else if cerr := ctx.Err(); cerr != nil {
 		// unclear when this is being triggered
+		return nil, &proxyError{
+			err:  fmt.Errorf("err from dial context: %w", cerr),
+			code: http.StatusGatewayTimeout,
+		}
+	}
+	return con, nil
+}
+
+func (dc *skipperDialer) DialQUIC(ctx stdlibcontext.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
+	dialCtx := ctx
+	if dc.Timeout > 0 {
+		var cancel stdlibcontext.CancelFunc
+		dialCtx, cancel = stdlibcontext.WithTimeout(ctx, dc.Timeout)
+		defer cancel()
+	}
+	con, err := dc.fQuic(dialCtx, addr, tlsCfg, cfg)
+	if err != nil {
+		return nil, &proxyError{
+			err:           err,
+			code:          -1,   // omit 0 handling in proxy.Error()
+			dialingFailed: true, // indicate error happened before http
+		}
+	} else if cerr := ctx.Err(); cerr != nil {
 		return nil, &proxyError{
 			err:  fmt.Errorf("err from dial context: %w", cerr),
 			code: http.StatusGatewayTimeout,
@@ -863,9 +905,32 @@ func WithParams(p Params) *Proxy {
 		}
 	}
 
-	h2cTr := newTransport(p)
-	h2cTr.Protocols = new(http.Protocols)
-	h2cTr.Protocols.SetUnencryptedHTTP2(true)
+	var h2cTr *http.Transport
+	if p.EnableH2CBackend {
+		h2cTr = newTransport(p)
+		if tr.TLSClientConfig != nil {
+			h2cTr.TLSClientConfig = tr.TLSClientConfig.Clone()
+		}
+		h2cTr.Protocols = new(http.Protocols)
+		h2cTr.Protocols.SetUnencryptedHTTP2(true)
+	}
+
+	var h2Tr *http.Transport
+	if p.EnableH2Backend {
+		h2Tr = newTransport(p)
+		if tr.TLSClientConfig != nil {
+			h2Tr.TLSClientConfig = tr.TLSClientConfig.Clone()
+		}
+		h2Tr.ForceAttemptHTTP2 = true
+	}
+
+	var h3Tr *http3.Transport
+	if p.EnableH3Backend {
+		h3Tr = newH3Transport(p)
+		if tr.TLSClientConfig != nil {
+			h3Tr.TLSClientConfig = tr.TLSClientConfig.Clone()
+		}
+	}
 
 	var insecureTr *http.Transport
 	if p.AllowInsecureBackend {
@@ -885,7 +950,15 @@ func WithParams(p Params) *Proxy {
 				select {
 				case <-ticker.C:
 					tr.CloseIdleConnections()
-					h2cTr.CloseIdleConnections()
+					if h2cTr != nil {
+						h2cTr.CloseIdleConnections()
+					}
+					if h2Tr != nil {
+						h2Tr.CloseIdleConnections()
+					}
+					if h3Tr != nil {
+						h3Tr.CloseIdleConnections()
+					}
 					if insecureTr != nil {
 						insecureTr.CloseIdleConnections()
 					}
@@ -938,7 +1011,24 @@ func WithParams(p Params) *Proxy {
 		},
 		healthyEndpoints: healthyEndpointsChooser,
 		roundTripper:     p.CustomHttpRoundTripperWrap(tr),
-		h2cRoundTripper:  p.CustomHttpRoundTripperWrap(h2cTr),
+		h2cRoundTripper: func() http.RoundTripper {
+			if h2cTr != nil {
+				return p.CustomHttpRoundTripperWrap(h2cTr)
+			}
+			return nil
+		}(),
+		h2RoundTripper: func() http.RoundTripper {
+			if h2Tr != nil {
+				return p.CustomHttpRoundTripperWrap(h2Tr)
+			}
+			return nil
+		}(),
+		h3RoundTripper: func() http.RoundTripper {
+			if h3Tr != nil {
+				return p.CustomHttpRoundTripperWrap(h3Tr)
+			}
+			return nil
+		}(),
 		insecureRoundTripper: func() http.RoundTripper {
 			if insecureTr != nil {
 				return p.CustomHttpRoundTripperWrap(insecureTr)
@@ -968,6 +1058,7 @@ func WithParams(p Params) *Proxy {
 		hostname:                 hostname,
 		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
 		cr:                       cr,
+		h3Transport:              h3Tr,
 	}
 }
 
@@ -985,6 +1076,27 @@ func newTransport(p Params) *http.Transport {
 		IdleConnTimeout:       p.CloseIdleConnsPeriod,
 		DisableKeepAlives:     p.DisableHTTPKeepalives,
 		Proxy:                 proxyFromContext,
+	}
+	return tr
+}
+
+func newH3Transport(p Params) *http3.Transport {
+	tr := &http3.Transport{
+		Dial: newSkipperDialer(net.Dialer{
+			Timeout:   p.Timeout,
+			KeepAlive: p.KeepAlive,
+		}).DialQUIC,
+		QUICConfig: &quic.Config{
+			// https://github.com/quic-go/quic-go/blob/v0.63.0/http3/client.go#L45-L48
+			// defaultQuicConfig sets MaxIncomingStreams=-1 and KeepAlivePeriod=10s;
+			// we replicate MaxIncomingStreams to avoid allowing server-initiated bidi streams.
+			MaxIncomingStreams: -1,
+			// HandshakeIdleTimeout is used as-is; quic doubles it internally for the actual limit:
+			// https://github.com/quic-go/quic-go/blob/v0.63.0/config.go#L17-L18
+			HandshakeIdleTimeout: p.TLSHandshakeTimeout,
+			MaxIdleTimeout:       max(0, p.CloseIdleConnsPeriod),
+			KeepAlivePeriod:      p.KeepAlive,
+		},
 	}
 	return tr
 }
@@ -1245,9 +1357,23 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 func (p *Proxy) getRoundTripper(ctx *context, req *http.Request) (http.RoundTripper, error) {
 	switch req.URL.Scheme {
+	case "h3":
+		req.URL.Scheme = "https"
+		if p.h3RoundTripper != nil {
+			return p.h3RoundTripper, nil
+		}
+
+	case "h2":
+		req.URL.Scheme = "https"
+		if p.h2RoundTripper != nil {
+			return p.h2RoundTripper, nil
+		}
+
 	case "h2c":
 		req.URL.Scheme = "http"
-		return p.h2cRoundTripper, nil
+		if p.h2cRoundTripper != nil {
+			return p.h2cRoundTripper, nil
+		}
 
 	case "https":
 		if p.insecureRoundTripper != nil {
@@ -1981,6 +2107,9 @@ func (p *Proxy) Close() error {
 	p.registry.Close()
 	if p.cr != nil {
 		p.cr.Close()
+	}
+	if p.h3Transport != nil {
+		p.h3Transport.Close()
 	}
 	return nil
 }

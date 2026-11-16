@@ -391,18 +391,63 @@ B
 
 Current implemented protocols:
 
-- `http`: (default) http protocol
-- `h2c`: HTTP/2 cleartext protocol Direct [Prior Knowledge](https://datatracker.ietf.org/doc/html/rfc9113#name-starting-http-2-with-prior-)
+- `http`: (default) plain HTTP/1.1
+- `h2c`: HTTP/2 cleartext ([Prior Knowledge](https://datatracker.ietf.org/doc/html/rfc9113#name-starting-http-2-with-prior-)); requires `-enable-h2c-backend`; falls back to `http://` when disabled
+- `h2`: HTTP/2 over TLS (ALPN); requires `-enable-h2-backend`; falls back to `https://` when disabled
+- `h3`: HTTP/3 over QUIC; requires `-enable-h3-backend`; falls back to `https://` when disabled
 - `fastcgi`: directly connect Skipper with a FastCGI backend like PHP FPM.
 
-Route example that uses h2c:
+All three alternative transport schemes (`h2c://`, `h2://`, `h3://`) are **opt-in and disabled by
+default**. When a scheme is used in a route but the corresponding flag is not set, Skipper rewrites
+the URL scheme to the plain equivalent (`http://` for h2c, `https://` for h2 and h3) and forwards
+the request over HTTP/1.1 without error.
+
+### h2c backend
+
+Enable the h2c transport and use it from a route:
+
 ```
-h2c: * -> "h2c://127.0.0.1:9000";
+-enable-h2c-backend
+```
+
+```
+h2c:    * -> "h2c://127.0.0.1:9000";
 h2c_lb: * -> <roundRobin, "h2c://127.0.0.1:9000", "h2c://127.0.0.1:9001">;
 ```
 
-Route example that uses FastCGI:
+### h2 backend
+
+Enable HTTP/2 over TLS and use it from a route. Skipper connects to the backend using TLS with
+ALPN negotiation for `h2`. The backend must present a valid TLS certificate; use `-insecure` to
+skip verification for self-signed certificates.
+
 ```
-php: * -> setFastCgiFilename("index.php") -> "fastcgi://127.0.0.1:9000";
+-enable-h2-backend
+```
+
+```
+h2:    * -> "h2://127.0.0.1:9000";
+h2_lb: * -> <roundRobin, "h2://127.0.0.1:9000", "h2://127.0.0.1:9001">;
+```
+
+### h3 backend
+
+Enable HTTP/3 over QUIC and use it from a route. Skipper opens a QUIC connection to the backend.
+The backend must present a valid TLS certificate; use `-insecure` to skip verification for
+self-signed certificates.
+
+```
+-enable-h3-backend
+```
+
+```
+h3:    * -> "h3://127.0.0.1:9000";
+h3_lb: * -> <roundRobin, "h3://127.0.0.1:9000", "h3://127.0.0.1:9001">;
+```
+
+### FastCGI backend
+
+```
+php:    * -> setFastCgiFilename("index.php") -> "fastcgi://127.0.0.1:9000";
 php_lb: * -> setFastCgiFilename("index.php") -> <roundRobin, "fastcgi://127.0.0.1:9000", "fastcgi://127.0.0.1:9001">;
 ```
