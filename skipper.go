@@ -44,6 +44,7 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/cache"
 	"github.com/zalando/skipper/filters/fadein"
+	hedgefilters "github.com/zalando/skipper/filters/hedge"
 	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/filters/openpolicyagent"
 	"github.com/zalando/skipper/filters/openpolicyagent/opaauthorizerequest"
@@ -832,6 +833,23 @@ type Options struct {
 	// AllowInsecureBackend enables the per-route proxySSLVerifyOff() filter.
 	// When false (the default), the filter has no effect even if present in a route.
 	AllowInsecureBackend bool
+
+	// HedgeEnabled enables hedged requests for GET and HEAD requests to load
+	// balanced routes. Routes can opt out with the disableHedge() filter and
+	// routes using tee or shadow traffic are excluded. HedgeFixedDelay is required.
+	HedgeEnabled bool
+
+	// HedgeFixedDelay is the time to wait for the response headers of the
+	// primary attempt before a hedge request is sent to a different endpoint.
+	HedgeFixedDelay time.Duration
+
+	// HedgeBudgetPercent is the maximum rate of hedge requests as a percentage
+	// of the observed request rate of a route. Defaults to proxy.DefaultHedgeBudgetPercent.
+	HedgeBudgetPercent float64
+
+	// HedgeRouteCounters enables the hedge counters for each route, in
+	// addition to the counters for all routes.
+	HedgeRouteCounters bool
 
 	// TLSMinVersion to set the minimal TLS version for all TLS configurations
 	TLSMinVersion uint16
@@ -1918,6 +1936,30 @@ func getRemoteURLShardAddrUpdater(address string) func() ([]string, error) {
 	}
 }
 
+func (o Options) hedgeParams() (*proxy.HedgeParams, error) {
+	if !o.HedgeEnabled {
+		return nil, nil
+	}
+	if o.HedgeFixedDelay <= 0 {
+		return nil, errors.New("hedge: HedgeFixedDelay must be greater than zero if HedgeEnabled is set")
+	}
+	if slices.Contains(o.DisabledFilters, filters.DisableHedgeName) {
+		return nil, fmt.Errorf("hedge: the %s filter cannot be disabled if HedgeEnabled is set, it excludes tee and shadow traffic from hedged requests", filters.DisableHedgeName)
+	}
+	return &proxy.HedgeParams{
+		FixedDelay:    o.HedgeFixedDelay,
+		BudgetPercent: o.HedgeBudgetPercent,
+		RouteCounters: o.HedgeRouteCounters,
+	}, nil
+}
+
+func (o Options) hedgePreProcessors(registry filters.Registry) []routing.PreProcessor {
+	if !o.HedgeEnabled {
+		return nil
+	}
+	return []routing.PreProcessor{hedgefilters.NewShadowTrafficPreProcessor(registry)}
+}
+
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// init log
 	accessLogger, err := initLog(o)
@@ -2696,6 +2738,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		return err
 	}
 
+	hedgeParams, err := o.hedgeParams()
+	if err != nil {
+		return err
+	}
+
 	// create a routing engine
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
 		PassiveHealthCheckEnabled:     passiveHealthCheckEnabled,
@@ -2795,6 +2842,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	ro.PreProcessors = append(ro.PreProcessors, admissionControlSpec.PreProcessor())
 
+	ro.PreProcessors = append(ro.PreProcessors, o.hedgePreProcessors(ro.FilterRegistry)...)
+
 	ro.PreProcessors = append(ro.PreProcessors, eskip.ForwardPreProcessor(o.ForwardBackendURL))
 
 	ro.Metrics = mtr
@@ -2832,6 +2881,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ClientCertRefreshInterval:        o.ClientCertRefreshInterval,
 		EnableMTLS:                       o.EnableMTLS,
 		AllowInsecureBackend:             o.AllowInsecureBackend,
+		Hedge:                            hedgeParams,
 		CustomHttpRoundTripperWrap:       o.CustomHttpRoundTripperWrap,
 		RateLimiters:                     ratelimitRegistry,
 		EndpointRegistry:                 endpointRegistry,

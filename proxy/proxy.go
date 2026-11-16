@@ -410,6 +410,10 @@ type Params struct {
 	// AllowInsecureBackend enables per-route TLS certificate verification skip via the
 	// proxySSLVerifyOff filter. When false (the default), the filter has no effect.
 	AllowInsecureBackend bool
+
+	// Hedge enables hedged requests for LB routes when not nil. See HedgeParams.
+	// Hedged requests stay disabled and an error is logged if its FixedDelay is not positive.
+	Hedge *HedgeParams
 }
 
 type (
@@ -492,6 +496,7 @@ type Proxy struct {
 	registry                 *routing.EndpointRegistry
 	fadein                   *fadeIn
 	healthyEndpoints         *healthyEndpoints
+	hedger                   *hedger
 	roundTripper             http.RoundTripper
 	h2cRoundTripper          http.RoundTripper
 	insecureRoundTripper     http.RoundTripper
@@ -655,10 +660,30 @@ func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]any) {
 }
 
 func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
+	return p.selectEndpointExcluding(ctx, "")
+}
+
+// selectEndpointExcluding selects an endpoint like selectEndpoint but never
+// returns the endpoint with the host excludeHost. It returns nil if there is
+// no other candidate. An empty excludeHost excludes nothing.
+func (p *Proxy) selectEndpointExcluding(ctx *context, excludeHost string) *routing.LBEndpoint {
 	rt := ctx.route
 	endpoints := rt.LBEndpoints
 	endpoints = p.fadein.filterFadeIn(endpoints, rt)
 	endpoints = p.healthyEndpoints.filterHealthyEndpoints(ctx, endpoints, p.metrics)
+
+	if excludeHost != "" {
+		others := make([]routing.LBEndpoint, 0, len(endpoints))
+		for _, e := range endpoints {
+			if e.Host != excludeHost {
+				others = append(others, e)
+			}
+		}
+		if len(others) == 0 {
+			return nil
+		}
+		endpoints = others
+	}
 
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
@@ -930,9 +955,18 @@ func WithParams(p Params) *Proxy {
 			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
 		}
 	}
+	var hedgeState *hedger
+	switch {
+	case p.Hedge == nil:
+	case p.Hedge.FixedDelay <= 0:
+		log.Errorf("Hedged requests are disabled, the hedge delay must be greater than zero, got: %v", p.Hedge.FixedDelay)
+	default:
+		hedgeState = newHedger(p.Hedge, quit)
+	}
 	return &Proxy{
 		routing:  p.Routing,
 		registry: p.EndpointRegistry,
+		hedger:   hedgeState,
 		fadein: &fadeIn{
 			rnd: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0)), // #nosec
 		},
@@ -1157,6 +1191,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	_ = p.tracing.tracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
 
 	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
+	preTrace := req
 
 	p.metrics.IncCounter("outgoing." + req.Proto)
 	httpRoundtripTime := time.Now()
@@ -1171,12 +1206,12 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 	requestStopWatch.Stop()
 
-	response, err := roundTripper.RoundTrip(req)
+	response, err := p.roundTrip(ctx, roundTripper, req, preTrace)
 
 	responseStopWatch.Start()
 
-	if endpointMetrics != nil {
-		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil})
+	if endpointMetrics != nil && !ctx.hedgePrimary.skip {
+		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil || ctx.hedgePrimary.failed})
 	}
 	if p.tracing.clientTraceByTag {
 		ctx.proxySpan.SetTag(ClientTraceHTTPRoundTrip, time.Since(httpRoundtripTime).Microseconds())
