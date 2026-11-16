@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,8 @@ import (
 	"time"
 
 	"github.com/quic-go/quic-go/http3"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/metrics/metricstest"
@@ -384,5 +387,136 @@ func TestH3ServerEndToEnd(t *testing.T) {
 	}
 	if rsp.Header.Get("Alt-Svc") == "" {
 		t.Error("expected Alt-Svc header to be set")
+	}
+}
+
+func TestH3ServerGracefulShutdown(t *testing.T) {
+	if !testListener() {
+		t.Skip("skipping listener test; pass -args listener to enable")
+	}
+
+	const shutdownDelay = 1 * time.Second
+
+	dc, err := routestring.New(`
+		slow: Path("/slow") -> latency("3s") -> inlineContent("OK") -> status(200) -> <shunt>;
+		fast: * -> status(200) -> <shunt>;
+	`)
+	require.NoError(t, err)
+
+	MuFindAddress.Lock()
+	addr := FindAddress(t)
+	MuFindAddress.Unlock()
+
+	ca := nettest.NewCA(t)
+	host, _, _ := net.SplitHostPort(addr)
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	certPEM, keyPEM := ca.ServerCert(t, host)
+	certFile, keyFile := nettest.WriteCertKey(t, certPEM, keyPEM)
+
+	roots := x509.NewCertPool()
+	roots.AddCert(ca.Cert)
+
+	rt := routing.New(routing.Options{
+		FilterRegistry: builtin.MakeRegistry(),
+		DataClients:    []routing.DataClient{dc},
+	})
+	defer rt.Close()
+
+	p := proxy.WithParams(proxy.Params{
+		Routing:              rt,
+		Flags:                proxy.Flags(proxy.OptionsNone),
+		CloseIdleConnsPeriod: -time.Second,
+		Metrics:              &metricstest.MockMetrics{},
+	})
+	defer p.Close() //nolint:errcheck
+
+	o := &Options{
+		Address:                    addr,
+		CertPathTLS:                certFile,
+		KeyPathTLS:                 keyFile,
+		EnableH3Server:             true,
+		WaitForHealthcheckInterval: shutdownDelay,
+	}
+
+	sigs := make(chan os.Signal, 1)
+	done := make(chan struct{})
+	go func() {
+		assert.NoError(t, listenAndServeQuit(p, o, sigs, done, nil, nil))
+	}()
+
+	get := func(c *http.Client, path string, timeout time.Duration) (*http.Response, []byte, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+addr+path, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		rsp, err := c.Do(req)
+		if err != nil {
+			return nil, nil, err
+		}
+		defer rsp.Body.Close()
+		body, err := io.ReadAll(rsp.Body)
+		return rsp, body, err
+	}
+
+	newClient := func(t *testing.T) *http.Client {
+		tr := &http3.Transport{TLSClientConfig: &tls.Config{RootCAs: roots}}
+		t.Cleanup(func() { tr.Close() })
+		return &http.Client{Transport: tr}
+	}
+
+	probe := newClient(t)
+	var probeErr error
+	for range 30 {
+		_, _, probeErr = get(probe, "/", 500*time.Millisecond)
+		if probeErr == nil {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	require.NoError(t, probeErr, "HTTP/3 listener did not become ready")
+	probe.Transport.(*http3.Transport).Close()
+
+	sigs <- syscall.SIGTERM
+
+	time.Sleep(shutdownDelay / 2)
+	t.Log("Make request in parallel before shutdown started")
+
+	type result struct {
+		rsp  *http.Response
+		body []byte
+		err  error
+	}
+	client := newClient(t)
+	resCh := make(chan result, 1)
+	go func() {
+		rsp, body, err := get(client, "/slow", 10*time.Second)
+		resCh <- result{rsp, body, err}
+	}()
+
+	time.Sleep(shutdownDelay)
+	t.Log("We are 1.5x past the shutdown delay, so HTTP/3 shutdown should have been started")
+
+	select {
+	case <-resCh:
+		t.Fatal("In-flight request must not be aborted or finished early by shutdown")
+	default:
+	}
+
+	_, _, err = get(newClient(t), "/", 500*time.Millisecond)
+	assert.Error(t, err, "New HTTP/3 connection should fail after shutdown started")
+
+	res := <-resCh
+	require.NoError(t, res.err, "In-flight request must succeed")
+	assert.Equal(t, http.StatusOK, res.rsp.StatusCode)
+	assert.Equal(t, "OK", string(res.body))
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Error("Shutdown takes too long after request is finished")
 	}
 }

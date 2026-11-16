@@ -1806,15 +1806,18 @@ func listenAndServeQuit(
 		log.Infof("Got shutdown signal, wait %v for health check", o.WaitForHealthcheckInterval)
 		time.Sleep(o.WaitForHealthcheckInterval)
 
-		log.Info("Start shutdown")
 		if h3srv != nil {
-			if err := h3srv.Close(); err != nil {
-				log.Errorf("Failed to close HTTP/3 server: %v", err)
+			log.Info("Start shutdown HTTP/3")
+			if err := h3srv.Shutdown(context.Background()); err != nil {
+				log.Errorf("Failed to graceful shutdown HTTP/3 server: %v", err)
 			}
 		}
+
+		log.Info("Start shutdown")
 		if err := srv.Shutdown(context.Background()); err != nil {
 			log.Errorf("Failed to graceful shutdown: %v", err)
 		}
+
 		close(idleConnsCH)
 	}()
 
