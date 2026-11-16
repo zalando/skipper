@@ -848,7 +848,7 @@ func validate(c *Config) error {
 		if c.HedgeBudgetPercent <= 0 || c.HedgeBudgetPercent > 100 {
 			return errors.New("hedge-budget-percent must be greater than zero and not greater than 100")
 		}
-		if c.HedgePercentile != 0 && (c.HedgePercentile < 0.5 || c.HedgePercentile >= 1) {
+		if c.HedgePercentile != 0 && (c.HedgePercentile < proxy.MinHedgePercentile || c.HedgePercentile >= 1) {
 			return errors.New("hedge-percentile must be zero or at least 0.5 and less than 1")
 		}
 		if c.HedgeMinDelay < 0 {

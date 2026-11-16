@@ -664,9 +664,6 @@ func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	return p.selectEndpointExcluding(ctx, "")
 }
 
-// selectEndpointExcluding selects an endpoint like selectEndpoint but never
-// returns the endpoint with the host excludeHost. It returns nil if there is
-// no other candidate. An empty excludeHost excludes nothing.
 func (p *Proxy) selectEndpointExcluding(ctx *context, excludeHost string) *routing.LBEndpoint {
 	rt := ctx.route
 	endpoints := rt.LBEndpoints
@@ -963,8 +960,8 @@ func WithParams(p Params) *Proxy {
 		log.Errorf("Hedged requests are disabled, the fixed hedge delay must not be negative, got: %v", p.Hedge.FixedDelay)
 	case p.Hedge.FixedDelay == 0 && p.Hedge.Percentile == 0:
 		log.Errorf("Hedged requests are disabled, either the fixed hedge delay or the hedge percentile must be set")
-	case p.Hedge.Percentile != 0 && (p.Hedge.Percentile < hedgeMinPercentile || p.Hedge.Percentile >= 1):
-		log.Errorf("Hedged requests are disabled, the hedge percentile must be zero or in [%v, 1), got: %v", hedgeMinPercentile, p.Hedge.Percentile)
+	case p.Hedge.Percentile != 0 && (p.Hedge.Percentile < MinHedgePercentile || p.Hedge.Percentile >= 1):
+		log.Errorf("Hedged requests are disabled, the hedge percentile must be zero or in [%v, 1), got: %v", MinHedgePercentile, p.Hedge.Percentile)
 	case p.Hedge.MinDelay < 0:
 		log.Errorf("Hedged requests are disabled, the minimum hedge delay must not be negative, got: %v", p.Hedge.MinDelay)
 	default:
@@ -1198,6 +1195,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	_ = p.tracing.tracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
 
 	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
+	// the hedge request is built from the request before the client trace is injected so that both attempts do not write the same trace
 	preTrace := req
 
 	p.metrics.IncCounter("outgoing." + req.Proto)

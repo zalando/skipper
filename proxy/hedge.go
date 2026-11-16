@@ -26,6 +26,9 @@ const (
 	// DefaultHedgeMinDelay is the default lower limit of the adaptive hedge delay.
 	DefaultHedgeMinDelay = 10 * time.Millisecond
 
+	// MinHedgePercentile is the lowest allowed hedge percentile.
+	MinHedgePercentile = 0.5
+
 	hedgeBurst            = 10
 	hedgeColdStartMinReqs = 100
 	hedgeFastTau          = 10 * time.Second
@@ -38,7 +41,6 @@ const (
 	hedgeIdleTTL          = 5 * time.Minute
 	hedgeSweepInterval    = time.Minute
 	hedgeLatencyShift     = 2.0
-	hedgeMinPercentile    = 0.5
 )
 
 // HedgeParams configures hedged requests. A nil *HedgeParams in Params
@@ -113,7 +115,7 @@ func (h *hedger) route(id string) *routeHedge {
 	if r = h.routes[id]; r == nil {
 		q := h.percentile
 		if q <= 0 {
-			q = 0.9
+			q = DefaultHedgePercentile
 		}
 		r = &routeHedge{tokens: hedgeBurst, lastSeen: h.now(), lat: newLatencyEstimator(q)}
 		h.routes[id] = r
@@ -448,8 +450,6 @@ func backendFailed(req *http.Request, resp *http.Response, err error) bool {
 	return resp.StatusCode >= http.StatusInternalServerError
 }
 
-// preTrace is req before the client trace was injected: the hedge request is
-// built from it so that both attempts do not write to the same trace.
 func (p *Proxy) roundTrip(ctx *context, rt http.RoundTripper, req, preTrace *http.Request) (*http.Response, error) {
 	ctx.hedgePrimary = primaryOutcome{}
 	if p.hedger == nil || !p.hedgeable(ctx, req) {

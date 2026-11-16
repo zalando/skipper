@@ -142,9 +142,6 @@ func quantileOf(q float64, ws ...*latencyWindowCounts) (time.Duration, int64) {
 	return latencyBucketUpper(latencyBuckets - 1), total
 }
 
-// percentile returns the configured quantile of the last one to two windows
-// and the number of samples behind it. The value is refreshed at most once
-// per second.
 func (e *latencyEstimator) percentile(now time.Time) (time.Duration, int64) {
 	cur, prev := e.live(now)
 
@@ -170,8 +167,6 @@ func (e *latencyEstimator) percentile(now time.Time) (time.Duration, int64) {
 	return d, n
 }
 
-// medianShift returns the median of the current and of the previous window.
-// ok is false if either window has too few samples to compare.
 func (e *latencyEstimator) medianShift(now time.Time) (cur, prev time.Duration, ok bool) {
 	c, p := e.live(now)
 	if c == nil || p == nil {
