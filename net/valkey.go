@@ -390,6 +390,7 @@ func NewValkeyRingClient(opt *ValkeyOptions) (*ValkeyRingClient, error) {
 
 	valkeyRingClient, err := newValkeyRing(opt)
 	if err != nil {
+		opt.Log.Errorf("Failed to create valkey ring client: %v", err)
 		return nil, err
 	}
 
