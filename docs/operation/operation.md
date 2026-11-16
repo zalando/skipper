@@ -1631,22 +1631,38 @@ Requests that the client cancels are not counted as failures of the route.
 Hedge requests add load to the backend. Skipper limits them per route:
 
 - **Budget:** a token bucket that refills with `-hedge-budget-percent` (default `5`) of
-  the observed request rate of the route and holds at most 10 tokens.
+  the request rate of the route, averaged over about 10 seconds, and holds at most
+  10 tokens. The bucket starts full.
 - **Cold start:** a route is not hedged before it has seen 100 requests.
 - **Error rate:** hedging stops for a route if more than 10% of its requests in the
-  last 10 seconds failed with an error or a `5xx` status. The ratio is only used if the
-  route had at least 20 requests in these 10 seconds.
+  last 10 one-second buckets failed with an error or a `5xx` status. The buckets are
+  the current, partial second and the 9 full seconds before it. The ratio is only used
+  if the route had at least 20 requests in them.
 - **Latency:** hedging stops for a route if the median response header latency of the
   current 30 second window is more than twice the median of the previous one, because
-  a backend that gets slower as a whole is not helped by more requests. Both windows
-  need at least 20 samples. Hedging resumes when the latency falls back.
+  a backend that gets slower as a whole is not helped by more requests. The windows
+  are aligned to the wall clock, not to the first request of a route, and both need
+  at least 20 samples. Until the current window has them, for example early in each
+  window, this limit makes no decision. Hedging resumes when the latency falls back.
 - **Surge:** hedging stops for a route if its request rate, averaged over about 10
-  seconds, is more than 1.5 times its average over about 5 minutes. The surge is only
-  checked if the 5 minute average is at least 1 request per second.
+  seconds, is more than 1.5 times its average over about 5 minutes. Both are
+  exponentially weighted moving averages of the requests per second, with time
+  constants of 10 and 300 seconds, not sliding windows. During the first 5 minutes of
+  a route, and after a reset as described below, the 5 minute average is the mean
+  since the start. The surge is only checked if the 5 minute average is at least 1
+  request per second.
 
-These limits are fixed. The state is kept per route ID in memory, survives routing
-table updates that do not change the route definition, and is removed once the route
-was idle for five minutes. Idle state is removed by a check that runs every minute.
+These limits are fixed. The state is kept per route ID in memory and survives routing
+table updates that do not change the route definition.
+
+If a route gets no request for 100 seconds, Skipper resets the two request rate
+averages and the window of the error rate. The budget does not refill while the
+averages are zero, and the surge is not checked until they have been rebuilt.
+
+State of a route that was idle for 5 minutes is removed by a check that runs every
+minute, so after 5 to 6 minutes. A route that gets requests again starts with a new
+state: it needs 100 requests before it is hedged again, its latency samples are gone,
+and its budget bucket is full.
 
 ### Known limitations
 
