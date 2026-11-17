@@ -1,10 +1,8 @@
 package shedder
 
 import (
-	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -23,6 +21,7 @@ import (
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/metrics/metricstest"
 	skipnet "github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/net/nettest"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -159,7 +158,7 @@ func TestAdmissionControl(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Parallel()
 			synctest.Test(t, func(t *testing.T) {
-				backendListener := fakeNetListen()
+				backendListener := nettest.NewFakeNetListener()
 				defer backendListener.Close()
 
 				randFunc := randWithSeed()
@@ -204,9 +203,7 @@ func TestAdmissionControl(t *testing.T) {
 					proxy.Params{
 						CustomHttpRoundTripperWrap: func(rt http.RoundTripper) http.RoundTripper {
 							tr := rt.(*http.Transport)
-							tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-								return backendListener.connect(), nil
-							}
+							tr.DialContext = backendListener.DialContext()
 							return tr
 						},
 					},
@@ -218,7 +215,7 @@ func TestAdmissionControl(t *testing.T) {
 					0,
 				)
 
-				proxyListener := fakeNetListen()
+				proxyListener := nettest.NewFakeNetListener()
 				defer proxyListener.Close()
 
 				proxy.SetListener(proxyListener)
@@ -228,9 +225,7 @@ func TestAdmissionControl(t *testing.T) {
 				client := proxy.Client()
 				tr := client.Transport.(*http.Transport)
 
-				tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-					return proxyListener.connect(), nil
-				}
+				tr.DialContext = proxyListener.DialContext()
 
 				req, err := http.NewRequest("GET", proxy.URL, nil)
 				if err != nil {
