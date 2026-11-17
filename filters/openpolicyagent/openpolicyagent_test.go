@@ -10,8 +10,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -76,6 +78,80 @@ func TestInterpolateTemplate(t *testing.T) {
 		bundle: helloBundle
 		`, string(interpolatedConfig))
 
+}
+
+func TestInterpolateTemplateRejectsInvalidBundleName(t *testing.T) {
+	template := &OpenPolicyAgentInstanceConfig{
+		configTemplate: []byte(`prefix: "/applications/{{ .bundlename }}"`),
+	}
+
+	for _, tc := range []struct {
+		bundleName string
+		valid      bool
+	}{
+		{bundleName: "my-app", valid: true},
+		{bundleName: "my_app.v2", valid: true},
+		{bundleName: "somebundle.tar.gz", valid: true},
+		{bundleName: "a8098c1a-f86e-11da-bd1a-00112444be1e", valid: true},
+		{bundleName: "", valid: false},
+		{bundleName: "a bundle", valid: false},
+		{bundleName: "../other-app", valid: false},
+		{bundleName: `my-app"`, valid: false},
+		{bundleName: "my-app\nservices: {}", valid: false},
+		{bundleName: "my-app: x", valid: false},
+		{bundleName: "my-app#", valid: false},
+	} {
+		t.Run(tc.bundleName, func(t *testing.T) {
+			_, err := template.interpolateConfigTemplate(tc.bundleName)
+			if tc.valid {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestBundleNameConfigInjection(t *testing.T) {
+	var requests atomic.Int32
+	injected := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer injected.Close()
+
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("secret"), 0600))
+
+	registry, err := NewOpenPolicyAgentRegistry(
+		WithReuseDuration(1*time.Second),
+		WithCleanInterval(1*time.Second),
+		WithInstanceStartupTimeout(1*time.Second),
+		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate([]byte(`services:
+  - name: bundle-service
+    url: https://opa-bundles.invalid
+discovery:
+  name: discovery
+  prefix: "/applications/{{ .bundlename }}"
+`))),
+	)
+	require.NoError(t, err)
+	defer registry.Close()
+
+	bundleName := strings.Join([]string{
+		`my-app"`,
+		`services:`,
+		`  - name: bundle-service`,
+		`    url: ` + injected.URL,
+		`    credentials:`,
+		`      bearer:`,
+		`        token_path: ` + tokenFile,
+		`x: "`,
+	}, "\n")
+
+	_, err = registry.GetOrStartInstance(bundleName)
+	assert.ErrorContains(t, err, "invalid bundle name")
+	assert.Zero(t, requests.Load(), "injected service must not be called")
 }
 
 func TestLoadEnvoyMetadata(t *testing.T) {

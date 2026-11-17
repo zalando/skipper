@@ -463,7 +463,8 @@ discovery:
   prefix: "/applications/{{ .bundlename }}"
 ```
 
-The variable `.bundlename` is the first argument in the following filters and can be in any format that OPA can understand, so for example application IDs from a registry, uuids, ...
+The variable `.bundlename` is the first argument in the following filters, for example application IDs from a registry, uuids, ...
+It is rendered into the configuration without escaping, so it may only contain the characters `A-Z`, `a-z`, `0-9`, `.`, `_` and `-`; filters with any other bundle name are rejected.
 
 ### Input Structures
 
