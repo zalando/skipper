@@ -107,3 +107,63 @@ func TestFastCgiDropsProxyHeader(t *testing.T) {
 		t.Errorf("Proxy header passed to FastCGI application as HTTP_PROXY: %q", b)
 	}
 }
+
+func TestFastCgiDropsUnderscoreHeaders(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	go fcgi.Serve(l, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(r.Header.Get("X-Auth-User")))
+	}))
+
+	for _, tt := range []struct {
+		name   string
+		header http.Header
+		want   string
+	}{{
+		name:   "underscore only",
+		header: http.Header{"X_auth_user": []string{"admin"}},
+		want:   "",
+	}, {
+		name:   "underscore and dash",
+		header: http.Header{"X-Auth-User": []string{"alice"}, "X_auth_user": []string{"admin"}},
+		want:   "alice",
+	}, {
+		name:   "dash only",
+		header: http.Header{"X-Auth-User": []string{"alice"}},
+		want:   "alice",
+	}} {
+		t.Run(tt.name, func(t *testing.T) {
+			for range 20 {
+				rt, err := NewRoundTripper(&logging.DefaultLog{}, l.Addr().String(), "index.php")
+				if err != nil {
+					t.Fatalf("could not create roundtripper: %v", err)
+				}
+
+				u, _ := url.ParseRequestURI("http://www.example.org/")
+				r := &http.Request{
+					URL:    u,
+					Method: "GET",
+					Proto:  "HTTP/1.0",
+					Header: tt.header,
+				}
+
+				response, err := rt.RoundTrip(r)
+				if err != nil {
+					t.Fatalf("could not create roundtrip: %v", err)
+				}
+				b, err := io.ReadAll(response.Body)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if string(b) != tt.want {
+					t.Fatalf("got X-Auth-User %q, want %q", b, tt.want)
+				}
+			}
+		})
+	}
+}
