@@ -37,9 +37,13 @@ type Options struct {
 	// If true [Init] returns immediately without doing anything.
 	Initialized bool `yaml:"-"`
 
-	// PrometheusRegisterer registers an OpenTelemetry MeterProvider backed by a Prometheus
-	// exporter onto the given Prometheus Registerer when non-nil.
+	// PrometheusRegisterer registers a Prometheus exporter backed reader of the
+	// global OpenTelemetry MeterProvider onto the given Prometheus Registerer when non-nil.
 	PrometheusRegisterer prometheus.Registerer `yaml:"-"`
+
+	// MeterProviderReaders are additional readers attached to the global
+	// OpenTelemetry MeterProvider, for example an OTLP periodic reader.
+	MeterProviderReaders []sdkmetric.Reader `yaml:"-"`
 
 	TracesExporter     string             `yaml:"tracesExporter"`
 	ExporterOtlp       ExporterOtlp       `yaml:"exporterOtlp"`
@@ -161,12 +165,20 @@ func Init(ctx context.Context, o *Options) (shutdown func(context.Context) error
 		return nil, errors.Join(inErr, shutdown(ctx))
 	}
 
+	readers := o.MeterProviderReaders
 	if o.PrometheusRegisterer != nil {
 		promExporter, err := otelprom.New(otelprom.WithRegisterer(o.PrometheusRegisterer))
 		if err != nil {
 			return handleErr(err)
 		}
-		meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(promExporter))
+		readers = append([]sdkmetric.Reader{promExporter}, readers...)
+	}
+	if len(readers) > 0 {
+		meterProviderOpts := make([]sdkmetric.Option, 0, len(readers))
+		for _, r := range readers {
+			meterProviderOpts = append(meterProviderOpts, sdkmetric.WithReader(r))
+		}
+		meterProvider := sdkmetric.NewMeterProvider(meterProviderOpts...)
 		shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
 		otel.SetMeterProvider(meterProvider)
 	}

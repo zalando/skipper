@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	otlpmetrichttp "go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/metric"
@@ -107,7 +106,6 @@ func newOTelWithReaderAndMeter(opts Options, reader sdkmetric.Reader, meterOverr
 		_ = provider.Shutdown(context.Background())
 		return nil, err
 	}
-	otel.SetMeterProvider(provider)
 	return o, nil
 }
 

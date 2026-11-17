@@ -502,6 +502,7 @@ When OpenTelemetry tracing is enabled (`-open-telemetry`) and the `OTEL_GO_X_OBS
   - `otel_sdk_span_started_total`: Number of spans started.
   - `otel_sdk_span_live`: Number of spans currently live.
 - With `-metrics-flavour=otel`, the corresponding `otel.sdk.*` instruments are exported via the OTLP metrics pipeline.
+- With `-metrics-flavour=prometheus,otel`, they are exposed on `/metrics` as listed above and the `otel.sdk.*` instruments are exported via the OTLP metrics pipeline.
 
 ### Proxy Metrics
 

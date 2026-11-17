@@ -29,6 +29,8 @@ import (
 	"github.com/valkey-io/valkey-go"
 	"go.opentelemetry.io/otel"
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zalando/skipper/circuit"
@@ -2063,6 +2065,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			if _, ok := mtr.(metrics.PrometheusMetrics); ok {
 				o.OpenTelemetry.PrometheusRegisterer = o.PrometheusRegistry
 			}
+		}
+		if slices.Contains(o.MetricsFlavours, "otel") {
+			exporter, err := otlpmetrichttp.New(context.Background())
+			if err != nil {
+				return fmt.Errorf("failed to create OpenTelemetry OTLP metrics exporter: %w", err)
+			}
+			o.OpenTelemetry.MeterProviderReaders = append(o.OpenTelemetry.MeterProviderReaders, sdkmetric.NewPeriodicReader(exporter))
 		}
 		shutdown, err := sotel.Init(context.Background(), o.OpenTelemetry)
 		if err != nil {

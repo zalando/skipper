@@ -13,6 +13,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -473,6 +475,87 @@ func TestOtelSDKObservabilityMetrics(t *testing.T) {
 	}
 	if !hasExported {
 		t.Errorf("expected otel_sdk_exporter_span_exported_total > 0")
+	}
+}
+
+func TestOtelMeterProviderConfigurations(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		prometheus bool
+		reader     bool
+	}{
+		{name: "prometheus registerer only", prometheus: true},
+		{name: "meter provider readers only", reader: true},
+		{name: "prometheus registerer and meter provider readers", prometheus: true, reader: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			prev := otel.GetMeterProvider()
+			t.Cleanup(func() { otel.SetMeterProvider(prev) })
+
+			var (
+				reg    *prometheus.Registry
+				reader *sdkmetric.ManualReader
+			)
+			opt := &Options{TracesExporter: "console"}
+			if tt.prometheus {
+				reg = prometheus.NewRegistry()
+				opt.PrometheusRegisterer = reg
+			}
+			if tt.reader {
+				reader = sdkmetric.NewManualReader()
+				opt.MeterProviderReaders = []sdkmetric.Reader{reader}
+			}
+
+			shutdown, err := Init(context.Background(), opt)
+			if err != nil {
+				t.Fatalf("Init: %v", err)
+			}
+			defer func() {
+				if err := shutdown(context.Background()); err != nil {
+					t.Errorf("shutdown: %v", err)
+				}
+			}()
+
+			c, err := otel.GetMeterProvider().Meter("test").Int64Counter("global_test_counter")
+			if err != nil {
+				t.Fatalf("Int64Counter: %v", err)
+			}
+			c.Add(context.Background(), 1)
+
+			if tt.prometheus {
+				mfs, err := reg.Gather()
+				if err != nil {
+					t.Fatalf("Gather: %v", err)
+				}
+				found := false
+				for _, mf := range mfs {
+					if mf.GetName() == "global_test_counter_total" {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("expected global_test_counter_total to be gathered by Prometheus registry")
+				}
+			}
+
+			if tt.reader {
+				var rm metricdata.ResourceMetrics
+				if err := reader.Collect(context.Background(), &rm); err != nil {
+					t.Fatalf("Collect: %v", err)
+				}
+				found := false
+				for _, sm := range rm.ScopeMetrics {
+					for _, m := range sm.Metrics {
+						if m.Name == "global_test_counter" {
+							found = true
+						}
+					}
+				}
+				if !found {
+					t.Errorf("expected global_test_counter to be collected by MeterProvider reader")
+				}
+			}
+		})
 	}
 }
 
