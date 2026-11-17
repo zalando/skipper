@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"runtime/pprof"
 	"slices"
 	"strings"
@@ -665,6 +666,8 @@ type OpenPolicyAgentInstance struct {
 	decisionLogTaskTimeout time.Duration
 }
 
+var validBundleName = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
 func envVariablesMap() map[string]string {
 	rawEnvVariables := os.Environ()
 	envVariables := make(map[string]string)
@@ -679,6 +682,11 @@ func envVariablesMap() map[string]string {
 
 // Config sets the configuration file to use on the OPA instance.
 func (config *OpenPolicyAgentInstanceConfig) interpolateConfigTemplate(bundleName string) ([]byte, error) {
+	// The bundle name comes from the route and is rendered unescaped into the YAML config.
+	if !validBundleName.MatchString(bundleName) {
+		return nil, fmt.Errorf("invalid bundle name %q, allowed characters are [A-Za-z0-9._-]", bundleName)
+	}
+
 	var buf bytes.Buffer
 
 	tpl := template.Must(template.New("opa-config").Parse(string(config.configTemplate)))
