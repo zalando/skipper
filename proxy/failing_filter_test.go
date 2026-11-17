@@ -95,6 +95,9 @@ func runAdmissionControlTest(t *testing.T, routeFormat string, fr filters.Regist
 				time.Sleep(20 * time.Millisecond)
 			}
 
+			// Pre-cancel the context every timeoutN requests so client.Do aborts
+			// immediately without performing a network roundtrip, deterministically
+			// simulating client-side timeouts (counted under statusCounts[0]).
 			ctx := context.Background()
 			var cancel context.CancelFunc
 			if (int64(i)+1)%timeoutN == 0 {
