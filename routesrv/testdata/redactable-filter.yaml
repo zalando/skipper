@@ -1,0 +1,16 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  namespace: namespace1
+  name: rg1
+spec:
+  backends:
+    - name: shunt
+      type: shunt
+  defaultBackends:
+    - backendName: shunt
+  routes:
+    - pathSubtree: /
+      filters:
+        - oauthOidcAnyClaims("https://identity.example.org", "my-client-id", "my-client-secret", "https://app.example.org/callback", "openid", "email")
+        - secureOauthTokenintrospectionAnyClaims("https://identity.example.org", "my-client-id", "my-client-secret", "uid")

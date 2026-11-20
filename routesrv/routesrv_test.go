@@ -1972,3 +1972,31 @@ func TestRouteServerFilters_ChainFirstPassSecondReject(t *testing.T) {
 	resp := getRoutes(rs)
 	assert.Equal(t, http.StatusForbidden, resp.Code, "second filter in chain must reject with 403")
 }
+
+func TestRoutesWithRedactableFiltersAreServedInPlaintext(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/redactable-filter.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServer(t, ks)
+
+	tl.Reset()
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Fatalf("routes not initialized: %v", err)
+	}
+	w := getRoutes(rs)
+
+	want := parseEskipFixture(t, "testdata/redactable-filter.eskip")
+	got, err := eskip.Parse(w.Body.String())
+	if err != nil {
+		t.Fatalf("served routes are not valid eskip: %s", w.Body)
+	}
+	if !eskip.EqLists(got, want) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
+	}
+	assert.Contains(t, w.Body.String(), "my-client-secret")
+	wantHTTPCode(t, w, http.StatusOK)
+}

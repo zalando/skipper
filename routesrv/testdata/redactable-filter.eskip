@@ -1,0 +1,5 @@
+kube_rg__namespace1__rg1__all__0_0:
+  PathSubtree("/")
+  -> oauthOidcAnyClaims("https://identity.example.org", "my-client-id", "my-client-secret", "https://app.example.org/callback", "openid", "email")
+  -> secureOauthTokenintrospectionAnyClaims("https://identity.example.org", "my-client-id", "my-client-secret", "uid")
+  -> <shunt>;

@@ -425,11 +425,20 @@ func (s *tokenOidcSpec) Name() string {
 // RedactedArgs implements filters.Redactable.
 // It replaces the clientSecret (args[paramClientSecret] == args[2]) with a placeholder.
 func (f *tokenOidcFilter) RedactedArgs() []any {
-	if len(f.args) <= paramClientSecret {
-		return f.args
+	return redactOidcArgs(f.args)
+}
+
+// RedactArgs implements filters.RedactableSpec.
+func (s *tokenOidcSpec) RedactArgs(args []any) []any {
+	return redactOidcArgs(args)
+}
+
+func redactOidcArgs(args []any) []any {
+	if len(args) <= paramClientSecret {
+		return args
 	}
-	out := make([]any, len(f.args))
-	copy(out, f.args)
+	out := make([]any, len(args))
+	copy(out, args)
 	out[paramClientSecret] = "<redacted>"
 	return out
 }
