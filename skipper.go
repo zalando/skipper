@@ -2704,8 +2704,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		MinHealthCheckDropProbability: passiveHealthCheck.MinDropProbability,
 		MaxHealthCheckDropProbability: passiveHealthCheck.MaxDropProbability,
 	})
+	filterRegistry := o.filterRegistry()
 	ro := routing.Options{
-		FilterRegistry:  o.filterRegistry(),
+		FilterRegistry:  filterRegistry,
 		MatchingOptions: mo,
 		PollTimeout:     o.SourcePollTimeout,
 		DataClients:     dataClients,
@@ -2724,8 +2725,20 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}
 
+	hedgePostProcessor, hasHedgePostProcessor := filterRegistry[filters.HedgeName].(routing.PostProcessor)
+
 	if len(prioRoutes) != 0 {
-		rm, err := routing.NewRoutesMatcher(&ro, prioRoutes)
+		priorityOptions := ro
+		if hasHedgePostProcessor {
+			priorityHedgePostProcessor := hedgePostProcessor
+			if factory, ok := filterRegistry[filters.HedgeName].(interface {
+				NewRoutePostProcessor() routing.PostProcessor
+			}); ok {
+				priorityHedgePostProcessor = factory.NewRoutePostProcessor()
+			}
+			priorityOptions.PostProcessors = append(slices.Clone(ro.PostProcessors), priorityHedgePostProcessor)
+		}
+		rm, err := routing.NewRoutesMatcher(&priorityOptions, prioRoutes)
 		if err != nil {
 			return fmt.Errorf("error while building priority routes matcher: %w", err)
 		}
@@ -2798,6 +2811,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	ro.PreProcessors = append(ro.PreProcessors, eskip.ForwardPreProcessor(o.ForwardBackendURL))
 
 	ro.Metrics = mtr
+
+	if hasHedgePostProcessor {
+		ro.PostProcessors = append(ro.PostProcessors, hedgePostProcessor)
+	}
 
 	routing := routing.New(ro)
 	defer routing.Close()

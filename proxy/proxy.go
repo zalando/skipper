@@ -654,22 +654,98 @@ func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]any) {
 	}
 }
 
+func (p *Proxy) eligibleLBEndpoints(ctx *context) []routing.LBEndpoint {
+	endpoints := ctx.route.LBEndpoints
+	endpoints = p.fadein.filterFadeIn(endpoints, ctx.route)
+	return p.healthyEndpoints.filterHealthyEndpoints(ctx, endpoints, p.metrics)
+}
+
 func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	rt := ctx.route
-	endpoints := rt.LBEndpoints
-	endpoints = p.fadein.filterFadeIn(endpoints, rt)
-	endpoints = p.healthyEndpoints.filterHealthyEndpoints(ctx, endpoints, p.metrics)
-
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
 		Route:       rt,
-		LBEndpoints: endpoints,
+		LBEndpoints: p.eligibleLBEndpoints(ctx),
 		Params:      ctx.StateBag(),
 	}
 
 	e := rt.LBAlgorithm.Apply(lbctx)
 
 	return &e
+}
+
+func sameLBEndpoint(left, right routing.LBEndpoint) bool {
+	return strings.EqualFold(left.Scheme, right.Scheme) && strings.EqualFold(left.Host, right.Host)
+}
+
+type retryEndpointReservation struct {
+	state    filters.HedgeState
+	endpoint *routing.LBEndpoint
+}
+
+func (r *retryEndpointReservation) commit() *routing.LBEndpoint {
+	r.state.CommitRetry()
+	r.state = nil
+	return r.endpoint
+}
+
+func (r *retryEndpointReservation) release() {
+	if r.state != nil {
+		r.state.ReleaseRetry()
+		r.state = nil
+	}
+}
+
+func (p *Proxy) reserveRetryEndpoint(ctx *context, failedURL *url.URL, requestContext stdlibcontext.Context, state filters.HedgeState) (*retryEndpointReservation, bool) {
+	if failedURL == nil || requestContext.Err() != nil || !state.TryReserveRetry() {
+		return nil, false
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			state.ReleaseRetry()
+		}
+	}()
+
+	candidates := make([]routing.LBEndpoint, 0, len(ctx.route.LBEndpoints))
+	for _, endpoint := range p.eligibleLBEndpoints(ctx) {
+		if strings.EqualFold(endpoint.Scheme, failedURL.Scheme) && strings.EqualFold(endpoint.Host, failedURL.Host) {
+			continue
+		}
+		candidates = append(candidates, endpoint)
+	}
+	if len(candidates) == 0 || requestContext.Err() != nil {
+		return nil, false
+	}
+
+	rt := ctx.route
+	lbctx := &routing.LBContext{
+		Request:     ctx.request,
+		Route:       rt,
+		LBEndpoints: candidates,
+		Params:      ctx.StateBag(),
+	}
+	selected := rt.LBAlgorithm.Apply(lbctx)
+	eligible := false
+	for _, endpoint := range candidates {
+		if sameLBEndpoint(selected, endpoint) {
+			eligible = true
+			break
+		}
+	}
+	if !eligible || requestContext.Err() != nil {
+		return nil, false
+	}
+	committed = true
+	return &retryEndpointReservation{state: state, endpoint: &selected}, true
+}
+
+func (p *Proxy) selectRetryEndpoint(ctx *context, failedURL *url.URL, requestContext stdlibcontext.Context, state filters.HedgeState) (*routing.LBEndpoint, bool) {
+	reservation, ok := p.reserveRetryEndpoint(ctx, failedURL, requestContext, state)
+	if !ok {
+		return nil, false
+	}
+	return reservation.commit(), true
 }
 
 // creates an outgoing http request to be forwarded to the route endpoint
@@ -687,7 +763,10 @@ func (p *Proxy) mapRequest(ctx *context, requestContext stdlibcontext.Context) (
 		setRequestURLFromRequest(u, r)
 		setRequestURLForDynamicBackend(u, stateBag)
 	case eskip.LBBackend:
-		endpoint := p.selectEndpoint(ctx)
+		endpoint := ctx.retryEndpoint
+		if endpoint == nil {
+			endpoint = p.selectEndpoint(ctx)
+		}
 		endpointMetrics = endpoint.Metrics
 		ctx.backendZone = endpoint.Zone
 		u.Scheme = endpoint.Scheme
@@ -1089,7 +1168,16 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) {
 	ctx.Logger().Debugf("finished upgraded protocol %s session", getUpgradeRequest(ctx.request))
 }
 
+func (p *Proxy) makeBackendAttempt(ctx *context, requestContext stdlibcontext.Context, retryEndpoint *routing.LBEndpoint) *backendAttempt {
+	attempt := &backendAttempt{}
+	attemptContext := ctx.newBackendAttemptContext(attempt)
+	attemptContext.retryEndpoint = retryEndpoint
+	attempt.response, attempt.err = p.makeBackendRequest(attemptContext, requestContext)
+	return attempt
+}
+
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
+	ctx.backendAttemptStart = time.Now()
 	requestStopWatch, responseStopWatch := newStopWatch(), newStopWatch()
 	requestStopWatch.Start()
 
@@ -1108,6 +1196,11 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	}
 
 	if res, ok := p.rejectBackend(ctx, req); ok {
+		ctx.backendHeaderTime = time.Now()
+		if ctx.backendAttempt != nil {
+			ctx.backendAttempt.response = res
+			ctx.backendAttempt.headersReturned.Store(true)
+		}
 		return res, nil
 	}
 
@@ -1172,11 +1265,23 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	requestStopWatch.Stop()
 
 	response, err := roundTripper.RoundTrip(req)
+	if ctx.backendAttempt != nil {
+		ctx.backendAttempt.roundTripState.CompareAndSwap(backendRoundTripPending, backendRoundTripFinished)
+	}
+	ctx.backendHeaderTime = time.Now()
+	if response != nil && err == nil && ctx.backendAttempt != nil {
+		ctx.backendAttempt.response = response
+		ctx.backendAttempt.headersReturned.Store(true)
+	}
 
 	responseStopWatch.Start()
 
 	if endpointMetrics != nil {
-		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil})
+		failedRoundTrip := err != nil
+		if ctx.backendAttempt != nil && ctx.backendAttempt.roundTripState.Load() == backendRoundTripIntentionallyCanceled {
+			failedRoundTrip = false
+		}
+		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: failedRoundTrip})
 	}
 	if p.tracing.clientTraceByTag {
 		ctx.proxySpan.SetTag(ClientTraceHTTPRoundTrip, time.Since(httpRoundtripTime).Microseconds())
@@ -1401,6 +1506,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 	parentSpan.SetTag(SkipperRouteIDTag, route.Id)
 
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
+	delete(ctx.StateBag(), filters.HedgeStateKey)
 
 	requestStopWatch.Stop()
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx, &processedFiltersCounter)
@@ -1477,6 +1583,11 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		ctx.outgoingDebugRequest = debugReq
 		ctx.setResponse(&http.Response{Header: make(http.Header)}, p.flags.PreserveOriginal())
 	} else {
+		hedgeState := eligibleHedgeState(ctx)
+		if hedgeState != nil {
+			hedgeState = hedgeState.RecordEligibleRequest()
+			ctx.StateBag()[filters.HedgeStateKey] = hedgeState
+		}
 
 		done, allow := p.checkBreaker(ctx)
 		if !allow {
@@ -1502,18 +1613,77 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		}
 
 		requestStopWatch.Stop()
-		rsp, perr := p.makeBackendRequest(ctx, backendContext)
-		requestElapsed += ctx.proxyRequestElapsed
-		responseElapsed += ctx.proxyResponseElapsed
+		var (
+			attempt                *backendAttempt
+			rsp                    *http.Response
+			perr                   *proxyError
+			hedgeResult            *hedgedBackendResult
+			firstAttemptStart      time.Time
+			headerLatency          time.Duration
+			primaryErrorWasCounted bool
+		)
+		if hedgeState != nil {
+			if delay, ready := hedgeState.HedgeDelay(); ready {
+				hedgeResult = p.makeHedgedBackendRequest(ctx, backendContext, hedgeState, delay)
+				attempt, rsp, perr = hedgeResult.attempt, nil, hedgeResult.err
+				requestElapsed += hedgeResult.requestElapsed
+				responseElapsed += hedgeResult.responseElapsed
+				headerLatency = hedgeResult.headerLatency
+				if attempt != nil {
+					rsp = attempt.response
+					ctx.applyBackendAttempt(attempt)
+				}
+				if perr != nil && hedgeResult.winnerCancel != nil {
+					hedgeResult.winnerCancel()
+				}
+				if hedgeResult.primaryError != nil {
+					requestStopWatch.Start()
+					if done != nil {
+						done(false)
+					}
+					requestStopWatch.Stop()
+					p.metrics.IncErrorsBackend(ctx.route.Id)
+					primaryErrorWasCounted = true
+				}
+				if perr == nil && rsp != nil && hedgeResult.winnerCancel != nil {
+					parentCancel := ctx.cancelBackendContext
+					winnerCancel := hedgeResult.winnerCancel
+					ctx.cancelBackendContext = func() {
+						winnerCancel()
+						if parentCancel != nil {
+							parentCancel()
+						}
+					}
+				}
+			} else {
+				attempt = p.makeBackendAttempt(ctx, backendContext, nil)
+				firstAttemptStart = attempt.context.backendAttemptStart
+				ctx.applyBackendAttempt(attempt)
+				rsp, perr = attempt.response, attempt.err
+				requestElapsed += attempt.context.proxyRequestElapsed
+				responseElapsed += attempt.context.proxyResponseElapsed
+			}
+		} else {
+			rsp, perr = p.makeBackendRequest(ctx, backendContext)
+			requestElapsed += ctx.proxyRequestElapsed
+			responseElapsed += ctx.proxyResponseElapsed
+		}
 		if perr != nil {
 			requestStopWatch.Start()
-			if done != nil {
+			if done != nil && !primaryErrorWasCounted {
 				done(false)
 			}
 
-			p.metrics.IncErrorsBackend(ctx.route.Id)
+			if !primaryErrorWasCounted {
+				p.metrics.IncErrorsBackend(ctx.route.Id)
+			}
 
-			if retryable(ctx, perr) {
+			retryEndpoint := (*routing.LBEndpoint)(nil)
+			shouldRetry := hedgeResult == nil && retryable(ctx, perr)
+			if shouldRetry && hedgeState != nil {
+				retryEndpoint, shouldRetry = p.selectRetryEndpoint(ctx, attempt.context.request.URL, backendContext, hedgeState)
+			}
+			if shouldRetry {
 				if p.tracing.clientTraceByTag {
 					p.tracing.setTag(ctx.proxySpan, "retry", ctx.route.Id)
 				} else {
@@ -1528,9 +1698,17 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 				perr = nil
 				var perr2 *proxyError
 				requestStopWatch.Stop()
-				rsp, perr2 = p.makeBackendRequest(ctx, backendContext)
-				requestElapsed += ctx.proxyRequestElapsed
-				responseElapsed += ctx.proxyResponseElapsed
+				if hedgeState == nil {
+					rsp, perr2 = p.makeBackendRequest(ctx, backendContext)
+					requestElapsed += ctx.proxyRequestElapsed
+					responseElapsed += ctx.proxyResponseElapsed
+				} else {
+					attempt = p.makeBackendAttempt(ctx, backendContext, retryEndpoint)
+					ctx.applyBackendAttempt(attempt)
+					rsp, perr2 = attempt.response, attempt.err
+					requestElapsed += attempt.context.proxyRequestElapsed
+					responseElapsed += attempt.context.proxyResponseElapsed
+				}
 				responseStopWatch.Start()
 				if perr2 != nil {
 					ctx.Logger().Errorf("Failed to retry backend request: %v", perr2)
@@ -1545,6 +1723,9 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			} else {
 				requestStopWatch.Stop()
 				responseStopWatch.Start()
+				if hedgeResult != nil && hedgeResult.secondStarted && perr.code >= http.StatusInternalServerError {
+					p.metrics.MeasureBackend5xx(backendStart)
+				}
 				p.makeErrorResponse(ctx, perr)
 				p.applyFiltersOnError(ctx, processedFilters)
 				return perr
@@ -1558,6 +1739,12 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 
 		if done != nil {
 			done(rsp.StatusCode < http.StatusInternalServerError)
+		}
+		if hedgeState != nil && rsp != nil {
+			if hedgeResult == nil && attempt != nil && !attempt.context.backendHeaderTime.IsZero() {
+				headerLatency = attempt.context.backendHeaderTime.Sub(firstAttemptStart)
+			}
+			hedgeState.ObserveResponseHeaderLatency(headerLatency)
 		}
 
 		ctx.setResponse(rsp, p.flags.PreserveOriginal())
@@ -1578,6 +1765,23 @@ func retryable(ctx *context, perr *proxyError) bool {
 	return perr.code != 499 && perr.DialError() &&
 		ctx.route.BackendType == eskip.LBBackend &&
 		req != nil && (req.Body == nil || req.Body == http.NoBody)
+}
+
+func eligibleHedgeState(ctx *context) filters.HedgeState {
+	if ctx.route == nil || ctx.route.BackendType != eskip.LBBackend || ctx.request == nil {
+		return nil
+	}
+	if ctx.request.Method != http.MethodGet && ctx.request.Method != http.MethodHead {
+		return nil
+	}
+	if ctx.request.Body != nil && ctx.request.Body != http.NoBody {
+		return nil
+	}
+	if isUpgradeRequest(ctx.request) {
+		return nil
+	}
+	state, _ := ctx.StateBag()[filters.HedgeStateKey].(filters.HedgeState)
+	return state
 }
 
 func (p *Proxy) serveResponse(ctx *context) {
