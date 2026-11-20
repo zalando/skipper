@@ -17,12 +17,15 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/propagation"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/bombsimon/logrusr/v4"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -33,6 +36,14 @@ type Options struct {
 	// Initialized indicates whether the OpenTelemetry pipeline has been initialized externally.
 	// If true [Init] returns immediately without doing anything.
 	Initialized bool `yaml:"-"`
+
+	// PrometheusRegisterer registers a Prometheus exporter backed reader of the
+	// global OpenTelemetry MeterProvider onto the given Prometheus Registerer when non-nil.
+	PrometheusRegisterer prometheus.Registerer `yaml:"-"`
+
+	// MeterProviderReaders are additional readers attached to the global
+	// OpenTelemetry MeterProvider, for example an OTLP periodic reader.
+	MeterProviderReaders []sdkmetric.Reader `yaml:"-"`
 
 	TracesExporter     string             `yaml:"tracesExporter"`
 	ExporterOtlp       ExporterOtlp       `yaml:"exporterOtlp"`
@@ -102,6 +113,7 @@ type BatchSpanProcessor struct {
 //   - OTEL_BSP_MAX_EXPORT_BATCH_SIZE
 //   - OTEL_BSP_SCHEDULE_DELAY
 //   - OTEL_BSP_EXPORT_TIMEOUT
+//   - OTEL_GO_X_OBSERVABILITY
 //
 // See:
 //   - [go.opentelemetry.io/contrib/exporters/autoexport]
@@ -128,6 +140,7 @@ func Init(ctx context.Context, o *Options) (shutdown func(context.Context) error
 		"OTEL_BSP_MAX_EXPORT_BATCH_SIZE",
 		"OTEL_BSP_SCHEDULE_DELAY",
 		"OTEL_BSP_EXPORT_TIMEOUT",
+		"OTEL_GO_X_OBSERVABILITY",
 	} {
 		log.Debugf("%s: %q", name, os.Getenv(name))
 	}
@@ -152,13 +165,29 @@ func Init(ctx context.Context, o *Options) (shutdown func(context.Context) error
 		return nil, errors.Join(inErr, shutdown(ctx))
 	}
 
+	readers := o.MeterProviderReaders
+	if o.PrometheusRegisterer != nil {
+		promExporter, err := otelprom.New(otelprom.WithRegisterer(o.PrometheusRegisterer))
+		if err != nil {
+			return handleErr(err)
+		}
+		readers = append([]sdkmetric.Reader{promExporter}, readers...)
+	}
+	if len(readers) > 0 {
+		meterProviderOpts := make([]sdkmetric.Option, 0, len(readers))
+		for _, r := range readers {
+			meterProviderOpts = append(meterProviderOpts, sdkmetric.WithReader(r))
+		}
+		meterProvider := sdkmetric.NewMeterProvider(meterProviderOpts...)
+		shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
+		otel.SetMeterProvider(meterProvider)
+	}
+
 	spanExporter, err := newSpanExporter(ctx, o)
 	if err != nil {
 		return handleErr(err)
 	}
 	shutdownFuncs = append(shutdownFuncs, spanExporter.Shutdown)
-
-	batcherOpt := withBatcher(spanExporter, o)
 
 	resourceOpt, err := withResource(o)
 	if err != nil {
@@ -170,16 +199,18 @@ func Init(ctx context.Context, o *Options) (shutdown func(context.Context) error
 		return handleErr(err)
 	}
 
-	tracerProvider := trace.NewTracerProvider(batcherOpt, resourceOpt, samplerOpt)
-	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
-
-	otel.SetTracerProvider(tracerProvider)
-
 	propagator, err := textMapPropagator(o)
 	if err != nil {
 		return handleErr(err)
 	}
 	otel.SetTextMapPropagator(propagator)
+
+	batcherOpt := withBatcher(spanExporter, o)
+
+	tracerProvider := trace.NewTracerProvider(batcherOpt, resourceOpt, samplerOpt)
+	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
+
+	otel.SetTracerProvider(tracerProvider)
 
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) { log.Error(err) }))
 	otel.SetLogger(logrusr.New(log))

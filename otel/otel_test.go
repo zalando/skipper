@@ -3,12 +3,24 @@ package otel
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/AlexanderYastrebov/noleak"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/trace"
 )
+
+func TestMain(m *testing.M) {
+	os.Exit(noleak.CheckMain(m))
+}
 
 func TestOtel(t *testing.T) {
 	for _, tt := range []struct {
@@ -357,4 +369,201 @@ func TestPropagatorExtractMalformedTraceparent(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOtelSDKObservabilityMetrics(t *testing.T) {
+	t.Setenv("OTEL_GO_X_OBSERVABILITY", "true")
+
+	blockCh := make(chan struct{})
+	closed := false
+	defer func() {
+		if !closed {
+			close(blockCh)
+		}
+	}()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-blockCh:
+		case <-r.Context().Done():
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	reg := prometheus.NewRegistry()
+	opt := &Options{
+		TracesExporter:       "otlp",
+		PrometheusRegisterer: reg,
+		ExporterOtlp: ExporterOtlp{
+			Endpoint: srv.URL,
+			Protocol: "http/protobuf",
+		},
+		Sampler: "always_on",
+		BatchSpanProcessor: BatchSpanProcessor{
+			MaxQueueSize:       1,
+			MaxExportBatchSize: 1,
+			ScheduleDelay:      10 * time.Millisecond,
+			ExportTimeout:      50 * time.Millisecond,
+		},
+	}
+
+	shutdown, err := Init(context.Background(), opt)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer func() {
+		if err := shutdown(context.Background()); err != nil {
+			t.Errorf("shutdown: %v", err)
+		}
+	}()
+
+	tr := otel.Tracer("test-tracer")
+	for range 20 {
+		_, span := tr.Start(context.Background(), "test-span")
+		span.End()
+	}
+
+	close(blockCh)
+	closed = true
+
+	var (
+		hasQueueFull     bool
+		hasQueueCapacity bool
+		hasExported      bool
+	)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		mfs, err := reg.Gather()
+		if err != nil {
+			t.Fatalf("Gather: %v", err)
+		}
+		for _, mf := range mfs {
+			switch mf.GetName() {
+			case "otel_sdk_processor_span_processed_total":
+				for _, m := range mf.GetMetric() {
+					if hasLabel(m, "error_type", "queue_full") && m.GetCounter().GetValue() > 0 {
+						hasQueueFull = true
+					}
+				}
+			case "otel_sdk_processor_span_queue_capacity":
+				for _, m := range mf.GetMetric() {
+					if m.GetGauge().GetValue() == 1 {
+						hasQueueCapacity = true
+					}
+				}
+			case "otel_sdk_exporter_span_exported_total":
+				for _, m := range mf.GetMetric() {
+					if m.GetCounter().GetValue() > 0 {
+						hasExported = true
+					}
+				}
+			}
+		}
+		if hasQueueFull && hasQueueCapacity && hasExported {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if !hasQueueFull {
+		t.Errorf("expected otel_sdk_processor_span_processed_total with error_type=queue_full > 0")
+	}
+	if !hasQueueCapacity {
+		t.Errorf("expected otel_sdk_processor_span_queue_capacity == 1")
+	}
+	if !hasExported {
+		t.Errorf("expected otel_sdk_exporter_span_exported_total > 0")
+	}
+}
+
+func TestOtelMeterProviderConfigurations(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		prometheus bool
+		reader     bool
+	}{
+		{name: "prometheus registerer only", prometheus: true},
+		{name: "meter provider readers only", reader: true},
+		{name: "prometheus registerer and meter provider readers", prometheus: true, reader: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			prev := otel.GetMeterProvider()
+			t.Cleanup(func() { otel.SetMeterProvider(prev) })
+
+			var (
+				reg    *prometheus.Registry
+				reader *sdkmetric.ManualReader
+			)
+			opt := &Options{TracesExporter: "console"}
+			if tt.prometheus {
+				reg = prometheus.NewRegistry()
+				opt.PrometheusRegisterer = reg
+			}
+			if tt.reader {
+				reader = sdkmetric.NewManualReader()
+				opt.MeterProviderReaders = []sdkmetric.Reader{reader}
+			}
+
+			shutdown, err := Init(context.Background(), opt)
+			if err != nil {
+				t.Fatalf("Init: %v", err)
+			}
+			defer func() {
+				if err := shutdown(context.Background()); err != nil {
+					t.Errorf("shutdown: %v", err)
+				}
+			}()
+
+			c, err := otel.GetMeterProvider().Meter("test").Int64Counter("global_test_counter")
+			if err != nil {
+				t.Fatalf("Int64Counter: %v", err)
+			}
+			c.Add(context.Background(), 1)
+
+			if tt.prometheus {
+				mfs, err := reg.Gather()
+				if err != nil {
+					t.Fatalf("Gather: %v", err)
+				}
+				found := false
+				for _, mf := range mfs {
+					if mf.GetName() == "global_test_counter_total" {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("expected global_test_counter_total to be gathered by Prometheus registry")
+				}
+			}
+
+			if tt.reader {
+				var rm metricdata.ResourceMetrics
+				if err := reader.Collect(context.Background(), &rm); err != nil {
+					t.Fatalf("Collect: %v", err)
+				}
+				found := false
+				for _, sm := range rm.ScopeMetrics {
+					for _, m := range sm.Metrics {
+						if m.Name == "global_test_counter" {
+							found = true
+						}
+					}
+				}
+				if !found {
+					t.Errorf("expected global_test_counter to be collected by MeterProvider reader")
+				}
+			}
+		})
+	}
+}
+
+func hasLabel(m *dto.Metric, name, value string) bool {
+	for _, lp := range m.GetLabel() {
+		if lp.GetName() == name && lp.GetValue() == value {
+			return true
+		}
+	}
+	return false
 }

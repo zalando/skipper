@@ -1,14 +1,17 @@
 package metrics
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 // Compile-time check that OTel implements Metrics.
@@ -342,5 +345,51 @@ func TestOTelHistogramViewsEmptyBuckets(t *testing.T) {
 	views := otelHistogramViews("skipper", nil, DefaultResponseSizeBuckets, DefaultRequestSizeBuckets)
 	if len(views) != 2 {
 		t.Fatalf("expected 2 views (size only), got %d", len(views))
+	}
+}
+
+func TestOTelPreservesGlobalMeterProvider(t *testing.T) {
+	globalReader := sdkmetric.NewManualReader()
+	globalProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(globalReader))
+	prev := otel.GetMeterProvider()
+	otel.SetMeterProvider(globalProvider)
+	t.Cleanup(func() {
+		otel.SetMeterProvider(prev)
+		_ = globalProvider.Shutdown(context.Background())
+	})
+
+	reader := sdkmetric.NewManualReader()
+	o, err := newOTelWithReader(Options{DisableCompatibilityDefaults: true}, reader)
+	if err != nil {
+		t.Fatalf("newOTelWithReader: %v", err)
+	}
+	t.Cleanup(o.Close)
+
+	c, err := otel.GetMeterProvider().Meter("test").Int64Counter("global_test_counter")
+	if err != nil {
+		t.Fatalf("Int64Counter: %v", err)
+	}
+	c.Add(t.Context(), 1)
+
+	collected := func(r *sdkmetric.ManualReader) bool {
+		var rm metricdata.ResourceMetrics
+		if err := r.Collect(t.Context(), &rm); err != nil {
+			t.Fatalf("Collect: %v", err)
+		}
+		for _, sm := range rm.ScopeMetrics {
+			for _, m := range sm.Metrics {
+				if m.Name == "global_test_counter" {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	if collected(reader) {
+		t.Errorf("expected global_test_counter not to be collected by OTel MeterProvider")
+	}
+	if !collected(globalReader) {
+		t.Errorf("expected global_test_counter to be collected by global MeterProvider")
 	}
 }
