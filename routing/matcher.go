@@ -26,7 +26,12 @@ func (m *leafRequestMatcher) Match(value any) (bool, any) {
 		return false, nil
 	}
 
-	l := matchLeaves(v.leaves, m.r, m.path, m.exactPath)
+	var l *leafMatcher
+	if v.hostIndex == nil {
+		l = matchLeaves(v.leaves, m.r, m.path, m.exactPath)
+	} else {
+		l = v.matchHostLeaves(m.r, m.path, m.exactPath)
+	}
 	return l != nil, l
 }
 
@@ -68,13 +73,14 @@ func (ls leafMatchers) Swap(i, j int)      { ls[i], ls[j] = ls[j], ls[i] }
 func (ls leafMatchers) Less(i, j int) bool { return leafWeight(ls[i]) > leafWeight(ls[j]) }
 
 type pathMatcher struct {
-	leaves leafMatchers
+	leaves    leafMatchers
+	hostIndex *hostIndex
 }
 
 // root structure representing the routing tree.
 type matcher struct {
 	paths           *pathmux.Tree
-	rootLeaves      leafMatchers
+	rootLeaves      pathMatcher
 	matchingOptions MatchingOptions
 }
 
@@ -265,6 +271,7 @@ func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher) [
 
 		// sort leaves during construction time, based on their priority
 		sort.Stable(m.leaves)
+		m.indexHosts()
 
 		if err := pathTree.Add(p, m); err != nil {
 			errors = append(errors, &definitionError{Index: -1, Original: err})
@@ -354,7 +361,9 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	// sort root leaves during construction time, based on their priority
 	sort.Stable(rootLeaves)
 
-	return &matcher{pathTree, rootLeaves, o}, errors
+	root := pathMatcher{leaves: rootLeaves}
+	root.indexHosts()
+	return &matcher{pathTree, root, o}, errors
 }
 
 // matches a path in the path trie structure.
@@ -496,7 +505,11 @@ func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 	}
 
 	// if no path match, match root leaves for other conditions
-	l = matchLeaves(m.rootLeaves, r, path, exact)
+	if m.rootLeaves.hostIndex == nil {
+		l = matchLeaves(m.rootLeaves.leaves, r, path, exact)
+	} else {
+		l = m.rootLeaves.matchHostLeaves(r, path, exact)
+	}
 	if l != nil {
 		return l.route, nil
 	}
