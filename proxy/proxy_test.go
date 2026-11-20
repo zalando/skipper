@@ -1535,8 +1535,12 @@ func TestBackendServiceUnavailable(t *testing.T) {
 		t.Error("failed to return 502 Bad Gateway on failing backend connection")
 	}
 
-	if rsp.Header.Get("Content-Length") != "12" { // len("Bad Gateway\n")
-		t.Errorf("expected content length of 12, got %s", rsp.Header.Get("Content-Length"))
+	if rsp.Header.Get("Content-Length") != "11" { // len("Bad Gateway")
+		t.Errorf("expected content length of 11, got %s", rsp.Header.Get("Content-Length"))
+	}
+
+	if got := rsp.Header.Get(SkipperErrResponseFlag); got != skipperErrResponseFlagConnRefused {
+		t.Errorf("expected %s header %q, got %q", SkipperErrResponseFlag, skipperErrResponseFlagConnRefused, got)
 	}
 
 	if rsp.Header.Get("Transfer-Encoding") != "" {
@@ -2155,7 +2159,11 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 		t.Fatalf("failed to return 502 Bad Gateway on failing backend connection: %d", rsp.StatusCode)
 	}
 
-	const expected = `"GET / HTTP/1.1" 502 12 "-" "Go-http-client/1.1"`
+	if got := rsp.Header.Get(SkipperErrResponseFlag); got != skipperErrResponseFlagConnRefused {
+		t.Errorf("expected %s header %q, got %q", SkipperErrResponseFlag, skipperErrResponseFlagConnRefused, got)
+	}
+
+	const expected = `"GET / HTTP/1.1" 502 11 "-" "Go-http-client/1.1"`
 	if err = testLog.WaitFor(expected, 100*time.Millisecond); err != nil {
 		t.Errorf("Failed to get accesslog expected:\n%v\ngot:\n%v", expected, err)
 		t.Logf("%s", cmp.Diff(testLog.String(), expected))
@@ -2904,4 +2912,84 @@ func TestServeHostMetricsIgnoresELBHealthChecker(t *testing.T) {
 	assert.NotContains(t, body, "skipper_serve_host_duration_seconds_bucket{host=\"foo_skipper_test\"")
 	// Normal request must appear in serve host metrics
 	assert.Contains(t, body, "skipper_serve_host_duration_seconds_bucket{host=\"bar_skipper_test\"")
+}
+
+func TestErrorResponseFlags(t *testing.T) {
+	closedBackend := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	closedBackend.Close()
+
+	doc := fmt.Sprintf(`
+		networkRefused: Path("/network-refused") -> "%s";
+		lbRefused: Path("/lb-refused") -> <roundRobin, "%s", "%s">;
+		noReadyEndpoints: Path("/no-ready-endpoints") -> setResponseHeader(%q, %q) -> status(502) -> inlineContent("no endpoints") -> <shunt>;
+	`, closedBackend.URL, closedBackend.URL, closedBackend.URL, SkipperErrResponseFlag, SkipperErrResponseFlagNoReadyEndpoints)
+
+	for _, tt := range []struct {
+		name              string
+		path              string
+		defaultHTTPStatus int
+		wantStatus        int
+		wantBody          string
+		wantFlag          string
+	}{
+		{
+			name:       "no route found with default status",
+			path:       "/unknown",
+			wantStatus: http.StatusNotFound,
+			wantBody:   http.StatusText(http.StatusNotFound),
+			wantFlag:   skipperErrResponseFlagNoRoute,
+		},
+		{
+			name:              "no route found with custom defaultHTTPStatus",
+			path:              "/unknown",
+			defaultHTTPStatus: http.StatusTeapot,
+			wantStatus:        http.StatusTeapot,
+			wantBody:          http.StatusText(http.StatusTeapot),
+			wantFlag:          skipperErrResponseFlagNoRoute,
+		},
+		{
+			name:       "connection refused on network backend",
+			path:       "/network-refused",
+			wantStatus: http.StatusBadGateway,
+			wantBody:   http.StatusText(http.StatusBadGateway),
+			wantFlag:   skipperErrResponseFlagConnRefused,
+		},
+		{
+			name:       "connection refused on lb backend",
+			path:       "/lb-refused",
+			wantStatus: http.StatusBadGateway,
+			wantBody:   http.StatusText(http.StatusBadGateway),
+			wantFlag:   skipperErrResponseFlagConnRefused,
+		},
+		{
+			name:       "no ready endpoints on shunt route",
+			path:       "/no-ready-endpoints",
+			wantStatus: http.StatusBadGateway,
+			wantBody:   "no endpoints",
+			wantFlag:   SkipperErrResponseFlagNoReadyEndpoints,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tp, err := newTestProxyWithParams(doc, Params{
+				DefaultHTTPStatus: tt.defaultHTTPStatus,
+			})
+			require.NoError(t, err)
+			defer tp.close()
+
+			ps := httptest.NewServer(tp.proxy)
+			defer ps.Close()
+
+			rsp, err := ps.Client().Get(ps.URL + tt.path)
+			require.NoError(t, err)
+			defer rsp.Body.Close()
+
+			body, err := io.ReadAll(rsp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantStatus, rsp.StatusCode)
+			assert.Equal(t, tt.wantBody, string(body))
+			assert.Equal(t, strconv.Itoa(len(tt.wantBody)), rsp.Header.Get("Content-Length"))
+			assert.Equal(t, tt.wantFlag, rsp.Header.Get(SkipperErrResponseFlag))
+		})
+	}
 }

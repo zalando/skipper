@@ -2018,6 +2018,17 @@ uses one 8kB buffer to stream the data through this 8kB buffer. It
 uses Flush() to make sure the 8kB chunk is written to the client.
 Details can be observed by opentracing in the logs of the [Proxy Span](#proxy-span).
 
+### Understand Error Response
+
+In case of errors that skipper detects, our goal is to be helpful for the
+clients and the operators to quickly diagnose the problem.
+
+For http clients we respond with response header `x-skipper-response-flags` with following values:
+
+- "No Route found": Skipper could not match a route for this request.
+- "Connection refused": Skipper tried to connect to target, but target refused the connection.
+- "No ready endpoints": Skipper got no endpoints from Kubernetes. Most likely case: readiness probe failed.
+
 ## Forwarded headers
 
 Skipper can be configured to add [`X-Forwarded-*` headers](https://en.wikipedia.org/wiki/X-Forwarded-For):
