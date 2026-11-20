@@ -369,11 +369,23 @@ func (f *tokenintrospectFilter) String() string {
 // RedactedArgs implements filters.Redactable for secure tokenintrospection variants.
 // It replaces clientId (args[1]) and clientSecret (args[2]) with a placeholder.
 func (f *tokenintrospectFilter) RedactedArgs() []any {
-	if len(f.args) < 3 {
-		return f.args
+	return redactTokenintrospectionArgs(f.args)
+}
+
+// RedactArgs implements filters.RedactableSpec for secure tokenintrospection variants.
+func (s *tokenIntrospectionSpec) RedactArgs(args []any) []any {
+	if !s.secure {
+		return args
 	}
-	out := make([]any, len(f.args))
-	copy(out, f.args)
+	return redactTokenintrospectionArgs(args)
+}
+
+func redactTokenintrospectionArgs(args []any) []any {
+	if len(args) < 3 {
+		return args
+	}
+	out := make([]any, len(args))
+	copy(out, args)
 	out[1] = "<redacted>"
 	out[2] = "<redacted>"
 	return out

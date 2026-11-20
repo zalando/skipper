@@ -755,3 +755,22 @@ func (m *mockIntrospectionSpec) Name() string { return m.name }
 func (m *mockIntrospectionSpec) CreateFilter([]any) (filters.Filter, error) {
 	return nil, nil
 }
+
+func TestTokenintrospectionSpecRedactArgs(t *testing.T) {
+	args := []any{"https://issuer.example.org", "client-id", "client-secret", "uid"}
+
+	secure := NewSecureOAuthTokenintrospectionAnyClaims(time.Second).(filters.RedactableSpec)
+	got := secure.RedactArgs(args)
+	if got[1] != "<redacted>" || got[2] != "<redacted>" || got[0] != args[0] || got[3] != args[3] {
+		t.Errorf("unexpected redacted args: %v", got)
+	}
+	if args[2] != "client-secret" {
+		t.Errorf("original args modified: %v", args)
+	}
+
+	plain := NewOAuthTokenintrospectionAnyClaims(time.Second).(filters.RedactableSpec)
+	args = []any{"https://issuer.example.org", "uid"}
+	if got := plain.RedactArgs(args); got[1] != "uid" {
+		t.Errorf("unexpected redacted args: %v", got)
+	}
+}
