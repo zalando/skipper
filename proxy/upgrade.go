@@ -82,7 +82,7 @@ type auditLog struct {
 // auditlog for the request target, copies the data back and force and
 // write data to an auditlog. It will not return until the connection
 // is closed.
-func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
+func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) bool {
 	// The following check is based on
 	// https://tools.ietf.org/html/rfc2616#section-14.42
 	// https://tools.ietf.org/html/rfc7230#section-6.7
@@ -92,7 +92,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		req.Header.Get("Upgrade") == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(http.StatusText(http.StatusBadRequest)))
-		return
+		return false
 	}
 
 	backendConn, err := p.dialBackend(req)
@@ -100,7 +100,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Errorf("Error connecting to backend: %s", err)
 		w.WriteHeader(http.StatusServiceUnavailable)
 		w.Write([]byte(http.StatusText(http.StatusServiceUnavailable)))
-		return
+		return false
 	}
 	defer backendConn.Close()
 
@@ -109,7 +109,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Errorf("Error writing request to backend: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
-		return
+		return false
 	}
 
 	// Audit-Log
@@ -123,7 +123,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 			log.Errorf("Could not write audit-log, caused by: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
-			return
+			return false
 		}
 	}
 
@@ -132,7 +132,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Errorf("Error reading response from backend: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
-		return
+		return false
 	}
 	defer resp.Body.Close()
 
@@ -140,7 +140,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Debugf("Got unauthorized error from backend for: %s %s", req.Method, req.URL)
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(http.StatusText(http.StatusUnauthorized)))
-		return
+		return true
 	}
 
 	if resp.StatusCode != http.StatusSwitchingProtocols {
@@ -150,16 +150,16 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		_, err := io.Copy(w, resp.Body)
 		if err != nil {
 			log.Errorf("Error writing body to client: %s", err)
-			return
+			return false
 		}
-		return
+		return resp.StatusCode < http.StatusInternalServerError
 	}
 
 	// Backend sent Connection: close
 	if resp.Close {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		w.Write([]byte(http.StatusText(http.StatusServiceUnavailable)))
-		return
+		return false
 	}
 
 	requestHijackedConn, _, err := w.(http.Hijacker).Hijack()
@@ -167,7 +167,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Errorf("Error hijacking request connection: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
-		return
+		return false
 	}
 
 	defer requestHijackedConn.Close()
@@ -177,7 +177,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	err = resp.Write(requestHijackedConn)
 	if err != nil {
 		log.Errorf("Error writing backend response to client: %s", err)
-		return
+		return false
 	}
 
 	done := make(chan struct{}, 2)
@@ -203,6 +203,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		default:
 		}
 	}
+	return true
 }
 
 func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
