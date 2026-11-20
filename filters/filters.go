@@ -205,6 +205,16 @@ type Redactable interface {
 	RedactedArgs() []any
 }
 
+// RedactableSpec is an optional interface that Spec objects can implement
+// to redact the args of a filter definition when no filter instance exists,
+// for example for invalid routes listed by the /routes API endpoint. Implement
+// it on every Spec whose filters implement Redactable.
+type RedactableSpec interface {
+	// RedactArgs returns a copy of args with sensitive values replaced by a
+	// placeholder. Must not modify args.
+	RedactArgs(args []any) []any
+}
+
 // Spec objects are specifications for filters. When initializing the routes,
 // the Filter instances are created using the Spec objects found in the
 // registry.

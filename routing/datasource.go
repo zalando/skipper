@@ -258,9 +258,33 @@ func createFilter(o *Options, def *eskip.Filter, cpm map[string]PredicateSpec) (
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to create filter %v: %w", errInvalidFilterParams, def, err)
+		return nil, fmt.Errorf("%w: failed to create filter %v: %w", errInvalidFilterParams, redactFilter(spec, def), err)
 	}
 	return f, nil
+}
+
+func redactFilter(spec filters.Spec, def *eskip.Filter) *eskip.Filter {
+	if rs, ok := spec.(filters.RedactableSpec); ok {
+		return &eskip.Filter{Name: def.Name, Args: rs.RedactArgs(def.Args)}
+	}
+	return def
+}
+
+func redactRoute(registry filters.Registry, def *eskip.Route) *eskip.Route {
+	var rc *eskip.Route
+	for i, f := range def.Filters {
+		if _, ok := registry[f.Name].(filters.RedactableSpec); !ok {
+			continue
+		}
+		if rc == nil {
+			rc = def.Copy()
+		}
+		rc.Filters[i] = redactFilter(registry[f.Name], f)
+	}
+	if rc == nil {
+		return def
+	}
+	return rc
 }
 
 // creates filter instances based on their definition
@@ -590,7 +614,7 @@ func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalid
 		if err == nil {
 			routes = append(routes, route)
 		} else {
-			invalidDefs = append(invalidDefs, def)
+			invalidDefs = append(invalidDefs, redactRoute(o.FilterRegistry, def))
 			invalidErrors[def.Id] = err.Error()
 			o.Log.Errorf("failed to process route %s: %v", def.Id, err)
 
@@ -682,19 +706,19 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 
 			for i := range routes {
 				r := routes[i]
+				rc := r.Route.Copy()
+				for j, lf := range r.Filters {
+					if red, ok := lf.Filter.(filters.Redactable); ok {
+						rc.Filters[j].Args = red.RedactedArgs()
+					}
+				}
 				if _, found := invalidRouteIds[r.Id]; found {
-					invalidRoutes = append(invalidRoutes, &r.Route)
+					invalidRoutes = append(invalidRoutes, rc)
 					// Set individual route metric for matcher errors
 					if o.Metrics != nil {
 						o.Metrics.SetInvalidRoute(r.Id, errInvalidMatcher.Code())
 					}
 				} else {
-					rc := r.Route.Copy()
-					for j, lf := range r.Filters {
-						if red, ok := lf.Filter.(filters.Redactable); ok {
-							rc.Filters[j].Args = red.RedactedArgs()
-						}
-					}
 					validRoutes = append(validRoutes, rc)
 				}
 			}
