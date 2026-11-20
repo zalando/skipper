@@ -5,7 +5,9 @@ import (
 
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type baggageSpec struct{}
@@ -52,7 +54,8 @@ func (*baggageSpec) Create(args []any) (routing.Predicate, error) {
 }
 
 func (p *baggagePredicate) Match(r *http.Request) bool {
-	bp := baggage.FromContext(r.Context())
+	ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+	bp := baggage.FromContext(ctx)
 	member := bp.Member(p.key)
 	if p.value != "" {
 		return member.Key() == p.key && member.Value() == p.value
