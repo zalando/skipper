@@ -22,7 +22,7 @@ import (
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters/openpolicyagent"
+	"github.com/zalando/skipper/filters/openpolicyagent/defaults"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/otel"
@@ -681,17 +681,17 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.EnableOpenPolicyAgentCustomControlLoop, "enable-open-policy-agent-custom-control-loop", false, "when enabled skipper will use a custom control loop to orchestrate certain opa behaviour (like the download of new bundles) instead of relying on periodic plugin triggers")
 	flag.BoolVar(&cfg.EnableOpenPolicyAgentPreloading, "enable-open-policy-agent-preloading", false, "EXPERIMENTAL: when enabled, OPA instances will be pre-loaded during route processing instead of during filter creation, making filter creation non-blocking")
 	flag.BoolVar(&cfg.EnableOpenPolicyAgentAsyncDecisionLogging, "enable-open-policy-agent-async-decision-logging", false, "when enabled, decision log events are offloaded to a background goroutine so that slow decision log plugins (e.g. eopa_dl with S3 output) do not delay HTTP responses")
-	flag.DurationVar(&cfg.OpenPolicyAgentControlLoopInterval, "open-policy-agent-control-loop-interval", openpolicyagent.DefaultControlLoopInterval, "Interval between the execution of the control loop. Only applies if the custom control loop is enabled")
-	flag.DurationVar(&cfg.OpenPolicyAgentControlLoopMaxJitter, "open-policy-agent-control-loop-max-jitter", openpolicyagent.DefaultControlLoopMaxJitter, "Maximum jitter to add to the control loop interval. Only applies if the custom control loop is enabled")
+	flag.DurationVar(&cfg.OpenPolicyAgentControlLoopInterval, "open-policy-agent-control-loop-interval", defaults.ControlLoopInterval, "Interval between the execution of the control loop. Only applies if the custom control loop is enabled")
+	flag.DurationVar(&cfg.OpenPolicyAgentControlLoopMaxJitter, "open-policy-agent-control-loop-max-jitter", defaults.ControlLoopMaxJitter, "Maximum jitter to add to the control loop interval. Only applies if the custom control loop is enabled")
 	flag.BoolVar(&cfg.EnableOpenPolicyAgentDataPreProcessingOptimization, "enable-open-policy-agent-data-preprocessing-optimization", false, "As a latency optimization, open policy agent will read values from in-memory storage as pre converted ASTs, removing conversion overhead at evaluation time. Currently experimental and if successful will be enabled by default")
 	flag.BoolVar(&cfg.EnableOpenPolicyAgentPrintTracing, "enable-open-policy-agent-print-tracing", false, "when enabled, OPA print() statements in policies are emitted as events on the OpenTracing span")
 	flag.StringVar(&cfg.OpenPolicyAgentConfigTemplate, "open-policy-agent-config-template", "", "file containing a template for an Open Policy Agent configuration file that is interpolated for each OPA filter instance")
 	flag.StringVar(&cfg.OpenPolicyAgentEnvoyMetadata, "open-policy-agent-envoy-metadata", "", "JSON file containing meta-data passed as input for compatibility with Envoy policies in the format")
-	flag.DurationVar(&cfg.OpenPolicyAgentCleanerInterval, "open-policy-agent-cleaner-interval", openpolicyagent.DefaultCleanIdlePeriod, "Duration in seconds to wait before cleaning up unused opa instances")
-	flag.DurationVar(&cfg.OpenPolicyAgentStartupTimeout, "open-policy-agent-startup-timeout", openpolicyagent.DefaultOpaStartupTimeout, "Maximum duration in seconds to wait for the open policy agent to start up and if the custom control loop is enabled, how long to wait for the processing of each instance to finish (to f.ex. download updated bundles)")
-	flag.Int64Var(&cfg.OpenPolicyAgentMaxRequestBodySize, "open-policy-agent-max-request-body-size", openpolicyagent.DefaultMaxRequestBodySize, "Maximum number of bytes from a http request body that are passed as input to the policy")
-	flag.Int64Var(&cfg.OpenPolicyAgentRequestBodyBufferSize, "open-policy-agent-request-body-buffer-size", openpolicyagent.DefaultRequestBodyBufferSize, "Read buffer size for the request body")
-	flag.Int64Var(&cfg.OpenPolicyAgentMaxMemoryBodyParsing, "open-policy-agent-max-memory-body-parsing", openpolicyagent.DefaultMaxMemoryBodyParsing, "Total number of bytes used to parse http request bodies across all requests. Once the limit is met, requests will be rejected.")
+	flag.DurationVar(&cfg.OpenPolicyAgentCleanerInterval, "open-policy-agent-cleaner-interval", defaults.CleanIdlePeriod, "Duration in seconds to wait before cleaning up unused opa instances")
+	flag.DurationVar(&cfg.OpenPolicyAgentStartupTimeout, "open-policy-agent-startup-timeout", defaults.OpaStartupTimeout, "Maximum duration in seconds to wait for the open policy agent to start up and if the custom control loop is enabled, how long to wait for the processing of each instance to finish (to f.ex. download updated bundles)")
+	flag.Int64Var(&cfg.OpenPolicyAgentMaxRequestBodySize, "open-policy-agent-max-request-body-size", defaults.MaxRequestBodySize, "Maximum number of bytes from a http request body that are passed as input to the policy")
+	flag.Int64Var(&cfg.OpenPolicyAgentRequestBodyBufferSize, "open-policy-agent-request-body-buffer-size", defaults.RequestBodyBufferSize, "Read buffer size for the request body")
+	flag.Int64Var(&cfg.OpenPolicyAgentMaxMemoryBodyParsing, "open-policy-agent-max-memory-body-parsing", defaults.MaxMemoryBodyParsing, "Total number of bytes used to parse http request bodies across all requests. Once the limit is met, requests will be rejected.")
 	flag.StringVar(&cfg.HTTPMessageSignatureKeyFile, "http-message-signature-key-file", "", "path to the secret key file for HTTP Message Signatures (RFC 9421)")
 	flag.StringVar(&cfg.HTTPMessageSignatureKeyID, "http-message-signature-key-id", "", "key ID used in HTTP Message Signatures (RFC 9421)")
 

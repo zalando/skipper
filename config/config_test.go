@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters/openpolicyagent"
+	"github.com/zalando/skipper/filters/openpolicyagent/defaults"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
@@ -190,13 +190,13 @@ func defaultConfig(with func(*Config)) *Config {
 		EnableLua:                               false,
 		LuaModules:                              commaListFlag(),
 		LuaSources:                              commaListFlag(),
-		OpenPolicyAgentCleanerInterval:          openpolicyagent.DefaultCleanIdlePeriod,
-		OpenPolicyAgentStartupTimeout:           openpolicyagent.DefaultOpaStartupTimeout,
-		OpenPolicyAgentControlLoopInterval:      openpolicyagent.DefaultControlLoopInterval,
-		OpenPolicyAgentControlLoopMaxJitter:     openpolicyagent.DefaultControlLoopMaxJitter,
-		OpenPolicyAgentMaxRequestBodySize:       openpolicyagent.DefaultMaxRequestBodySize,
-		OpenPolicyAgentMaxMemoryBodyParsing:     openpolicyagent.DefaultMaxMemoryBodyParsing,
-		OpenPolicyAgentRequestBodyBufferSize:    openpolicyagent.DefaultRequestBodyBufferSize,
+		OpenPolicyAgentCleanerInterval:          defaults.CleanIdlePeriod,
+		OpenPolicyAgentStartupTimeout:           defaults.OpaStartupTimeout,
+		OpenPolicyAgentControlLoopInterval:      defaults.ControlLoopInterval,
+		OpenPolicyAgentControlLoopMaxJitter:     defaults.ControlLoopMaxJitter,
+		OpenPolicyAgentMaxRequestBodySize:       defaults.MaxRequestBodySize,
+		OpenPolicyAgentMaxMemoryBodyParsing:     defaults.MaxMemoryBodyParsing,
+		OpenPolicyAgentRequestBodyBufferSize:    defaults.RequestBodyBufferSize,
 		ProxyAllowListCIDRs:                     commaListFlag(),
 		ProxyDenyListCIDRs:                      commaListFlag(),
 		ProxySkipListCIDRs:                      commaListFlag(),
