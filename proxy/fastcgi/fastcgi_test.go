@@ -2,11 +2,13 @@ package fastcgi
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/fcgi"
 	"net/url"
+	"reflect"
 	"strconv"
 	"testing"
 
@@ -116,7 +118,7 @@ func TestFastCgiDropsUnderscoreHeaders(t *testing.T) {
 	defer l.Close()
 
 	go fcgi.Serve(l, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(r.Header.Get("X-Auth-User")))
+		fmt.Fprintf(w, "%s|%s", r.Header.Get("X-Auth-User"), r.Header.Get("X-Request-Id"))
 	}))
 
 	for _, tt := range []struct {
@@ -126,15 +128,23 @@ func TestFastCgiDropsUnderscoreHeaders(t *testing.T) {
 	}{{
 		name:   "underscore only",
 		header: http.Header{"X_auth_user": []string{"admin"}},
-		want:   "",
+		want:   "|",
 	}, {
 		name:   "underscore and dash",
 		header: http.Header{"X-Auth-User": []string{"alice"}, "X_auth_user": []string{"admin"}},
-		want:   "alice",
+		want:   "alice|",
 	}, {
 		name:   "dash only",
 		header: http.Header{"X-Auth-User": []string{"alice"}},
-		want:   "alice",
+		want:   "alice|",
+	}, {
+		name:   "unrelated header kept",
+		header: http.Header{"X-Request-Id": []string{"42"}},
+		want:   "|42",
+	}, {
+		name:   "unrelated header kept next to dropped one",
+		header: http.Header{"X-Request-Id": []string{"42"}, "X_auth_user": []string{"admin"}},
+		want:   "|42",
 	}} {
 		t.Run(tt.name, func(t *testing.T) {
 			for range 20 {
@@ -148,7 +158,7 @@ func TestFastCgiDropsUnderscoreHeaders(t *testing.T) {
 					URL:    u,
 					Method: "GET",
 					Proto:  "HTTP/1.0",
-					Header: tt.header,
+					Header: tt.header.Clone(),
 				}
 
 				response, err := rt.RoundTrip(r)
@@ -161,7 +171,11 @@ func TestFastCgiDropsUnderscoreHeaders(t *testing.T) {
 				}
 
 				if string(b) != tt.want {
-					t.Fatalf("got X-Auth-User %q, want %q", b, tt.want)
+					t.Fatalf("got %q, want %q", b, tt.want)
+				}
+
+				if !reflect.DeepEqual(r.Header, tt.header) {
+					t.Fatalf("round tripper modified request header: got %v, want %v", r.Header, tt.header)
 				}
 			}
 		})
