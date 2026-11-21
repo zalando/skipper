@@ -3,7 +3,7 @@
 // - https://github.com/golang/go/issues/76608
 // - https://github.com/golang/go/issues/14200
 
-package shedder
+package nettest
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
 	"sync"
@@ -18,8 +19,14 @@ import (
 	"time"
 )
 
-func fakeNetListen() *fakeNetListener {
-	li := &fakeNetListener{
+// FakeNetListen creates an in-memory, synthetic net.Listener for testing.
+func FakeNetListen() *FakeNetListener {
+	return NewFakeNetListener()
+}
+
+// NewFakeNetListener returns an initialized *FakeNetListener.
+func NewFakeNetListener() *FakeNetListener {
+	li := &FakeNetListener{
 		setc:    make(chan struct{}, 1),
 		unsetc:  make(chan struct{}, 1),
 		addr:    netip.MustParseAddrPort("127.0.0.1:8000"),
@@ -29,28 +36,31 @@ func fakeNetListen() *fakeNetListener {
 	return li
 }
 
-type fakeNetListener struct {
+// FakeNetListener is an in-memory net.Listener that queues incoming connections.
+type FakeNetListener struct {
 	setc, unsetc chan struct{}
 	queue        []net.Conn
 	closed       bool
 	addr         netip.AddrPort
 	locPort      uint16
 
-	onDial  func()             // called when making a new connection
-	onClose func(*fakeNetConn) // called when closing a connection
+	OnDial  func()                  // called when making a new connection
+	OnClose func(conn *FakeNetConn) // called when closing a connection
 
-	trackConns bool // set this to record all created conns
-	conns      []*fakeNetConn
+	TrackConns bool // set this to record all created conns
+	Conns      []*FakeNetConn
 }
 
-func (li *fakeNetListener) lock() {
+var _ net.Listener = &FakeNetListener{}
+
+func (li *FakeNetListener) lock() {
 	select {
 	case <-li.setc:
 	case <-li.unsetc:
 	}
 }
 
-func (li *fakeNetListener) unlock() {
+func (li *FakeNetListener) unlock() {
 	if li.closed || len(li.queue) > 0 {
 		li.setc <- struct{}{}
 	} else {
@@ -58,25 +68,32 @@ func (li *fakeNetListener) unlock() {
 	}
 }
 
-func (li *fakeNetListener) connect() *fakeNetConn {
-	if li.onDial != nil {
-		li.onDial()
+// Connect creates a client-side net.Conn connected to this listener.
+func (li *FakeNetListener) Connect() (net.Conn, error) {
+	return li.ConnectConn(), nil
+}
+
+// ConnectConn creates and returns the client-side *FakeNetConn endpoint.
+func (li *FakeNetListener) ConnectConn() *FakeNetConn {
+	if li.OnDial != nil {
+		li.OnDial()
 	}
 	li.lock()
 	defer li.unlock()
 	locAddr := netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), li.locPort)
 	li.locPort++
-	c0, c1 := fakeNetPipe(li.addr, locAddr)
-	c0.onClose = li.onClose
-	c1.onClose = li.onClose
+	c0, c1 := FakeNetPipe(li.addr, locAddr)
+	c0.onClose = li.OnClose
+	c1.onClose = li.OnClose
 	li.queue = append(li.queue, c0)
-	if li.trackConns {
-		li.conns = append(li.conns, c0)
+	if li.TrackConns {
+		li.Conns = append(li.Conns, c0)
 	}
 	return c1
 }
 
-func (li *fakeNetListener) Accept() (net.Conn, error) {
+// Accept waits for and returns the next connection to the listener.
+func (li *FakeNetListener) Accept() (net.Conn, error) {
 	<-li.setc
 	defer li.unlock()
 	if li.closed {
@@ -87,53 +104,71 @@ func (li *fakeNetListener) Accept() (net.Conn, error) {
 	return c, nil
 }
 
-func (li *fakeNetListener) Close() error {
+// Close closes the listener.
+func (li *FakeNetListener) Close() error {
 	li.lock()
 	defer li.unlock()
 	li.closed = true
 	return nil
 }
 
-func (li *fakeNetListener) Addr() net.Addr {
+// Addr returns the listener's network address.
+func (li *FakeNetListener) Addr() net.Addr {
 	return net.TCPAddrFromAddrPort(li.addr)
 }
 
-// fakeNetPipe creates an in-memory, full duplex network connection.
+// DialContext creates a DialContext func compatible with http.Transport.
+func (li *FakeNetListener) DialContext() func(ctx context.Context, network, addr string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return li.Connect()
+	}
+}
+
+// NewTestTransport returns an http.Transport configured to dial through the given FakeNetListener.
+func NewTestTransport(li *FakeNetListener) *http.Transport {
+	return &http.Transport{
+		DialContext: li.DialContext(),
+	}
+}
+
+// FakeNetPipe creates an in-memory, full duplex network connection.
 //
 // Unlike net.Pipe, the connection is not synchronous.
 // Writes are made to a buffer, and return immediately.
 // By default, the buffer size is unlimited.
-func fakeNetPipe(s1ap, s2ap netip.AddrPort) (r, w *fakeNetConn) {
+func FakeNetPipe(s1ap, s2ap netip.AddrPort) (r, w *FakeNetConn) {
 	s1addr := net.TCPAddrFromAddrPort(s1ap)
 	s2addr := net.TCPAddrFromAddrPort(s2ap)
 	s1 := newSynctestNetConnHalf(s1addr)
 	s2 := newSynctestNetConnHalf(s2addr)
-	c1 := &fakeNetConn{loc: s1, rem: s2}
-	c2 := &fakeNetConn{loc: s2, rem: s1}
+	c1 := &FakeNetConn{loc: s1, rem: s2}
+	c2 := &FakeNetConn{loc: s2, rem: s1}
 	c1.peer = c2
 	c2.peer = c1
 	return c1, c2
 }
 
-// A fakeNetConn is one endpoint of the connection created by fakeNetPipe.
-type fakeNetConn struct {
+// A FakeNetConn is one endpoint of the connection created by FakeNetPipe.
+type FakeNetConn struct {
 	// local and remote connection halves.
 	// Each half contains a buffer.
 	// Reads pull from the local buffer, and writes push to the remote buffer.
 	loc, rem *fakeNetConnHalf
 
 	// When set, synctest.Wait is automatically called before reads and after writes.
-	autoWait bool
+	AutoWait bool
 
 	// peer is the other endpoint.
-	peer *fakeNetConn
+	peer *FakeNetConn
 
-	onClose func(*fakeNetConn) // called when closing
+	onClose func(*FakeNetConn) // called when closing
 }
 
+var _ net.Conn = &FakeNetConn{}
+
 // Read reads data from the connection.
-func (c *fakeNetConn) Read(b []byte) (n int, err error) {
-	if c.autoWait {
+func (c *FakeNetConn) Read(b []byte) (n int, err error) {
+	if c.AutoWait {
 		synctest.Wait()
 	}
 	return c.loc.read(b)
@@ -141,24 +176,24 @@ func (c *fakeNetConn) Read(b []byte) (n int, err error) {
 
 // Peek returns the available unread read buffer,
 // without consuming its contents.
-func (c *fakeNetConn) Peek() []byte {
-	if c.autoWait {
+func (c *FakeNetConn) Peek() []byte {
+	if c.AutoWait {
 		synctest.Wait()
 	}
 	return c.loc.peek()
 }
 
 // Write writes data to the connection.
-func (c *fakeNetConn) Write(b []byte) (n int, err error) {
-	if c.autoWait {
+func (c *FakeNetConn) Write(b []byte) (n int, err error) {
+	if c.AutoWait {
 		defer synctest.Wait()
 	}
 	return c.rem.write(b)
 }
 
-// IsClosed reports whether the peer has closed its end of the connection.
-func (c *fakeNetConn) IsClosedByPeer() bool {
-	if c.autoWait {
+// IsClosedByPeer reports whether the peer has closed its end of the connection.
+func (c *FakeNetConn) IsClosedByPeer() bool {
+	if c.AutoWait {
 		synctest.Wait()
 	}
 	c.rem.lock()
@@ -169,7 +204,7 @@ func (c *fakeNetConn) IsClosedByPeer() bool {
 }
 
 // Close closes the connection.
-func (c *fakeNetConn) Close() error {
+func (c *FakeNetConn) Close() error {
 	if c.onClose != nil {
 		c.onClose(c)
 	}
@@ -188,48 +223,48 @@ func (c *fakeNetConn) Close() error {
 	c.rem.rctx.setDeadline(time.Now()) // expire immediately
 
 	c.rem.unlock()
-	if c.autoWait {
+	if c.AutoWait {
 		synctest.Wait()
 	}
 	return nil
 }
 
 // LocalAddr returns the (fake) local network address.
-func (c *fakeNetConn) LocalAddr() net.Addr {
+func (c *FakeNetConn) LocalAddr() net.Addr {
 	return c.loc.addr
 }
 
-// LocalAddr returns the (fake) remote network address.
-func (c *fakeNetConn) RemoteAddr() net.Addr {
+// RemoteAddr returns the (fake) remote network address.
+func (c *FakeNetConn) RemoteAddr() net.Addr {
 	return c.rem.addr
 }
 
 // SetDeadline sets the read and write deadlines for the connection.
-func (c *fakeNetConn) SetDeadline(t time.Time) error {
+func (c *FakeNetConn) SetDeadline(t time.Time) error {
 	c.SetReadDeadline(t)
 	c.SetWriteDeadline(t)
 	return nil
 }
 
 // SetReadDeadline sets the read deadline for the connection.
-func (c *fakeNetConn) SetReadDeadline(t time.Time) error {
+func (c *FakeNetConn) SetReadDeadline(t time.Time) error {
 	c.loc.rctx.setDeadline(t)
 	return nil
 }
 
 // SetWriteDeadline sets the write deadline for the connection.
-func (c *fakeNetConn) SetWriteDeadline(t time.Time) error {
+func (c *FakeNetConn) SetWriteDeadline(t time.Time) error {
 	c.rem.wctx.setDeadline(t)
 	return nil
 }
 
 // SetReadBufferSize sets the read buffer limit for the connection.
 // Writes by the peer will block so long as the buffer is full.
-func (c *fakeNetConn) SetReadBufferSize(size int) {
+func (c *FakeNetConn) SetReadBufferSize(size int) {
 	c.loc.setReadBufferSize(size)
 }
 
-// fakeNetConnHalf is one data flow in the connection created by fakeNetPipe.
+// fakeNetConnHalf is one data flow in the connection created by FakeNetPipe.
 // Each half contains a buffer. Writes to the half push to the buffer, and reads pull from it.
 type fakeNetConnHalf struct {
 	addr net.Addr
@@ -277,7 +312,7 @@ func (h *fakeNetConnHalf) lock() {
 	}
 }
 
-// h unlocks h.
+// unlock unlocks h.
 func (h *fakeNetConnHalf) unlock() {
 	canRead := h.readErr != nil || h.buf.Len() > 0
 	canWrite := h.writeErr != nil || h.bufMax > h.buf.Len()
@@ -386,7 +421,7 @@ func (h *fakeNetConnHalf) writePartial(b []byte) (n int, err error) {
 	return h.buf.Write(b)
 }
 
-// deadlineContext converts a changable deadline (as in net.Conn.SetDeadline) into a Context.
+// deadlineContext converts a changeable deadline (as in net.Conn.SetDeadline) into a Context.
 type deadlineContext struct {
 	mu     sync.Mutex
 	ctx    context.Context
@@ -394,7 +429,6 @@ type deadlineContext struct {
 	timer  *time.Timer
 }
 
-// context returns a Context which expires when the deadline does.
 func (t *deadlineContext) context() context.Context {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -404,36 +438,28 @@ func (t *deadlineContext) context() context.Context {
 	return t.ctx
 }
 
-// setDeadline sets the current deadline.
 func (t *deadlineContext) setDeadline(deadline time.Time) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	// If t.ctx is non-nil and t.cancel is nil, then t.ctx was canceled
-	// and we should create a new one.
 	if t.ctx == nil || t.cancel == nil {
 		t.ctx, t.cancel = context.WithCancelCause(context.Background())
 	}
-	// Stop any existing deadline from expiring.
 	if t.timer != nil {
 		t.timer.Stop()
 	}
 	if deadline.IsZero() {
-		// No deadline.
 		return
 	}
 	now := time.Now()
 	if !deadline.After(now) {
-		// Deadline has already expired.
 		t.cancel(os.ErrDeadlineExceeded)
 		t.cancel = nil
 		return
 	}
 	if t.timer != nil {
-		// Reuse existing deadline timer.
 		t.timer.Reset(deadline.Sub(now))
 		return
 	}
-	// Create a new timer to cancel the context at the deadline.
 	t.timer = time.AfterFunc(deadline.Sub(now), func() {
 		t.mu.Lock()
 		defer t.mu.Unlock()
