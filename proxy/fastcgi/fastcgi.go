@@ -30,6 +30,7 @@ func NewRoundTripper(log logging.Logger, addr, filename string) (*RoundTripper, 
 
 	chain := gofast.Chain(
 		gofast.BasicParamsMap,
+		dropUnderscoreHeaders,
 		gofast.MapHeader,
 		gofast.MapEndpoint(filename),
 		func(handler gofast.SessionHandler) gofast.SessionHandler {
@@ -53,6 +54,24 @@ func NewRoundTripper(log logging.Logger, addr, filename string) (*RoundTripper, 
 		client:  client,
 		handler: chain(gofast.BasicSession),
 	}, nil
+}
+
+// dropUnderscoreHeaders removes header fields with an underscore in the name
+// before they are mapped to HTTP_* params, because X_Foo and X-Foo both become
+// HTTP_X_FOO. Apache httpd and nginx drop such headers for the same reason.
+func dropUnderscoreHeaders(handler gofast.SessionHandler) gofast.SessionHandler {
+	return func(client gofast.Client, req *gofast.Request) (*gofast.ResponsePipe, error) {
+		r := *req.Raw
+		r.Header = make(http.Header, len(req.Raw.Header))
+		for k, v := range req.Raw.Header {
+			if !strings.Contains(k, "_") {
+				r.Header[k] = v
+			}
+		}
+		req.Raw = &r
+
+		return handler(client, req)
+	}
 }
 
 func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
