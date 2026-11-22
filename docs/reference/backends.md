@@ -406,3 +406,11 @@ Route example that uses FastCGI:
 php: * -> setFastCgiFilename("index.php") -> "fastcgi://127.0.0.1:9000";
 php_lb: * -> setFastCgiFilename("index.php") -> <roundRobin, "fastcgi://127.0.0.1:9000", "fastcgi://127.0.0.1:9001">;
 ```
+
+FastCGI maps request headers to `HTTP_*` params by uppercasing the name and
+replacing `-` with `_`, so `X_Auth_User` and `X-Auth-User` both become
+`HTTP_X_AUTH_USER`. Skipper therefore drops request headers that contain an
+underscore before mapping them, as Apache httpd and nginx
+(`underscores_in_headers off`) do, such that a filter removing `X-Auth-User`
+cannot be bypassed by sending `X_Auth_User`. Applications behind a `fastcgi`
+backend that rely on underscore headers have to use the dash spelling instead.
