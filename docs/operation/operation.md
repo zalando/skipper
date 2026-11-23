@@ -208,6 +208,68 @@ All 3 flags use comma separated values:
 `-proxy-allow-cidrs="::0/0,0.0.0.0/0"` to allow all IPv6 and IPv4
 addresses.
 
+## TLS termination with AWS Nitro Enclaves
+
+Skipper can terminate TLS with [ACM for Nitro
+Enclaves](https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave-refapp.html)
+certificates. The private keys never leave the AWS Nitro Enclave.
+Skipper offloads only the asymmetric private key operations of the
+TLS handshake to the enclave. All other TLS processing, for example
+key exchange and record encryption, is done by Skipper.
+
+Skipper talks the p11-kit RPC protocol (PKCS#11) via vsock to the
+enclave. The implementation is pure Go and does not need CGO or a
+PKCS#11 library, but the feature has to be enabled at build time:
+
+```sh
+make build.*.awsnitro
+# or
+CGO_ENABLED=0 go build -tags awsnitro ./cmd/skipper
+```
+
+A binary without the build tag fails to start if `-aws-nitro-enclave`
+is set.
+
+Configuration:
+
+- `-aws-nitro-enclave` enables the feature
+- `-aws-nitro-cid` and `-aws-nitro-port` set the vsock address of the p11-kit RPC server in the enclave
+- `-aws-nitro-pin-file` sets the path to a file containing the token PIN, no login is done if not set
+- `-aws-nitro-certificate=token=<label>,chain=<path>[,key=<label>]` configures a certificate, it can be set multiple times. `token` is the PKCS#11 token label, `chain` the PEM certificate chain file written by the ACM for Nitro Enclaves agent and the optional `key` selects the private key label if the token holds more than one private key
+- `-aws-nitro-refresh-interval` (default `1m`) sets how often the certificate chain files are checked for changes to support certificate rotation
+- `-aws-nitro-sessions-per-token` (default `8`) sets the maximum number of concurrent enclave connections per token
+- `-aws-nitro-timeout` (default `5s`) sets the timeout of a single enclave operation
+
+Example:
+
+```sh
+skipper -aws-nitro-enclave \
+  -aws-nitro-cid=16 -aws-nitro-port=9999 \
+  -aws-nitro-pin-file=/etc/skipper/aws-nitro-pin \
+  -aws-nitro-certificate=token=example-org,chain=/etc/acm/example-org.pem
+```
+
+On startup Skipper verifies that each enclave key matches the public
+key of the leaf certificate and registers the certificate for its
+common name and all DNS names. Wildcard names like `*.example.org`
+match exactly one label, for example `a.example.org`, but not
+`a.b.example.org`.
+
+When AWS Nitro Enclave support is enabled:
+
+- SNI is mandatory, handshakes without server name fail
+- handshakes for unknown server names fail, there is no default certificate
+- enclave certificates have priority over certificates from other sources, for example Kubernetes TLS secrets with `-kubernetes-enable-tls`
+- `-tls-cert`, `-tls-key` and `-enable-letsencrypt` can not be used
+
+Metrics:
+
+- `awsnitro.sign` signature latency
+- `awsnitro.sign.error` failed signatures
+- `awsnitro.connect` and `awsnitro.connect.error` enclave connections
+- `awsnitro.refresh.error` failed certificate refreshes
+- `awsnitro.handshake.rejected.no_sni` and `awsnitro.handshake.rejected.unknown_host` rejected TLS handshakes
+
 ## Authentication and Authorization
 
 ### mTLS

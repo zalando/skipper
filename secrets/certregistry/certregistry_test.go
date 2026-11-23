@@ -156,11 +156,11 @@ func TestCertRegistry(t *testing.T) {
 	t.Run("sync new certificate", func(t *testing.T) {
 		cr := NewCertRegistry()
 		cr.ConfigureCertificate(validHostname, validCert)
-		cert, found := cr.lookup[validHostname]
+		e, found := cr.lookup[validHostname]
 		if !found {
-			t.Error("failed to read certificate")
+			t.Fatal("failed to read certificate")
 		}
-		if cert.Leaf == nil {
+		if e.cert.Leaf == nil {
 			t.Error("synced cert should have a parsed leaf")
 		}
 	})
@@ -178,9 +178,9 @@ func TestCertRegistry(t *testing.T) {
 
 		cr := NewCertRegistry()
 		cr.ConfigureCertificate(validHostname, validCert)
-		cert1 := cr.lookup[validHostname]
+		cert1 := cr.lookup[validHostname].cert
 		cr.ConfigureCertificate(validHostname, newValidCert)
-		cert2 := cr.lookup[validHostname]
+		cert2 := cr.lookup[validHostname].cert
 		if equalCert(cert1, cert2) {
 			t.Error("host cert was not updated")
 		}
@@ -215,6 +215,137 @@ func TestCertRegistry(t *testing.T) {
 			t.Error("should return nil when cert not found")
 		}
 	})
+}
+
+func TestCertRegistryLookup(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	after := now.Add(tenYears)
+
+	exact := createDummyCertDetail(t, "", []string{"a.example.org"}, now, after)
+	wildcard := createDummyCertDetail(t, "", []string{"*.example.org"}, now, after)
+
+	for _, tt := range []struct {
+		name       string
+		hosts      map[string]*tls.Certificate
+		serverName string
+		want       *tls.Certificate
+	}{
+		{
+			name:       "exact match",
+			hosts:      map[string]*tls.Certificate{"a.example.org": exact},
+			serverName: "a.example.org",
+			want:       exact,
+		},
+		{
+			name:       "exact match preferred over wildcard",
+			hosts:      map[string]*tls.Certificate{"a.example.org": exact, "*.example.org": wildcard},
+			serverName: "a.example.org",
+			want:       exact,
+		},
+		{
+			name:       "wildcard match",
+			hosts:      map[string]*tls.Certificate{"*.example.org": wildcard},
+			serverName: "b.example.org",
+			want:       wildcard,
+		},
+		{
+			name:       "wildcard matches only one label",
+			hosts:      map[string]*tls.Certificate{"*.example.org": wildcard},
+			serverName: "a.b.example.org",
+		},
+		{
+			name:       "wildcard does not match parent",
+			hosts:      map[string]*tls.Certificate{"*.example.org": wildcard},
+			serverName: "example.org",
+		},
+		{
+			name:       "case and trailing dot are normalized",
+			hosts:      map[string]*tls.Certificate{"A.Example.org": exact},
+			serverName: "a.EXAMPLE.org.",
+			want:       exact,
+		},
+		{
+			name:       "empty server name",
+			hosts:      map[string]*tls.Certificate{"a.example.org": exact},
+			serverName: "",
+		},
+		{
+			name:       "unknown host",
+			hosts:      map[string]*tls.Certificate{"a.example.org": exact},
+			serverName: "c.example.com",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cr := NewCertRegistry()
+			for h, c := range tt.hosts {
+				require.NoError(t, cr.ConfigureCertificate(h, c))
+			}
+
+			got, err := cr.GetCertFromHello(&tls.ClientHelloInfo{ServerName: tt.serverName})
+			require.NoError(t, err)
+			require.Same(t, tt.want, got)
+		})
+	}
+}
+
+func TestCertRegistryPriority(t *testing.T) {
+	const host = "a.example.org"
+	now := time.Now().Truncate(time.Second)
+	after := now.Add(tenYears)
+
+	older := createDummyCertDetail(t, "", []string{host}, now.Add(-time.Hour), after)
+	newer := createDummyCertDetail(t, "", []string{host}, now, after)
+
+	type config struct {
+		cert     *tls.Certificate
+		priority Priority
+	}
+
+	for _, tt := range []struct {
+		name    string
+		configs []config
+		want    *tls.Certificate
+	}{
+		{
+			name:    "higher priority replaces lower priority",
+			configs: []config{{newer, PriorityDefault}, {older, PriorityNitro}},
+			want:    older,
+		},
+		{
+			name:    "lower priority does not replace higher priority",
+			configs: []config{{older, PriorityNitro}, {newer, PriorityDefault}},
+			want:    older,
+		},
+		{
+			name:    "same priority newer replaces older",
+			configs: []config{{older, PriorityNitro}, {newer, PriorityNitro}},
+			want:    newer,
+		},
+		{
+			name:    "same priority older does not replace newer",
+			configs: []config{{newer, PriorityNitro}, {older, PriorityNitro}},
+			want:    newer,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cr := NewCertRegistry()
+			for _, c := range tt.configs {
+				require.NoError(t, cr.ConfigureCertificateWithPriority(host, c.cert, c.priority))
+			}
+
+			got, err := cr.GetCertFromHello(&tls.ClientHelloInfo{ServerName: host})
+			require.NoError(t, err)
+			require.Same(t, tt.want, got)
+		})
+	}
+}
+
+func TestCertRegistryZeroValue(t *testing.T) {
+	cert := createDummyCertDetail(t, "", []string{"a.example.org"}, time.Now(), time.Now().Add(tenYears))
+
+	cr := &CertRegistry{}
+	require.NoError(t, cr.ConfigureCertificate("a.example.org", cert))
+	require.Error(t, cr.ConfigureCertificate("a.example.org", &tls.Certificate{}))
 }
 
 func equalCert(l *tls.Certificate, r *tls.Certificate) bool {

@@ -31,6 +31,7 @@ import (
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/zalando/skipper/aws/nitro"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/routestring"
@@ -1201,6 +1202,12 @@ type Options struct {
 	// KubernetesEnableTLS enables kubernetes to use resources to terminate tls
 	KubernetesEnableTLS bool
 
+	// AWSNitro enables TLS certificates with private keys in an AWS
+	// Nitro Enclave if not nil. It requires a binary built with the
+	// "awsnitro" build tag. SNI is mandatory and the certificates have
+	// priority over certificates from other sources.
+	AWSNitro *nitro.Options
+
 	// EnableLua allows to use lua() filters, if not enabled
 	// skipper does not support Lua, because of security
 	// considerations.
@@ -1575,6 +1582,15 @@ func (o *Options) filterRegistry() filters.Registry {
 func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
 	var config *tls.Config
 
+	if o.AWSNitro != nil {
+		if cr == nil {
+			return nil, errors.New("aws nitro enclave requires a certificate registry")
+		}
+		if o.CertPathTLS != "" || o.KeyPathTLS != "" || o.Letsencrypt != nil || o.ProxyTLS != nil {
+			return nil, errors.New("aws nitro enclave can not be used with static TLS certificates, ProxyTLS or Letsencrypt")
+		}
+	}
+
 	if o.ProxyTLS != nil {
 		return o.ProxyTLS, nil
 	}
@@ -1588,6 +1604,10 @@ func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		// - GetCertificate
 		// - NextProtos
 		config = o.Letsencrypt.TLSConfig()
+	} else if o.AWSNitro != nil {
+		config = &tls.Config{
+			GetCertificate: nitro.RequireSNI(cr.GetCertFromHello, o.AWSNitro.Metrics),
+		}
 	} else if cr != nil {
 		config = &tls.Config{
 			// sets GetCertificate which was already set by Letsencrypt.TLSConfig()
@@ -2002,8 +2022,20 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	var cr *certregistry.CertRegistry
-	if o.KubernetesEnableTLS {
+	if o.KubernetesEnableTLS || o.AWSNitro != nil {
 		cr = certregistry.NewCertRegistry()
+	}
+
+	if o.AWSNitro != nil {
+		nitroOptions := *o.AWSNitro
+		if nitroOptions.Metrics == nil {
+			nitroOptions.Metrics = mtr
+		}
+		p, err := nitro.NewProvider(nitroOptions, cr)
+		if err != nil {
+			return fmt.Errorf("failed to load aws nitro enclave certificates: %w", err)
+		}
+		defer p.Close()
 	}
 
 	// create data clients

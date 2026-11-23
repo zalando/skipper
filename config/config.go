@@ -3,9 +3,11 @@ package config
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"sort"
@@ -20,6 +22,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper"
+	"github.com/zalando/skipper/aws/nitro"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/openpolicyagent"
@@ -297,6 +300,17 @@ type Config struct {
 
 	// TLS Config
 	KubernetesEnableTLS bool `yaml:"kubernetes-enable-tls"`
+
+	// AWS Nitro Enclave
+	AWSNitroEnclave          bool                `yaml:"aws-nitro-enclave"`
+	AWSNitroCID              uint                `yaml:"aws-nitro-cid"`
+	AWSNitroPort             uint                `yaml:"aws-nitro-port"`
+	AWSNitroPINFile          string              `yaml:"aws-nitro-pin-file"`
+	AWSNitroCertificateFlags multiFlag           `yaml:"aws-nitro-certificate"`
+	AWSNitroCertificates     []nitro.Certificate `yaml:"-"`
+	AWSNitroRefreshInterval  time.Duration       `yaml:"aws-nitro-refresh-interval"`
+	AWSNitroSessionsPerToken int                 `yaml:"aws-nitro-sessions-per-token"`
+	AWSNitroTimeout          time.Duration       `yaml:"aws-nitro-timeout"`
 
 	// Letsencrypt
 	EnableLetsencrypt       bool      `yaml:"enable-letsencrypt"`
@@ -764,6 +778,16 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.DisableHTTPKeepalives, "disable-http-keepalives", false, "forces backend to always create a new connection")
 	flag.BoolVar(&cfg.KubernetesEnableTLS, "kubernetes-enable-tls", false, "enable using kubernetes resources to terminate tls")
 
+	// AWS Nitro Enclave:
+	flag.BoolVar(&cfg.AWSNitroEnclave, "aws-nitro-enclave", false, "enable TLS certificates with private keys in an AWS Nitro Enclave (ACM for Nitro Enclaves), requires a binary built with -tags awsnitro. SNI is mandatory and the certificates have priority over other certificate sources")
+	flag.UintVar(&cfg.AWSNitroCID, "aws-nitro-cid", 0, "vsock context identifier (CID) of the AWS Nitro Enclave")
+	flag.UintVar(&cfg.AWSNitroPort, "aws-nitro-port", 0, "vsock port of the p11-kit RPC server in the AWS Nitro Enclave")
+	flag.StringVar(&cfg.AWSNitroPINFile, "aws-nitro-pin-file", "", "path to a file containing the PKCS#11 token PIN of the AWS Nitro Enclave, no login is performed if empty")
+	flag.Var(&cfg.AWSNitroCertificateFlags, "aws-nitro-certificate", "AWS Nitro Enclave certificate as token=<label>,chain=<path>[,key=<label>], where token is the PKCS#11 token label, chain the PEM certificate chain file and key optionally selects the private key label. Can be set multiple times")
+	flag.DurationVar(&cfg.AWSNitroRefreshInterval, "aws-nitro-refresh-interval", nitro.DefaultRefreshInterval, "interval to check AWS Nitro Enclave certificate chain files for changes")
+	flag.IntVar(&cfg.AWSNitroSessionsPerToken, "aws-nitro-sessions-per-token", nitro.DefaultSessionsPerToken, "maximum number of concurrent AWS Nitro Enclave connections per token")
+	flag.DurationVar(&cfg.AWSNitroTimeout, "aws-nitro-timeout", nitro.DefaultTimeout, "timeout for a single AWS Nitro Enclave operation")
+
 	// Swarm:
 	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, "enable swarm communication between nodes in a skipper fleet")
 	// redis
@@ -873,7 +897,34 @@ func validate(c *Config) error {
 	if c.KubernetesZoneMaxSkew < 0 {
 		return fmt.Errorf("kubernetes-zone-max-skew must be >= 0, got %d", c.KubernetesZoneMaxSkew)
 	}
+	if _, err := c.parseAWSNitroCertificates(); err != nil {
+		return err
+	}
 	return c.parseForwardedHeaders()
+}
+
+func (c *Config) parseAWSNitroCertificates() ([]nitro.Certificate, error) {
+	if !c.AWSNitroEnclave {
+		return nil, nil
+	}
+	if c.CertPathTLS != "" || c.KeyPathTLS != "" || c.EnableLetsencrypt {
+		return nil, errors.New("aws-nitro-enclave can not be used with tls-cert, tls-key or enable-letsencrypt")
+	}
+	if c.AWSNitroCID == 0 || c.AWSNitroCID > math.MaxUint32 || c.AWSNitroPort == 0 || c.AWSNitroPort > math.MaxUint32 {
+		return nil, fmt.Errorf("aws-nitro-enclave requires valid aws-nitro-cid and aws-nitro-port, got %d and %d", c.AWSNitroCID, c.AWSNitroPort)
+	}
+	if len(c.AWSNitroCertificateFlags) == 0 {
+		return nil, errors.New("aws-nitro-enclave requires at least one aws-nitro-certificate")
+	}
+	certs := make([]nitro.Certificate, 0, len(c.AWSNitroCertificateFlags))
+	for _, s := range c.AWSNitroCertificateFlags {
+		cert, err := nitro.ParseCertificate(s)
+		if err != nil {
+			return nil, err
+		}
+		certs = append(certs, cert)
+	}
+	return certs, nil
 }
 
 func (c *Config) Parse() error {
@@ -935,6 +986,7 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 	c.HistogramMetricBuckets, _ = c.parseHistogramBuckets(c.HistogramMetricBucketsString, prometheus.DefBuckets)
 	c.ResponseSizeBuckets, _ = c.parseHistogramBuckets(c.ResponseSizeBucketsString, metrics.DefaultResponseSizeBuckets)
 	c.RequestSizeBuckets, _ = c.parseHistogramBuckets(c.RequestSizeBucketsString, metrics.DefaultRequestSizeBuckets)
+	c.AWSNitroCertificates, _ = c.parseAWSNitroCertificates()
 
 	// static client certs
 	if !c.EnableMTLS && c.ClientKeyFile != "" && c.ClientCertFile != "" {
@@ -1243,6 +1295,7 @@ func (c *Config) ToOptions() skipper.Options {
 		MaxIdleConnsBackend:          c.MaxIdleConnsBackend,
 		DisableHTTPKeepalives:        c.DisableHTTPKeepalives,
 		KubernetesEnableTLS:          c.KubernetesEnableTLS,
+		AWSNitro:                     c.awsNitroOptions(),
 		AllowInsecureBackend:         c.AllowInsecureBackends,
 
 		// swarm:
@@ -1446,6 +1499,21 @@ func (c *Config) ToOptions() skipper.Options {
 	}
 
 	return options
+}
+
+func (c *Config) awsNitroOptions() *nitro.Options {
+	if !c.AWSNitroEnclave {
+		return nil
+	}
+	return &nitro.Options{
+		CID:              uint32(c.AWSNitroCID),
+		Port:             uint32(c.AWSNitroPort),
+		PINFile:          c.AWSNitroPINFile,
+		Certificates:     c.AWSNitroCertificates,
+		RefreshInterval:  c.AWSNitroRefreshInterval,
+		SessionsPerToken: c.AWSNitroSessionsPerToken,
+		Timeout:          c.AWSNitroTimeout,
+	}
 }
 
 func (c *Config) getLetsencryptCache() autocert.Cache {

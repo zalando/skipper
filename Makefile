@@ -4,6 +4,7 @@ REST_PACKAGES       = $(shell go list ./... | grep -vE 'zalando/(skipper|skipper
 CURRENT_VERSION     = $(shell git describe --tags --always --dirty)
 VERSION            ?= $(CURRENT_VERSION)
 COMMIT_HASH         = $(shell git rev-parse --short HEAD)
+AWSNITRO_TAGS       = -tags awsnitro
 LIMIT_FDS           = $(shell ulimit -n)
 TEST_PLUGINS       = _test_plugins/filter_noop.so \
 		     _test_plugins/predicate_match_none.so \
@@ -54,22 +55,37 @@ build: $(SOURCES) lib skipper eskip webhook routesrv ## build library and all bi
 build.linux.static: ## build static linux binary for amd64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-extldflags=-static -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
+build.linux.static.awsnitro: ## build static linux binary for amd64 with AWS Nitro Enclave support
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(AWSNITRO_TAGS) -o bin/skipper-awsnitro -ldflags "-extldflags=-static -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+
 build.linux.arm64: ## build linux binary for arm64
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+
+build.linux.arm64.awsnitro: ## build linux binary for arm64 with AWS Nitro Enclave support
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(AWSNITRO_TAGS) -o bin/skipper-awsnitro -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.linux.armv7: ## build linux binary for arm7
 	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
-build.linux:
+build.linux: build.linux.amd64 # for compatability
+
+build.linux.amd64: ## build linux binary for amd64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+
+build.linux.amd64.awsnitro: ## build linux binary for amd64 with AWS Nitro Enclave support
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(AWSNITRO_TAGS) -o bin/skipper-awsnitro -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.darwin.arm64: ## build osx binary for arm64
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
-build.darwin: ## build osx binary for amd64
+build.darwin: build.darwin.amd64 # for compatability
+
+build.darwin.amd64: ## build osx binary for amd64
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
-build.windows: ## build windows binary for amd64
+build.windows: build.windows.amd64 # for compatability
+
+build.windows.amd64: ## build windows binary for amd64
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 .PHONY: install
@@ -100,6 +116,9 @@ shortcheck_ratelimit: fixlimits  ## run ./ratelimit short tests
 .PHONY: shortcheck_net
 shortcheck_net: fixlimits  ## run ./net short tests
 	go test -test.short ./net
+.PHONY: check-awsnitro ## run ./aws/nitro short tests
+check-awsnitro: ## run tests with awsnitro build tag
+	go test $(AWSNITRO_TAGS) ./aws/nitro/... ./secrets/certregistry/... ./config/...
 
 .PHONY: check-race
 check-race: build ## run all short tests with race checker
@@ -119,6 +138,9 @@ check-race_ratelimit: fixlimits ## run ./ratelimit short tests with race checker
 .PHONY: check-race_net
 check-race_net: fixlimits ## run ./net short tests with race checker
 	go test -race -test.short ./net
+.PHONY: check-race_awsnitro
+check-race_awsnitro: build.awsnitro ## run awsnitro tests with race checker
+	go test -race $(AWSNITRO_TAGS) ./aws/nitro/... ./secrets/certregistry/... ./config/...
 
 
 .PHONY: check-plugins

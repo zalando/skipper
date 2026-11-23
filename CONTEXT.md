@@ -223,6 +223,23 @@ Proxy-level config (`TLSClientAuth`) requesting or requiring client certificates
 **Outbound mTLS to Backends**:
 Proxy-level config (`EnableMTLS`) presenting a client certificate when connecting to upstream backends, with hot cert rotation.
 
+## TLS Termination
+
+**Certificate Registry**:
+The store of TLS certificates per host from which Skipper selects the certificate by SNI, preferring an exact host over a wildcard match.
+_Avoid_: cert store, cert cache
+
+**Certificate Priority**:
+The rank of a certificate source in the Certificate Registry. A higher priority certificate always wins over a lower one for the same host, regardless of validity dates.
+
+**Nitro Enclave**:
+An isolated AWS EC2 compute environment that holds ACM certificate private keys, reachable from Skipper only via vsock.
+_Avoid_: HSM, enclave app
+
+**Enclave Signer**:
+A private key whose signing operations are performed inside the Nitro Enclave, so that only the asymmetric part of the TLS handshake is offloaded while Skipper terminates TLS.
+_Avoid_: TLS offloading, remote key
+
 ## Kubernetes Integration
 
 **Ingress**:

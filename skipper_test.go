@@ -21,6 +21,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/valkey-io/valkey-go"
 
+	"github.com/zalando/skipper/aws/nitro"
 	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/eskipfile"
@@ -364,6 +365,46 @@ func TestOptionsTLSConfig(t *testing.T) {
 	require.Equal(t, uint16(tls.VersionTLS12), c.MinVersion)
 	assert.NotNil(t, c.GetCertificate)
 	assert.NotNil(t, c.NextProtos)
+}
+
+func TestOptionsTLSConfigAWSNitro(t *testing.T) {
+	cert, err := tls.LoadX509KeyPair("fixtures/test.crt", "fixtures/test.key")
+	require.NoError(t, err)
+
+	cr := certregistry.NewCertRegistry()
+	require.NoError(t, cr.ConfigureCertificateWithPriority("a.example.org", &cert, certregistry.PriorityNitro))
+
+	o := &Options{AWSNitro: &nitro.Options{}, TLSMinVersion: tls.VersionTLS12}
+	c, err := o.TlsConfig(cr)
+	require.NoError(t, err)
+	assert.Equal(t, uint16(tls.VersionTLS12), c.MinVersion)
+	assert.Empty(t, c.Certificates)
+
+	got, err := c.GetCertificate(&tls.ClientHelloInfo{ServerName: "a.example.org"})
+	require.NoError(t, err)
+	assert.Same(t, &cert, got)
+
+	_, err = c.GetCertificate(&tls.ClientHelloInfo{})
+	assert.ErrorIs(t, err, nitro.ErrNoSNI)
+
+	_, err = c.GetCertificate(&tls.ClientHelloInfo{ServerName: "unknown.example.org"})
+	assert.ErrorIs(t, err, nitro.ErrUnknownServerName)
+
+	for _, tt := range []struct {
+		name     string
+		options  *Options
+		registry *certregistry.CertRegistry
+	}{
+		{"no registry", &Options{AWSNitro: &nitro.Options{}}, nil},
+		{"static certificate", &Options{AWSNitro: &nitro.Options{}, CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test.key"}, cr},
+		{"proxy tls", &Options{AWSNitro: &nitro.Options{}, ProxyTLS: &tls.Config{}}, cr},
+		{"letsencrypt", &Options{AWSNitro: &nitro.Options{}, Letsencrypt: skpnet.NewLetsencrypt(&skpnet.InmemoryCache{}, "email@example", "http://dir.example/url", "UA", []string{"example.test"})}, cr},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.options.TlsConfig(tt.registry)
+			assert.Error(t, err)
+		})
+	}
 }
 
 func TestOptionsTLSConfigInvalidPaths(t *testing.T) {

@@ -16,6 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper/aws/nitro"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/openpolicyagent"
@@ -204,6 +205,9 @@ func defaultConfig(with func(*Config)) *Config {
 		MtlsAuthnCaFile:                         "",
 		MtlsAuthnCA:                             x509.NewCertPool(),
 		KubernetesZoneMaxSkew:                   kubernetes.DefaultMaxZoneSkew,
+		AWSNitroRefreshInterval:                 nitro.DefaultRefreshInterval,
+		AWSNitroSessionsPerToken:                nitro.DefaultSessionsPerToken,
+		AWSNitroTimeout:                         nitro.DefaultTimeout,
 	}
 	with(cfg)
 	return cfg
@@ -363,6 +367,93 @@ func Test_Validate(t *testing.T) {
 			if tt.wantErr && err != nil && err.Error() != tt.want.Error() {
 				t.Errorf("Failed to get wanted error, got: %v, want: %v", err, tt.want)
 			}
+		})
+	}
+}
+
+func TestAWSNitroConfig(t *testing.T) {
+	valid := []string{
+		"-aws-nitro-enclave",
+		"-aws-nitro-cid", "16",
+		"-aws-nitro-port", "9999",
+		"-aws-nitro-pin-file", "/run/acm/pin",
+		"-aws-nitro-certificate", "token=t1,chain=/etc/acm/c1.pem",
+		"-aws-nitro-certificate", "token=t2,chain=/etc/acm/c2.pem,key=k2",
+		"-aws-nitro-refresh-interval", "30s",
+		"-aws-nitro-sessions-per-token", "4",
+		"-aws-nitro-timeout", "2s",
+	}
+
+	t.Run("valid", func(t *testing.T) {
+		cfg := NewConfig()
+		require.NoError(t, cfg.ParseArgs("skipper", valid))
+
+		o := cfg.ToOptions()
+		require.NotNil(t, o.AWSNitro)
+		assert.Equal(t, nitro.Options{
+			CID:     16,
+			Port:    9999,
+			PINFile: "/run/acm/pin",
+			Certificates: []nitro.Certificate{
+				{TokenLabel: "t1", ChainPath: "/etc/acm/c1.pem"},
+				{TokenLabel: "t2", ChainPath: "/etc/acm/c2.pem", KeyLabel: "k2"},
+			},
+			RefreshInterval:  30 * time.Second,
+			SessionsPerToken: 4,
+			Timeout:          2 * time.Second,
+		}, *o.AWSNitro)
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		cfg := NewConfig()
+		require.NoError(t, cfg.ParseArgs("skipper", []string{"-aws-nitro-certificate", "invalid"}))
+		assert.Nil(t, cfg.ToOptions().AWSNitro)
+	})
+
+	for _, tt := range []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "missing certificate",
+			args:    []string{"-aws-nitro-enclave", "-aws-nitro-cid", "16", "-aws-nitro-port", "9999"},
+			wantErr: "at least one aws-nitro-certificate",
+		},
+		{
+			name:    "missing cid",
+			args:    []string{"-aws-nitro-enclave", "-aws-nitro-port", "9999", "-aws-nitro-certificate", "token=t,chain=c"},
+			wantErr: "aws-nitro-cid",
+		},
+		{
+			name:    "cid out of range",
+			args:    []string{"-aws-nitro-enclave", "-aws-nitro-cid", "4294967296", "-aws-nitro-port", "9999", "-aws-nitro-certificate", "token=t,chain=c"},
+			wantErr: "aws-nitro-cid",
+		},
+		{
+			name:    "missing port",
+			args:    []string{"-aws-nitro-enclave", "-aws-nitro-cid", "16", "-aws-nitro-certificate", "token=t,chain=c"},
+			wantErr: "aws-nitro-port",
+		},
+		{
+			name:    "invalid certificate",
+			args:    []string{"-aws-nitro-enclave", "-aws-nitro-cid", "16", "-aws-nitro-port", "9999", "-aws-nitro-certificate", "token=t"},
+			wantErr: "token and chain are required",
+		},
+		{
+			name:    "static tls certificate",
+			args:    append(slices.Clone(valid), "-tls-cert", "cert.pem", "-tls-key", "key.pem"),
+			wantErr: "can not be used with tls-cert",
+		},
+		{
+			name:    "letsencrypt",
+			args:    append(slices.Clone(valid), "-enable-letsencrypt"),
+			wantErr: "can not be used with tls-cert",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			assert.ErrorContains(t, cfg.ParseArgs("skipper", tt.args), tt.wantErr)
 		})
 	}
 }
