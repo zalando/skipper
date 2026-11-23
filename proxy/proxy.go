@@ -800,7 +800,11 @@ func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr st
 			dialingFailed: true, // indicate error happened before http
 		}
 	} else if cerr := ctx.Err(); cerr != nil {
-		// unclear when this is being triggered
+		// Triggered when ctx is canceled or times out in the race window
+		// after the underlying dial succeeded but before DialContext returns.
+		if con != nil {
+			con.Close()
+		}
 		return nil, &proxyError{
 			err:  fmt.Errorf("err from dial context: %w", cerr),
 			code: http.StatusGatewayTimeout,
@@ -824,6 +828,9 @@ func (dc *skipperDialer) DialQUIC(ctx stdlibcontext.Context, addr string, tlsCfg
 			dialingFailed: true, // indicate error happened before http
 		}
 	} else if cerr := ctx.Err(); cerr != nil {
+		if con != nil {
+			con.CloseWithError(0, cerr.Error())
+		}
 		return nil, &proxyError{
 			err:  fmt.Errorf("err from dial context: %w", cerr),
 			code: http.StatusGatewayTimeout,
