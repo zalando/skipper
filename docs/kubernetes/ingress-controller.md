@@ -643,7 +643,6 @@ The rest depends on the implementation, that can be:
 
 - [Redis](https://redis.io)
 - [Valkey](https://valkey.io)
-- alpha version: [SWIM](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
 
 ### Redis based
 
@@ -803,38 +802,6 @@ spec:
     application: skipper-ingress
     component: valkey
   type: ClusterIP
-```
-
-
-
-### SWIM based
-
-[SWIM](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
-is a "Scalable Weakly-consistent Infection-style Process Group
-Membership Protocol", which is very interesting for example to use for
-cluster ratelimits. This setup is not considered stable enough to run
-production, yet.
-
-Additionally you have to add the following command line flags to
-skipper's container spec `args:`:
-
-```sh
--swarm-port=9990
--swarm-label-selector-key=application
--swarm-label-selector-value=skipper-ingress
--swarm-leave-timeout=5s
--swarm-max-msg-buffer=4194304
--swarm-namespace=kube-system
-```
-
-and open another port in Kubernetes and your Firewall settings to make
-the communication work with TCP and UDP to the specified `swarm-port`:
-
-```yaml
-- containerPort: 9990
-  hostPort: 9990
-  name: swarm-port
-  protocol: TCP
 ```
 
 ## Upgrades

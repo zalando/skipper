@@ -84,11 +84,10 @@ have a powerful tool like the provided `clientRatelimit`.
 
 A cluster ratelimit computes all requests for all skipper peers. This
 requires, that you run skipper with `-enable-swarm` and select one of
-the three implementations:
+the two implementations:
 
 - [Redis](https://redis.io)
 - [Valkey](https://valkey.io/)
-- [SWIM](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
 
 Make sure all requirements, that are dependent on the implementation
 and your dataclient in use.
@@ -215,25 +214,6 @@ following Valkey commands:
 - [ZRANGEBYSCORE](https://valkey.io/commands/zrangebyscore)
 
 ![Picture showing Skipper with Valkey based swarm and ratelimit](../img/valkey-and-cluster-ratelimit.svg)
-
-### SWIM based Cluster Ratelimits
-
-[SWIM](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
-is a "Scalable Weakly-consistent Infection-style Process Group
-Membership Protocol", which is very interesting to use for cluster
-ratelimits. The implementation has some weaknesses in the algorithm,
-that lead sometimes to too much ratelimits or too few and therefore is
-not considered to be stable. For running skipper in Kubernetes with
-this, see also [Running with SWIM based Cluster Ratelimits](../kubernetes/ingress-controller.md#swim-based)
-
-In case of Kubernetes you might specify additionally
-`-swarm-label-selector-key`, which defaults to "application" and
-`-swarm-label-selector-value`, which defaults to "skipper-ingress" and
-`-swarm-namespace`, which defaults to "kube-system".
-
-The following shows the setup of a SWIM based cluster ratelimit:
-
-![Picture showing Skipper SWIM based swarm and ratelimit](../img/swarm-and-cluster-ratelimit.svg)
 
 ### Backend Ratelimit
 

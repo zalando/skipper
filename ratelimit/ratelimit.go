@@ -113,17 +113,6 @@ const (
 	// for a whole skipper fleet per user for a backend, needs
 	// swarm to be enabled with -enable-swarm. In case of redis or
 	// valkey it will not consume more memory.
-	// In case of swim based cluster ratelimit, one filter
-	// consumes memory calculated by the following formular, where
-	// N is the number of individual clients put into the same
-	// bucket, M the maximum number of requests allowed, S the
-	// number of skipper peers:
-	//
-	//    memory = N * M * 15 + S * len(peername)
-	//
-	// For example /login protection 100.000 attacker, 10 requests
-	// for 1 hour, 100 skipper peers with each a name of 8
-	// characters will use roughly 14.7 MB.
 	ClusterClientRatelimit
 
 	// DisableRatelimit is used to disable rate limit
@@ -427,7 +416,7 @@ func (zeroRatelimit) RetryAfter(string) int              { return zeroRetry }
 func (zeroRatelimit) Delta(string) time.Duration         { return zeroDelta }
 func (zeroRatelimit) Resize(string, int)                 {}
 
-func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient, valkeyRing *net.ValkeyRingClient) *Ratelimit {
+func newRatelimit(s Settings, redisRing *net.RedisRingClient, valkeyRing *net.ValkeyRingClient) *Ratelimit {
 	var impl limiter
 	if s.MaxHits == 0 {
 		impl = zeroRatelimit{}
@@ -444,7 +433,7 @@ func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient, valkey
 			s.CleanInterval = 0
 			fallthrough
 		case ClusterClientRatelimit:
-			impl = newClusterRateLimiter(s, sw, redisRing, valkeyRing, s.Group)
+			impl = newClusterRateLimiter(s, redisRing, valkeyRing, s.Group)
 		default:
 			impl = voidRatelimit{}
 		}

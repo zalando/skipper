@@ -83,7 +83,6 @@ import (
 	"github.com/zalando/skipper/script"
 	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/secrets/certregistry"
-	"github.com/zalando/skipper/swarm"
 	"github.com/zalando/skipper/tracing"
 	"github.com/zalando/skipper/validation"
 )
@@ -1180,16 +1179,6 @@ type Options struct {
 	SwarmValkeyKeepAlive          time.Duration
 	SwarmValkeyConnLifetime       time.Duration
 	SwarmValkeyUpdateInterval     time.Duration
-	// swim based swarm
-	SwarmKubernetesNamespace          string
-	SwarmKubernetesLabelSelectorKey   string
-	SwarmKubernetesLabelSelectorValue string
-	SwarmPort                         int
-	SwarmMaxMessageBuffer             int
-	SwarmLeaveTimeout                 time.Duration
-	// swim based swarm for local testing
-	SwarmStaticSelf  string // 127.0.0.1:9001
-	SwarmStaticOther string // 127.0.0.1:9002,127.0.0.1:9003
 
 	// SwarmRegistry specifies an optional callback function that is
 	// called after ratelimit registry is initialized
@@ -2242,7 +2231,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	var (
-		swarmer       ratelimit.Swarmer
 		redisOptions  *skpnet.RedisOptions
 		redisRing     *skpnet.RedisRingClient
 		valkeyOptions *skpnet.ValkeyOptions
@@ -2288,48 +2276,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			}
 
 		} else {
-			log.Infof("Start swim based swarm")
-			swops := &swarm.Options{
-				SwarmPort:        uint16(o.SwarmPort),
-				MaxMessageBuffer: o.SwarmMaxMessageBuffer,
-				LeaveTimeout:     o.SwarmLeaveTimeout,
-				Debug:            log.GetLevel() == log.DebugLevel,
-			}
-
-			if o.Kubernetes {
-				swops.KubernetesOptions = &swarm.KubernetesOptions{
-					KubernetesInCluster:  o.KubernetesInCluster,
-					KubernetesAPIBaseURL: o.KubernetesURL,
-					Namespace:            o.SwarmKubernetesNamespace,
-					LabelSelectorKey:     o.SwarmKubernetesLabelSelectorKey,
-					LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
-				}
-			}
-
-			if o.SwarmStaticSelf != "" {
-				self, err := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
-				if err != nil {
-					return fmt.Errorf("failed to get static NodeInfo: %w", err)
-				}
-				other := []*swarm.NodeInfo{self}
-
-				for addr := range strings.SplitSeq(o.SwarmStaticOther, ",") {
-					ni, err := swarm.NewStaticNodeInfo(addr, addr)
-					if err != nil {
-						return fmt.Errorf("failed to get static NodeInfo: %w", err)
-					}
-					other = append(other, ni)
-				}
-
-				swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
-			}
-
-			theSwarm, err := swarm.NewSwarm(swops)
-			if err != nil {
-				return fmt.Errorf("failed to init swarm with options %+v: %w", swops, err)
-			}
-			defer theSwarm.Leave()
-			swarmer = theSwarm
+			log.Warn("Swarm enabled without Valkey or Redis configuration")
 		}
 
 		// in case we have kubernetes dataclient and we can detect valkey instances, we patch valkeyOptions
@@ -2455,8 +2402,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			ratelimitRegistry = ratelimit.NewRatelimitRegistryRedis(redisRing, o.RatelimitSettings...)
 
 		default:
-			// swim based Swarmer (deprecated)
-			ratelimitRegistry = ratelimit.NewSwarmRegistry(swarmer, redisOptions, valkeyOptions, o.RatelimitSettings...)
+			ratelimitRegistry = ratelimit.NewRegistry(o.RatelimitSettings...)
 		}
 		defer ratelimitRegistry.Close()
 
