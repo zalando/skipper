@@ -31,6 +31,7 @@ import (
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/zalando/skipper/aws/nitro"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/routestring"
@@ -872,6 +873,12 @@ type Options struct {
 	// LetsencryptCache
 	LetsencryptCache string
 
+	// AWSNitroTLS configures TLS handshake offloading to AWS ACM for Nitro Enclaves.
+	// Requires building with -tags awsnitro and is mutually exclusive with Letsencrypt,
+	// KubernetesEnableTLS, and CertPathTLS/KeyPathTLS.
+	AWSNitroTLS      *nitro.Options
+	awsNitroProvider *nitro.Provider
+
 	// EnableRatelimiters enables the usage of the ratelimiter in the route definitions without initializing any
 	// by default. It is a shortcut for setting the RatelimitSettings to:
 	//
@@ -1572,6 +1579,16 @@ func (o *Options) filterRegistry() filters.Registry {
 	return registry
 }
 
+func (o *Options) validateAWSNitroTLS(cr *certregistry.CertRegistry) error {
+	if o.AWSNitroTLS == nil {
+		return nil
+	}
+	if o.Letsencrypt != nil || o.KubernetesEnableTLS || cr != nil || o.CertPathTLS != "" || o.KeyPathTLS != "" {
+		return errors.New("AWS Nitro TLS cannot be combined with letsencrypt, kubernetes-enable-tls, or tls-cert/tls-key")
+	}
+	return nil
+}
+
 func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
 	var config *tls.Config
 
@@ -1579,11 +1596,27 @@ func (o *Options) TlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		return o.ProxyTLS, nil
 	}
 
-	if o.CertPathTLS == "" && o.KeyPathTLS == "" && cr == nil && o.Letsencrypt == nil {
+	if err := o.validateAWSNitroTLS(cr); err != nil {
+		return nil, err
+	}
+
+	if o.CertPathTLS == "" && o.KeyPathTLS == "" && cr == nil && o.Letsencrypt == nil && o.AWSNitroTLS == nil {
 		return nil, nil
 	}
 
-	if o.Letsencrypt != nil {
+	if o.AWSNitroTLS != nil {
+		provider := o.awsNitroProvider
+		if provider == nil {
+			var err error
+			provider, err = nitro.New(*o.AWSNitroTLS)
+			if err != nil {
+				return nil, err
+			}
+		}
+		config = &tls.Config{
+			GetCertificate: provider.GetCertificate,
+		}
+	} else if o.Letsencrypt != nil {
 		// sets:
 		// - GetCertificate
 		// - NextProtos
@@ -2004,6 +2037,18 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	var cr *certregistry.CertRegistry
 	if o.KubernetesEnableTLS {
 		cr = certregistry.NewCertRegistry()
+	}
+
+	if o.AWSNitroTLS != nil {
+		if err := o.validateAWSNitroTLS(cr); err != nil {
+			return err
+		}
+		nitroProvider, err := nitro.New(*o.AWSNitroTLS)
+		if err != nil {
+			return err
+		}
+		defer nitroProvider.Close()
+		o.awsNitroProvider = nitroProvider
 	}
 
 	// create data clients

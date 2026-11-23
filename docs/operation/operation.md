@@ -2282,6 +2282,46 @@ Other choices are:
 - "inmemory": no persistence
 - "remote": persist into infrastrucuture to share cert/keys with other skipper processes. You can use the redis or valkey ring clients, that you can use for cache() and clusterRatelimit() filters.
 
+## AWS Nitro Enclave ACM TLS
+
+Skipper can terminate TLS using AWS Certificate Manager (ACM) certificates held inside an AWS Nitro Enclave running AWS ACM for Nitro Enclaves (`aws-nitro-enclaves-acm`).
+Private keys never leave the enclave: Skipper discovers the public certificate chains and offloads TLS handshake signing (`crypto.Signer`) to the enclave using the `p11-kit` RPC protocol over `AF_VSOCK` (or `AF_UNIX`) in pure Go (`CGO_ENABLED=0`).
+
+### Build requirement
+
+AWS Nitro Enclave support is guarded by the `awsnitro` build tag so default builds remain unaffected:
+
+```sh
+make build.linux.static.nitro
+# or:
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags awsnitro ./cmd/skipper
+```
+
+Enabling `-enable-aws-nitro-tls` on a binary built without `-tags awsnitro` fails fast at startup.
+
+### Configuration flags
+
+```
+-enable-aws-nitro-tls \
+-aws-nitro-endpoint=vsock://16:8000 \
+-aws-nitro-token-label=acm \
+-aws-nitro-refresh-interval=5m \
+-aws-nitro-timeout=5s \
+-aws-nitro-max-sessions=8
+```
+
+- `-enable-aws-nitro-tls`: Enables AWS Nitro Enclave ACM TLS termination. Mutually exclusive with `-enable-letsencrypt`, `-kubernetes-enable-tls`, and `-tls-cert`/`-tls-key`.
+- `-aws-nitro-endpoint`: Enclave `p11-kit` RPC endpoint URI, either `vsock://<cid>:<port>` (Linux only) or `unix://<path>`.
+- `-aws-nitro-token-label`: Optional PKCS#11 token label filter when multiple slots are exposed.
+- `-aws-nitro-refresh-interval`: Interval for reloading certificates from the enclave to pick up ACM renewals (default `5m`).
+- `-aws-nitro-timeout`: Per-RPC I/O timeout for enclave communication (default `5s`).
+- `-aws-nitro-max-sessions`: Maximum number of pooled PKCS#11 sessions for concurrent TLS handshake signing (default `8`).
+
+### Supported algorithms and SNI matching
+
+- Supports RSA (PKCS#1 v1.5 and RSA-PSS) and ECDSA (P-256, P-384, P-521) for TLS 1.2 (ECDHE) and TLS 1.3.
+- Selects certificates by SNI using exact hostname match, single-level wildcard match (e.g. `*.example.com`), and fallback to the newest loaded certificate when SNI is omitted.
+
 ## Shared Storage - Redis / Valkey
 
 Some features require coordination if you run a lot of skippers, for

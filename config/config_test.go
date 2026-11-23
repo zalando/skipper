@@ -16,6 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper/aws/nitro"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/openpolicyagent"
@@ -187,6 +188,9 @@ func defaultConfig(with func(*Config)) *Config {
 		LetsencryptDomains:                      commaListFlag(),
 		LetsencryptCache:                        net.DefaultLetsencryptCache,
 		LetsencryptCacheDir:                     net.DefaultLetsencryptCacheDirectory,
+		AWSNitroRefreshInterval:                 nitro.DefaultRefreshInterval,
+		AWSNitroTimeout:                         nitro.DefaultTimeout,
+		AWSNitroMaxSessions:                     nitro.DefaultMaxSessions,
 		EnableLua:                               false,
 		LuaModules:                              commaListFlag(),
 		LuaSources:                              commaListFlag(),
@@ -885,6 +889,56 @@ func TestH2cFlags_ParseAndToOptions(t *testing.T) {
 			if opts.EnableH2cServer != tt.wantH2cServer {
 				t.Errorf("ToOptions EnableH2cServer: got %v, want %v", opts.EnableH2cServer, tt.wantH2cServer)
 			}
+		})
+	}
+}
+
+func TestAWSNitroTLSFlags_ParseAndToOptions(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args []string
+		want *nitro.Options
+	}{
+		{
+			name: "disabled by default",
+			args: []string{"skipper"},
+			want: nil,
+		},
+		{
+			name: "enabled with defaults",
+			args: []string{"skipper", "-enable-aws-nitro-tls", "-aws-nitro-endpoint=vsock://16:8000"},
+			want: &nitro.Options{
+				Endpoint:        "vsock://16:8000",
+				RefreshInterval: nitro.DefaultRefreshInterval,
+				Timeout:         nitro.DefaultTimeout,
+				MaxSessions:     nitro.DefaultMaxSessions,
+			},
+		},
+		{
+			name: "enabled with custom options",
+			args: []string{
+				"skipper",
+				"-enable-aws-nitro-tls",
+				"-aws-nitro-endpoint=unix:///run/p11-kit/pkcs11",
+				"-aws-nitro-token-label=acm",
+				"-aws-nitro-refresh-interval=2m",
+				"-aws-nitro-timeout=3s",
+				"-aws-nitro-max-sessions=12",
+			},
+			want: &nitro.Options{
+				Endpoint:        "unix:///run/p11-kit/pkcs11",
+				TokenLabel:      "acm",
+				RefreshInterval: 2 * time.Minute,
+				Timeout:         3 * time.Second,
+				MaxSessions:     12,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			require.NoError(t, cfg.ParseArgs(tt.args[0], tt.args[1:]))
+			opts := cfg.ToOptions()
+			assert.Equal(t, tt.want, opts.AWSNitroTLS)
 		})
 	}
 }

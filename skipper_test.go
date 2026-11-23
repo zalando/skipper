@@ -21,6 +21,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/valkey-io/valkey-go"
 
+	"github.com/zalando/skipper/aws/nitro"
 	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/eskipfile"
@@ -385,6 +386,53 @@ func TestOptionsTLSConfigInvalidPaths(t *testing.T) {
 			_, err := tt.options.TlsConfig(cr)
 			t.Logf("tlsConfig error: %v", err)
 			require.Error(t, err)
+		})
+	}
+}
+
+func TestOptionsTLSConfigAWSNitroMutualExclusion(t *testing.T) {
+	nitroOpts := &nitro.Options{Endpoint: "vsock://16:8000"}
+	cr := certregistry.NewCertRegistry()
+
+	for _, tt := range []struct {
+		name    string
+		options *Options
+		cr      *certregistry.CertRegistry
+	}{
+		{
+			name: "with letsencrypt",
+			options: &Options{
+				AWSNitroTLS: nitroOpts,
+				Letsencrypt: skpnet.NewLetsencrypt(&skpnet.InmemoryCache{}, "email@example", "http://dir.example/url", "UA", []string{"example.test"}),
+			},
+		},
+		{
+			name: "with kubernetes-enable-tls",
+			options: &Options{
+				AWSNitroTLS:         nitroOpts,
+				KubernetesEnableTLS: true,
+			},
+		},
+		{
+			name: "with cert registry",
+			options: &Options{
+				AWSNitroTLS: nitroOpts,
+			},
+			cr: cr,
+		},
+		{
+			name: "with tls-cert",
+			options: &Options{
+				AWSNitroTLS: nitroOpts,
+				CertPathTLS: "fixtures/test.crt",
+				KeyPathTLS:  "fixtures/test.key",
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.options.TlsConfig(tt.cr)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "AWS Nitro TLS cannot be combined")
 		})
 	}
 }

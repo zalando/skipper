@@ -20,6 +20,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper"
+	"github.com/zalando/skipper/aws/nitro"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/openpolicyagent"
@@ -306,6 +307,14 @@ type Config struct {
 	LetsencryptDomains      *listFlag `yaml:"letsencrypt-domains"`
 	LetsencryptDirectoryURL string    `yaml:"letsencrypt-directory-url"`
 	LetsencryptUserAgent    string    `yaml:"letsencrypt-user-agent"`
+
+	// AWS Nitro Enclave ACM TLS
+	EnableAWSNitroTLS       bool          `yaml:"enable-aws-nitro-tls"`
+	AWSNitroEndpoint        string        `yaml:"aws-nitro-endpoint"`
+	AWSNitroTokenLabel      string        `yaml:"aws-nitro-token-label"`
+	AWSNitroRefreshInterval time.Duration `yaml:"aws-nitro-refresh-interval"`
+	AWSNitroTimeout         time.Duration `yaml:"aws-nitro-timeout"`
+	AWSNitroMaxSessions     int           `yaml:"aws-nitro-max-sessions"`
 
 	// API Monitoring
 	ApiUsageMonitoringEnable                       bool   `yaml:"enable-api-usage-monitoring"`
@@ -723,6 +732,14 @@ func NewConfig() *Config {
 	flag.Var(cfg.LetsencryptDomains, "letsencrypt-domains", "An allow list of domains for autocert handling")
 	flag.StringVar(&cfg.LetsencryptDirectoryURL, "letsencrypt-directory-url", "", "Sets directory URL for testing, defaults to autocert.DefaultACMEDirectory")
 	flag.StringVar(&cfg.LetsencryptUserAgent, "letsencrypt-user-agent", "", "Sets httpclient useragent that calls letsencrypt that enables letsencrypt to limit you if something goes wrong")
+
+	// AWS Nitro Enclave ACM TLS
+	flag.BoolVar(&cfg.EnableAWSNitroTLS, "enable-aws-nitro-tls", false, "enables TLS handshake offloading to AWS ACM for Nitro Enclaves (requires binary built with -tags awsnitro)")
+	flag.StringVar(&cfg.AWSNitroEndpoint, "aws-nitro-endpoint", "", "enclave p11-kit RPC endpoint URI (vsock://<cid>:<port> or unix://<path>)")
+	flag.StringVar(&cfg.AWSNitroTokenLabel, "aws-nitro-token-label", "", "optional PKCS#11 token label filter for AWS Nitro ACM certificates")
+	flag.DurationVar(&cfg.AWSNitroRefreshInterval, "aws-nitro-refresh-interval", nitro.DefaultRefreshInterval, "interval for refreshing ACM certificates from the AWS Nitro Enclave")
+	flag.DurationVar(&cfg.AWSNitroTimeout, "aws-nitro-timeout", nitro.DefaultTimeout, "per-RPC timeout when communicating with the AWS Nitro Enclave")
+	flag.IntVar(&cfg.AWSNitroMaxSessions, "aws-nitro-max-sessions", nitro.DefaultMaxSessions, "maximum number of pooled PKCS#11 sessions for AWS Nitro Enclave signing")
 
 	// API Monitoring:
 	flag.BoolVar(&cfg.ApiUsageMonitoringEnable, "enable-api-usage-monitoring", false, "enables the apiUsageMonitoring filter")
@@ -1443,6 +1460,16 @@ func (c *Config) ToOptions() skipper.Options {
 		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
 			return options.Letsencrypt.Handler(handler)
 		})
+	}
+
+	if c.EnableAWSNitroTLS {
+		options.AWSNitroTLS = &nitro.Options{
+			Endpoint:        c.AWSNitroEndpoint,
+			TokenLabel:      c.AWSNitroTokenLabel,
+			RefreshInterval: c.AWSNitroRefreshInterval,
+			Timeout:         c.AWSNitroTimeout,
+			MaxSessions:     c.AWSNitroMaxSessions,
+		}
 	}
 
 	return options
