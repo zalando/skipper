@@ -363,9 +363,11 @@ func NewLBEndpoints(eps []string) []*LBEndpoint {
 		return nil
 	}
 	result := make([]*LBEndpoint, len(eps))
+	slab := make([]LBEndpoint, len(eps))
 
 	for i := range eps {
-		result[i] = newLBEndpoint(eps[i])
+		initLBEndpoint(&slab[i], eps[i])
+		result[i] = &slab[i]
 	}
 
 	return result
@@ -407,20 +409,48 @@ func (ep LBEndpoint) StringWithZone() string {
 // key is stripped; the remaining address is kept clean. Address must not carry
 // the zone param so that it can be used as it was originally defined
 func newLBEndpoint(s string) *LBEndpoint {
+	var ep LBEndpoint
+	initLBEndpoint(&ep, s)
+	return &ep
+}
+
+func initLBEndpoint(ep *LBEndpoint, s string) {
+	qIdx := strings.IndexByte(s, '?')
+	if qIdx < 0 {
+		ep.Address = s
+		return
+	}
+
+	rawQuery := s[qIdx+1:]
+	if strings.HasPrefix(rawQuery, zoneQueryParam+"=") &&
+		!strings.ContainsAny(rawQuery, "&%+#") {
+		zone := rawQuery[len(zoneQueryParam)+1:]
+		if zone == "" {
+			ep.Address = s
+			return
+		}
+		ep.Address = s[:qIdx]
+		ep.Zone = zone
+		return
+	}
+
 	u, err := url.Parse(s)
 	if err != nil {
-		return &LBEndpoint{Address: s}
+		ep.Address = s
+		return
 	}
 
 	q := u.Query()
 	zone := q.Get(zoneQueryParam)
 	if zone == "" {
-		return &LBEndpoint{Address: s}
+		ep.Address = s
+		return
 	}
 
 	q.Del(zoneQueryParam)
 	u.RawQuery = q.Encode()
-	return &LBEndpoint{Address: u.String(), Zone: zone}
+	ep.Address = u.String()
+	ep.Zone = zone
 }
 
 type RoutePredicate func(*Route) bool
@@ -455,40 +485,88 @@ func (p *Predicate) Copy() *Predicate {
 func (r *Route) Copy() *Route {
 	c := *r
 
-	if len(r.HostRegexps) > 0 {
-		c.HostRegexps = make([]string, len(r.HostRegexps))
-		copy(c.HostRegexps, r.HostRegexps)
+	totalStrings := len(r.HostRegexps) + len(r.PathRegexps)
+	for _, vs := range r.HeaderRegexps {
+		totalStrings += len(vs)
+	}
+	var strSlab []string
+	if totalStrings > 0 {
+		strSlab = make([]string, totalStrings)
 	}
 
-	if len(r.PathRegexps) > 0 {
-		c.PathRegexps = make([]string, len(r.PathRegexps))
+	if n := len(r.HostRegexps); n > 0 {
+		c.HostRegexps = strSlab[:n:n]
+		copy(c.HostRegexps, r.HostRegexps)
+		strSlab = strSlab[n:]
+	}
+
+	if n := len(r.PathRegexps); n > 0 {
+		c.PathRegexps = strSlab[:n:n]
 		copy(c.PathRegexps, r.PathRegexps)
+		strSlab = strSlab[n:]
 	}
 
 	if len(r.Headers) > 0 {
-		c.Headers = make(map[string]string)
-		maps.Copy(c.Headers, r.Headers)
+		c.Headers = maps.Clone(r.Headers)
 	}
 
 	if len(r.HeaderRegexps) > 0 {
-		c.HeaderRegexps = make(map[string][]string)
+		c.HeaderRegexps = make(map[string][]string, len(r.HeaderRegexps))
 		for k, vs := range r.HeaderRegexps {
-			c.HeaderRegexps[k] = make([]string, len(vs))
-			copy(c.HeaderRegexps[k], vs)
+			if n := len(vs); n > 0 {
+				dst := strSlab[:n:n]
+				copy(dst, vs)
+				strSlab = strSlab[n:]
+				c.HeaderRegexps[k] = dst
+			} else {
+				c.HeaderRegexps[k] = make([]string, 0)
+			}
 		}
+	}
+
+	totalArgs := 0
+	for _, p := range r.Predicates {
+		totalArgs += len(p.Args)
+	}
+	for _, f := range r.Filters {
+		totalArgs += len(f.Args)
+	}
+	var argsSlab []interface{}
+	if totalArgs > 0 {
+		argsSlab = make([]interface{}, totalArgs)
 	}
 
 	if len(r.Predicates) > 0 {
 		c.Predicates = make([]*Predicate, len(r.Predicates))
+		predSlab := make([]Predicate, len(r.Predicates))
 		for i, p := range r.Predicates {
-			c.Predicates[i] = p.Copy()
+			predSlab[i] = *p
+			if n := len(p.Args); n > 0 {
+				args := argsSlab[:n:n]
+				copy(args, p.Args)
+				predSlab[i].Args = args
+				argsSlab = argsSlab[n:]
+			} else {
+				predSlab[i].Args = make([]interface{}, 0)
+			}
+			c.Predicates[i] = &predSlab[i]
 		}
 	}
 
 	if len(r.Filters) > 0 {
 		c.Filters = make([]*Filter, len(r.Filters))
-		for i, p := range r.Filters {
-			c.Filters[i] = p.Copy()
+		filterSlab := make([]Filter, len(r.Filters))
+		for i, f := range r.Filters {
+			filterSlab[i] = *f
+			if n := len(f.Args); n > 0 {
+				args := argsSlab[:n:n]
+				copy(args, f.Args)
+				filterSlab[i].Args = args
+				argsSlab = argsSlab[n:]
+			} else {
+				filterSlab[i].Args = make([]interface{}, 0)
+			}
+			c.Filters[i] = &filterSlab[i]
 		}
 	}
 
@@ -540,30 +618,24 @@ func (t BackendType) String() string {
 	}
 }
 
-// Expects exactly n arguments of type string, or fails.
-func getStringArgs(p *Predicate, n int) ([]string, error) {
-	failure := func() ([]string, error) {
-		if n == 1 {
-			return nil, fmt.Errorf("%s predicate expects 1 string argument", p.Name)
-		} else {
-			return nil, fmt.Errorf("%s predicate expects %d string arguments", p.Name, n)
+func getStringArg1(p *Predicate) (string, error) {
+	if len(p.Args) == 1 {
+		if sa, ok := p.Args[0].(string); ok {
+			return sa, nil
 		}
 	}
+	return "", fmt.Errorf("%s predicate expects 1 string argument", p.Name)
+}
 
-	if len(p.Args) != n {
-		return failure()
-	}
-
-	sargs := make([]string, n)
-	for i, a := range p.Args {
-		if sa, ok := a.(string); ok {
-			sargs[i] = sa
-		} else {
-			return failure()
+func getStringArg2(p *Predicate) (string, string, error) {
+	if len(p.Args) == 2 {
+		if sa0, ok := p.Args[0].(string); ok {
+			if sa1, ok := p.Args[1].(string); ok {
+				return sa0, sa1, nil
+			}
 		}
 	}
-
-	return sargs, nil
+	return "", "", fmt.Errorf("%s predicate expects 2 string arguments", p.Name)
 }
 
 // Checks and sets the different predicates taken from the yacc result.
@@ -571,8 +643,53 @@ func getStringArgs(p *Predicate, n int) ([]string, error) {
 // yacc rules. (https://github.com/zalando/skipper/issues/89)
 func applyPredicates(route *Route, proute *parsedRoute) error {
 	var (
+		hostCount         int
+		pathRegexpCount   int
+		headerCount       int
+		headerRegexpCount int
+		customPredCount   int
+	)
+
+	for _, p := range proute.predicates {
+		switch p.Name {
+		case "Path", "Method", "*", "Any":
+		case "Host":
+			hostCount++
+		case "PathRegexp":
+			pathRegexpCount++
+		case "Header":
+			headerCount++
+		case "HeaderRegexp":
+			headerRegexpCount++
+		default:
+			customPredCount++
+		}
+	}
+
+	if n := hostCount + pathRegexpCount; n > 0 {
+		strSlab := make([]string, 0, n)
+		if hostCount > 0 {
+			route.HostRegexps = strSlab[:0:hostCount]
+			strSlab = strSlab[hostCount:hostCount:n]
+		}
+		if pathRegexpCount > 0 {
+			route.PathRegexps = strSlab[:0:pathRegexpCount]
+		}
+	}
+	if headerCount > 0 {
+		route.Headers = make(map[string]string, headerCount)
+	}
+	if headerRegexpCount > 0 {
+		route.HeaderRegexps = make(map[string][]string, headerRegexpCount)
+	}
+	if customPredCount > 0 {
+		route.Predicates = make([]*Predicate, 0, customPredCount)
+	}
+
+	var (
 		err       error
-		args      []string
+		arg0      string
+		arg1      string
 		pathSet   bool
 		methodSet bool
 	)
@@ -584,46 +701,38 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 				return errDuplicatePathTreePredicate
 			}
 
-			if args, err = getStringArgs(p, 1); err == nil {
-				route.Path = args[0]
+			if arg0, err = getStringArg1(p); err == nil {
+				route.Path = arg0
 				pathSet = true
 			}
 		case "Host":
-			if args, err = getStringArgs(p, 1); err == nil {
-				route.HostRegexps = append(route.HostRegexps, args[0])
+			if arg0, err = getStringArg1(p); err == nil {
+				route.HostRegexps = append(route.HostRegexps, arg0)
 			}
 		case "PathRegexp":
-			if args, err = getStringArgs(p, 1); err == nil {
-				route.PathRegexps = append(route.PathRegexps, args[0])
+			if arg0, err = getStringArg1(p); err == nil {
+				route.PathRegexps = append(route.PathRegexps, arg0)
 			}
 		case "Method":
 			if methodSet {
 				return errDuplicateMethodPredicate
 			}
 
-			if args, err = getStringArgs(p, 1); err == nil {
-				route.Method = args[0]
+			if arg0, err = getStringArg1(p); err == nil {
+				route.Method = arg0
 				methodSet = true
 			}
 		case "HeaderRegexp":
-			if args, err = getStringArgs(p, 2); err == nil {
-				if route.HeaderRegexps == nil {
-					route.HeaderRegexps = make(map[string][]string)
-				}
-
-				route.HeaderRegexps[args[0]] = append(route.HeaderRegexps[args[0]], args[1])
+			if arg0, arg1, err = getStringArg2(p); err == nil {
+				route.HeaderRegexps[arg0] = append(route.HeaderRegexps[arg0], arg1)
 			}
 		case "Header":
-			if args, err = getStringArgs(p, 2); err == nil {
-				if route.Headers == nil {
-					route.Headers = make(map[string]string)
+			if arg0, arg1, err = getStringArg2(p); err == nil {
+				if _, ok := route.Headers[arg0]; ok {
+					return fmt.Errorf(duplicateHeaderPredicateErrorFmt, arg0)
 				}
 
-				if _, ok := route.Headers[args[0]]; ok {
-					return fmt.Errorf(duplicateHeaderPredicateErrorFmt, args[0])
-				}
-
-				route.Headers[args[0]] = args[1]
+				route.Headers[arg0] = arg1
 			}
 		case "*", "Any":
 			// void
@@ -639,26 +748,71 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 	return nil
 }
 
-// Converts a parsing route objects to the exported route definition with
-// pre-processed but not validated matchers.
-func newRouteDefinition(r *parsedRoute) (*Route, error) {
-	if len(r.lbEndpoints) > 0 {
-		scheme := ""
-		for _, e := range r.lbEndpoints {
-			eu, err := url.ParseRequestURI(e)
-			if err != nil {
-				return nil, err
+func validateLBEndpointScheme(e string) (string, error) {
+	var scheme string
+	switch {
+	case strings.HasPrefix(e, "http://"):
+		scheme = "http"
+	case strings.HasPrefix(e, "https://"):
+		scheme = "https"
+	}
+	if scheme != "" && len(e) > len(scheme)+3 {
+		valid := true
+		inHost := true
+		inPort := false
+		for i := len(scheme) + 3; i < len(e); i++ {
+			c := e[i]
+			if c <= 0x20 || c >= 0x7f || c == '#' || c == '%' || c == '[' || c == ']' {
+				valid = false
+				break
 			}
-
-			if scheme != "" && scheme != eu.Scheme {
-				return nil, errMixedProtocols
+			if inHost {
+				if c == '/' || c == '?' {
+					inHost = false
+					inPort = false
+				} else if c == ':' {
+					if inPort {
+						valid = false
+						break
+					}
+					inPort = true
+				} else if inPort && (c < '0' || c > '9') {
+					valid = false
+					break
+				}
 			}
-
-			scheme = eu.Scheme
+		}
+		if valid {
+			return scheme, nil
 		}
 	}
 
-	rd := &Route{}
+	eu, err := url.ParseRequestURI(e)
+	if err != nil {
+		return "", err
+	}
+	return eu.Scheme, nil
+}
+
+// Converts a parsing route objects to the exported route definition with
+// pre-processed but not validated matchers.
+func initRouteDefinition(rd *Route, r *parsedRoute) error {
+	if len(r.lbEndpoints) > 0 {
+		scheme := ""
+		for _, e := range r.lbEndpoints {
+			es, err := validateLBEndpointScheme(e)
+			if err != nil {
+				return err
+			}
+
+			if scheme != "" && scheme != es {
+				return errMixedProtocols
+			}
+
+			scheme = es
+		}
+	}
+
 	rd.Id = r.id
 	rd.Filters = r.filters
 	rd.Shunt = r.shunt
@@ -681,14 +835,17 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 		rd.BackendType = NetworkBackend
 	}
 
-	err := applyPredicates(rd, r)
-
-	return rd, err
+	return applyPredicates(rd, r)
 }
 
 type eskipLexParser struct {
 	lexer  eskipLex
 	parser eskipParserImpl
+}
+
+func (lp *eskipLexParser) reset() {
+	lp.lexer.reset()
+	lp.parser = eskipParserImpl{}
 }
 
 var parserPool = sync.Pool{
@@ -715,7 +872,7 @@ func parseFilters(code string) ([]*Filter, error) {
 func parse(start int, code string) ([]*parsedRoute, []*Predicate, []*Filter, error) {
 	lp := parserPool.Get().(*eskipLexParser)
 	defer func() {
-		*lp = eskipLexParser{}
+		lp.reset()
 		parserPool.Put(lp)
 	}()
 
@@ -737,13 +894,16 @@ func Parse(code string) ([]*Route, error) {
 	}
 
 	routeDefinitions := make([]*Route, len(parsedRoutes))
+	if len(parsedRoutes) == 0 {
+		return routeDefinitions, nil
+	}
+	routes := make([]Route, len(parsedRoutes))
 	for i, r := range parsedRoutes {
-		rd, err := newRouteDefinition(r)
-		if err != nil {
+		if err := initRouteDefinition(&routes[i], r); err != nil {
 			return nil, err
 		}
 
-		routeDefinitions[i] = rd
+		routeDefinitions[i] = &routes[i]
 	}
 
 	return routeDefinitions, nil

@@ -311,6 +311,24 @@ func getFreeStringArgs(count int, p *eskip.Predicate) ([]string, error) {
 }
 
 func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
+	hasLegacy := false
+	for _, p := range r.Predicates {
+		switch p.Name {
+		case predicates.HostName,
+			predicates.PathRegexpName,
+			predicates.MethodName,
+			predicates.HeaderName,
+			predicates.HeaderRegexpName:
+			hasLegacy = true
+		}
+		if hasLegacy {
+			break
+		}
+	}
+	if !hasLegacy {
+		return r, nil
+	}
+
 	var rest []*eskip.Predicate
 	c := r.Copy()
 
@@ -671,8 +689,8 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 
 			m, errs := newMatcher(routes, o.MatchingOptions)
 
-			invalidRouteIds := make(map[string]struct{})
-			validRoutes := []*eskip.Route{}
+			invalidRouteIds := make(map[string]struct{}, len(errs))
+			validRoutes := make([]*eskip.Route, 0, len(routes))
 
 			for _, err := range errs {
 				o.Log.Error(err)
@@ -689,10 +707,20 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 						o.Metrics.SetInvalidRoute(r.Id, errInvalidMatcher.Code())
 					}
 				} else {
-					rc := r.Route.Copy()
-					for j, lf := range r.Filters {
-						if red, ok := lf.Filter.(filters.Redactable); ok {
-							rc.Filters[j].Args = red.RedactedArgs()
+					rc := &r.Route
+					hasRedactable := false
+					for _, lf := range r.Filters {
+						if _, ok := lf.Filter.(filters.Redactable); ok {
+							hasRedactable = true
+							break
+						}
+					}
+					if hasRedactable {
+						rc = r.Route.Copy()
+						for j, lf := range r.Filters {
+							if red, ok := lf.Filter.(filters.Redactable); ok {
+								rc.Filters[j].Args = red.RedactedArgs()
+							}
 						}
 					}
 					validRoutes = append(validRoutes, rc)

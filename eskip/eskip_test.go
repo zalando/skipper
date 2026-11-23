@@ -959,6 +959,26 @@ func TestNewLBEndpoint(t *testing.T) {
 		in:       "not a url",
 		wantAddr: "not a url",
 		wantZone: "",
+	}, {
+		name:     "test lb endpoint with empty zone",
+		in:       "http://10.0.0.1:8080?zone=",
+		wantAddr: "http://10.0.0.1:8080?zone=",
+		wantZone: "",
+	}, {
+		name:     "test lb endpoint with zone and other query param",
+		in:       "http://10.0.0.1:8080?foo=bar&zone=eu-central-1a",
+		wantAddr: "http://10.0.0.1:8080?foo=bar",
+		wantZone: "eu-central-1a",
+	}, {
+		name:     "test lb endpoint with percent-encoded zone",
+		in:       "http://10.0.0.1:8080?zone=eu%2Dcentral%2D1a",
+		wantAddr: "http://10.0.0.1:8080",
+		wantZone: "eu-central-1a",
+	}, {
+		name:     "test lb endpoint with other query param only",
+		in:       "http://10.0.0.1:8080?foo=bar",
+		wantAddr: "http://10.0.0.1:8080?foo=bar",
+		wantZone: "",
 	}} {
 		t.Run(ti.name, func(t *testing.T) {
 			ep := newLBEndpoint(ti.in)
@@ -969,5 +989,54 @@ func TestNewLBEndpoint(t *testing.T) {
 				t.Errorf("Zone = %q, want %q", ep.Zone, ti.wantZone)
 			}
 		})
+	}
+}
+
+func BenchmarkRouteCopy(b *testing.B) {
+	routes, err := Parse(benchmarkRoutes10k)
+	if err != nil {
+		b.Fatal(err)
+	}
+	r := routes[0]
+	r.HostRegexps = []string{"^example[.]org$"}
+	r.Headers = map[string]string{"Accept": "application/json", "X-Test": "true"}
+	r.Predicates = []*Predicate{
+		{Name: "PathSubtree", Args: []interface{}{"/api"}},
+		{Name: "Traffic", Args: []interface{}{0.5}},
+	}
+	r.Filters = []*Filter{
+		{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
+		{Name: "setResponseHeader", Args: []interface{}{"X-Baz", "qux"}},
+		{Name: "modPath", Args: []interface{}{"^/api", "/v1"}},
+		{Name: "status", Args: []interface{}{float64(200)}},
+		{Name: "inlineContent", Args: []interface{}{"ok"}},
+		{Name: "enableAccessLog", Args: []interface{}{float64(4), float64(5)}},
+		{Name: "flowId", Args: []interface{}{"reuse"}},
+	}
+	r.LBEndpoints = NewLBEndpoints([]string{
+		"http://10.0.0.1:8080?zone=eu-central-1a",
+		"http://10.0.0.2:8080?zone=eu-central-1b",
+		"http://10.0.0.3:8080?zone=eu-central-1c",
+	})
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_ = r.Copy()
+	}
+}
+
+func BenchmarkNewLBEndpoints(b *testing.B) {
+	eps := []string{
+		"http://10.0.0.1:8080?zone=eu-central-1a",
+		"http://10.0.0.2:8080?zone=eu-central-1b",
+		"http://10.0.0.3:8080?zone=eu-central-1c",
+		"http://10.0.0.4:8080",
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_ = NewLBEndpoints(eps)
 	}
 }

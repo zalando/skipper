@@ -3,7 +3,7 @@ package eskipfile
 import (
 	"bytes"
 	"os"
-	"reflect"
+	"slices"
 	"sync"
 
 	"github.com/zalando/skipper/eskip"
@@ -47,7 +47,7 @@ func (*WatchClient) Name() string {
 }
 
 func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
-	m := make(map[string]*eskip.Route)
+	m := make(map[string]*eskip.Route, len(r))
 	for i := range r {
 		m[r[i].Id] = r[i]
 	}
@@ -59,9 +59,91 @@ func (c *WatchClient) storeRoutes(r []*eskip.Route) {
 	c.routes = mapRoutes(r)
 }
 
+func routesEqual(a, b *eskip.Route) bool {
+	if a == b {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	if a.Id != b.Id ||
+		a.Path != b.Path ||
+		a.Method != b.Method ||
+		a.Shunt != b.Shunt ||
+		a.BackendType != b.BackendType ||
+		a.Backend != b.Backend ||
+		a.LBAlgorithm != b.LBAlgorithm ||
+		a.Name != b.Name ||
+		a.Namespace != b.Namespace {
+		return false
+	}
+	if (a.HostRegexps == nil) != (b.HostRegexps == nil) || !slices.Equal(a.HostRegexps, b.HostRegexps) {
+		return false
+	}
+	if (a.PathRegexps == nil) != (b.PathRegexps == nil) || !slices.Equal(a.PathRegexps, b.PathRegexps) {
+		return false
+	}
+	if (a.Headers == nil) != (b.Headers == nil) || len(a.Headers) != len(b.Headers) {
+		return false
+	}
+	for k, va := range a.Headers {
+		if vb, ok := b.Headers[k]; !ok || va != vb {
+			return false
+		}
+	}
+	if (a.HeaderRegexps == nil) != (b.HeaderRegexps == nil) || len(a.HeaderRegexps) != len(b.HeaderRegexps) {
+		return false
+	}
+	for k, va := range a.HeaderRegexps {
+		vb, ok := b.HeaderRegexps[k]
+		if !ok || (va == nil) != (vb == nil) || !slices.Equal(va, vb) {
+			return false
+		}
+	}
+	if (a.Predicates == nil) != (b.Predicates == nil) || len(a.Predicates) != len(b.Predicates) {
+		return false
+	}
+	for i := range a.Predicates {
+		pa, pb := a.Predicates[i], b.Predicates[i]
+		if pa == pb {
+			continue
+		}
+		if pa == nil || pb == nil || pa.Name != pb.Name ||
+			(pa.Args == nil) != (pb.Args == nil) || !slices.Equal(pa.Args, pb.Args) {
+			return false
+		}
+	}
+	if (a.Filters == nil) != (b.Filters == nil) || len(a.Filters) != len(b.Filters) {
+		return false
+	}
+	for i := range a.Filters {
+		fa, fb := a.Filters[i], b.Filters[i]
+		if fa == fb {
+			continue
+		}
+		if fa == nil || fb == nil || fa.Name != fb.Name ||
+			(fa.Args == nil) != (fb.Args == nil) || !slices.Equal(fa.Args, fb.Args) {
+			return false
+		}
+	}
+	if (a.LBEndpoints == nil) != (b.LBEndpoints == nil) || len(a.LBEndpoints) != len(b.LBEndpoints) {
+		return false
+	}
+	for i := range a.LBEndpoints {
+		ea, eb := a.LBEndpoints[i], b.LBEndpoints[i]
+		if ea == eb {
+			continue
+		}
+		if ea == nil || eb == nil || ea.Address != eb.Address || ea.Zone != eb.Zone {
+			return false
+		}
+	}
+	return true
+}
+
 func (c *WatchClient) diffStoreRoutes(r []*eskip.Route) (upsert []*eskip.Route, deletedIDs []string) {
 	for i := range r {
-		if !reflect.DeepEqual(r[i], c.routes[r[i].Id]) {
+		if !routesEqual(r[i], c.routes[r[i].Id]) {
 			upsert = append(upsert, r[i])
 		}
 	}

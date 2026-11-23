@@ -22,8 +22,44 @@ func CopyPredicate(p *Predicate) *Predicate {
 // CopyPredicates creates a new slice with the copy of each predicate in the input slice.
 func CopyPredicates(p []*Predicate) []*Predicate {
 	c := make([]*Predicate, len(p))
+	if len(p) == 0 {
+		return c
+	}
+
+	totalArgs := 0
+	nonNil := 0
+	for _, pi := range p {
+		if pi != nil {
+			nonNil++
+			totalArgs += len(pi.Args)
+		}
+	}
+
+	var predSlab []Predicate
+	if nonNil > 0 {
+		predSlab = make([]Predicate, nonNil)
+	}
+	var argsSlab []interface{}
+	if totalArgs > 0 {
+		argsSlab = make([]interface{}, totalArgs)
+	}
+
+	idx := 0
 	for i, pi := range p {
-		c[i] = CopyPredicate(pi)
+		if pi == nil {
+			continue
+		}
+		predSlab[idx].Name = pi.Name
+		if n := len(pi.Args); n > 0 {
+			args := argsSlab[:n:n]
+			copy(args, pi.Args)
+			predSlab[idx].Args = args
+			argsSlab = argsSlab[n:]
+		} else {
+			predSlab[idx].Args = make([]interface{}, 0)
+		}
+		c[i] = &predSlab[idx]
+		idx++
 	}
 
 	return c
@@ -44,8 +80,44 @@ func CopyFilter(f *Filter) *Filter {
 // CopyFilters creates a new slice with the copy of each filter in the input slice.
 func CopyFilters(f []*Filter) []*Filter {
 	c := make([]*Filter, len(f))
+	if len(f) == 0 {
+		return c
+	}
+
+	totalArgs := 0
+	nonNil := 0
+	for _, fi := range f {
+		if fi != nil {
+			nonNil++
+			totalArgs += len(fi.Args)
+		}
+	}
+
+	var filterSlab []Filter
+	if nonNil > 0 {
+		filterSlab = make([]Filter, nonNil)
+	}
+	var argsSlab []interface{}
+	if totalArgs > 0 {
+		argsSlab = make([]interface{}, totalArgs)
+	}
+
+	idx := 0
 	for i, fi := range f {
-		c[i] = CopyFilter(fi)
+		if fi == nil {
+			continue
+		}
+		filterSlab[idx].Name = fi.Name
+		if n := len(fi.Args); n > 0 {
+			args := argsSlab[:n:n]
+			copy(args, fi.Args)
+			filterSlab[idx].Args = args
+			argsSlab = argsSlab[n:]
+		} else {
+			filterSlab[idx].Args = make([]interface{}, 0)
+		}
+		c[i] = &filterSlab[idx]
+		idx++
 	}
 
 	return c

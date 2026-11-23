@@ -83,7 +83,8 @@ start:
 	}
 	|
 	start_predicates predicates {
-		eskiplex.(*eskipLex).predicates = $2.predicates
+		l := eskiplex.(*eskipLex)
+		l.predicates = l.takePredicates()
 	}
 	|
 	start_filters {
@@ -92,7 +93,8 @@ start:
 	}
 	|
 	start_filters filters {
-		eskiplex.(*eskipLex).filters = $2.filters
+		l := eskiplex.(*eskipLex)
+		l.filters = l.takeFilters()
 	}
 
 document:
@@ -134,119 +136,123 @@ routeid:
 
 route:
 	predicates arrow backend {
-		$$.route = &parsedRoute{
-			predicates: $1.predicates,
-			backend: $3.backend,
-			shunt: $3.shunt,
-			loopback: $3.loopback,
-			dynamic: $3.dynamic,
-			lbBackend: $3.lbBackend,
-			lbAlgorithm: $3.lbAlgorithm,
-			lbEndpoints: $3.lbEndpoints,
-			forward: $3.forward,
-		}
-		$1.predicates = nil
+		l := eskiplex.(*eskipLex)
+		r := l.newParsedRoute()
+		r.predicates = l.takePredicates()
+		r.backend = $3.backend
+		r.shunt = $3.shunt
+		r.loopback = $3.loopback
+		r.dynamic = $3.dynamic
+		r.lbBackend = $3.lbBackend
+		r.lbAlgorithm = $3.lbAlgorithm
+		r.lbEndpoints = $3.lbEndpoints
+		r.forward = $3.forward
+		$$.route = r
 		$3.lbEndpoints = nil
 	}
 	|
 	predicates arrow filters arrow backend {
-		$$.route = &parsedRoute{
-			predicates: $1.predicates,
-			filters: $3.filters,
-			backend: $5.backend,
-			shunt: $5.shunt,
-			loopback: $5.loopback,
-			dynamic: $5.dynamic,
-			lbBackend: $5.lbBackend,
-			lbAlgorithm: $5.lbAlgorithm,
-			lbEndpoints: $5.lbEndpoints,
-			forward: $5.forward,
-		}
-		$1.predicates = nil
-		$3.filters = nil
+		l := eskiplex.(*eskipLex)
+		r := l.newParsedRoute()
+		r.predicates = l.takePredicates()
+		r.filters = l.takeFilters()
+		r.backend = $5.backend
+		r.shunt = $5.shunt
+		r.loopback = $5.loopback
+		r.dynamic = $5.dynamic
+		r.lbBackend = $5.lbBackend
+		r.lbAlgorithm = $5.lbAlgorithm
+		r.lbEndpoints = $5.lbEndpoints
+		r.forward = $5.forward
+		$$.route = r
 		$5.lbEndpoints = nil
 	}
 
 predicates:
 	predicate {
-		$$.predicates = []*Predicate{$1.predicate}
+		l := eskiplex.(*eskipLex)
+		l.predicatesBuf = append(l.predicatesBuf[:0], $1.predicate)
 	}
 	|
 	predicates and predicate {
-		$$.predicates = $1.predicates
-		$$.predicates = append($$.predicates, $3.predicate)
+		l := eskiplex.(*eskipLex)
+		l.predicatesBuf = append(l.predicatesBuf, $3.predicate)
 	}
 
 predicate:
 	any {
-		$$.predicate = &Predicate{"*", nil}
+		$$.predicate = eskiplex.(*eskipLex).newPredicate("*", nil)
 	}
 	|
 	symbol openparen args closeparen {
-		$$.predicate = &Predicate{$1.token, $3.args}
-		$3.args = nil
+		l := eskiplex.(*eskipLex)
+		$$.predicate = l.newPredicate($1.token, l.takeArgs())
 	}
 
 filters:
 	filter {
-		$$.filters = []*Filter{$1.filter}
+		l := eskiplex.(*eskipLex)
+		l.filtersBuf = append(l.filtersBuf[:0], $1.filter)
 	}
 	|
 	filters arrow filter {
-		$$.filters = $1.filters
-		$$.filters = append($$.filters, $3.filter)
+		l := eskiplex.(*eskipLex)
+		l.filtersBuf = append(l.filtersBuf, $3.filter)
 	}
 
 filter:
 	symbol openparen args closeparen {
-		$$.filter = &Filter{
-			Name: $1.token,
-			Args: $3.args}
-		$3.args = nil
+		l := eskiplex.(*eskipLex)
+		$$.filter = l.newFilter($1.token, l.takeArgs())
 	}
 
 args:
+	{
+		eskiplex.(*eskipLex).argsBuf = eskiplex.(*eskipLex).argsBuf[:0]
+	}
 	|
 	arg {
-		$$.args = []interface{}{$1.arg}
+		l := eskiplex.(*eskipLex)
+		l.argsBuf = append(l.argsBuf[:0], $1.arg)
 	}
 	|
 	args comma arg {
-		$$.args = $1.args
-		$$.args = append($$.args, $3.arg)
+		l := eskiplex.(*eskipLex)
+		l.argsBuf = append(l.argsBuf, $3.arg)
 	}
 
 arg:
 	numval {
-		$$.arg = $1.numval
+		$$.arg = eskiplex.(*eskipLex).internFloatAny($1.numval)
 	}
 	|
 	stringliteral {
-		$$.arg = $1.token
+		$$.arg = eskiplex.(*eskipLex).internStringAny($1.token)
 	}
 	|
 	regexpliteral {
-		$$.arg = $1.token
+		$$.arg = eskiplex.(*eskipLex).internStringAny($1.token)
 	}
 
 stringvals:
 	stringliteral {
-		$$.stringvals = []string{$1.token}
+		l := eskiplex.(*eskipLex)
+		l.stringvalsBuf = append(l.stringvalsBuf[:0], $1.token)
 	}
 	|
 	stringvals comma stringliteral {
-		$$.stringvals = $1.stringvals
-		$$.stringvals = append($$.stringvals, $3.token)
+		l := eskiplex.(*eskipLex)
+		l.stringvalsBuf = append(l.stringvalsBuf, $3.token)
 	}
 
 lbbackendbody:
 	stringvals {
-		$$.lbEndpoints = $1.stringvals
+		$$.lbEndpoints = eskiplex.(*eskipLex).takeStringvals()
 	}
 	|
 	symbol comma stringvals {
 		$$.lbAlgorithm = $1.token
-		$$.lbEndpoints = $3.stringvals
+		$$.lbEndpoints = eskiplex.(*eskipLex).takeStringvals()
 	}
 
 lbbackend:
