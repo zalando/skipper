@@ -1,6 +1,7 @@
 kube_foo__qux__www_example_org_____bar:
 	Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/")
 	-> setResponseHeader("default", "filter")
+	-> setResponseHeader("x-skipper-response-flags", "No ready endpoints")
 	-> status(502)
 	-> inlineContent("no endpoints")
 	-> <shunt>;

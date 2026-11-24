@@ -1,5 +1,6 @@
 kube_default__myapp_ingress__example_org____myapp_service:
   Host("^(example[.]org[.]?(:[0-9]+)?)$")
+  -> setResponseHeader("x-skipper-response-flags", "No ready endpoints")
   -> status(502)
   -> inlineContent("no endpoints")
   -> <shunt>;

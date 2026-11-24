@@ -288,3 +288,6 @@ _Avoid_: OpenTelemetry directly in filter/proxy code
 
 **Access Log**:
 Per-request HTTP access logging in Apache combined or JSON format, with duration, host, and flow-id fields.
+
+**Response Flags**:
+The `x-skipper-response-flags` response header indicating the reason for a proxy-detected error (e.g., no matching route, backend connection refused, or no ready Kubernetes endpoints).

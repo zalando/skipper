@@ -421,8 +421,12 @@ func (e ratelimitError) Error() string   { return string(e) }
 func (e routeLookupError) Error() string { return string(e) }
 
 const (
-	errRatelimit   = ratelimitError("ratelimited")
-	errRouteLookup = routeLookupError("route lookup failed")
+	errRatelimit                           = ratelimitError("ratelimited")
+	errRouteLookup                         = routeLookupError("route lookup failed")
+	SkipperErrResponseFlag                 = "x-skipper-response-flags"
+	skipperErrResponseFlagConnRefused      = "Connection refused"
+	skipperErrResponseFlagNoRoute          = "No Route found"
+	SkipperErrResponseFlagNoReadyEndpoints = "No ready endpoints"
 )
 
 var (
@@ -2104,9 +2108,11 @@ func (p *Proxy) makeErrorResponse(ctx *context, perr *proxyError) {
 	switch {
 	case perr == errRouteLookupFailed:
 		code = p.defaultHTTPStatus
+		ctx.response.Header.Set(SkipperErrResponseFlag, skipperErrResponseFlagNoRoute)
 	case perr.code == -1:
 		// -1 == dial connection refused
 		code = http.StatusBadGateway
+		ctx.response.Header.Set(SkipperErrResponseFlag, skipperErrResponseFlagConnRefused)
 	case perr.code != 0:
 		code = perr.code
 		if perr.code == 499 {
@@ -2118,7 +2124,7 @@ func (p *Proxy) makeErrorResponse(ctx *context, perr *proxyError) {
 		}
 	}
 
-	text := http.StatusText(code) + "\n"
+	text := http.StatusText(code)
 	ctx.response.Header.Set("Content-Length", strconv.Itoa(len(text)))
 	ctx.response.StatusCode = code
 
