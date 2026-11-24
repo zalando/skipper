@@ -150,11 +150,8 @@ func (b *bypassResponseBody) Close() error {
 }
 
 func TestCacheFilter_BypassBodyOwnership(t *testing.T) {
-	for _, method := range []string{http.MethodGet, http.MethodHead} {
-		t.Run(method, func(t *testing.T) {
-			testCacheFilterBypassBody(t, method, nil, nil, http.StatusOK)
-		})
-	}
+	// HEAD misses are not fetched by the filter; they fall through to the proxy.
+	testCacheFilterBypassBody(t, http.MethodGet, nil, nil, http.StatusOK)
 }
 
 func TestCacheFilter_BypassBodyReadError(t *testing.T) {
