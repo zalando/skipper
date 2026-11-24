@@ -1599,10 +1599,7 @@ number of metrics generated and memory consumption.
 
 ### Filters
 
-Ratelimit filter `clusterClientRatelimit` implementation using the
-swim based protocol, consumes roughly 15MB per filter for 100.000
-individual clients and 10 maximum hits. Make sure you monitor Go
-metrics. Ratelimit filter `clusterClientRatelimit` implementation
+Ratelimit filter `clusterClientRatelimit` implementation
 using the Redis ring based solution, adds 2 additional roundtrips to
 redis per hit. Make sure you monitor redis closely, because skipper
 will fall back to allow traffic if redis cannot be reached.

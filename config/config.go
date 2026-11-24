@@ -27,7 +27,6 @@ import (
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/otel"
 	"github.com/zalando/skipper/proxy"
-	"github.com/zalando/skipper/swarm"
 )
 
 type Config struct {
@@ -366,15 +365,6 @@ type Config struct {
 	SwarmValkeyDialTimeout        time.Duration `yaml:"swarm-valkey-dial-timeout"`
 	SwarmValkeyKeepAlive          time.Duration `yaml:"swarm-valkey-keepalive"`
 	SwarmValkeyUpdateInterval     time.Duration `yaml:"swarm-valkey-update-interval"`
-	// swim based
-	SwarmKubernetesNamespace          string        `yaml:"swarm-namespace"`
-	SwarmKubernetesLabelSelectorKey   string        `yaml:"swarm-label-selector-key"`
-	SwarmKubernetesLabelSelectorValue string        `yaml:"swarm-label-selector-value"`
-	SwarmPort                         int           `yaml:"swarm-port"`
-	SwarmMaxMessageBuffer             int           `yaml:"swarm-max-msg-buffer"`
-	SwarmLeaveTimeout                 time.Duration `yaml:"swarm-leave-timeout"`
-	SwarmStaticSelf                   string        `yaml:"swarm-static-self"`
-	SwarmStaticOther                  string        `yaml:"swarm-static-other"`
 
 	// cache
 	CacheL1TTL            time.Duration `yaml:"cache-l1-ttl"`
@@ -786,15 +776,6 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.SwarmValkeyDialTimeout, "swarm-valkey-dial-timeout", net.DefaultDialTimeout, "set valkey client dial timeout")
 	flag.DurationVar(&cfg.SwarmValkeyKeepAlive, "swarm-valkey-keepalive", net.DefaultKeepAlive, "set valkey keepalive probes interval")
 	flag.DurationVar(&cfg.SwarmValkeyUpdateInterval, "swarm-valkey-update-interval", net.DefaultUpdateInterval, "set update interval to update valkey addresses")
-	// swim
-	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
-	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
-	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, "Kubernetes labelselector value to find swarm peer instances")
-	flag.IntVar(&cfg.SwarmPort, "swarm-port", swarm.DefaultPort, "swarm port to use to communicate with our peers")
-	flag.IntVar(&cfg.SwarmMaxMessageBuffer, "swarm-max-msg-buffer", swarm.DefaultMaxMessageBuffer, "swarm max message buffer size to use for member list messages")
-	flag.DurationVar(&cfg.SwarmLeaveTimeout, "swarm-leave-timeout", swarm.DefaultLeaveTimeout, "swarm leave timeout to use for leaving the memberlist on timeout")
-	flag.StringVar(&cfg.SwarmStaticSelf, "swarm-static-self", "", "set static swarm self node, for example 127.0.0.1:9001")
-	flag.StringVar(&cfg.SwarmStaticOther, "swarm-static-other", "", "set static swarm all nodes, for example 127.0.0.1:9002,127.0.0.1:9003")
 
 	// cache
 	flag.DurationVar(&cfg.CacheL1TTL, "cache-l1-ttl", 60*time.Second, "maximum TTL for write-through L1 warming in the cache() filter when Valkey or Redis is configured; set to 0 to disable (write-around)")
@@ -1271,16 +1252,6 @@ func (c *Config) ToOptions() skipper.Options {
 		SwarmValkeyDialTimeout:        c.SwarmValkeyDialTimeout,
 		SwarmValkeyKeepAlive:          c.SwarmValkeyKeepAlive,
 		SwarmValkeyUpdateInterval:     c.SwarmValkeyUpdateInterval,
-		// swim based
-		SwarmKubernetesNamespace:          c.SwarmKubernetesNamespace,
-		SwarmKubernetesLabelSelectorKey:   c.SwarmKubernetesLabelSelectorKey,
-		SwarmKubernetesLabelSelectorValue: c.SwarmKubernetesLabelSelectorValue,
-		SwarmPort:                         c.SwarmPort,
-		SwarmMaxMessageBuffer:             c.SwarmMaxMessageBuffer,
-		SwarmLeaveTimeout:                 c.SwarmLeaveTimeout,
-		// swim on localhost for testing
-		SwarmStaticSelf:  c.SwarmStaticSelf,
-		SwarmStaticOther: c.SwarmStaticOther,
 
 		// cache
 		CacheL1TTL:                  c.CacheL1TTL,

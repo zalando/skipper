@@ -66,20 +66,17 @@ or within routing settings.
 
 Defines the type of the rate limiter. There are types that only use
 local state information and others that use cluster information using
-swarm.Swarm or redis ring shards to exchange information. Types that
+redis or valkey ring shards to exchange information. Types that
 use instance local information are ServiceRatelimit to be used to
 protect backends and ClientRatelimit to protect from too chatty
 clients. Types that use cluster information are
-ClusterServiceRatelimit to be used to protect backends and and
+ClusterServiceRatelimit to be used to protect backends and
 ClusterClientRatelimit to protect from too chatty
-clients. ClusterClientRatelimit using swarm should be carefully tested
-with your current memory settings (about 15MB for 100.000 attackers
-per filter), but the use cases are to protect from login attacks, user
-enumeration or DDoS attacks. ClusterServiceRatelimit and
-ClusterClientRatelimit using redis ring shards should be carefully
-tested, because of redis. Redis ring based cluster ratelimits should
+clients. ClusterServiceRatelimit and
+ClusterClientRatelimit using redis or valkey ring shards should be carefully
+tested, because of redis/valkey. Ring based cluster ratelimits should
 not create a significant memory footprint for skipper instances, but
-might create load to redis.
+might create load to redis/valkey.
 
 # Settings - MaxHits
 

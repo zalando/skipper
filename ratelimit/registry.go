@@ -24,7 +24,6 @@ type Registry struct {
 	once       sync.Once
 	global     Settings
 	lookup     map[Settings]*Ratelimit
-	swarm      Swarmer
 	redisRing  *net.RedisRingClient
 	valkeyRing *net.ValkeyRingClient
 	ownRing    bool // true only when this registry created the ring
@@ -32,45 +31,10 @@ type Registry struct {
 
 // NewRegistry initializes a registry with the provided default settings.
 func NewRegistry(settings ...Settings) *Registry {
-	return NewSwarmRegistry(nil, nil, nil, settings...)
-}
-
-// NewSwarmRegistry initializes a registry with an optional swarm and
-// the provided default settings.
-func NewSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, vo *net.ValkeyOptions, settings ...Settings) *Registry {
-	if vo != nil {
-		reg, err := NewValkeySwarmRegistry(vo, settings...)
-		if err != nil {
-			log.Fatalf("Failed to create valkey swarm registry: %v", err)
-		} else {
-			return reg
-		}
-	}
-
-	if ro != nil {
-		return NewRedisSwarmRegistry(ro, settings...)
-	}
-
-	return NewSwimSwarmRegistry(swarm, settings...)
-}
-
-func getSwarmRegistryDefaultSettings() Settings {
-	return Settings{
-		Type:          DisableRatelimit,
-		MaxHits:       DefaultMaxhits,
-		TimeWindow:    DefaultTimeWindow,
-		CleanInterval: DefaultCleanInterval,
-	}
-}
-
-// NewSwimSwarmRegistry initializes a registry and the provided
-// default settings.
-func NewSwimSwarmRegistry(swarm Swarmer, settings ...Settings) *Registry {
 	r := &Registry{
 		once:   sync.Once{},
-		global: getSwarmRegistryDefaultSettings(),
+		global: getRegistryDefaultSettings(),
 		lookup: make(map[Settings]*Ratelimit),
-		swarm:  swarm,
 	}
 
 	if len(settings) > 0 {
@@ -78,7 +42,15 @@ func NewSwimSwarmRegistry(swarm Swarmer, settings ...Settings) *Registry {
 	}
 
 	return r
+}
 
+func getRegistryDefaultSettings() Settings {
+	return Settings{
+		Type:          DisableRatelimit,
+		MaxHits:       DefaultMaxhits,
+		TimeWindow:    DefaultTimeWindow,
+		CleanInterval: DefaultCleanInterval,
+	}
 }
 
 // NewRedisSwarmRegistry initializes a registry with Redis shards and
@@ -114,7 +86,7 @@ func NewValkeySwarmRegistry(vo *net.ValkeyOptions, settings ...Settings) (*Regis
 func NewRatelimitRegistryRedis(ring *net.RedisRingClient, settings ...Settings) *Registry {
 	r := &Registry{
 		once:      sync.Once{},
-		global:    getSwarmRegistryDefaultSettings(),
+		global:    getRegistryDefaultSettings(),
 		lookup:    make(map[Settings]*Ratelimit),
 		redisRing: ring,
 		ownRing:   false,
@@ -135,7 +107,7 @@ func NewRatelimitRegistryRedis(ring *net.RedisRingClient, settings ...Settings) 
 func NewRatelimitRegistryValkey(ring *net.ValkeyRingClient, settings ...Settings) *Registry {
 	r := &Registry{
 		once:       sync.Once{},
-		global:     getSwarmRegistryDefaultSettings(),
+		global:     getRegistryDefaultSettings(),
 		lookup:     make(map[Settings]*Ratelimit),
 		valkeyRing: ring,
 		ownRing:    false,
@@ -171,7 +143,7 @@ func (r *Registry) get(s Settings) *Ratelimit {
 
 	rl, ok := r.lookup[s]
 	if !ok {
-		rl = newRatelimit(s, r.swarm, r.redisRing, r.valkeyRing)
+		rl = newRatelimit(s, r.redisRing, r.valkeyRing)
 		r.lookup[s] = rl
 	}
 
