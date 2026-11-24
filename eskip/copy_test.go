@@ -48,6 +48,36 @@ func TestCopy(t *testing.T) {
 		}
 	}
 
+	t.Run("slab append isolation", func(t *testing.T) {
+		r := &Route{
+			Id:          "r1",
+			HostRegexps: []string{"h1"},
+			PathRegexps: []string{"p1"},
+			Predicates: []*Predicate{
+				{Name: "P1", Args: []interface{}{"a"}},
+				{Name: "P2", Args: []interface{}{"b"}},
+			},
+			Filters: []*Filter{
+				{Name: "f1", Args: []interface{}{"x"}},
+				{Name: "f2", Args: []interface{}{"y"}},
+			},
+		}
+
+		c := r.Copy()
+		c.HostRegexps = append(c.HostRegexps, "h2")
+		if c.PathRegexps[0] != "p1" {
+			t.Errorf("PathRegexps corrupted by HostRegexps append: got %q", c.PathRegexps[0])
+		}
+		c.Predicates[0].Args = append(c.Predicates[0].Args, "extra")
+		if c.Predicates[1].Args[0] != "b" {
+			t.Errorf("Predicates[1].Args corrupted by Predicates[0].Args append: got %v", c.Predicates[1].Args[0])
+		}
+		c.Filters[0].Args = append(c.Filters[0].Args, "extra")
+		if c.Filters[1].Args[0] != "y" {
+			t.Errorf("Filters[1].Args corrupted by Filters[0].Args append: got %v", c.Filters[1].Args[0])
+		}
+	})
+
 	t.Run("filters", func(t *testing.T) {
 		t.Run("nil", func(t *testing.T) {
 			if CopyFilter(nil) != nil {

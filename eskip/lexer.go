@@ -13,8 +13,18 @@ type token struct {
 
 type charPredicate func(byte) bool
 
+const (
+	maxInternEntries   = 2048
+	maxInternStringLen = 128
+	routeSlabSize      = 64
+	nodeSlabSize       = 64
+	argsSlabSize       = 128
+	ptrSlabSize        = 64
+)
+
 type eskipLex struct {
 	start         int
+	docMode       bool
 	code          string
 	lastToken     string
 	lastRouteID   string
@@ -23,6 +33,24 @@ type eskipLex struct {
 	routes        []*parsedRoute
 	predicates    []*Predicate
 	filters       []*Filter
+
+	scratch       []byte
+	argsBuf       []interface{}
+	filtersBuf    []*Filter
+	predicatesBuf []*Predicate
+	stringvalsBuf []string
+
+	strIntern      map[string]string
+	anyStrIntern   map[string]interface{}
+	anyFloatIntern map[float64]interface{}
+
+	routeSlab     []parsedRoute
+	filterSlab    []Filter
+	predicateSlab []Predicate
+	argsSlab      []interface{}
+	filterPtrSlab []*Filter
+	predPtrSlab   []*Predicate
+	strSliceSlab  []string
 }
 
 type fixedScanner token
@@ -68,8 +96,278 @@ func (fs *fixedScanner) scan(code string) (t token, rest string, err error) {
 
 func (l *eskipLex) init(start int, code string) {
 	l.start = start
+	l.docMode = start == start_document
 	l.code = code
 	l.initialLength = len(code)
+}
+
+func (l *eskipLex) reset() {
+	l.start = 0
+	l.docMode = false
+	l.code = ""
+	l.lastToken = ""
+	l.lastRouteID = ""
+	l.err = nil
+	l.initialLength = 0
+	l.routes = nil
+	l.predicates = nil
+	l.filters = nil
+
+	if cap(l.scratch) > 4096 {
+		l.scratch = nil
+	} else {
+		l.scratch = l.scratch[:0]
+	}
+
+	if cap(l.argsBuf) > 1024 {
+		l.argsBuf = nil
+	} else {
+		clear(l.argsBuf)
+		l.argsBuf = l.argsBuf[:0]
+	}
+
+	if cap(l.filtersBuf) > 1024 {
+		l.filtersBuf = nil
+	} else {
+		clear(l.filtersBuf)
+		l.filtersBuf = l.filtersBuf[:0]
+	}
+
+	if cap(l.predicatesBuf) > 1024 {
+		l.predicatesBuf = nil
+	} else {
+		clear(l.predicatesBuf)
+		l.predicatesBuf = l.predicatesBuf[:0]
+	}
+
+	if cap(l.stringvalsBuf) > 1024 {
+		l.stringvalsBuf = nil
+	} else {
+		clear(l.stringvalsBuf)
+		l.stringvalsBuf = l.stringvalsBuf[:0]
+	}
+
+	clear(l.strIntern)
+	clear(l.anyStrIntern)
+	clear(l.anyFloatIntern)
+
+	l.routeSlab = nil
+	l.filterSlab = nil
+	l.predicateSlab = nil
+	l.argsSlab = nil
+	l.filterPtrSlab = nil
+	l.predPtrSlab = nil
+	l.strSliceSlab = nil
+}
+
+func (l *eskipLex) internString(s string) string {
+	if len(s) == 0 {
+		return ""
+	}
+	if len(s) > maxInternStringLen {
+		return strings.Clone(s)
+	}
+	if l.strIntern != nil {
+		if v, ok := l.strIntern[s]; ok {
+			return v
+		}
+	}
+	c := strings.Clone(s)
+	if l.docMode {
+		if l.strIntern == nil {
+			l.strIntern = make(map[string]string, 64)
+		}
+		if len(l.strIntern) < maxInternEntries {
+			l.strIntern[c] = c
+		}
+	}
+	return c
+}
+
+func (l *eskipLex) internBytes(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	if len(b) > maxInternStringLen {
+		return string(b)
+	}
+	if l.strIntern != nil {
+		if v, ok := l.strIntern[string(b)]; ok {
+			return v
+		}
+	}
+	c := string(b)
+	if l.docMode {
+		if l.strIntern == nil {
+			l.strIntern = make(map[string]string, 64)
+		}
+		if len(l.strIntern) < maxInternEntries {
+			l.strIntern[c] = c
+		}
+	}
+	return c
+}
+
+func (l *eskipLex) internStringAny(s string) interface{} {
+	if l.docMode && len(s) <= maxInternStringLen {
+		if l.anyStrIntern != nil {
+			if v, ok := l.anyStrIntern[s]; ok {
+				return v
+			}
+		}
+		var v interface{} = s
+		if l.anyStrIntern == nil {
+			l.anyStrIntern = make(map[string]interface{}, 64)
+		}
+		if len(l.anyStrIntern) < maxInternEntries {
+			l.anyStrIntern[s] = v
+		}
+		return v
+	}
+	return s
+}
+
+func (l *eskipLex) internFloatAny(n float64) interface{} {
+	if l.docMode {
+		if l.anyFloatIntern != nil {
+			if v, ok := l.anyFloatIntern[n]; ok {
+				return v
+			}
+		}
+		var v interface{} = n
+		if l.anyFloatIntern == nil {
+			l.anyFloatIntern = make(map[float64]interface{}, 32)
+		}
+		if len(l.anyFloatIntern) < maxInternEntries {
+			l.anyFloatIntern[n] = v
+		}
+		return v
+	}
+	return n
+}
+
+func (l *eskipLex) newParsedRoute() *parsedRoute {
+	if !l.docMode {
+		return &parsedRoute{}
+	}
+	if len(l.routeSlab) == 0 {
+		l.routeSlab = make([]parsedRoute, routeSlabSize)
+	}
+	r := &l.routeSlab[0]
+	l.routeSlab = l.routeSlab[1:]
+	return r
+}
+
+func (l *eskipLex) newFilter(name string, args []interface{}) *Filter {
+	if !l.docMode {
+		return &Filter{Name: name, Args: args}
+	}
+	if len(l.filterSlab) == 0 {
+		l.filterSlab = make([]Filter, nodeSlabSize)
+	}
+	f := &l.filterSlab[0]
+	l.filterSlab = l.filterSlab[1:]
+	f.Name = name
+	f.Args = args
+	return f
+}
+
+func (l *eskipLex) newPredicate(name string, args []interface{}) *Predicate {
+	if !l.docMode {
+		return &Predicate{Name: name, Args: args}
+	}
+	if len(l.predicateSlab) == 0 {
+		l.predicateSlab = make([]Predicate, nodeSlabSize)
+	}
+	p := &l.predicateSlab[0]
+	l.predicateSlab = l.predicateSlab[1:]
+	p.Name = name
+	p.Args = args
+	return p
+}
+
+func (l *eskipLex) takeArgs() []interface{} {
+	n := len(l.argsBuf)
+	if n == 0 {
+		return nil
+	}
+	var res []interface{}
+	if l.docMode && n <= argsSlabSize {
+		if len(l.argsSlab) < n {
+			l.argsSlab = make([]interface{}, argsSlabSize)
+		}
+		res = l.argsSlab[:n:n]
+		l.argsSlab = l.argsSlab[n:]
+	} else {
+		res = make([]interface{}, n)
+	}
+	copy(res, l.argsBuf)
+	clear(l.argsBuf)
+	l.argsBuf = l.argsBuf[:0]
+	return res
+}
+
+func (l *eskipLex) takeFilters() []*Filter {
+	n := len(l.filtersBuf)
+	if n == 0 {
+		return nil
+	}
+	var res []*Filter
+	if l.docMode && n <= ptrSlabSize {
+		if len(l.filterPtrSlab) < n {
+			l.filterPtrSlab = make([]*Filter, ptrSlabSize)
+		}
+		res = l.filterPtrSlab[:n:n]
+		l.filterPtrSlab = l.filterPtrSlab[n:]
+	} else {
+		res = make([]*Filter, n)
+	}
+	copy(res, l.filtersBuf)
+	clear(l.filtersBuf)
+	l.filtersBuf = l.filtersBuf[:0]
+	return res
+}
+
+func (l *eskipLex) takePredicates() []*Predicate {
+	n := len(l.predicatesBuf)
+	if n == 0 {
+		return nil
+	}
+	var res []*Predicate
+	if l.docMode && n <= ptrSlabSize {
+		if len(l.predPtrSlab) < n {
+			l.predPtrSlab = make([]*Predicate, ptrSlabSize)
+		}
+		res = l.predPtrSlab[:n:n]
+		l.predPtrSlab = l.predPtrSlab[n:]
+	} else {
+		res = make([]*Predicate, n)
+	}
+	copy(res, l.predicatesBuf)
+	clear(l.predicatesBuf)
+	l.predicatesBuf = l.predicatesBuf[:0]
+	return res
+}
+
+func (l *eskipLex) takeStringvals() []string {
+	n := len(l.stringvalsBuf)
+	if n == 0 {
+		return nil
+	}
+	var res []string
+	if l.docMode && n <= ptrSlabSize {
+		if len(l.strSliceSlab) < n {
+			l.strSliceSlab = make([]string, ptrSlabSize)
+		}
+		res = l.strSliceSlab[:n:n]
+		l.strSliceSlab = l.strSliceSlab[n:]
+	} else {
+		res = make([]string, n)
+	}
+	copy(res, l.stringvalsBuf)
+	clear(l.stringvalsBuf)
+	l.stringvalsBuf = l.stringvalsBuf[:0]
+	return res
 }
 
 func isNewline(c byte) bool     { return c == newlineChar }
@@ -94,19 +392,24 @@ func scanVoid(code string, p charPredicate) string {
 	return rest
 }
 
-func scanEscaped(delimiter byte, code string) (string, string) {
-	// fast path: check if there is a delimiter without preceding escape character
+func (l *eskipLex) scanEscaped(delimiter byte, code string) (string, string) {
+	escIdx := -1
 	for i := 0; i < len(code); i++ {
 		c := code[i]
 		if c == delimiter {
-			// make a copy to avoid referencing the possibly large underlying data array
-			return strings.Clone(code[:i]), code[i:]
+			return l.internString(code[:i]), code[i:]
 		} else if c == escapeChar {
+			escIdx = i
 			break
 		}
 	}
 
-	var sb strings.Builder
+	if escIdx < 0 {
+		return "", ""
+	}
+
+	buf := append(l.scratch[:0], code[:escIdx]...)
+	code = code[escIdx:]
 	escaped := false
 	for len(code) > 0 {
 		c := code[0]
@@ -130,37 +433,58 @@ func scanEscaped(delimiter byte, code string) (string, string) {
 			case delimiter:
 			case escapeChar:
 			default:
-				sb.WriteByte(escapeChar)
+				buf = append(buf, escapeChar)
 			}
 
-			sb.WriteByte(c)
+			buf = append(buf, c)
 			escaped = false
 		} else {
 			if c == delimiter {
-				return sb.String(), code
+				l.scratch = buf
+				return l.internBytes(buf), code
 			}
 
 			if c == escapeChar {
 				escaped = true
 			} else {
-				sb.WriteByte(c)
+				buf = append(buf, c)
 			}
 		}
 		code = code[1:]
 	}
-	return sb.String(), code
+	l.scratch = buf
+	return l.internBytes(buf), code
 }
 
-func scanRegexp(code string) (string, string) {
-	var sb strings.Builder
+func (l *eskipLex) scanRegexp(code string) (string, string) {
+	escIdx := -1
+	insideGroup := false
+	for i := 0; i < len(code); i++ {
+		c := code[i]
+		if !insideGroup && c == '[' {
+			insideGroup = true
+		} else if insideGroup && c == ']' {
+			insideGroup = false
+		} else if c == '/' && !insideGroup {
+			return l.internString(code[:i]), code[i:]
+		} else if c == escapeChar {
+			escIdx = i
+			break
+		}
+	}
+
+	if escIdx < 0 {
+		return "", ""
+	}
+
+	buf := append(l.scratch[:0], code[:escIdx]...)
+	code = code[escIdx:]
 	escaped := false
-	var insideGroup = false
 	for len(code) > 0 {
 		c := code[0]
 		isDelimiter := c == '/'
 		isEscapeChar := c == escapeChar
 
-		//Check if starting [... or ending ...]. Ignore if group character is escaped i.e. \[ or \]
 		if !escaped && !insideGroup && c == '[' {
 			insideGroup = true
 		} else if !escaped && insideGroup && c == ']' {
@@ -168,30 +492,31 @@ func scanRegexp(code string) (string, string) {
 		}
 
 		if escaped {
-			//delimiter / is escaped in PathRegexp so that it means no end PathRegexp(/\//)
 			if !isDelimiter && !isEscapeChar {
-				sb.WriteByte(escapeChar)
+				buf = append(buf, escapeChar)
 			}
-			sb.WriteByte(c)
+			buf = append(buf, c)
 			escaped = false
 		} else {
 			if isDelimiter && !insideGroup {
-				return sb.String(), code
+				l.scratch = buf
+				return l.internBytes(buf), code
 			}
 			if isEscapeChar {
 				escaped = true
 			} else {
-				sb.WriteByte(c)
+				buf = append(buf, c)
 			}
 		}
 		code = code[1:]
 	}
-	return sb.String(), code
+	l.scratch = buf
+	return l.internBytes(buf), code
 }
 
-func scanRegexpLiteral(code string) (t token, rest string, err error) {
+func (l *eskipLex) scanRegexpLiteral(code string) (t token, rest string, err error) {
 	t.id = regexpliteral
-	t.val, rest = scanRegexp(code[1:])
+	t.val, rest = l.scanRegexp(code[1:])
 	if len(rest) == 0 {
 		err = errIncompleteToken
 		return
@@ -202,7 +527,7 @@ func scanRegexpLiteral(code string) (t token, rest string, err error) {
 	return
 }
 
-func scanRegexpOrComment(code string) (t token, rest string, err error) {
+func (l *eskipLex) scanRegexpOrComment(code string) (t token, rest string, err error) {
 	if len(code) < 2 {
 		rest = code
 		err = errInvalidCharacter
@@ -215,12 +540,12 @@ func scanRegexpOrComment(code string) (t token, rest string, err error) {
 		return
 	}
 
-	return scanRegexpLiteral(code)
+	return l.scanRegexpLiteral(code)
 }
 
-func scanStringLiteral(delimiter byte, code string) (t token, rest string, err error) {
+func (l *eskipLex) scanStringLiteral(delimiter byte, code string) (t token, rest string, err error) {
 	t.id = stringliteral
-	t.val, rest = scanEscaped(delimiter, code[1:])
+	t.val, rest = l.scanEscaped(delimiter, code[1:])
 	if len(rest) == 0 {
 		err = errIncompleteToken
 		return
@@ -245,8 +570,12 @@ func scanWhitespace(code string) string {
 func scanComment(code string) string {
 	return scanVoid(code, func(c byte) bool { return !isNewline(c) })
 }
-func scanDoubleQuote(code string) (token, string, error) { return scanStringLiteral('"', code) }
-func scanBacktick(code string) (token, string, error)    { return scanStringLiteral('`', code) }
+func (l *eskipLex) scanDoubleQuote(code string) (token, string, error) {
+	return l.scanStringLiteral('"', code)
+}
+func (l *eskipLex) scanBacktick(code string) (token, string, error) {
+	return l.scanStringLiteral('`', code)
+}
 
 func scanNumber(code string) (t token, rest string, err error) {
 	t.id = number
@@ -278,20 +607,23 @@ func scanNumber(code string) (t token, rest string, err error) {
 	return
 }
 
-func scanSymbol(code string) (t token, rest string, err error) {
+func (l *eskipLex) scanSymbol(code string) (t token, rest string, err error) {
 	t.id = symbol
 	for i := 0; i < len(code); i++ {
 		if !isSymbolChar(code[i]) {
-			// make a copy to avoid referencing the possibly large underlying data array
-			t.val, rest = strings.Clone(code[:i]), code[i:]
+			if code[i] == ':' {
+				t.val, rest = strings.Clone(code[:i]), code[i:]
+				return
+			}
+			t.val, rest = l.internString(code[:i]), code[i:]
 			return
 		}
 	}
-	t.val, rest = code, ""
+	t.val, rest = l.internString(code), ""
 	return
 }
 
-func scan(code string) (token, string, error) {
+func (l *eskipLex) scan(code string) (token, string, error) {
 	switch code[0] {
 	case ',':
 		return commaToken.scan(code)
@@ -319,11 +651,11 @@ func scan(code string) (token, string, error) {
 			return scanNumber(code)
 		}
 	case '/':
-		return scanRegexpOrComment(code)
+		return l.scanRegexpOrComment(code)
 	case '"':
-		return scanDoubleQuote(code)
+		return l.scanDoubleQuote(code)
 	case '`':
-		return scanBacktick(code)
+		return l.scanBacktick(code)
 	case '<':
 		for _, tok := range openarrowPrefixedTokens {
 			if strings.HasPrefix(code, tok.val) {
@@ -338,7 +670,7 @@ func scan(code string) (token, string, error) {
 	}
 
 	if isAlpha(code[0]) || isUnderscore(code[0]) {
-		return scanSymbol(code)
+		return l.scanSymbol(code)
 	}
 
 	return token{}, "", errUnexpectedToken
@@ -350,7 +682,7 @@ func (l *eskipLex) next() (token, error) {
 		return token{}, errEOF
 	}
 
-	t, rest, err := scan(l.code)
+	t, rest, err := l.scan(l.code)
 	if err == errUnexpectedToken {
 		return token{}, err
 	}
