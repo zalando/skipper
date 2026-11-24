@@ -295,7 +295,9 @@ func BenchmarkJwtValidation(b *testing.B) {
 
 		b.Run(bc.name, func(b *testing.B) {
 			ctx := &filtertest.Context{
-				FStateBag: map[string]interface{}{},
+				FStateBag: map[string]interface{}{
+					tokeninfoKey: claims,
+				},
 				FResponse: &http.Response{},
 				FRequest: &http.Request{
 					Header: map[string][]string{

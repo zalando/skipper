@@ -15,6 +15,10 @@ import (
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
 )
 
+const (
+	tokeninfoKey = "tokeninfo"
+)
+
 type spec struct {
 	registry    *openpolicyagent.OpenPolicyAgentRegistry
 	name        string
@@ -98,6 +102,11 @@ func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 	if !f.opa.Healthy() {
 		f.opa.HandleInstanceNotReadyError(fc, span, !f.opa.EnvoyPluginConfig().DryRun)
 		return
+	}
+
+	tokenInfo, ok := fc.StateBag()[tokeninfoKey].(map[string]interface{})
+	if ok && tokenInfo != nil {
+		f.opa.InstanceConfig().UpdateEnvoyMetadataWithTokenInfo(&tokenInfo)
 	}
 
 	var rawBodyBytes []byte

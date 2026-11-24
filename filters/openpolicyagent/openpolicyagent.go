@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/structpb"
 	"io"
 	"maps"
 	"math/rand"
@@ -64,7 +65,6 @@ const (
 	DefaultRequestBodyBufferSize = 8 * 1024 // 8 KB
 
 	spanNameEval = "open-policy-agent"
-	tokeninfoKey = "tokeninfo"
 )
 
 type BackgroundTask struct {
@@ -334,31 +334,11 @@ func WithEnvoyMetadata(metadata *ext_authz_v3_core.Metadata) func(*OpenPolicyAge
 	}
 }
 
-func WithEnvoyMetadataBytes(ctx filters.FilterContext, content []byte) func(*OpenPolicyAgentInstanceConfig) error {
+func WithEnvoyMetadataBytes(content []byte) func(*OpenPolicyAgentInstanceConfig) error {
 	return func(cfg *OpenPolicyAgentInstanceConfig) error {
 		cfg.envoyMetadata = &ext_authz_v3_core.Metadata{}
-		if err := protojson.Unmarshal(content, cfg.envoyMetadata); err != nil {
-			return err
-		}
 
-		cachedValue, ok := ctx.StateBag()[tokeninfoKey].(map[string]interface{})
-		if ok && cachedValue != nil {
-			//delete(cachedValue, "access_token")
-			tokeninfoJSON, err := json.Marshal(cachedValue)
-			if err != nil {
-				return err
-			}
-			if cfg.envoyMetadata.FilterMetadata == nil {
-				cfg.envoyMetadata.FilterMetadata = make(map[string]*ext_authz_v3_core)
-			}
-			cfg.envoyMetadata.FilterMetadata["com.zalando.skipper.statebag"] = &ext_authz_v3_core.Metadata_FilterMetadataEntry{
-				FilterMetadata: map[string]string{
-					"tokeninfo": string(tokeninfoJSON),
-				},
-			}
-
-		}
-		return nil
+		return protojson.Unmarshal(content, cfg.envoyMetadata)
 	}
 }
 
@@ -382,6 +362,37 @@ func (config *OpenPolicyAgentInstanceConfig) GetEnvoyMetadata() *ext_authz_v3_co
 	if config.envoyMetadata != nil {
 		return proto.Clone(config.envoyMetadata).(*ext_authz_v3_core.Metadata)
 	}
+	return nil
+}
+
+func (config *OpenPolicyAgentInstanceConfig) UpdateEnvoyMetadataWithTokenInfo(tokenInfo *interface{}) error {
+	//delete(cachedValue, "access_token")
+	tokeninfoJSON, err := json.Marshal(tokenInfo)
+	if err != nil {
+		return err
+	}
+	if config.envoyMetadata == nil {
+		config.envoyMetadata = &ext_authz_v3_core.Metadata{}
+	}
+	if config.envoyMetadata.FilterMetadata == nil {
+		config.envoyMetadata.FilterMetadata = make(map[string]*structpb.Struct)
+	}
+
+	var tokeninfoMap map[string]interface{}
+	err = json.Unmarshal(tokeninfoJSON, &tokeninfoMap)
+	if err != nil {
+		// handle error
+		return err
+	}
+
+	config.envoyMetadata.FilterMetadata["com.zalando.skipper.statebag"], err = structpb.NewStruct(map[string]interface{}{
+		"tokeninfo": tokeninfoMap,
+	})
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -105,6 +106,43 @@ func TestLoadEnvoyMetadata(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, expected, cfg.envoyMetadata)
+}
+
+func TestUpdateEnvoyMetadataWithTokenInfo(t *testing.T) {
+	var claims interface{} = map[string]interface{}{"sub": "user123", "scope": "read"}
+
+	cfg := &OpenPolicyAgentInstanceConfig{}
+	cfg.UpdateEnvoyMetadataWithTokenInfo(&claims)
+
+	tokeninfoBytes, err := json.Marshal(claims)
+	if err != nil {
+		panic(err)
+	}
+
+	tokeninfoStruct := &pbstruct.Struct{}
+	err = protojson.Unmarshal(tokeninfoBytes, tokeninfoStruct)
+	if err != nil {
+		panic(err)
+	}
+
+	expectedBytes, err := protojson.Marshal(&ext_authz_v3_core.Metadata{
+		FilterMetadata: map[string]*pbstruct.Struct{
+			"com.zalando.skipper.statebag": {
+				Fields: map[string]*pbstruct.Value{
+					"tokeninfo": {
+						Kind: &pbstruct.Value_StructValue{StructValue: tokeninfoStruct},
+					},
+				},
+			},
+		},
+	})
+
+	assert.NoError(t, err)
+
+	expected := &ext_authz_v3_core.Metadata{}
+	err = protojson.Unmarshal(expectedBytes, expected)
+	assert.NoError(t, err)
+	assert.True(t, proto.Equal(expected, cfg.envoyMetadata))
 }
 
 func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Server, []byte) {

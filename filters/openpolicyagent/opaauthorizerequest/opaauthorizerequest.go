@@ -19,7 +19,10 @@ import (
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
 )
 
-const responseHeadersKey = "open-policy-agent:decision-response-headers"
+const (
+	responseHeadersKey = "open-policy-agent:decision-response-headers"
+	tokeninfoKey       = "tokeninfo"
+)
 
 type spec struct {
 	registry    *openpolicyagent.OpenPolicyAgentRegistry
@@ -98,6 +101,10 @@ type opaAuthorizeRequestFilter struct {
 func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
 	req := fc.Request()
 
+	cachedValue, ok := fc.StateBag()[tokeninfoKey]
+	if ok && cachedValue != nil {
+		f.opa.InstanceConfig().UpdateEnvoyMetadataWithTokenInfo(&cachedValue)
+	}
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
 	defer span.Finish()
 
