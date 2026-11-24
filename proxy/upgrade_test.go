@@ -342,6 +342,133 @@ func TestServeHTTP(t *testing.T) {
 	}
 }
 
+func TestUpgradeServerFirst(t *testing.T) {
+	const handshake = "HTTP/1.1 101 Switching Protocols\r\n" +
+		"Connection: Upgrade\r\nUpgrade: websocket\r\n" +
+		"Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n"
+
+	for _, audit := range []bool{false, true} {
+		for _, tt := range []struct {
+			name  string
+			size  int
+			split bool
+		}{
+			{name: "empty", size: 0},
+			{name: "buffered", size: 1},
+			{name: "before buffer boundary", size: 4096 - len(handshake) - 5},
+			{name: "at buffer boundary", size: 4096 - len(handshake) - 4},
+			{name: "after buffer boundary", size: 4096 - len(handshake) - 3},
+			{name: "streamed", size: 8192},
+			{name: "after handshake", size: 1, split: true},
+		} {
+			t.Run(fmt.Sprintf("audit=%t/%s", audit, tt.name), func(t *testing.T) {
+				frame := []byte{0x81, byte(tt.size)}
+				if tt.size >= 126 {
+					frame = []byte{0x82, 126, byte(tt.size >> 8), byte(tt.size)}
+				}
+				for i := 0; i < tt.size; i++ {
+					frame = append(frame, byte('x'+i%3))
+				}
+				clientFrame := []byte{0x81, 0x81, 1, 2, 3, 4, 'x' ^ 1}
+				echoFrame := []byte{0x81, 1, 'x'}
+				release := make(chan struct{})
+				defer close(release)
+				backendDone := make(chan error, 1)
+				backend := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					var result error
+					defer func() { backendDone <- result }()
+					conn, _, err := w.(http.Hijacker).Hijack()
+					if err != nil {
+						result = err
+						return
+					}
+					defer conn.Close()
+					conn.SetDeadline(time.Now().Add(5 * time.Second))
+					if tt.split {
+						_, result = io.WriteString(conn, handshake)
+						if result != nil {
+							return
+						}
+						<-release
+						_, result = conn.Write(frame)
+					} else {
+						_, result = conn.Write(append([]byte(handshake), frame...))
+					}
+					if result != nil {
+						return
+					}
+					got := make([]byte, len(clientFrame))
+					if _, result = io.ReadFull(conn, got); result != nil {
+						return
+					}
+					if !bytes.Equal(got, clientFrame) {
+						result = fmt.Errorf("client frame: got %x, want %x", got, clientFrame)
+						return
+					}
+					_, result = conn.Write(echoFrame)
+				}))
+				backend.TLS = &tls.Config{DynamicRecordSizingDisabled: true}
+				backend.StartTLS()
+				defer backend.Close()
+
+				tp, err := newTestProxyWithParams(fmt.Sprintf(`r: * -> "%s";`, backend.URL), Params{
+					ExperimentalUpgrade:      true,
+					ExperimentalUpgradeAudit: audit,
+					Flags:                    Insecure,
+				})
+				require.NoError(t, err)
+				defer tp.close()
+				var auditOut, auditErr syncBuffer
+				tp.proxy.upgradeAuditLogOut = &auditOut
+				tp.proxy.upgradeAuditLogErr = &auditErr
+				proxy := httptest.NewServer(tp.proxy)
+				defer proxy.Close()
+				conn, err := net.Dial("tcp", strings.TrimPrefix(proxy.URL, "http://"))
+				require.NoError(t, err)
+				defer conn.Close()
+				require.NoError(t, conn.SetDeadline(time.Now().Add(3*time.Second)))
+				req, err := http.NewRequest(http.MethodGet, proxy.URL+"/ws", nil)
+				require.NoError(t, err)
+				req.Header = http.Header{
+					"Connection":            {"Upgrade"},
+					"Upgrade":               {"websocket"},
+					"Sec-Websocket-Version": {"13"},
+					"Sec-Websocket-Key":     {"dGhlIHNhbXBsZSBub25jZQ=="},
+				}
+				require.NoError(t, req.Write(conn))
+				reader := bufio.NewReader(conn)
+				resp, err := http.ReadResponse(reader, req)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+				if tt.split {
+					release <- struct{}{}
+				}
+				got := make([]byte, len(frame))
+				n, err := io.ReadFull(reader, got)
+				if err != nil || !bytes.Equal(got, frame) {
+					t.Fatalf("server-first frame differs: received %d of %d bytes (read error: %v)", n, len(frame), err)
+				}
+				_, err = conn.Write(clientFrame)
+				require.NoError(t, err)
+				got, err = io.ReadAll(reader)
+				require.NoError(t, err)
+				if !bytes.Equal(got, echoFrame) {
+					t.Fatalf("echo frame: got %x, want %x", got, echoFrame)
+				}
+				require.NoError(t, <-backendDone)
+				wantAudit := ""
+				if audit {
+					wantAudit = string(append(frame, echoFrame...))
+				}
+				if got := auditOut.String(); got != wantAudit {
+					t.Fatalf("audit stream differs: received %d of %d bytes", len(got), len(wantAudit))
+				}
+			})
+		}
+	}
+}
+
 func getReverseProxy(backendURL *url.URL) *httputil.ReverseProxy {
 	reverseProxy := httputil.NewSingleHostReverseProxy(backendURL)
 	reverseProxy.FlushInterval = 20 * time.Millisecond
