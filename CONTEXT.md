@@ -190,6 +190,14 @@ Distributed limit summed across all skipper instances (via Redis, Valkey, or pee
 **Cluster Client Rate Limit**:
 Distributed per-client limit across all skipper instances, with the client identified by a Lookuper.
 
+**Swarm**:
+The shared state store skipper instances use for Cluster Rate Limits and the L2 cache, either a ring of Valkey or Redis instances or SWIM-based peers.
+_Avoid_: cluster store
+
+**Swarm Shard**:
+A single Valkey or Redis instance in the Swarm, selected per key by a hash ring.
+_Avoid_: node, swarm peer
+
 **Lookuper**:
 Client-identification strategy that returns the bucket key from a request. Types: `XForwardedForLookuper` (client IP from X-Forwarded-For), `HeaderLookuper` (named header value), `TupleLookuper` (combination of multiple fields), `SameBucketLookuper` (all requests share one bucket).
 _Avoid_: identifier, classifier
@@ -224,7 +232,7 @@ Proxy-level config (`TLSClientAuth`) requesting or requiring client certificates
 Proxy-level config (`EnableMTLS`) presenting a client certificate when connecting to upstream backends, with hot cert rotation.
 
 **Swarm mTLS**:
-Mutual-TLS transport between skipper (the client) and a swarm shard (Valkey or Redis): skipper presents a client certificate and verifies the server certificate against a configured CA bundle. Configured via `-enable-swarm-tls` with a rotating client keypair re-read on `-client-tls-cert-refresh-interval`.
+Mutual-TLS transport between skipper and a Swarm Shard, with a rotating client certificate.
 _Avoid_: valkey TLS, redis TLS, Valkey Swarm mTLS
 
 ## Kubernetes Integration

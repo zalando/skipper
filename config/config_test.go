@@ -21,6 +21,7 @@ import (
 	"github.com/zalando/skipper/filters/openpolicyagent"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/net/nettest"
 	"github.com/zalando/skipper/proxy"
 	"gopkg.in/yaml.v2"
 
@@ -353,17 +354,26 @@ func Test_Validate(t *testing.T) {
 			want:    errors.New(`unable to parse histogram-metric-buckets: strconv.ParseFloat: parsing "10kb": invalid syntax`),
 		},
 		{
-			name: "enable-swarm-tls without client cert and key",
+			name: "enable-swarm-mtls without client cert and key",
 			change: func(c *Config) {
-				c.EnableSwarmTLS = true
+				c.EnableSwarmMTLS = true
 			},
 			wantErr: true,
-			want:    errors.New("enable-swarm-tls requires swarm-client-cert and swarm-client-key"),
+			want:    errors.New("enable-swarm-mtls requires swarm-client-cert and swarm-client-key"),
 		},
 		{
-			name: "enable-swarm-tls with client cert and key",
+			name: "enable-swarm-mtls without client key",
 			change: func(c *Config) {
-				c.EnableSwarmTLS = true
+				c.EnableSwarmMTLS = true
+				c.SwarmClientCertFile = "/some/cert.pem"
+			},
+			wantErr: true,
+			want:    errors.New("enable-swarm-mtls requires swarm-client-cert and swarm-client-key"),
+		},
+		{
+			name: "enable-swarm-mtls with client cert and key",
+			change: func(c *Config) {
+				c.EnableSwarmMTLS = true
 				c.SwarmClientCertFile = "/some/cert.pem"
 				c.SwarmClientKeyFile = "/some/key.pem"
 			},
@@ -906,37 +916,98 @@ func TestH2cFlags_ParseAndToOptions(t *testing.T) {
 	}
 }
 
-func TestSwarmTLSConfig(t *testing.T) {
-	t.Run("swarm-client-cert-refresh-interval maps to options", func(t *testing.T) {
-		cfg := NewConfig()
-		err := cfg.ParseArgs("skipper", []string{
-			"-enable-swarm-tls",
-			"-swarm-client-cert=/some/cert.pem",
-			"-swarm-client-key=/some/key.pem",
-			"-swarm-client-cert-refresh-interval=2m",
-		})
-		if err != nil {
-			t.Fatalf("ParseArgs: %v", err)
-		}
-		if cfg.SwarmClientCertRefreshInterval != 2*time.Minute {
-			t.Errorf("got %v, want 2m", cfg.SwarmClientCertRefreshInterval)
-		}
-		opt := cfg.ToOptions()
-		if opt.SwarmClientRefreshInterval != 2*time.Minute {
-			t.Errorf("options interval got %v, want 2m", opt.SwarmClientRefreshInterval)
-		}
-	})
+func TestSwarmMTLSConfig(t *testing.T) {
+	ca := nettest.NewCA(t)
+	certPEM, keyPEM := ca.ClientCert(t)
+	certFile, keyFile := nettest.WriteCertKey(t, certPEM, keyPEM)
 
-	t.Run("swarm-ca not parsed when TLS disabled", func(t *testing.T) {
-		cfg := NewConfig()
-		err := cfg.ParseArgs("skipper", []string{
-			"-swarm-ca=/nonexistent/ca.pem",
+	otherCA := nettest.NewCA(t)
+	dir := t.TempDir()
+	caFile := filepath.Join(dir, "ca.pem")
+	otherCAFile := filepath.Join(dir, "other-ca.pem")
+	invalidCAFile := filepath.Join(dir, "invalid.pem")
+	require.NoError(t, os.WriteFile(caFile, ca.CertPEM, 0o644))
+	require.NoError(t, os.WriteFile(otherCAFile, otherCA.CertPEM, 0o644))
+	require.NoError(t, os.WriteFile(invalidCAFile, []byte("not a certificate"), 0o644))
+
+	swarm := "-swarm-valkey-urls=valkey:6379"
+	enabled := []string{swarm, "-enable-swarm-mtls", "-swarm-client-cert=" + certFile, "-swarm-client-key=" + keyFile}
+
+	for _, tt := range []struct {
+		name      string
+		args      []string
+		wantCAs   []*x509.Certificate
+		wantErr   string
+		checkOpts bool
+	}{
+		{
+			name: "disabled ignores swarm mTLS files",
+			args: []string{swarm, "-swarm-ca=/nonexistent/ca.pem", "-swarm-client-cert=/nonexistent/cert.pem"},
+		},
+		{
+			name:      "enabled without CA uses system roots",
+			args:      enabled,
+			checkOpts: true,
+		},
+		{
+			name:      "enabled with CA",
+			args:      append(slices.Clone(enabled), "-swarm-ca="+caFile),
+			wantCAs:   []*x509.Certificate{ca.Cert},
+			checkOpts: true,
+		},
+		{
+			name:    "enabled with comma separated CAs, spaces and empty entries",
+			args:    append(slices.Clone(enabled), "-swarm-ca="+caFile+", "+otherCAFile+","),
+			wantCAs: []*x509.Certificate{ca.Cert, otherCA.Cert},
+		},
+		{
+			name:    "enabled with missing CA file",
+			args:    append(slices.Clone(enabled), "-swarm-ca=/nonexistent/ca.pem"),
+			wantErr: "failed to read swarm CA file",
+		},
+		{
+			name:    "enabled with invalid CA file",
+			args:    append(slices.Clone(enabled), "-swarm-ca="+invalidCAFile),
+			wantErr: "no PEM certificates found",
+		},
+		{
+			name:    "enabled with missing client cert file",
+			args:    []string{swarm, "-enable-swarm-mtls", "-swarm-client-cert=/nonexistent/cert.pem", "-swarm-client-key=" + keyFile},
+			wantErr: "invalid swarm client key/cert pair",
+		},
+		{
+			name:    "enabled with mismatched client cert and key",
+			args:    []string{swarm, "-enable-swarm-mtls", "-swarm-client-cert=" + keyFile, "-swarm-client-key=" + certFile},
+			wantErr: "invalid swarm client key/cert pair",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			err := cfg.ParseArgs("skipper", append(tt.args, "-swarm-client-cert-refresh-interval=2m"))
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+
+			if tt.wantCAs == nil {
+				assert.Nil(t, cfg.SwarmCA)
+			} else {
+				want := x509.NewCertPool()
+				for _, c := range tt.wantCAs {
+					want.AddCert(c)
+				}
+				assert.True(t, want.Equal(cfg.SwarmCA), "Failed to get expected swarm CA pool")
+			}
+
+			if tt.checkOpts {
+				opt := cfg.ToOptions()
+				assert.True(t, opt.EnableSwarmMTLS)
+				assert.Equal(t, certFile, opt.SwarmClientCertFile)
+				assert.Equal(t, keyFile, opt.SwarmClientKeyFile)
+				assert.Equal(t, 2*time.Minute, opt.SwarmClientCertRefreshInterval)
+				assert.Same(t, cfg.SwarmCA, opt.SwarmCA)
+			}
 		})
-		if err != nil {
-			t.Fatalf("ParseArgs should not read CA when TLS disabled: %v", err)
-		}
-		if cfg.SwarmCA != nil {
-			t.Error("SwarmCA should be nil when enable-swarm-tls is not set")
-		}
-	})
+	}
 }

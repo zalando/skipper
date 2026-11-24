@@ -76,16 +76,16 @@ type ValkeyOptions struct {
 	// Hook see https://pkg.go.dev/github.com/valkey-io/valkey-go/valkeyhook
 	Hook valkeyhook.Hook
 
-	EnableTLS bool
+	// EnableMTLS enables swarm mTLS. It requires ClientCertFile and ClientKeyFile.
+	EnableMTLS bool
 
+	// CA verifies the swarm shard server certificates. If nil, the system roots are used.
 	CA *x509.CertPool
 
-	// ClientCertFile is the path to a PEM-encoded client certificate for mTLS to backends.
-	// Must be set together with ClientKeyFile. When set, GetClientCertificate is used for cert rotation.
+	// ClientCertFile is the path to a PEM-encoded client certificate presented to swarm shards.
 	ClientCertFile string
 
-	// ClientKeyFile is the path to a PEM-encoded private key for mTLS to backends.
-	// Must be set together with ClientCertFile.
+	// ClientKeyFile is the path to a PEM-encoded private key of ClientCertFile.
 	ClientKeyFile string
 
 	// ClientCertRefreshInterval is how often ClientCertFile/ClientKeyFile are re-read.
@@ -135,9 +135,7 @@ func createValkeyClient(addr string, opt *ValkeyOptions, tlsConfig *tls.Config) 
 		err error
 	)
 
-	if tlsConfig != nil {
-		clientOptions.TLSConfig = tlsConfig
-	}
+	clientOptions.TLSConfig = tlsConfig
 
 	if opt.EnableOTel {
 		cli, err = valkeyotel.NewClient(clientOptions, opt.OTelOptions...)
@@ -154,8 +152,6 @@ func createValkeyClient(addr string, opt *ValkeyOptions, tlsConfig *tls.Config) 
 type valkeyRing struct {
 	opt *ValkeyOptions
 
-	// tlsConfig is shared by all shard clients; nil when TLS is disabled.
-	// certReloader backs it
 	tlsConfig    *tls.Config
 	certReloader *CertReloader
 
@@ -174,14 +170,16 @@ func newValkeyRing(opt *ValkeyOptions) (*valkeyRing, error) {
 		opt:       opt,
 		clientMap: make(map[string]valkey.Client),
 	}
-	ring.tlsConfig, ring.certReloader = newSwarmClientTLS(opt.EnableTLS, opt.ClientCertFile, opt.ClientKeyFile, opt.CA, opt.ClientCertRefreshInterval, opt.Log)
+	var err error
+	ring.tlsConfig, ring.certReloader, err = newSwarmClientTLS(opt.EnableMTLS, opt.ClientCertFile, opt.ClientKeyFile, opt.CA, opt.ClientCertRefreshInterval, opt.Log)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, ep := range opt.Addrs {
 		cl, err := createValkeyClient(ep, opt, ring.tlsConfig)
 		if err != nil {
-			if ring.certReloader != nil {
-				ring.certReloader.Close()
-			}
+			ring.close()
 			return nil, err
 		}
 		ring.clientMap[ep] = cl
@@ -194,6 +192,17 @@ func newValkeyRing(opt *ValkeyOptions) (*valkeyRing, error) {
 	ring.updateShards(opt.Addrs)
 
 	return ring, nil
+}
+
+func (vr *valkeyRing) close() {
+	vr.mu.Lock()
+	for _, cli := range vr.clientMap {
+		cli.Close()
+	}
+	vr.mu.Unlock()
+	if vr.certReloader != nil {
+		vr.certReloader.Close()
+	}
 }
 
 // updateShards needs to be called with holding lock vr.mu
@@ -449,14 +458,7 @@ func (vrc *ValkeyRingClient) Close() error {
 	vrc.once.Do(func() {
 		vrc.closed = true
 		close(vrc.quit)
-		vrc.ring.mu.Lock()
-		for _, cli := range vrc.ring.clientMap {
-			cli.Close()
-		}
-		vrc.ring.mu.Unlock()
-		if vrc.ring.certReloader != nil {
-			vrc.ring.certReloader.Close()
-		}
+		vrc.ring.close()
 	})
 	return nil
 }

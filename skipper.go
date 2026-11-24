@@ -1180,12 +1180,12 @@ type Options struct {
 	SwarmValkeyKeepAlive          time.Duration
 	SwarmValkeyConnLifetime       time.Duration
 	SwarmValkeyUpdateInterval     time.Duration
-	// swarm TLS
-	EnableSwarmTLS             bool
-	SwarmCA                    *x509.CertPool
-	SwarmClientCertFile        string
-	SwarmClientKeyFile         string
-	SwarmClientRefreshInterval time.Duration
+	// swarm mTLS
+	EnableSwarmMTLS                bool
+	SwarmCA                        *x509.CertPool
+	SwarmClientCertFile            string
+	SwarmClientKeyFile             string
+	SwarmClientCertRefreshInterval time.Duration
 
 	// swim based swarm
 	SwarmKubernetesNamespace          string
@@ -2269,10 +2269,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				DialTimeout:               o.SwarmValkeyDialTimeout,
 				KeepAlive:                 o.SwarmValkeyKeepAlive,
 				ConnLifetime:              o.SwarmValkeyConnLifetime,
-				EnableTLS:                 o.EnableSwarmTLS,
+				EnableMTLS:                o.EnableSwarmMTLS,
 				ClientCertFile:            o.SwarmClientCertFile,
 				ClientKeyFile:             o.SwarmClientKeyFile,
-				ClientCertRefreshInterval: o.SwarmClientRefreshInterval,
+				ClientCertRefreshInterval: o.SwarmClientCertRefreshInterval,
 				CA:                        o.SwarmCA,
 				Tracer:                    tracer,
 				Log:                       log.New(),
@@ -2295,10 +2295,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				ConnMetricsInterval:       o.SwarmRedisConnMetricsInterval,
 				UpdateInterval:            o.SwarmRedisUpdateInterval,
 				HeartbeatFrequency:        o.SwarmRedisHeartbeatFrequency,
-				EnableTLS:                 o.EnableSwarmTLS,
+				EnableMTLS:                o.EnableSwarmMTLS,
 				ClientCertFile:            o.SwarmClientCertFile,
 				ClientKeyFile:             o.SwarmClientKeyFile,
-				ClientCertRefreshInterval: o.SwarmClientRefreshInterval,
+				ClientCertRefreshInterval: o.SwarmClientCertRefreshInterval,
 				CA:                        o.SwarmCA,
 				Tracer:                    tracer,
 				Log:                       log.New(),

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -62,10 +61,15 @@ type CertReloader struct {
 // an update loop that every interval reads the files. If cert or
 // key changed and are valid it will swap the data, such that
 // GetClientCertificate returns the new rotated *tls.Certificate.
+// An interval <= 0 defaults to 5 minutes and a nil log to
+// logging.DefaultLog.
 // You have to use Close() in order to not leak a goroutine.
 func NewCertReloader(certFile, keyFile string, interval time.Duration, log logging.Logger) (*CertReloader, error) {
 	if interval <= 0 {
 		interval = defaultRefreshInterval
+	}
+	if log == nil {
+		log = &logging.DefaultLog{}
 	}
 	sp := secrets.NewSecretPaths(interval)
 	if err := sp.Add(certFile); err != nil {
@@ -104,28 +108,22 @@ func NewCertReloader(certFile, keyFile string, interval time.Duration, log loggi
 	go cr.refreshLoop(interval)
 	return cr, nil
 }
-func MustNewCertReloader(certFile, keyFile string, interval time.Duration, log logging.Logger) *CertReloader {
+
+func newSwarmClientTLS(enable bool, certFile, keyFile string, ca *x509.CertPool, interval time.Duration, log logging.Logger) (*tls.Config, *CertReloader, error) {
+	if !enable {
+		return nil, nil, nil
+	}
+	if certFile == "" || keyFile == "" {
+		return nil, nil, fmt.Errorf("swarm mTLS requires a client certificate and key file")
+	}
 	cr, err := NewCertReloader(certFile, keyFile, interval, log)
 	if err != nil {
-		log.Errorf("Failed to initialize cert reloader: %v", err)
-		os.Exit(2)
+		return nil, nil, fmt.Errorf("swarm mTLS: %w", err)
 	}
-	return cr
-}
-
-// newSwarmClientTLS builds a client *tls.Config and its CertReloader for a swarm
-// ring (Valkey or Redis), shared by every shard. It returns (nil, nil) when TLS
-// is disabled or the client keypair is not configured. The caller owns the
-// returned CertReloader and must Close() it when the ring is torn down.
-func newSwarmClientTLS(enable bool, certFile, keyFile string, ca *x509.CertPool, interval time.Duration, log logging.Logger) (*tls.Config, *CertReloader) {
-	if !enable || certFile == "" || keyFile == "" {
-		return nil, nil
-	}
-	cr := MustNewCertReloader(certFile, keyFile, interval, log)
 	return &tls.Config{
 		GetClientCertificate: cr.GetClientCertificate,
 		RootCAs:              ca,
-	}, cr
+	}, cr, nil
 }
 
 func (cr *CertReloader) refreshLoop(interval time.Duration) {

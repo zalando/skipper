@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
@@ -1039,49 +1040,91 @@ func TestNewSwarmClientTLS(t *testing.T) {
 	certPEM, keyPEM := ca.ClientCert(t)
 	certFile, keyFile := nettest.WriteCertKey(t, certPEM, keyPEM)
 	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(ca.CertPEM) {
-		t.Fatal("failed to append CA PEM")
+	pool.AddCert(ca.Cert)
+
+	for _, tt := range []struct {
+		name     string
+		enable   bool
+		certFile string
+		keyFile  string
+		wantTLS  bool
+		wantErr  bool
+	}{
+		{
+			name:     "disabled",
+			certFile: certFile,
+			keyFile:  keyFile,
+		},
+		{
+			name:     "enabled",
+			enable:   true,
+			certFile: certFile,
+			keyFile:  keyFile,
+			wantTLS:  true,
+		},
+		{
+			name:     "enabled without key file",
+			enable:   true,
+			certFile: certFile,
+			wantErr:  true,
+		},
+		{
+			name:    "enabled without cert file",
+			enable:  true,
+			keyFile: keyFile,
+			wantErr: true,
+		},
+		{
+			name:     "enabled with missing cert file",
+			enable:   true,
+			certFile: "/nonexistent/cert.pem",
+			keyFile:  keyFile,
+			wantErr:  true,
+		},
+		{
+			name:     "enabled with mismatched files",
+			enable:   true,
+			certFile: keyFile,
+			keyFile:  certFile,
+			wantErr:  true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, cr, err := newSwarmClientTLS(tt.enable, tt.certFile, tt.keyFile, pool, time.Minute, nil)
+			if cr != nil {
+				defer cr.Close()
+			}
+			if tt.wantErr {
+				if err == nil || cfg != nil || cr != nil {
+					t.Fatalf("Failed to get error, got cfg=%v cr=%v err=%v", cfg, cr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Failed to create swarm client TLS config: %v", err)
+			}
+			if !tt.wantTLS {
+				if cfg != nil || cr != nil {
+					t.Fatalf("Failed to get nil config, got cfg=%v cr=%v", cfg, cr)
+				}
+				return
+			}
+			if cfg.RootCAs != pool {
+				t.Error("Failed to set RootCAs")
+			}
+			got, err := cfg.GetClientCertificate(&tls.CertificateRequestInfo{})
+			if err != nil {
+				t.Fatalf("Failed to get client certificate: %v", err)
+			}
+			want, err := tls.X509KeyPair(certPEM, keyPEM)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got.Certificate[0], want.Certificate[0]) {
+				t.Error("Failed to get configured client certificate")
+			}
+		})
 	}
-	log := &logging.DefaultLog{}
-
-	t.Run("disabled returns nil", func(t *testing.T) {
-		cfg, cr := newSwarmClientTLS(false, certFile, keyFile, pool, time.Minute, log)
-		if cfg != nil || cr != nil {
-			t.Fatalf("expected nil, got cfg=%v cr=%v", cfg, cr)
-		}
-	})
-
-	t.Run("missing keypair returns nil", func(t *testing.T) {
-		cfg, cr := newSwarmClientTLS(true, certFile, "", pool, time.Minute, log)
-		if cfg != nil || cr != nil {
-			t.Fatalf("expected nil, got cfg=%v cr=%v", cfg, cr)
-		}
-	})
-
-	t.Run("enabled builds config and reloader", func(t *testing.T) {
-		cfg, cr := newSwarmClientTLS(true, certFile, keyFile, pool, time.Minute, log)
-		if cr == nil {
-			t.Fatal("expected a reloader")
-		}
-		defer cr.Close()
-		if cfg.RootCAs != pool {
-			t.Error("RootCAs not wired")
-		}
-		if cfg.GetClientCertificate == nil {
-			t.Fatal("GetClientCertificate not set")
-		}
-		got, err := cfg.GetClientCertificate(&tls.CertificateRequestInfo{})
-		if err != nil {
-			t.Fatalf("GetClientCertificate: %v", err)
-		}
-		want, err := tls.X509KeyPair(certPEM, keyPEM)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Equal(got.Certificate[0], want.Certificate[0]) {
-			t.Error("served certificate mismatch")
-		}
-	})
 }
 
 func TestNewSwarmClientTLSNoLeak(t *testing.T) {
@@ -1090,9 +1133,82 @@ func TestNewSwarmClientTLSNoLeak(t *testing.T) {
 	certPEM, keyPEM := ca.ClientCert(t)
 	certFile, keyFile := nettest.WriteCertKey(t, certPEM, keyPEM)
 
-	cfg, cr := newSwarmClientTLS(true, certFile, keyFile, nil, time.Minute, &logging.DefaultLog{})
-	if cfg == nil || cr == nil {
-		t.Fatal("expected tls config and reloader")
+	cfg, cr, err := newSwarmClientTLS(true, certFile, keyFile, nil, time.Minute, nil)
+	if err != nil || cfg == nil || cr == nil {
+		t.Fatalf("Failed to create swarm client TLS config: %v", err)
 	}
 	cr.Close()
+}
+
+func TestSwarmMTLSClientCertRotation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ca := nettest.NewCA(t)
+		pool := x509.NewCertPool()
+		pool.AddCert(ca.Cert)
+
+		serverCertPEM, serverKeyPEM := ca.ServerCert(t, "localhost")
+		serverPair, err := tls.X509KeyPair(serverCertPEM, serverKeyPEM)
+		if err != nil {
+			t.Fatal(err)
+		}
+		serverConfig := &tls.Config{
+			Certificates: []tls.Certificate{serverPair},
+			ClientAuth:   tls.RequireAndVerifyClientCert,
+			ClientCAs:    pool,
+		}
+
+		certPEM1, keyPEM1 := ca.ClientCert(t)
+		certFile, keyFile := nettest.WriteCertKey(t, certPEM1, keyPEM1)
+
+		cfg, cr, err := newSwarmClientTLS(true, certFile, keyFile, pool, 20*time.Millisecond, nil)
+		if err != nil {
+			t.Fatalf("Failed to create swarm client TLS config: %v", err)
+		}
+		defer cr.Close()
+
+		clientConfig := cfg.Clone()
+		clientConfig.ServerName = "localhost"
+
+		peerCert := func() []byte {
+			c, s := net.Pipe()
+			defer c.Close()
+			defer s.Close()
+
+			server := tls.Server(s, serverConfig)
+			errc := make(chan error, 1)
+			go func() { errc <- server.Handshake() }()
+
+			if err := tls.Client(c, clientConfig).Handshake(); err != nil {
+				t.Fatalf("Failed client handshake: %v", err)
+			}
+			if err := <-errc; err != nil {
+				t.Fatalf("Failed server handshake: %v", err)
+			}
+			return server.ConnectionState().PeerCertificates[0].Raw
+		}
+
+		first := peerCert()
+
+		certPEM2, keyPEM2 := ca.ClientCert(t)
+		if err := os.WriteFile(certFile, certPEM2, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(keyFile, keyPEM2, 0600); err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(200 * time.Millisecond)
+
+		second := peerCert()
+		if bytes.Equal(first, second) {
+			t.Fatal("Failed to present rotated client certificate")
+		}
+		want, err := tls.X509KeyPair(certPEM2, keyPEM2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(second, want.Certificate[0]) {
+			t.Fatal("Failed to present the new client certificate")
+		}
+	})
 }
