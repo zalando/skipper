@@ -11,7 +11,7 @@ CGO_ENABLED        ?= 0
 GOOS               ?= linux
 GOARCH             ?= amd64
 GOARM              ?=
-BUILD_FLAGS        ?= -v -trimpath
+BUILD_FLAGS        ?= -v -trimpath -tags opa
 COMMIT_HASH        = $(shell git rev-parse --short HEAD)
 REVISION           = $(shell git rev-parse HEAD)
 

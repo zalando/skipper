@@ -45,9 +45,6 @@ import (
 	"github.com/zalando/skipper/filters/cache"
 	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
-	"github.com/zalando/skipper/filters/openpolicyagent"
-	"github.com/zalando/skipper/filters/openpolicyagent/opaauthorizerequest"
-	"github.com/zalando/skipper/filters/openpolicyagent/opaserveresponse"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/shedder"
 	teefilters "github.com/zalando/skipper/filters/tee"
@@ -100,6 +97,13 @@ var (
 	_ cache.L2Client = (*skpnet.RedisRingClient)(nil)
 	_ cache.L2Client = (*skpnet.ValkeyRingClient)(nil)
 )
+
+type openPolicyAgent struct {
+	filters        []filters.Spec
+	preProcessors  []routing.PreProcessor
+	postProcessors []routing.PostProcessor
+	close          func()
+}
 
 // Options to start skipper.
 type Options struct {
@@ -2542,51 +2546,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		)
 	}
 
-	var opaRegistry *openpolicyagent.OpenPolicyAgentRegistry
-	if o.EnableOpenPolicyAgent {
-		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
-		opts = append(opts,
-			openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate))
-		if o.OpenPolicyAgentEnvoyMetadata != "" {
-			opts = append(opts, openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata))
-		}
-
-		opaRegistryOpts := []func(*openpolicyagent.OpenPolicyAgentRegistry) error{
-			openpolicyagent.WithMaxRequestBodyBytes(o.OpenPolicyAgentMaxRequestBodySize),
-			openpolicyagent.WithMaxMemoryBodyParsing(o.OpenPolicyAgentMaxMemoryBodyParsing),
-			openpolicyagent.WithReadBodyBufferSize(o.OpenPolicyAgentRequestBodyBufferSize),
-			openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval),
-			openpolicyagent.WithInstanceStartupTimeout(o.OpenPolicyAgentStartupTimeout),
-			openpolicyagent.WithTracer(tracer),
-			openpolicyagent.WithEnableCustomControlLoop(o.EnableOpenPolicyAgentCustomControlLoop),
-			openpolicyagent.WithEnablePrintTracing(o.EnableOpenPolicyAgentPrintTracing),
-			openpolicyagent.WithControlLoopInterval(o.OpenPolicyAgentControlLoopInterval),
-			openpolicyagent.WithControlLoopMaxJitter(o.OpenPolicyAgentControlLoopMaxJitter),
-			openpolicyagent.WithEnableDataPreProcessingOptimization(o.EnableOpenPolicyAgentDataPreProcessingOptimization),
-			openpolicyagent.WithPreloadingEnabled(o.EnableOpenPolicyAgentPreloading),
-			openpolicyagent.WithAsyncDecisionLogging(o.EnableOpenPolicyAgentAsyncDecisionLogging),
-			openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...),
-		}
-
-		if promMetrics, ok := mtr.(metrics.PrometheusMetrics); ok {
-			opaRegistryOpts = append(opaRegistryOpts,
-				openpolicyagent.WithPrometheusRegisterer(promMetrics.ScopedPrometheusRegisterer("openpolicyagent")))
-		}
-
-		opaRegistry, err = openpolicyagent.NewOpenPolicyAgentRegistry(opaRegistryOpts...)
-		if err != nil {
-			log.Errorf("failed to create Open Policy Agent registry: %v.", err)
-			return err
-		}
-		defer opaRegistry.Close()
-
-		o.CustomFilters = append(o.CustomFilters,
-			opaauthorizerequest.NewOpaAuthorizeRequestSpec(opaRegistry),
-			opaauthorizerequest.NewOpaAuthorizeRequestWithBodySpec(opaRegistry),
-			opaserveresponse.NewOpaServeResponseSpec(opaRegistry),
-			opaserveresponse.NewOpaServeResponseWithReqBodySpec(opaRegistry),
-		)
+	opa, err := newOpenPolicyAgent(&o, tracer, mtr)
+	if err != nil {
+		log.Errorf("failed to create Open Policy Agent registry: %v.", err)
+		return err
 	}
+	defer opa.close()
+	o.CustomFilters = append(o.CustomFilters, opa.filters...)
 
 	if len(o.CompressEncodings) > 0 {
 		compress, err := builtin.NewCompressWithOptions(builtin.CompressOptions{Encodings: o.CompressEncodings})
@@ -2770,13 +2736,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ro.PreProcessors = append(ro.PreProcessors, o.OAuthGrantConfig.NewGrantPreprocessor())
 	}
 
-	if o.EnableOpenPolicyAgent {
-		// Add PreProcessor for instance pre-loading (only when flag is enabled)
-		if o.EnableOpenPolicyAgentPreloading {
-			ro.PreProcessors = append(ro.PreProcessors, opaRegistry.NewPreProcessor())
-		}
-		ro.PostProcessors = append(ro.PostProcessors, opaRegistry)
-	}
+	ro.PreProcessors = append(ro.PreProcessors, opa.preProcessors...)
+	ro.PostProcessors = append(ro.PostProcessors, opa.postProcessors...)
 
 	// check if MTLS configuration is correct and we can start MTLS in the proxy
 	if o.EnableMTLS {

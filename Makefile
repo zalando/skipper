@@ -28,7 +28,7 @@ lib: $(SOURCES) ## build skipper library
 
 .PHONY: skipper
 skipper: $(SOURCES) ## build skipper binary
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skipper ./cmd/skipper
+	go build -tags opa -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skipper ./cmd/skipper
 
 .PHONY: eskip
 eskip: $(SOURCES) ## build eskip binary
@@ -52,38 +52,40 @@ endif
 build: $(SOURCES) lib skipper eskip webhook routesrv ## build library and all binaries
 
 build.linux.static: ## build static linux binary for amd64
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-extldflags=-static -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags opa -o bin/skipper -ldflags "-extldflags=-static -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.linux.arm64: ## build linux binary for arm64
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags opa -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.linux.armv7: ## build linux binary for arm7
-	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -tags opa -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.linux:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags opa -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.darwin.arm64: ## build osx binary for arm64
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -tags opa -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.darwin: ## build osx binary for amd64
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -tags opa -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.windows: ## build windows binary for amd64
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -tags opa -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 .PHONY: install
 install: $(SOURCES) ## install skipper and eskip binaries into your system
-	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	go install -tags opa -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
 
 .PHONY: check
 check: build check-plugins ## run all tests
 	go test ./...
+	go test -tags opa -run ^TestNewOpenPolicyAgent .
 
 .PHONY: shortcheck
 shortcheck: build check-plugins fixlimits  ## run all short tests
 	go test -test.short ./...
+	go test -tags opa -run ^TestNewOpenPolicyAgent .
 
 .PHONY: shortcheck_rest
 shortcheck_rest: build check-plugins fixlimits  ## run all short tests
@@ -104,12 +106,14 @@ shortcheck_net: fixlimits  ## run ./net short tests
 .PHONY: check-race
 check-race: build ## run all short tests with race checker
 	go test -race -test.short ./...
+	go test -race -tags opa -run ^TestNewOpenPolicyAgent .
 .PHONY: check-race_rest
 check-race_rest: build ## run rest short tests with race checker
 	for p in $(REST_PACKAGES); do go test -race -test.short -run ^Test $$p || break -1; done
 .PHONY: check-race_skipper
 check-race_skipper: fixlimits ## run ./ short tests with race checker
 	go test -race -test.short ./
+	go test -race -tags opa -run ^TestNewOpenPolicyAgent .
 .PHONY: check-race_proxy
 check-race_proxy: fixlimits ## run ./proxy short tests with race checker
 	go test -race -test.short ./proxy
@@ -159,6 +163,7 @@ deps: ## install dependencies to run everything
 .PHONY: vet
 vet: $(SOURCES) ## run Go vet
 	go vet ./...
+	go vet -tags opa .
 
 .PHONY: staticcheck
 # TODO(sszuecs) review disabling these checks, f.e.:
@@ -166,6 +171,7 @@ vet: $(SOURCES) ## run Go vet
 # -ST1020 too many wrong comments on exported functions to fix right away
 staticcheck: $(SOURCES) ## run staticcheck
 	staticcheck -checks "all,-ST1003,-ST1020" ./...
+	staticcheck -tags opa -checks "all,-ST1003,-ST1020" .
 
 .PHONY: gosec
 # TODO(sszuecs) review disabling these checks, f.e.:
