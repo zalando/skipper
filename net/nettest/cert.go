@@ -151,12 +151,22 @@ func NewCA(t testing.TB) *CA {
 // hosts, defaulting to 127.0.0.1 when none are given. The result is PEM-encoded.
 func (ca *CA) ServerCert(t testing.TB, hosts ...string) (certPEM, keyPEM []byte) {
 	t.Helper()
+	certPEM, keyPEM, err := ca.GenServerCert(hosts...)
+	if err != nil {
+		t.Fatalf("nettest: %v", err)
+	}
+	return
+}
+
+// GenServerCert is the testing.TB-free variant of ServerCert for callers
+// without a test handle, e.g. container lifecycle hooks.
+func (ca *CA) GenServerCert(hosts ...string) (certPEM, keyPEM []byte, err error) {
 	if len(hosts) == 0 {
 		hosts = []string{"127.0.0.1"}
 	}
 	dnsNames, ipAddrs := SplitHosts(hosts)
 	now := time.Now()
-	certPEM, keyPEM, _, _ = MustGenCert(t, CertOptions{
+	certPEM, keyPEM, _, _, err = GenCert(CertOptions{
 		CN:           "nettest-server",
 		SanDNS:       dnsNames,
 		SanIP:        ipAddrs,

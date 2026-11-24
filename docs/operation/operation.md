@@ -2131,6 +2131,10 @@ When `--enable-swarm` and `--enable-l2-cache` are set, a configured Valkey
 (L2) accessible by all Skipper instances via client-side consistent hashing; every read checks
 L1 first and an L1 hit returns without contacting L2 cache. Without `--enable-l2-cache`, the
 configured ring is not used by the `cache()` filter, which uses L1 exclusively.
+The connection to the Valkey or Redis ring can be secured with mutual TLS via
+`-enable-swarm-mtls`, `-swarm-client-cert`, `-swarm-client-key`, `-swarm-ca` and
+`-swarm-client-cert-refresh-interval`, see [Valkey swarm mTLS](../tutorials/ratelimit.md#valkey-swarm-mtls)
+and [Redis swarm mTLS](../tutorials/ratelimit.md#redis-swarm-mtls).
 
 On every successful L2 write the entry is also written to L1
 (write-through) with a TTL of `min(--cache-l1-ttl, entry.TTL)`. On a L2

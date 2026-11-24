@@ -2,8 +2,11 @@ package net
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
+	"net"
 	"sync"
 	"time"
 
@@ -78,6 +81,24 @@ type RedisOptions struct {
 
 	// HashAlgorithm is one of rendezvous, rendezvousVnodes, jump, mpchash, defaults to github.com/go-redis/redis default
 	HashAlgorithm string
+
+	// EnableMTLS enables swarm mTLS. It requires ClientCertFile and
+	// ClientKeyFile. If the client keypair can not be loaded, every
+	// dial fails with the load error.
+	EnableMTLS bool
+
+	// CA verifies the swarm shard server certificates. If nil, the system roots are used.
+	CA *x509.CertPool
+
+	// ClientCertFile is the path to a PEM-encoded client certificate presented to swarm shards.
+	ClientCertFile string
+
+	// ClientKeyFile is the path to a PEM-encoded private key of ClientCertFile.
+	ClientKeyFile string
+
+	// ClientCertRefreshInterval is how often ClientCertFile/ClientKeyFile are re-read.
+	// Defaults to 5 minutes if zero.
+	ClientCertRefreshInterval time.Duration
 }
 
 // RedisRingClient is a redis client that does access redis by
@@ -87,6 +108,7 @@ type RedisOptions struct {
 // to be in the hot path of low latency production requests.
 type RedisRingClient struct {
 	ring          *redis.Ring
+	certReloader  *CertReloader
 	log           logging.Logger
 	metrics       metrics.Metrics
 	metricsPrefix string
@@ -205,6 +227,20 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		tracer:  &opentracing.NoopTracer{},
 	}
 
+	var (
+		tlsConfig *tls.Config
+		tlsErr    error
+	)
+	if ro != nil {
+		if ro.Log == nil {
+			ro.Log = &logging.DefaultLog{}
+		}
+		tlsConfig, r.certReloader, tlsErr = newSwarmClientTLS(ro.EnableMTLS, ro.ClientCertFile, ro.ClientKeyFile, ro.CA, ro.ClientCertRefreshInterval, ro.Log)
+		if tlsErr != nil {
+			ro.Log.Errorf("Failed to create redis ring client TLS config: %v", tlsErr)
+		}
+	}
+
 	ringOptions := &redis.RingOptions{
 		Addrs: map[string]string{},
 		NewClient: func(opt *redis.Options) *redis.Client {
@@ -226,6 +262,12 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 			opt.MaintNotificationsConfig = &maintnotifications.Config{
 				Mode: maintnotifications.ModeDisabled,
 			}
+			opt.TLSConfig = tlsConfig
+			if tlsErr != nil {
+				opt.Dialer = func(context.Context, string, string) (net.Conn, error) {
+					return nil, tlsErr
+				}
+			}
 
 			return redis.NewClient(opt)
 		},
@@ -243,10 +285,6 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 			ringOptions.NewConsistentHash = NewJumpHash
 		case "mpchash":
 			ringOptions.NewConsistentHash = NewMultiprobe
-		}
-
-		if ro.Log == nil {
-			ro.Log = &logging.DefaultLog{}
 		}
 
 		if ro.AddrUpdater != nil {
@@ -399,6 +437,9 @@ func (r *RedisRingClient) Close() error {
 		close(r.quit)
 		if r.ring != nil {
 			err = r.ring.Close()
+		}
+		if r.certReloader != nil {
+			r.certReloader.Close()
 		}
 	})
 	return err

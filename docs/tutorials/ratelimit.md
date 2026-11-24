@@ -137,6 +137,30 @@ If you have [routesrv proxy](https://opensource.zalando.com/skipper/kubernetes/i
 you need to configure Skipper with the flag `-swarm-redis-remote=http://<routesrv-service-name>.<routesrv-namespace>.svc.cluster.local/swarm/redis/shards`.
 `Routesrv` will be responsible for collecting Redis endpoints and Skipper will poll them from it.
 
+#### Redis swarm mTLS
+
+To connect to Redis with mutual TLS, enable swarm mTLS and provide Skipper's
+client keypair and the CA files that sign the Redis server certificates:
+
+```
+-enable-swarm-mtls
+-swarm-client-cert=/path/client.crt
+-swarm-client-key=/path/client.key
+-swarm-ca=/path/ca.crt
+```
+
+Skipper presents the client certificate to every Redis shard and verifies the
+Redis server certificate against the CA files. The server certificate must
+have a SAN that matches the host Skipper dials, for example the service DNS
+name in `-swarm-redis-urls`. If Skipper discovers shards by Kubernetes endpoints or
+routesrv, it dials pod IPs, so the server certificate must have the pod IPs as
+SANs. Multiple CA files can be given comma separated. Without `-swarm-ca`
+Skipper uses the system roots. `-enable-swarm-mtls` requires
+`-swarm-client-cert` and `-swarm-client-key`, otherwise Skipper does not start.
+Skipper re-reads the keypair every `-swarm-client-cert-refresh-interval`
+(default 5m) and uses a rotated certificate for new connections within about
+two refresh intervals, without a restart. The same flags configure swarm mTLS for a Valkey swarm (see below).
+
 #### Implementation
 
 The implementation use [Redis ring](https://pkg.go.dev/github.com/go-redis/redis#Ring)
@@ -196,6 +220,30 @@ that should return data in the following JSON format:
 If you have [routesrv proxy](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#routesrv) enabled,
 you need to configure Skipper with the flag `-swarm-valkey-remote=http://<routesrv-service-name>.<routesrv-namespace>.svc.cluster.local/swarm/valkey/shards`.
 `Routesrv` will be responsible for collecting Valkey endpoints and Skipper will poll them from it.
+
+#### Valkey swarm mTLS
+
+To connect to Valkey with mutual TLS, enable swarm mTLS and provide Skipper's
+client keypair and the CA files that sign the Valkey server certificates:
+
+```
+-enable-swarm-mtls
+-swarm-client-cert=/path/client.crt
+-swarm-client-key=/path/client.key
+-swarm-ca=/path/ca.crt
+```
+
+Skipper presents the client certificate to every Valkey shard and verifies the
+Valkey server certificate against the CA files. The server certificate must
+have a SAN that matches the host Skipper dials, for example the service DNS
+name in `-swarm-valkey-urls`. If Skipper discovers shards by Kubernetes endpoints or
+routesrv, it dials pod IPs, so the server certificate must have the pod IPs as
+SANs. Multiple CA files can be given comma separated. Without `-swarm-ca`
+Skipper uses the system roots. `-enable-swarm-mtls` requires
+`-swarm-client-cert` and `-swarm-client-key`, otherwise Skipper does not start.
+Skipper re-reads the keypair every `-swarm-client-cert-refresh-interval`
+(default 5m) and uses a rotated certificate for new connections within about
+two refresh intervals, without a restart. The same flags configure swarm mTLS for a Redis swarm (see above).
 
 #### Implementation
 
