@@ -16,6 +16,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/secrets/certregistry"
 )
 
@@ -533,6 +534,10 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 // see https://github.com/zalando/skipper/issues/1525
 func shuntRoute(r *eskip.Route) {
 	r.Filters = []*eskip.Filter{
+		{
+			Name: filters.SetResponseHeaderName,
+			Args: []any{proxy.SkipperErrResponseFlag, proxy.SkipperErrResponseFlagNoReadyEndpoints},
+		},
 		{
 			Name: filters.StatusName,
 			Args: []any{502.0},
