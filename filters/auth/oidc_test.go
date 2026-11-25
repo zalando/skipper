@@ -2050,3 +2050,16 @@ func TestOidcConstructorsAndInternalServerError(t *testing.T) {
 		}
 	})
 }
+
+func TestOidcSpecRedactArgs(t *testing.T) {
+	args := []any{"https://issuer.example.org", "client-id", "client-secret", "https://app.example.org/callback"}
+
+	spec := NewOAuthOidcAnyClaims("", nil).(filters.RedactableSpec)
+	got := spec.RedactArgs(args)
+	if got[paramClientSecret] != "<redacted>" || got[paramClientID] != "client-id" || got[paramCallbackURL] != args[paramCallbackURL] {
+		t.Errorf("unexpected redacted args: %v", got)
+	}
+	if args[paramClientSecret] != "client-secret" {
+		t.Errorf("original args modified: %v", args)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -1270,5 +1271,96 @@ func TestRoutingHandlerInvalidParamDefaultBehavior(t *testing.T) {
 		if got, want := len(routes), 2; got != want {
 			t.Errorf("param=%q: valid routes count = %v, want %v", param, got, want)
 		}
+	}
+}
+
+type secretArgSpec struct {
+	name string
+	fail bool
+}
+
+type secretArgFilter struct {
+	args []any
+}
+
+func redactSecretArgs(args []any) []any {
+	out := make([]any, len(args))
+	for i := range out {
+		out[i] = "<redacted>"
+	}
+	return out
+}
+
+func (s *secretArgSpec) Name() string { return s.name }
+
+func (s *secretArgSpec) CreateFilter(args []any) (filters.Filter, error) {
+	if s.fail {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+	return &secretArgFilter{args: args}, nil
+}
+
+func (*secretArgSpec) RedactArgs(args []any) []any { return redactSecretArgs(args) }
+
+func (*secretArgFilter) Request(filters.FilterContext)  {}
+func (*secretArgFilter) Response(filters.FilterContext) {}
+func (f *secretArgFilter) RedactedArgs() []any          { return redactSecretArgs(f.args) }
+
+func TestRoutingHandlerInvalidRoutesRedacted(t *testing.T) {
+	const secret = "s3cr3t-client-secret"
+
+	dc, _ := testdataclient.NewDoc(`
+		valid: Path("/valid") -> secretArg("` + secret + `") -> <shunt>;
+		createFailed: Path("/create") -> secretArgFail("` + secret + `") -> <shunt>;
+		otherFilterFailed: Path("/other") -> secretArg("` + secret + `") -> unknownFilter() -> <shunt>;
+		matcherFailed: PathRegexp("(") -> secretArg("` + secret + `") -> <shunt>`)
+	defer dc.Close()
+
+	fr := builtin.MakeRegistry()
+	fr.Register(&secretArgSpec{name: "secretArg"})
+	fr.Register(&secretArgSpec{name: "secretArgFail", fail: true})
+
+	tr, _ := newTestRoutingWithFilters(fr, dc)
+	defer tr.close()
+
+	server := httptest.NewServer(tr.routing)
+	defer server.Close()
+
+	for _, tc := range []struct {
+		query  string
+		accept string
+		count  string
+	}{
+		{"", "", "1"},
+		{"", "application/json", "1"},
+		{"?invalid=true", "", "3"},
+		{"?invalid=true", "application/json", "3"},
+	} {
+		t.Run(tc.query+tc.accept, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", server.URL+tc.query, nil)
+			req.Header.Set("Accept", tc.accept)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := resp.Header.Get(routing.RoutesCountName); got != tc.count {
+				t.Fatalf("X-Count header = %v, want %v", got, tc.count)
+			}
+
+			if strings.Contains(string(b), secret) {
+				t.Errorf("secret exposed: %s", b)
+			}
+
+			if !strings.Contains(string(b), "redacted") {
+				t.Errorf("redacted placeholder missing: %s", b)
+			}
+		})
 	}
 }
