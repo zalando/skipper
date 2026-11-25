@@ -981,6 +981,30 @@ The example matches the key of baggage item key `foo` with its corresponding val
 OTelBaggage("foo", "bar")
 ```
 
+The baggage available to this predicate is extracted from the incoming
+request headers using a [TextMapPropagator](https://pkg.go.dev/go.opentelemetry.io/otel/propagation#TextMapPropagator).
+
+When OpenTelemetry is configured (the `OpenTelemetry` YAML option), the
+predicate uses the same globally configured propagator as the rest of
+OpenTelemetry, built from the `propagators` option or `OTEL_PROPAGATORS`.
+Otherwise, it reads the `OTEL_PROPAGATORS` environment variable directly,
+following the [autoprop conventions](https://pkg.go.dev/go.opentelemetry.io/contrib/propagators/autoprop),
+defaulting to the W3C `tracecontext` and `baggage` propagators when unset so
+the W3C `baggage` HTTP header works out of the box. Setting other
+propagators, such as `ottrace`, additionally extracts baggage from their
+respective header formats (e.g. OpenTracing's `ot-baggage-*` headers, which
+also require valid `ot-tracer-*` headers in the same request).
+
+This predicate never matches if the effective propagator list is `none`, or
+does not include a baggage-extracting propagator such as `baggage` or
+`ottrace`. If a request carries baggage in more than one propagator's
+format, only the **last** propagator in the list that finds a non-empty
+baggage header is used - that extraction replaces the entire baggage set,
+not just keys with the same name. For example, with `ottrace,baggage`, a
+request sending both `ot-baggage-*` headers and a `baggage` header only ever
+matches on `baggage` header items; the `ot-baggage-*` items are discarded
+entirely. To avoid this, send baggage in only one format per request.
+
 ## TLS
 
 Predicates matching client certificate data to route.  Predicates do
