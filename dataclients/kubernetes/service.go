@@ -10,6 +10,7 @@ import (
 type servicePort struct {
 	Name       string                   `json:"name"`
 	Port       int                      `json:"port"`
+	Protocol   string                   `json:"protocol"`
 	TargetPort *definitions.BackendPort `json:"targetPort"` // string or int
 }
 
@@ -69,10 +70,10 @@ func (s *service) getServicePortV1(port definitions.BackendPortV1) (*servicePort
 	return nil, fmt.Errorf("getServicePortV1: service port not found %v given %v", s.Spec.Ports, port)
 }
 
-func (s *service) getTargetPortByValue(p int) (*definitions.BackendPort, bool) {
+func (s *service) getServicePortByValue(p int) (*servicePort, bool) {
 	for _, pi := range s.Spec.Ports {
 		if pi.Port == p {
-			return pi.TargetPort, true
+			return pi, true
 		}
 	}
 
