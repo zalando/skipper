@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	stdcontext "context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -13,9 +14,17 @@ import (
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	skpotel "github.com/zalando/skipper/predicates/otel"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing/tracingtest"
+	ottrace "go.opentelemetry.io/contrib/propagators/ot"
+	"go.opentelemetry.io/otel"
+	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
+	"go.opentelemetry.io/otel/propagation"
+	oteltracesdk "go.opentelemetry.io/otel/sdk/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -967,6 +976,316 @@ matched:  OTelBaggage("baggage_key", "sub_key=sub_value") -> "%s";
 			assert.Equal(t, tc.expectedResponseCode, rsp.StatusCode,
 				"OTelBaggage predicate did not match: baggage from incoming W3C header was not extracted into context")
 		})
+	}
+}
+
+// otelBaggageResponseCode builds a one-route test proxy for the OTelBaggage
+// predicate, sends a request with headers set by setHeaders and returns the
+// response status code.
+func otelBaggageResponseCode(t *testing.T, params Params, doc func(backendURL string) string, setHeaders func(h http.Header)) int {
+	t.Helper()
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer backend.Close()
+
+	tp, err := newTestProxyWithPredicatesAndParams([]routing.PredicateSpec{skpotel.NewBaggage()}, doc(backend.URL), params)
+	require.NoError(t, err)
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	req, err := http.NewRequest("GET", ps.URL+"/", nil)
+	require.NoError(t, err)
+	setHeaders(req.Header)
+
+	rsp, err := ps.Client().Do(req)
+	require.NoError(t, err)
+	defer rsp.Body.Close()
+	io.Copy(io.Discard, rsp.Body)
+
+	return rsp.StatusCode
+}
+
+func otelBaggageDoc(key, value string) func(string) string {
+	return func(backendURL string) string {
+		return fmt.Sprintf(`matched: OTelBaggage(%q, %q) -> %q;`, key, value, backendURL)
+	}
+}
+
+func TestOTelBaggagePredicateWithOTELPropagators(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		otelPropagators      string
+		setHeaders           func(h http.Header)
+		expectedResponseCode int
+	}{
+		{
+			name:            "W3C baggage header, OTEL_PROPAGATORS unset",
+			otelPropagators: "",
+			setHeaders: func(h http.Header) {
+				h.Set("baggage", "baggage_key=sub_value")
+			},
+			expectedResponseCode: http.StatusOK,
+		},
+		{
+			name:            "ot-baggage header with valid ot-tracer headers, OTEL_PROPAGATORS=ottrace",
+			otelPropagators: "ottrace",
+			setHeaders: func(h http.Header) {
+				h.Set("ot-tracer-traceid", "0000000000000001")
+				h.Set("ot-tracer-spanid", "0000000000000001")
+				h.Set("ot-tracer-sampled", "true")
+				h.Set("ot-baggage-baggage_key", "sub_value")
+			},
+			expectedResponseCode: http.StatusOK,
+		},
+		{
+			name:            "ot-baggage header without ot-tracer headers is not extracted",
+			otelPropagators: "ottrace",
+			setHeaders: func(h http.Header) {
+				h.Set("ot-baggage-baggage_key", "sub_value")
+			},
+			expectedResponseCode: http.StatusNotFound,
+		},
+		{
+			name:            "W3C baggage header still works alongside ottrace",
+			otelPropagators: "ottrace,baggage",
+			setHeaders: func(h http.Header) {
+				h.Set("baggage", "baggage_key=sub_value")
+			},
+			expectedResponseCode: http.StatusOK,
+		},
+		{
+			name:                 "no baggage headers at all",
+			otelPropagators:      "",
+			setHeaders:           func(h http.Header) {},
+			expectedResponseCode: http.StatusNotFound,
+		},
+		{
+			name:            "OTEL_PROPAGATORS=none disables baggage extraction, including the W3C header",
+			otelPropagators: "none",
+			setHeaders: func(h http.Header) {
+				h.Set("baggage", "baggage_key=sub_value")
+			},
+			expectedResponseCode: http.StatusNotFound,
+		},
+		{
+			name:            "OTEL_PROPAGATORS without baggage disables the W3C header",
+			otelPropagators: "tracecontext",
+			setHeaders: func(h http.Header) {
+				h.Set("baggage", "baggage_key=sub_value")
+			},
+			expectedResponseCode: http.StatusNotFound,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.otelPropagators != "" {
+				t.Setenv("OTEL_PROPAGATORS", tc.otelPropagators)
+			}
+
+			params := Params{OpenTracing: &OpenTracingParams{Tracer: tracingtest.NewTracer()}}
+			code := otelBaggageResponseCode(t, params, otelBaggageDoc("baggage_key", "sub_value"), tc.setHeaders)
+			assert.Equal(t, tc.expectedResponseCode, code)
+		})
+	}
+}
+
+// With a BridgeTracer (OpenTelemetry configured via sotel.Init), OTelBaggage
+// reads the globally configured propagator (the "propagators" option or
+// OTEL_PROPAGATORS, via sotel.Init) instead of reading OTEL_PROPAGATORS
+// itself.
+func TestOTelBaggagePredicateWithBridgeTracerPropagator(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		globalPropagator     propagation.TextMapPropagator
+		setHeaders           func(h http.Header)
+		expectedResponseCode int
+	}{
+		{
+			name:             "global propagator set to ottrace",
+			globalPropagator: ottrace.OT{},
+			setHeaders: func(h http.Header) {
+				h.Set("ot-tracer-traceid", "0000000000000001")
+				h.Set("ot-tracer-spanid", "0000000000000001")
+				h.Set("ot-tracer-sampled", "true")
+				h.Set("ot-baggage-baggage_key", "sub_value")
+			},
+			expectedResponseCode: http.StatusOK,
+		},
+		{
+			name:             "global propagator set to tracecontext and baggage",
+			globalPropagator: propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}),
+			setHeaders: func(h http.Header) {
+				h.Set("baggage", "baggage_key=sub_value")
+			},
+			expectedResponseCode: http.StatusOK,
+		},
+		{
+			name:             "empty global propagator",
+			globalPropagator: propagation.NewCompositeTextMapPropagator(),
+			setHeaders: func(h http.Header) {
+				h.Set("baggage", "baggage_key=sub_value")
+			},
+			expectedResponseCode: http.StatusNotFound,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			previous := otel.GetTextMapPropagator()
+			otel.SetTextMapPropagator(tc.globalPropagator)
+			t.Cleanup(func() { otel.SetTextMapPropagator(previous) })
+
+			otelTracerProvider := oteltracesdk.NewTracerProvider()
+			defer otelTracerProvider.Shutdown(stdcontext.Background())
+			bridgeTracer, _ := otBridge.NewTracerPair(otelTracerProvider.Tracer("test"))
+
+			params := Params{OpenTracing: &OpenTracingParams{Tracer: bridgeTracer}}
+			code := otelBaggageResponseCode(t, params, otelBaggageDoc("baggage_key", "sub_value"), tc.setHeaders)
+			assert.Equal(t, tc.expectedResponseCode, code)
+		})
+	}
+}
+
+func TestOTelBaggagePredicateWithConflictingFormats(t *testing.T) {
+	t.Setenv("OTEL_PROPAGATORS", "ottrace,baggage")
+
+	for _, tc := range []struct {
+		name       string
+		setHeaders func(h http.Header)
+		key        string
+		value      string
+		want       bool
+	}{
+		{
+			name: "same key in both formats: baggage (last propagator) wins",
+			setHeaders: func(h http.Header) {
+				h.Set("ot-tracer-traceid", "0000000000000001")
+				h.Set("ot-tracer-spanid", "0000000000000001")
+				h.Set("ot-tracer-sampled", "true")
+				h.Set("ot-baggage-shared_key", "from_ot_baggage")
+				h.Set("baggage", "shared_key=from_w3c_baggage")
+			},
+			key: "shared_key", value: "from_w3c_baggage",
+			want: true,
+		},
+		{
+			name: "same key in both formats: ot-baggage value is overridden, so it does not match",
+			setHeaders: func(h http.Header) {
+				h.Set("ot-tracer-traceid", "0000000000000001")
+				h.Set("ot-tracer-spanid", "0000000000000001")
+				h.Set("ot-tracer-sampled", "true")
+				h.Set("ot-baggage-shared_key", "from_ot_baggage")
+				h.Set("baggage", "shared_key=from_w3c_baggage")
+			},
+			key: "shared_key", value: "from_ot_baggage",
+			want: false,
+		},
+		{
+			name: "different keys in different formats: baggage (last propagator) still replaces the ot-baggage set entirely",
+			setHeaders: func(h http.Header) {
+				h.Set("ot-tracer-traceid", "0000000000000001")
+				h.Set("ot-tracer-spanid", "0000000000000001")
+				h.Set("ot-tracer-sampled", "true")
+				h.Set("ot-baggage-ot_key", "ot_value")
+				h.Set("baggage", "w3c_key=w3c_value")
+			},
+			key: "ot_key", value: "ot_value",
+			want: false,
+		},
+		{
+			name: "different keys in different formats: the W3C key from the last propagator still matches",
+			setHeaders: func(h http.Header) {
+				h.Set("ot-tracer-traceid", "0000000000000001")
+				h.Set("ot-tracer-spanid", "0000000000000001")
+				h.Set("ot-tracer-sampled", "true")
+				h.Set("ot-baggage-ot_key", "ot_value")
+				h.Set("baggage", "w3c_key=w3c_value")
+			},
+			key: "w3c_key", value: "w3c_value",
+			want: true,
+		},
+		{
+			name: "ot-baggage key survives when the W3C baggage header is absent",
+			setHeaders: func(h http.Header) {
+				h.Set("ot-tracer-traceid", "0000000000000001")
+				h.Set("ot-tracer-spanid", "0000000000000001")
+				h.Set("ot-tracer-sampled", "true")
+				h.Set("ot-baggage-ot_key", "ot_value")
+			},
+			key: "ot_key", value: "ot_value",
+			want: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			params := Params{OpenTracing: &OpenTracingParams{Tracer: tracingtest.NewTracer()}}
+			code := otelBaggageResponseCode(t, params, otelBaggageDoc(tc.key, tc.value), tc.setHeaders)
+
+			wantCode := http.StatusNotFound
+			if tc.want {
+				wantCode = http.StatusOK
+			}
+			assert.Equal(t, wantCode, code)
+		})
+	}
+}
+
+// Baggage extraction must not replace the native OTel ingress span with one
+// derived from an incoming traceparent header (OTel's trace.ContextWithSpan
+// and trace.ContextWithRemoteSpanContext share the same context key).
+func TestOTelBaggageExtractionPreservesIngressSpan(t *testing.T) {
+	previous := otel.GetTextMapPropagator()
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	t.Cleanup(func() { otel.SetTextMapPropagator(previous) })
+
+	otelTracerProvider := oteltracesdk.NewTracerProvider()
+	defer otelTracerProvider.Shutdown(stdcontext.Background())
+	bridgeTracer, _ := otBridge.NewTracerPair(otelTracerProvider.Tracer("test"))
+
+	fr := builtin.MakeRegistry()
+	fr.Register(&captureNativeOTelSpanID{})
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer backend.Close()
+
+	doc := fmt.Sprintf(`matched: * -> captureNativeOTelSpanID() -> "%s";`, backend.URL)
+	tp, err := newCustomTestProxy(nil, fr, doc, Params{
+		OpenTracing: &OpenTracingParams{Tracer: bridgeTracer},
+	}, nil)
+	require.NoError(t, err)
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	req, err := http.NewRequest("GET", ps.URL+"/", nil)
+	require.NoError(t, err)
+	req.Header.Set("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+
+	rsp, err := ps.Client().Do(req)
+	require.NoError(t, err)
+	defer rsp.Body.Close()
+	io.Copy(io.Discard, rsp.Body)
+
+	gotSpanID := rsp.Header.Get("X-Native-Otel-Span-Id")
+	assert.NotEmpty(t, gotSpanID)
+	assert.NotEqual(t, "b7ad6b7169203331", gotSpanID,
+		"native OTel context should keep skipper's own ingress span, not the incoming traceparent's span")
+}
+
+// captureNativeOTelSpanID reads the native OTel span out of the request
+// context and returns it in a response header for assertions.
+type captureNativeOTelSpanID struct{}
+
+func (f *captureNativeOTelSpanID) Name() string { return "captureNativeOTelSpanID" }
+func (f *captureNativeOTelSpanID) CreateFilter([]any) (filters.Filter, error) {
+	return f, nil
+}
+func (f *captureNativeOTelSpanID) Request(ctx filters.FilterContext) {
+	sc := oteltrace.SpanContextFromContext(ctx.Request().Context())
+	ctx.StateBag()["native-otel-span-id"] = sc.SpanID().String()
+}
+func (f *captureNativeOTelSpanID) Response(ctx filters.FilterContext) {
+	if id, ok := ctx.StateBag()["native-otel-span-id"].(string); ok {
+		ctx.Response().Header.Set("X-Native-Otel-Span-Id", id)
 	}
 }
 

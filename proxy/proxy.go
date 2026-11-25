@@ -46,6 +46,9 @@ import (
 	"github.com/zalando/skipper/rfc"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/contrib/propagators/autoprop"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/baggage"
 	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/propagation"
 )
@@ -517,6 +520,7 @@ type Proxy struct {
 	hostname                 string
 	onPanicSometimes         rate.Sometimes
 	cr                       *snet.CertReloader
+	baggagePropagator        propagation.TextMapPropagator
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -973,6 +977,7 @@ func WithParams(p Params) *Proxy {
 		hostname:                 hostname,
 		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
 		cr:                       cr,
+		baggagePropagator:        autoprop.NewTextMapPropagator(),
 	}
 }
 
@@ -1898,12 +1903,17 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctxWithSpan := ot.ContextWithSpan(r.Context(), span)
 
 	// https://pkg.go.dev/go.opentelemetry.io/otel/bridge/opentracing#readme-interop-from-trace-context-from-opentracing-to-opentelemetry
+	baggagePropagator := p.baggagePropagator
 	if bridgeTracer, ok := p.tracing.tracer.(*otBridge.BridgeTracer); ok {
 		ctxWithSpan = bridgeTracer.ContextWithSpanHook(ctxWithSpan, span)
+		// The global propagator is a no-op unless OpenTelemetry is configured.
+		baggagePropagator = otel.GetTextMapPropagator()
 	}
 
-	// Always extract baggage headers even when no valid trace context is present.
-	ctxWithSpan = propagation.Baggage{}.Extract(ctxWithSpan, propagation.HeaderCarrier(r.Header))
+	// Extract baggage even without a valid trace context (#4011), into a
+	// scratch context so TraceContext/ottrace cannot replace the ingress span.
+	extracted := baggagePropagator.Extract(stdlibcontext.Background(), propagation.HeaderCarrier(r.Header))
+	ctxWithSpan = baggage.ContextWithBaggage(ctxWithSpan, baggage.FromContext(extracted))
 
 	rCtx := routing.NewContext(ctxWithSpan)
 
