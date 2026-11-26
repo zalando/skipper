@@ -4015,6 +4015,34 @@ tracingSpanName("api-operation")
 
 Some filters influence how load balancing will be done
 
+### hedge
+
+Enables adaptive hedging for eligible requests sent to an LB Backend. The filter accepts no parameters:
+
+```
+items: Path("/items") -> hedge() -> <roundRobin, "http://backend-a.example:8080", "http://backend-b.example:8080">;
+```
+
+Hedging is limited to bodyless `GET` and `HEAD` requests. Protocol upgrades, other methods, requests with bodies, non-LB backends, and requests without an eligible alternative endpoint keep their normal proxy behavior. A backend must honor HTTP safe-method semantics: `GET` is not safe if it causes application-side changes. Both attempts can execute backend work, and canceling a loser does not undo its effects.
+
+After a route has collected 100 response-header samples, its observed p95 response-header latency sets the delay before a second attempt. A sample measures from the first attempt's start until the winning HTTP response headers arrive; only eligible requests that produce an HTTP response contribute, and losing attempts do not add samples. The bounded, exponentially decaying history favors recent observations but is not a strict one-minute rolling window. After one minute without eligible traffic, the next eligible request resets both history and allowance, so hedging waits for another 100 response samples.
+
+Each route starts with no additional-attempt allowance and earns one per 20 eligible requests, up to one available allowance. This is a ceiling of 5% extra attempts over eligible traffic, not a target. Dial-failure retries and delayed hedges share the allowance and a two-attempt total limit. A second attempt starts only if the first has not returned response headers, an alternative eligible LB endpoint exists, allowance is available, and the original request deadline has not expired.
+
+The first HTTP response wins, including 4xx and 5xx responses. A transport error does not defeat another attempt that is still running. The winning response body is streamed normally; the proxy does not switch responses after headers and hedging cannot protect against a body that stalls after headers arrive.
+
+State is kept per route. Routine updates preserve it when the Route ID and the rest of the route definition are unchanged, including endpoint membership changes. Other route-definition changes and deletion followed by recreation reset state. Skipper's standard setup registers independent state postprocessors for normal and priority routes. Applications that construct routing options directly must register the specification and its postprocessors for each independently updated route population:
+
+```go
+hedgeSpec := hedge.New()
+filterRegistry.Register(hedgeSpec)
+normalOptions.PostProcessors = append(normalOptions.PostProcessors, hedgeSpec.(routing.PostProcessor))
+priorityProcessor := hedgeSpec.(interface {
+    NewRoutePostProcessor() routing.PostProcessor
+}).NewRoutePostProcessor()
+priorityOptions.PostProcessors = append(priorityOptions.PostProcessors, priorityProcessor)
+```
+
 ### fadeIn
 
 When this filter is set, then the newly added endpoints will receive

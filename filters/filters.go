@@ -39,6 +39,9 @@ const (
 	// BackendSkipTLSVerify is the key used in the state bag to instruct the proxy to skip TLS
 	// certificate verification for the backend. Only effective when AllowInsecureBackend is enabled globally.
 	BackendSkipTLSVerify = "backend:skip-tls-verify"
+
+	// HedgeStateKey is the key used in the state bag to share per-route hedge state with the proxy.
+	HedgeStateKey = "backend:hedge"
 )
 
 // FilterContext object providing state and information that is unique to a request.
@@ -184,6 +187,28 @@ type Filter interface {
 	// The Response method is called while processing the response to be
 	// returned.
 	Response(FilterContext)
+}
+
+// HedgeState provides the per-route retry budget shared by the hedge filter and proxy.
+type HedgeState interface {
+	// RecordEligibleRequest records an eligible request and returns the generation
+	// to use for the rest of that request.
+	RecordEligibleRequest() HedgeState
+
+	// TryReserveRetry reserves the route's available retry allowance.
+	TryReserveRetry() bool
+
+	// CommitRetry marks the reserved allowance as consumed by a retry.
+	CommitRetry()
+
+	// ReleaseRetry returns a reserved allowance when no retry starts.
+	ReleaseRetry()
+
+	// ObserveResponseHeaderLatency records the winning response-header latency.
+	ObserveResponseHeaderLatency(time.Duration)
+
+	// HedgeDelay reports the route's observed p95 after the sample warmup.
+	HedgeDelay() (time.Duration, bool)
 }
 
 // FilterCloser are Filters that need to cleanup resources after
@@ -418,3 +443,6 @@ const (
 	DisableRatelimitName   = "disableRatelimit"
 	UnknownRatelimitName   = "unknownRatelimit"
 )
+
+// HedgeName is the name of the hedge filter.
+const HedgeName = "hedge"

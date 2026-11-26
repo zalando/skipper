@@ -78,3 +78,20 @@ Rules:
 ## Security
 
 - Every new package added in go.mod has to be reviewed by a human
+
+## Agent skills
+
+### Issue tracker
+
+Tickets use local Markdown. Before reading or publishing tickets, read
+`docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Local ticket status values use the default triage vocabulary. Before assigning
+a triage status, read `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository. Before domain analysis or ticket drafting,
+read `docs/agents/domain.md`.
