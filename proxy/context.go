@@ -39,6 +39,8 @@ type context struct {
 	pathParams           map[string]string
 	stateBag             map[string]any
 	originalRequest      *http.Request
+	arrivedAsShadow      bool
+	hedgePrimary         primaryOutcome
 	originalResponse     *http.Response
 	outgoingHost         string
 	backendZone          string
@@ -156,6 +158,10 @@ func newContext(
 
 	if p.flags.PreserveOriginal() {
 		c.originalRequest = cloneRequestMetadata(r)
+	}
+
+	if p.hedger != nil {
+		c.arrivedAsShadow = r.Header.Get(filters.ShadowTrafficHeader) != ""
 	}
 
 	return c
