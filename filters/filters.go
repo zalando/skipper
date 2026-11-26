@@ -42,6 +42,18 @@ const (
 )
 
 // FilterContext object providing state and information that is unique to a request.
+// RoutePredicate holds the name and arguments of a predicate as defined in a route.
+type RoutePredicate struct {
+	Name string
+	Args []interface{}
+}
+
+// RouteFilter holds the name and arguments of a filter as defined in a route.
+type RouteFilter struct {
+	Name string
+	Args []interface{}
+}
+
 type FilterContext interface {
 	// The response writer object belonging to the incoming request. Used by
 	// filters that handle the requests themselves.
@@ -140,9 +152,17 @@ type FilterContext interface {
 
 	Logger() FilterContextLogger
 
-	// RouteId Returns the route ID of the currently matched route or an empty string
+	// RouteId returns the route ID of the currently matched route or an empty string
 	// if no route has been matched yet.
 	RouteId() string
+
+	// RoutePredicates returns a copy of the predicate definitions of the currently matched route,
+	// or nil if no route has been matched yet. Modifications do not affect the routing table.
+	RoutePredicates() []RoutePredicate
+
+	// RouteFilters returns a copy of the filter definitions of the currently matched route,
+	// or nil if no route has been matched yet. Modifications do not affect the routing table.
+	RouteFilters() []RouteFilter
 }
 
 // FilterContextLogger is the logger which logs messages with additional context information.
