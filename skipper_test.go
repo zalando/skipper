@@ -1274,6 +1274,10 @@ func TestOptionsHedgeParams(t *testing.T) {
 		o:       Options{HedgeEnabled: true},
 		wantErr: true,
 	}, {
+		name: "enabled with percentile and without delay",
+		o:    Options{HedgeEnabled: true, HedgePercentile: 0.9},
+		want: &proxy.HedgeParams{Percentile: 0.9},
+	}, {
 		name:    "enabled with negative delay",
 		o:       Options{HedgeEnabled: true, HedgeFixedDelay: -time.Second},
 		wantErr: true,
@@ -1288,6 +1292,22 @@ func TestOptionsHedgeParams(t *testing.T) {
 		name: "enabled",
 		o:    Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgeBudgetPercent: 7, HedgeRouteCounters: true},
 		want: &proxy.HedgeParams{FixedDelay: 50 * time.Millisecond, BudgetPercent: 7, RouteCounters: true},
+	}, {
+		name: "adaptive",
+		o:    Options{HedgeEnabled: true, HedgeFixedDelay: 50 * time.Millisecond, HedgePercentile: 0.95, HedgeMinDelay: 5 * time.Millisecond},
+		want: &proxy.HedgeParams{FixedDelay: 50 * time.Millisecond, Percentile: 0.95, MinDelay: 5 * time.Millisecond},
+	}, {
+		name:    "percentile too low",
+		o:       Options{HedgeEnabled: true, HedgeFixedDelay: time.Second, HedgePercentile: 0.2},
+		wantErr: true,
+	}, {
+		name:    "percentile of one",
+		o:       Options{HedgeEnabled: true, HedgeFixedDelay: time.Second, HedgePercentile: 1},
+		wantErr: true,
+	}, {
+		name:    "negative minimum delay",
+		o:       Options{HedgeEnabled: true, HedgeFixedDelay: time.Second, HedgeMinDelay: -time.Second},
+		wantErr: true,
 	}} {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.o.hedgeParams()
