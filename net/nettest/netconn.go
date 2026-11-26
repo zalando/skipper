@@ -11,18 +11,12 @@ import (
 	"io"
 	"math"
 	"net"
-	"net/http"
 	"net/netip"
 	"os"
 	"sync"
 	"testing/synctest"
 	"time"
 )
-
-// FakeNetListen creates an in-memory, synthetic net.Listener for testing.
-func FakeNetListen() *FakeNetListener {
-	return NewFakeNetListener()
-}
 
 // NewFakeNetListener returns an initialized *FakeNetListener.
 func NewFakeNetListener() *FakeNetListener {
@@ -121,13 +115,6 @@ func (li *FakeNetListener) Addr() net.Addr {
 func (li *FakeNetListener) DialContext() func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
 		return li.Connect()
-	}
-}
-
-// NewTestTransport returns an http.Transport configured to dial through the given FakeNetListener.
-func NewTestTransport(li *FakeNetListener) *http.Transport {
-	return &http.Transport{
-		DialContext: li.DialContext(),
 	}
 }
 

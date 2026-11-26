@@ -26,6 +26,7 @@ func runAdmissionControlTest(t *testing.T, routeFormat string, fr filters.Regist
 		counter := int64(1)
 		serverErrN := int64(37)
 		timeoutN := int64(6)
+		timeout := 5 * time.Millisecond
 
 		backendListener := nettest.NewFakeNetListener()
 		defer backendListener.Close()
@@ -35,7 +36,10 @@ func runAdmissionControlTest(t *testing.T, routeFormat string, fr filters.Regist
 
 			v := atomic.LoadInt64(&counter)
 			if v%timeoutN == 0 {
-				w.WriteHeader(499)
+				select {
+				case <-time.After(timeout):
+				case <-r.Context().Done():
+				}
 				return
 			} else if v%serverErrN == 0 {
 				w.WriteHeader(500)
@@ -95,21 +99,14 @@ func runAdmissionControlTest(t *testing.T, routeFormat string, fr filters.Regist
 				time.Sleep(20 * time.Millisecond)
 			}
 
-			// Pre-cancel the context every timeoutN requests so client.Do aborts
-			// immediately without performing a network roundtrip, deterministically
-			// simulating client-side timeouts (counted under statusCounts[0]).
-			ctx := context.Background()
-			var cancel context.CancelFunc
-			if (int64(i)+1)%timeoutN == 0 {
-				ctx, cancel = context.WithCancel(ctx)
-				cancel()
-			}
-
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			r, err := http.NewRequestWithContext(ctx, "GET", p.URL, nil)
 			if err != nil {
+				cancel()
 				t.Fatalf("Failed to create request: %v", err)
 			}
 			resp, err := client.Do(r)
+			cancel()
 			if err != nil {
 				statusCounts[0]++
 				continue
