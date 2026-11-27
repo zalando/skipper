@@ -1182,7 +1182,11 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	responseStopWatch.Start()
 
 	if endpointMetrics != nil {
-		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil})
+		// Client cancellation and blocked request bodies do not indicate unhealthy endpoints.
+		// Check the incoming context so backend timeouts still count as failures.
+		endpointMetrics.IncRequests(routing.IncRequestsOptions{
+			FailedRoundTrip: err != nil && ctx.request.Context().Err() == nil && !errors.Is(err, skpio.ErrBlocked),
+		})
 	}
 	if p.tracing.clientTraceByTag {
 		ctx.proxySpan.SetTag(ClientTraceHTTPRoundTrip, time.Since(httpRoundtripTime).Microseconds())
