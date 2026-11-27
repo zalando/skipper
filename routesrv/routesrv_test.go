@@ -1584,7 +1584,9 @@ func TestZoneAwareRoutingEndToEndWithRealEndpointSlice(t *testing.T) {
 		backendFixture   string
 		ingressFixture   string
 		enableEPSlices   bool
+		maxZoneSkew      int
 		wantZoneFiltered bool
+		wantZoneEskip    string
 	}{
 		{
 			name:             "balanced",
@@ -1592,6 +1594,7 @@ func TestZoneAwareRoutingEndToEndWithRealEndpointSlice(t *testing.T) {
 			ingressFixture:   "skipper-ingress-balanced.yaml",
 			enableEPSlices:   true,
 			wantZoneFiltered: true,
+			wantZoneEskip:    "all-zones-3-addr.eskip",
 		},
 		{
 			name:             "ingressSkewed",
@@ -1606,6 +1609,15 @@ func TestZoneAwareRoutingEndToEndWithRealEndpointSlice(t *testing.T) {
 			ingressFixture:   "skipper-ingress-missing-zone.yaml",
 			enableEPSlices:   true,
 			wantZoneFiltered: false,
+		},
+		{
+			name:             "ingress exposed by overlapping services",
+			backendFixture:   "all-zones-3-addr.yaml",
+			ingressFixture:   "skipper-ingress-overlapping-services.yaml",
+			enableEPSlices:   true,
+			maxZoneSkew:      1,
+			wantZoneFiltered: true,
+			wantZoneEskip:    "all-zones-3-addr.eskip",
 		},
 		{
 			name:             "backend imbalanced",
@@ -1643,6 +1655,7 @@ func TestZoneAwareRoutingEndToEndWithRealEndpointSlice(t *testing.T) {
 				Kubernetes:                     true,
 				KubernetesURL:                  ks.URL,
 				KubernetesEnableEndpointslices: tc.enableEPSlices,
+				KubernetesZoneMaxSkew:          tc.maxZoneSkew,
 			})
 			rs.StartUpdates()
 			defer rs.StopUpdates()
@@ -1659,6 +1672,13 @@ func TestZoneAwareRoutingEndToEndWithRealEndpointSlice(t *testing.T) {
 			} else {
 				assert.Equal(t, global.Body.String(), zone.Body.String(),
 					"expected fallback to global routes")
+			}
+
+			if tc.wantZoneEskip != "" {
+				got, err := eskip.Parse(zone.Body.String())
+				require.NoError(t, err)
+				want := parseEskipFixture(t, "testdata/zone-aware-traffic/"+tc.wantZoneEskip)
+				assert.True(t, eskip.EqLists(got, want), "zone response must contain only endpoints of the requested zone: %s", cmp.Diff(got, want))
 			}
 		})
 	}

@@ -34,7 +34,7 @@ func matchesAllLabels(labels, toMatch map[string]string) bool {
 	return true
 }
 
-// isServiceBalancedAcrossZones reports whether the combined endpoints of
+// isServiceBalancedAcrossZones reports whether the unique endpoints of
 // every Service matching labelSelector are evenly spread across zones.
 func (state *clusterState) isServiceBalancedAcrossZones(labelSelector map[string]string, maxZoneSkew int) bool {
 	if !state.enableEndpointSlices {
@@ -47,6 +47,7 @@ func (state *clusterState) isServiceBalancedAcrossZones(labelSelector map[string
 	}
 
 	var matched int
+	zoneByAddress := make(map[string]string)
 	zoneCounts := map[string]int{}
 	for resID, svc := range state.services {
 		if svc.Meta == nil || !matchesAllLabels(svc.Meta.Labels, labelSelector) {
@@ -59,9 +60,22 @@ func (state *clusterState) isServiceBalancedAcrossZones(labelSelector map[string
 			continue
 		}
 		for _, ep := range eps.Endpoints {
-			if ep.Zone != "" {
-				zoneCounts[ep.Zone]++
+			if ep.Zone == "" {
+				continue
 			}
+			// Several Services can select the same pods, e.g. a ClusterIP and an
+			// internal LoadBalancer Service for one data plane, so count each pod
+			// once. Conflicting zones for one address mean stale EndpointSlices,
+			// so fall back to cross-zone routing instead of guessing a zone.
+			if zone, ok := zoneByAddress[ep.Address]; ok {
+				if zone != ep.Zone {
+					log.Warnf("data-plane endpoint %s is reported in zones %q and %q; falling back to cross-zone routing", ep.Address, zone, ep.Zone)
+					return false
+				}
+				continue
+			}
+			zoneByAddress[ep.Address] = ep.Zone
+			zoneCounts[ep.Zone]++
 		}
 	}
 
