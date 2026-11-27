@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/block"
+	skpio "github.com/zalando/skipper/io"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/metrics/metricstest"
 	zhttptest "github.com/zalando/skipper/net/httptest"
@@ -149,6 +151,7 @@ func TestPHCRoundTripFailures(t *testing.T) {
 	}{
 		{name: "success"},
 		{name: "client cancellation", wantCode: 499},
+		{name: "blocked body", wantCode: http.StatusBadRequest},
 		{name: "backend timeout", wantFailed: true, wantCode: http.StatusGatewayTimeout},
 		{name: "backend cancellation", wantFailed: true, wantCode: 499},
 		{name: "transport failure", wantFailed: true},
@@ -167,6 +170,8 @@ func TestPHCRoundTripFailures(t *testing.T) {
 				case "backend cancellation":
 					cancelBackend()
 					<-r.Context().Done()
+				case "blocked body":
+					io.Copy(io.Discard, r.Body)
 				case "transport failure":
 					conn, _, err := w.(http.Hijacker).Hijack()
 					if assert.NoError(t, err) {
@@ -205,6 +210,12 @@ func TestPHCRoundTripFailures(t *testing.T) {
 				request: httptest.NewRequest(http.MethodGet, "http://proxy.example/", nil).WithContext(incoming),
 				route:   route,
 			}
+			if tt.name == "blocked body" {
+				ctx.request = httptest.NewRequest(http.MethodPost, "http://proxy.example/", strings.NewReader("blocked content")).WithContext(incoming)
+				f, err := block.NewBlock(1024).CreateFilter([]any{"blocked"})
+				require.NoError(t, err)
+				f.Request(ctx)
+			}
 			rsp, perr := p.makeBackendRequest(ctx, backendContext)
 			if ctx.proxySpan != nil {
 				defer ctx.proxySpan.Finish()
@@ -219,6 +230,9 @@ func TestPHCRoundTripFailures(t *testing.T) {
 				}
 			}
 			switch tt.name {
+			case "blocked body":
+				assert.NoError(t, incoming.Err())
+				assert.ErrorIs(t, perr.err, skpio.ErrBlocked)
 			case "backend timeout":
 				assert.NoError(t, incoming.Err())
 				assert.ErrorIs(t, backendContext.Err(), stdlibcontext.DeadlineExceeded)
