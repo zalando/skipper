@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	stdlibcontext "context"
 	"fmt"
 	"io"
 	"math"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/metrics/metricstest"
 	zhttptest "github.com/zalando/skipper/net/httptest"
 	"github.com/zalando/skipper/routing"
@@ -126,6 +129,107 @@ func setupServices(t *testing.T, healthy, unhealthy int) string {
 		t.Cleanup(service.Close)
 	}
 	return fmt.Sprint(`"`, strings.Join(services, `", "`), `"`)
+}
+
+type recordingEndpointMetrics struct {
+	routing.Metrics
+	requests []routing.IncRequestsOptions
+}
+
+func (m *recordingEndpointMetrics) IncRequests(o routing.IncRequestsOptions) {
+	m.requests = append(m.requests, o)
+	m.Metrics.IncRequests(o)
+}
+
+func TestPHCRoundTripFailures(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		wantFailed bool
+		wantCode   int
+	}{
+		{name: "success"},
+		{name: "client cancellation", wantCode: 499},
+		{name: "backend timeout", wantFailed: true, wantCode: http.StatusGatewayTimeout},
+		{name: "backend cancellation", wantFailed: true, wantCode: 499},
+		{name: "transport failure", wantFailed: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			incoming, cancel := stdlibcontext.WithCancel(stdlibcontext.Background())
+			defer cancel()
+			var cancelBackend stdlibcontext.CancelFunc
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch tt.name {
+				case "client cancellation":
+					cancel()
+					<-r.Context().Done()
+				case "backend timeout":
+					<-r.Context().Done()
+				case "backend cancellation":
+					cancelBackend()
+					<-r.Context().Done()
+				case "transport failure":
+					conn, _, err := w.(http.Hijacker).Hijack()
+					if assert.NoError(t, err) {
+						conn.Close()
+					}
+				}
+			}))
+			defer backend.Close()
+
+			p := WithParams(Params{
+				EnablePassiveHealthCheck: true,
+				PassiveHealthCheck:       &PassiveHealthCheck{MaxUnhealthyEndpointsRatio: 1},
+			})
+			defer p.Close()
+			defer p.roundTripper.(*http.Transport).CloseIdleConnections()
+
+			route := &routing.Route{Route: eskip.Route{
+				BackendType: eskip.LBBackend,
+				LBAlgorithm: "roundRobin",
+				LBEndpoints: []*eskip.LBEndpoint{{Address: backend.URL}},
+			}}
+			loadbalancer.NewAlgorithmProvider().Do([]*routing.Route{route})
+			m := &recordingEndpointMetrics{Metrics: p.registry.GetMetrics(route.LBEndpoints[0].Host)}
+			route.LBEndpoints[0].Metrics = m
+
+			backendContext := incoming
+			switch tt.name {
+			case "backend timeout":
+				backendContext, cancelBackend = stdlibcontext.WithTimeout(incoming, 50*time.Millisecond)
+				defer cancelBackend()
+			case "backend cancellation":
+				backendContext, cancelBackend = stdlibcontext.WithCancel(incoming)
+				defer cancelBackend()
+			}
+			ctx := &context{
+				request: httptest.NewRequest(http.MethodGet, "http://proxy.example/", nil).WithContext(incoming),
+				route:   route,
+			}
+			rsp, perr := p.makeBackendRequest(ctx, backendContext)
+			if ctx.proxySpan != nil {
+				defer ctx.proxySpan.Finish()
+			}
+			if tt.name == "success" {
+				require.Nil(t, perr)
+				rsp.Body.Close()
+			} else {
+				require.NotNil(t, perr)
+				if tt.wantCode != 0 {
+					assert.Equal(t, tt.wantCode, perr.code)
+				}
+			}
+			switch tt.name {
+			case "backend timeout":
+				assert.NoError(t, incoming.Err())
+				assert.ErrorIs(t, backendContext.Err(), stdlibcontext.DeadlineExceeded)
+			case "backend cancellation":
+				assert.NoError(t, incoming.Err())
+				assert.ErrorIs(t, backendContext.Err(), stdlibcontext.Canceled)
+			}
+			assert.Equal(t, []routing.IncRequestsOptions{{FailedRoundTrip: tt.wantFailed}}, m.requests)
+			assert.Zero(t, m.InflightRequests())
+		})
+	}
 }
 
 func TestPHCWithoutRequests(t *testing.T) {
