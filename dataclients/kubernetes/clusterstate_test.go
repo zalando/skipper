@@ -87,12 +87,18 @@ func BenchmarkCachedEndpoint(b *testing.B) {
 
 // makeSkipperEndpointSlice builds a skipperEndpointSlice from a map of zone→count.
 func makeSkipperEndpointSlice(zoneCounts map[string]int) *skipperEndpointSlice {
+	return makeSkipperEndpointSliceWithPrefix("10.0.", zoneCounts)
+}
+
+// makeSkipperEndpointSliceWithPrefix builds a skipperEndpointSlice from a map of
+// zone→count, with addresses starting with prefix.
+func makeSkipperEndpointSliceWithPrefix(prefix string, zoneCounts map[string]int) *skipperEndpointSlice {
 	eps := &skipperEndpointSlice{}
 	i := 0
 	for zone, count := range zoneCounts {
 		for range count {
 			eps.Endpoints = append(eps.Endpoints, &skipperEndpoint{
-				Address: "10.0." + strconv.Itoa(i) + ".1",
+				Address: prefix + strconv.Itoa(i) + ".1",
 				Zone:    zone,
 			})
 			i++
@@ -116,6 +122,15 @@ func makeService(namespace, name string, labels map[string]string) *service {
 func TestIsServiceBalancedAcrossZones(t *testing.T) {
 	defaultSelector := map[string]string{"application": "skipper-ingress", "component": "ingress"}
 	defaultLabels := map[string]string{"application": "skipper-ingress", "component": "ingress"}
+
+	overlappingServices := map[definitions.ResourceID]*service{
+		newResourceID("kube-system", "skipper-ingress"):      makeService("kube-system", "skipper-ingress", defaultLabels),
+		newResourceID("kube-system", "skipper-internal"):     makeService("kube-system", "skipper-internal", defaultLabels),
+		newResourceID("kube-system", "skipper-internal-eks"): makeService("kube-system", "skipper-internal-eks", defaultLabels),
+	}
+	sharedBalanced := makeSkipperEndpointSliceWithPrefix("10.1.", map[string]int{"a": 2, "b": 3, "c": 3})
+	sharedSkewed := makeSkipperEndpointSliceWithPrefix("10.2.", map[string]int{"a": 1, "b": 3, "c": 3})
+	sharedZoneA := makeSkipperEndpointSliceWithPrefix("10.3.", map[string]int{"a": 1})
 
 	for _, tt := range []struct {
 		name                 string
@@ -251,8 +266,8 @@ func TestIsServiceBalancedAcrossZones(t *testing.T) {
 				newResourceID("region-b", "skipper-ingress"): makeService("region-b", "skipper-ingress", defaultLabels),
 			},
 			endpointSlices: map[definitions.ResourceID]*skipperEndpointSlice{
-				newResourceID("region-a", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 2}),
-				newResourceID("region-b", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"b": 2, "c": 2}),
+				newResourceID("region-a", "skipper-ingress"): makeSkipperEndpointSliceWithPrefix("10.1.", map[string]int{"a": 2}),
+				newResourceID("region-b", "skipper-ingress"): makeSkipperEndpointSliceWithPrefix("10.2.", map[string]int{"b": 2, "c": 2}),
 			},
 			labelSelector: defaultSelector,
 			maxZoneSkew:   1,
@@ -266,8 +281,8 @@ func TestIsServiceBalancedAcrossZones(t *testing.T) {
 				newResourceID("region-b", "skipper-ingress"): makeService("region-b", "skipper-ingress", defaultLabels),
 			},
 			endpointSlices: map[definitions.ResourceID]*skipperEndpointSlice{
-				newResourceID("region-a", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 10, "b": 1, "c": 1}),
-				newResourceID("region-b", "skipper-ingress"): makeSkipperEndpointSlice(map[string]int{"a": 1, "b": 1, "c": 1}),
+				newResourceID("region-a", "skipper-ingress"): makeSkipperEndpointSliceWithPrefix("10.1.", map[string]int{"a": 10, "b": 1, "c": 1}),
+				newResourceID("region-b", "skipper-ingress"): makeSkipperEndpointSliceWithPrefix("10.2.", map[string]int{"a": 1, "b": 1, "c": 1}),
 			},
 			labelSelector: defaultSelector,
 			maxZoneSkew:   1,
@@ -287,6 +302,101 @@ func TestIsServiceBalancedAcrossZones(t *testing.T) {
 			labelSelector: defaultSelector,
 			maxZoneSkew:   1,
 			want:          true,
+		},
+		{
+			name:                 "services selecting the same pods count each pod once",
+			endpointSlicesEnable: true,
+			services:             overlappingServices,
+			endpointSlices: map[definitions.ResourceID]*skipperEndpointSlice{
+				newResourceID("kube-system", "skipper-ingress"):      sharedBalanced,
+				newResourceID("kube-system", "skipper-internal"):     sharedBalanced,
+				newResourceID("kube-system", "skipper-internal-eks"): sharedBalanced,
+			},
+			labelSelector: defaultSelector,
+			maxZoneSkew:   1,
+			want:          true, // unique: a=2, b=3, c=3; summed per service it would be a=6, b=9, c=9
+		},
+		{
+			name:                 "services selecting the same pods still detect real skew",
+			endpointSlicesEnable: true,
+			services:             overlappingServices,
+			endpointSlices: map[definitions.ResourceID]*skipperEndpointSlice{
+				newResourceID("kube-system", "skipper-ingress"):      sharedSkewed,
+				newResourceID("kube-system", "skipper-internal"):     sharedSkewed,
+				newResourceID("kube-system", "skipper-internal-eks"): sharedSkewed,
+			},
+			labelSelector: defaultSelector,
+			maxZoneSkew:   1,
+			want:          false, // unique: a=1, b=3, c=3
+		},
+		{
+			name:                 "partially overlapping services count the union of their endpoints",
+			endpointSlicesEnable: true,
+			services: map[definitions.ResourceID]*service{
+				newResourceID("kube-system", "skipper-ingress"):  makeService("kube-system", "skipper-ingress", defaultLabels),
+				newResourceID("kube-system", "skipper-internal"): makeService("kube-system", "skipper-internal", defaultLabels),
+			},
+			endpointSlices: map[definitions.ResourceID]*skipperEndpointSlice{
+				newResourceID("kube-system", "skipper-ingress"): {
+					Endpoints: append(
+						append([]*skipperEndpoint{}, sharedZoneA.Endpoints...),
+						makeSkipperEndpointSliceWithPrefix("10.4.", map[string]int{"b": 1}).Endpoints...,
+					),
+				},
+				newResourceID("kube-system", "skipper-internal"): {
+					Endpoints: append(
+						append([]*skipperEndpoint{}, sharedZoneA.Endpoints...),
+						makeSkipperEndpointSliceWithPrefix("10.5.", map[string]int{"c": 1}).Endpoints...,
+					),
+				},
+			},
+			labelSelector: defaultSelector,
+			maxZoneSkew:   0,
+			want:          true, // union: a=1, b=1, c=1; summed per service it would be a=2, b=1, c=1
+		},
+		{
+			name:                 "conflicting zones for the same address fall back to cross-zone routing",
+			endpointSlicesEnable: true,
+			services: map[definitions.ResourceID]*service{
+				newResourceID("kube-system", "skipper-ingress"):  makeService("kube-system", "skipper-ingress", defaultLabels),
+				newResourceID("kube-system", "skipper-internal"): makeService("kube-system", "skipper-internal", defaultLabels),
+			},
+			endpointSlices: map[definitions.ResourceID]*skipperEndpointSlice{
+				newResourceID("kube-system", "skipper-ingress"): {
+					Endpoints: append(
+						[]*skipperEndpoint{{Address: "10.6.0.1", Zone: "a"}},
+						makeSkipperEndpointSliceWithPrefix("10.7.", map[string]int{"a": 1, "b": 1, "c": 1}).Endpoints...,
+					),
+				},
+				newResourceID("kube-system", "skipper-internal"): {
+					Endpoints: []*skipperEndpoint{{Address: "10.6.0.1", Zone: "c"}},
+				},
+			},
+			labelSelector: defaultSelector,
+			maxZoneSkew:   1,
+			want:          false, // counting the first zone seen gives a=2, b=1, c=1 or a=1, b=1, c=2; both pass maxZoneSkew=1
+		},
+		{
+			name:                 "an address without zone in one service and with zone in another counts once",
+			endpointSlicesEnable: true,
+			services: map[definitions.ResourceID]*service{
+				newResourceID("kube-system", "skipper-ingress"):  makeService("kube-system", "skipper-ingress", defaultLabels),
+				newResourceID("kube-system", "skipper-internal"): makeService("kube-system", "skipper-internal", defaultLabels),
+			},
+			endpointSlices: map[definitions.ResourceID]*skipperEndpointSlice{
+				newResourceID("kube-system", "skipper-ingress"): {
+					Endpoints: append(
+						[]*skipperEndpoint{{Address: "10.6.0.1", Zone: ""}},
+						makeSkipperEndpointSliceWithPrefix("10.7.", map[string]int{"b": 1, "c": 1}).Endpoints...,
+					),
+				},
+				newResourceID("kube-system", "skipper-internal"): {
+					Endpoints: []*skipperEndpoint{{Address: "10.6.0.1", Zone: "a"}},
+				},
+			},
+			labelSelector: defaultSelector,
+			maxZoneSkew:   0,
+			want:          true, // a=1, b=1, c=1
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
